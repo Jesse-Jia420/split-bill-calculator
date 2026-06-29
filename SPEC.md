@@ -1,4 +1,3 @@
-# SPEC — split-bill-calculator
 
 > 版本：v0.1-dev | 状态：🚧 5 决策点已拍 4，剩 §3.4.6 邮件服务 | 日期：2026-06-29
 > 配套 PRD：/obsidian/Jesse OB VPS/JesseClaw/code-project/split-bill-calculator/PRD.md
@@ -251,13 +250,87 @@ POST /api/sessions/{id}/bills body:
 
 > v0.1 不做路径优化（贪心即可），v0.2 再考虑最小转账数。
 
+
 ---
 
-## 8. 邮件服务（**待 §3.4.6 拍**）
 
-- 推荐 Gmail SMTP（your-smtp-user@example.com + App Password）
-- 验证码模板：6 位数字 + 用途 + 过期时间
-- 邮件发送走 FastAPI BackgroundTasks，不阻塞请求
+## 8. 邮件服务（Gmail SMTP — T05 实现）
+
+- **SMTP**: Gmail SMTP (`smtp.gmail.com:587`, STARTTLS)
+- **凭据**: `your-smtp-user@example.com` + App Password（运行时从 `backend/.env` 读取，password **不**进 git、**不**进日志）
+- **验证码**: 6 位数字，由 `secrets.randbelow(10)` 生成（密码学安全，无偏置）
+- **TTL**: 默认 10 分钟（`settings.verification_code_ttl_minutes`）
+- **模板**: plain text + 简单 HTML，含 code + TTL + 忽略说明
+- **错误分层**: `EmailError` (基类) / `EmailAuthError` / `EmailNetworkError` —— 端点映射为 500
+
+### 8.1 模块（`app/services/email_service.py`）
+
+```python
+class EmailService:
+    def __init__(self, settings: Settings) -> None
+    async def send_verification_code(self, to_email: str, code: str, ttl_minutes: int) -> None
+    def _build_message(self, to_email: str, code: str, ttl_minutes: int) -> MIMEMultipart
+    def _connect_and_send(self, msg: MIMEMultipart) -> None  # starttls + login + send_message
+```
+
+特性：
+- **不**在 import 时连接 SMTP（lazy）
+- **不**记日志的 password（只记 host + user + status）
+
+### 8.2 验证码生成（`app/services/verification_code.py`）
+
+```python
+def generate_code(length: int = 6) -> str
+    # secrets.randbelow(10) × length
+    # 4 ≤ length ≤ 10，否则 ValueError
+```
+
+### 8.3 端点：`POST /auth/send-code`
+
+```
+Body:  {"email": "your-smtp-user@example.com"}
+200:   {"sent": true, "email": "...", "ttl_minutes": 10}
+400:   {"detail": {"error": "invalid email format"}}
+500:   {"detail": {"error": "send failed: <smtp error>"}}
+```
+
+v0.1 **不**存 DB —— T06 接入 `verification_codes` 表之前，验证码只发邮件不落库（sprint 范围明确划分）。
+
+### 8.4 CLI 验证（`backend/scripts/verify_email.py`）
+
+```bash
+cd /config/workspace/split-bill-calculator/backend
+.venv/bin/python -m scripts.verify_email [recipient_email]
+```
+
+读 `.env` 拿 SMTP 凭据 → 真实发一封带 6 位 code 的测试邮件 → exit 0 = 通，1 = SMTP 失败，2 = 配置错。**不**打印 password。
+
+> **T05 hard requirement**: 端到端真发邮件到 `your-smtp-user@example.com`（codeserver 内**不**依赖 bw —— 凭据已就位在 .env）。
+
+### 8.5 反模式 #31: pydantic-settings 2.x `.env` 里的 `List[str]` 字段
+
+> ❌ **错误**（Stage 1 留下的 bug）：
+> ```
+> CORS_ALLOW_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+> ```
+> 启动直接 `pydantic_settings.exceptions.SettingsError: error parsing value for field "cors_allow_origins"`。
+>
+> ✅ **正确**（T05 修法）：.env 用 **JSON 数组**：
+> ```
+> CORS_ALLOW_ORIGINS=["http://localhost:5173","http://127.0.0.1:5173","http://localhost:8448","http://127.0.0.1:8448"]
+> ```
+
+**根因**：pydantic-settings 2.x 的 dotenv provider 在 JSON-decode List 字段时**先**于 `field_validator(mode="before")` 跑 —— 逗号分隔字符串不是合法 JSON，整个字段解析失败。`field_validator` 根本**没机会**执行。
+
+**修法**（T05 选定）：
+1. `.env.example` 改 CORS 为 JSON 数组
+2. `app/core/config.py` **删除**失效的 `_parse_cors` validator —— 既然 .env 用 JSON 格式，validator 不再需要
+3. **不**改用 `python-decouple` / `dynaconf` / 自定义 dotenv source —— 过度工程
+
+**未来若需要兼容逗号分隔**：在端点层 / 工厂层手动 split（**不**在 pydantic validator 里折腾 mode="wrap"）。
+
+---
+---
 
 ---
 
@@ -292,4 +365,4 @@ POST /api/sessions/{id}/bills body:
 |------|------|------|
 | 2026-06-29 | v0.0 | 脚手架 |
 | 2026-06-29 | v0.0 | 方向调整：纯 web + 多用户 + 多 session |
-| 2026-06-29 | v0.1-dev | 5 决策点拍 4：技术栈 SvelteKit+FastAPI+SQLite / AI 仅输入端 / 轻量邮箱+验证码身份 / review 暂缓；细化核心模型 + API + 结算算法；剩 §3.4.6 邮件服务阻塞 |
+| 2026-06-30 | v0.1.0 | **Sprint 1 T05 完成**：邮件服务集成 + 修 Stage 1 .env CORS bug。<br>· 新增 `EmailService` 模块（starttls + login + send）<br>· 新增 `verification_code` 生成（`secrets.randbelow` 6位）<br>· 新增 `POST /auth/send-code` 端点（v0.1 简化：不存 DB，T06 接入）<br>· 新增 `scripts/verify_email.py` CLI 工具<br>· 修 `.env.example` CORS 改 JSON 数组格式（pydantic-settings 2.x 兼容）<br>· 修 `app/core/config.py` 删失效的 `_parse_cors` validator（dotenv 路径上 `mode="before"` 不生效）<br>· 测试：29/29 pytest 通过（`test_email_service.py` 9 + `test_verification_code.py` 18 + `test_health.py` 2）<br>· 端到端：CLI 真发邮件到 `your-smtp-user@example.com` 成功（hard requirement）<br>· 详见反模式 #31（§8.5）。commit 关联见 Sprint Board T05 行。 |
