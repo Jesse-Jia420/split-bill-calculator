@@ -14,7 +14,7 @@
     <li>session 结算 + 转账路径</li>
   </ul>
   <p>
-    <a href="/health">查看后端状态 →</a>
+    <a href="/api/health">查看后端状态 →</a>
   </p>
 </section>
 
