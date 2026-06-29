@@ -2,16 +2,14 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 
-if TYPE_CHECKING:
-    from app.db.models.sessions import Session as BillSession
-    from app.db.models.users import User
+from app.db.models.sessions import Session
+from app.db.models.users import User
 
 
 class SessionInvite(Base):
@@ -36,5 +34,5 @@ class SessionInvite(Base):
         Integer, nullable=False, default=0, server_default="0"
     )
 
-    session: Mapped["BillSession"] = relationship(back_populates="invites")
+    session: Mapped["Session"] = relationship(back_populates="invites")
     creator: Mapped["User"] = relationship(foreign_keys=[created_by])

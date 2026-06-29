@@ -8,11 +8,11 @@ from sqlalchemy import DateTime, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+from app.db.models.sessions import Session
 
 if TYPE_CHECKING:
     from app.db.models.auth_tokens import AuthToken
     from app.db.models.session_members import SessionMember
-    from app.db.models.sessions import Session as BillSession
 
 
 class User(Base):
@@ -31,8 +31,8 @@ class User(Base):
     memberships: Mapped[list["SessionMember"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
-    owned_sessions: Mapped[list["BillSession"]] = relationship(
+    owned_sessions: Mapped[list["Session"]] = relationship(
         back_populates="owner",
         cascade="all, delete-orphan",
-        foreign_keys="BillSession.owner_user_id",
+        foreign_keys="Session.owner_user_id",
     )

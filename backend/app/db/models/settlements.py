@@ -2,15 +2,13 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Integer, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 
-if TYPE_CHECKING:
-    from app.db.models.sessions import Session as BillSession
+from app.db.models.sessions import Session
 
 
 class Settlement(Base):
@@ -25,4 +23,4 @@ class Settlement(Base):
     )
     summary_json: Mapped[str] = mapped_column(Text, nullable=False)
 
-    session: Mapped["BillSession"] = relationship(back_populates="settlements")
+    session: Mapped["Session"] = relationship(back_populates="settlements")

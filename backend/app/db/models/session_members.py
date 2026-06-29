@@ -3,16 +3,14 @@ from __future__ import annotations
 
 import enum
 from datetime import datetime
-from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 
-if TYPE_CHECKING:
-    from app.db.models.sessions import Session as BillSession
-    from app.db.models.users import User
+from app.db.models.sessions import Session
+from app.db.models.users import User
 
 
 class SessionRole(str, enum.Enum):
@@ -39,5 +37,5 @@ class SessionMember(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
-    session: Mapped["BillSession"] = relationship(back_populates="members")
+    session: Mapped["Session"] = relationship(back_populates="members")
     user: Mapped["User"] = relationship(back_populates="memberships")

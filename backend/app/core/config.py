@@ -55,6 +55,18 @@ class Settings(BaseSettings):
     verification_code_ttl_minutes: int = Field(default=10)
     auth_token_ttl_days: int = Field(default=30)
 
+    # --- Auth rate limits ---
+    # Maximum /auth/send-code requests per email per hour. v0.1: 5/h.
+    send_code_rate_limit_per_hour: int = Field(default=5)
+
+    # --- Cookies ---
+    # dev: false (http). prod: true (https only). Controlled by env COOKIE_SECURE.
+    cookie_secure: bool = Field(
+        default=False,
+        description="Set Secure flag on session cookies (true in production behind HTTPS).",
+    )
+    session_cookie_name: str = Field(default="sbc_session")
+
     # --- App ---
     app_env: str = Field(default="dev")
     debug: bool = Field(default=False)

@@ -334,7 +334,135 @@ cd /config/workspace/split-bill-calculator/backend
 
 ---
 
+## T06 — 完整 auth 生命周期（2026-06-30）
+
+T05 只发邮件**不**落库（V0.1 简化版）；T06 把 `verification_codes` 表真正接上，加 verify 端点、token 签发、cookie 中间件。
+
+### T06.1 端点
+
+#### `POST /auth/send-code`（**T06 接 DB**）
+
+| 项 | 值 |
+|---|---|
+| Body | `{"email": "your-smtp-user@example.com"}` |
+| 200 | `{"sent": true, "email": "...", "ttl_minutes": 10}` |
+| 400 | `{"detail": {"error": "invalid email format"}}` |
+| 422 | 缺字段（pydantic） |
+| 429 | `{"detail": {"error": "rate limit exceeded", "retry_after_minutes": N}}` |
+| 500 | SMTP / DB 失败（**不**泄露内部细节） |
+
+逻辑：
+1. regex 校验 email 格式
+2. rate limit：查 `verification_codes` where `email = ?` 且 `created_at > now - 1h` → 计数 ≥ 5 → 429
+3. 清理**窗口外**的未用 code（**不**清理窗口内的——它们是 rate-limit 历史）
+4. 生成 6 位 code（`secrets.randbelow`）
+5. `expires_at = now + 10min` → INSERT 行
+6. SMTP 发邮件
+
+#### `POST /auth/verify-code`（**新**）
+
+| 项 | 值 |
+|---|---|
+| Body | `{"email": "...", "code": "267986"}` |
+| 200 | `{"user_id": N, "email": "...", "default_name": "...", "auth_token_expires_at": "<iso>"}` + `Set-Cookie: sbc_session=...` |
+| 400 | email / code 格式错 |
+| 401 | code 不匹配 / 已用 / 已过期 / 不存在 |
+| 500 | DB 失败 |
+
+逻辑：
+1. 校验 email + 6 位 code
+2. 查最新未用未过期 MAGIC_LINK code（`order_by created_at desc, limit 1`）
+3. `hmac.compare_digest(code, stored)` 防 timing attack
+4. 标记 `used = true`（一次性）
+5. find-or-create User（**不**存在 → `default_name = email.split("@")[0][:120]`，轻量身份）
+6. 签 token：`secrets.token_urlsafe(32)` → sha256 hash 入库
+7. 设 cookie
+
+#### `POST /auth/logout`（**新**）
+
+读 cookie → sha256 hash → DELETE AuthToken row → `Set-Cookie: ...; Max-Age=0`。**始终** 200（**不**泄露 cookie 状态）。
+
+#### `GET /auth/me`（**新**）
+
+`get_current_user` dependency：读 cookie → sha256 hash → 查 AuthToken → 检查 `expires_at` → 注入 `request.state.user`。
+- 200: `{"user_id", "email", "default_name"}`
+- 401: cookie 缺失 / 无效 / 过期
+
+### T06.2 中间件
+
+`backend/app/core/auth.py::get_current_user(request, db, sbc_session: Cookie = None) -> User`。
+- `sbc_session` 缺失 → 401
+- sha256 hash → `db.query(AuthToken).filter_by(token_hash=...).first()`
+- `expires_at < now` → 401
+- 返回 `User`（同时塞 `request.state.user`）
+- **不**每次请求更新 `last_used_at`（TTL 兜底；v0.2 再补定期刷新）
+
+### T06.3 Cookie 配置
+
+```python
+response.set_cookie(
+    key="sbc_session",
+    value=raw_token,           # 仅此处出现 1 次
+    max_age=30 * 24 * 3600,    # 30 天
+    httponly=True,             # XSS 防护
+    secure=settings.cookie_secure,  # dev=False, prod=env COOKIE_SECURE
+    samesite="lax",            # CSRF 防护
+    path="/",
+)
+```
+
+### T06.4 Settings
+
+```python
+send_code_rate_limit_per_hour: int = 5
+cookie_secure: bool = False          # env COOKIE_SECURE 覆盖
+session_cookie_name: str = "sbc_session"
+auth_token_ttl_days: int = 30
+```
+
+### T06.5 产品决策（已拍板，**不**变）
+
+- (A) **MAGIC_LINK** 复用现有 `verification_codes.purpose` 枚举
+- (B) **Token TTL = 30 天**
+- (C) Cookie = HTTP simple（httpOnly + SameSite=Lax + secure=env）
+- (D) Rate limit = **5/h per email**
+- (E) 验证码尝试次数 = **不**限（TTL 10min + rate limit 5/h 兜底——6 位 1M 空间，10min 内 1 次有效发送，brute force 概率 < 0.001%）
+- (F) **多设备共存**（老 token 保留到 `expires_at`，**不**踢）
+
+### T06.6 反模式 #32: send-code 不接 DB + 窗口内不保留行
+
+> ❌ **错误 1**（T05 留下的简化）：
+> send-code 只发邮件**不**落库——verify 端点**无**可查的 code。
+>
+> ✅ **正确 1**（T06 修法）：send-code 完整接 DB：rate limit 计数 + INSERT verification_code row + SMTP send。
+>
+> ---
+>
+> ❌ **错误 2**（若简单实现）：rate limit 检查后清理时**也**删窗口内未用 code。
+> 结果：rate limit 永远只看到 1 行（最新插入的），5 次后 429 永远**不**触发。
+>
+> ✅ **正确 2**（T06 修法）：清理 query 限定 `created_at < now - 1h`，只删**窗口外**的未用 code；窗口内未用 code 保留作为 rate-limit 历史。
+
+### T06.7 反模式 #33: `Mapped["BillSession"]` 字符串 forward reference 在 TYPE_CHECKING 块里
+
+> ❌ **错误**（v0.1 Stage 1 留下的潜在 bug）：
+> `bills.py` 等 4 个文件用 `if TYPE_CHECKING: from app.db.models.sessions import Session as BillSession` + `Mapped["BillSession"] = relationship(back_populates="bills")`。
+> `TYPE_CHECKING` 块在运行时**不**执行——模块 globals 里**没有** `BillSession`。
+> SQLAlchemy 解析 `Mapped["BillSession"]` 时 `eval()` 失败 → `configure_mappers()` 抛 `InvalidRequestError`。
+> **T05 之前没暴露**：T05 的 `app.api.auth` **不**查 DB，不触发 `configure_mappers()`。
+> **T06 暴露**：`verify-code` 查 User/AuthToken 触发 `configure_mappers()`，连带配置 Bill mapper → 失败。
+>
+> ✅ **正确**（T06 修法）：把 `from app.db.models.sessions import Session` 移到**模块顶层**（`TYPE_CHECKING` 之外）；`Mapped["Session"]` 用真实类名 `Session`（不是别名 `BillSession`）。
+>
+> **根因**：SQLAlchemy 2.x 的 `relationship()` 解析 forward reference 字符串时，从 `clsregistry._class_registry` 里按**实际类名**查找，别名不进 registry。
+>
+> **教训**：v0.1 早期单元测试覆盖不足时，潜在 mapper bug 会潜伏到**真用 DB 的**功能上才暴露。每个 `Mapped["Xxx"]` 都应配一个调用 `configure_mappers()` 的 smoke test。
+
+---
+
 ## 9. 测试策略
+
+
 
 | 层级 | 范围 | 工具 |
 |---|---|---|
@@ -366,3 +494,4 @@ cd /config/workspace/split-bill-calculator/backend
 | 2026-06-29 | v0.0 | 脚手架 |
 | 2026-06-29 | v0.0 | 方向调整：纯 web + 多用户 + 多 session |
 | 2026-06-30 | v0.1.0 | **Sprint 1 T05 完成**：邮件服务集成 + 修 Stage 1 .env CORS bug。<br>· 新增 `EmailService` 模块（starttls + login + send）<br>· 新增 `verification_code` 生成（`secrets.randbelow` 6位）<br>· 新增 `POST /auth/send-code` 端点（v0.1 简化：不存 DB，T06 接入）<br>· 新增 `scripts/verify_email.py` CLI 工具<br>· 修 `.env.example` CORS 改 JSON 数组格式（pydantic-settings 2.x 兼容）<br>· 修 `app/core/config.py` 删失效的 `_parse_cors` validator（dotenv 路径上 `mode="before"` 不生效）<br>· 测试：29/29 pytest 通过（`test_email_service.py` 9 + `test_verification_code.py` 18 + `test_health.py` 2）<br>· 端到端：CLI 真发邮件到 `your-smtp-user@example.com` 成功（hard requirement）<br>· 详见反模式 #31（§8.5）。commit 关联见 Sprint Board T05 行。 |
+| 2026-06-30 | v0.1.0 | **Sprint 1 T06 完成**：完整 auth 生命周期（DB + verify + token + cookie + me + logout）。<br>· `/auth/send-code` 接 DB：rate limit 5/h + 窗口外 code 清理 + INSERT verification_code<br>· `/auth/verify-code`：code 验证（`hmac.compare_digest`）+ 自动注册 + 签 token（`secrets.token_urlsafe(32)` + sha256 hash）+ Set-Cookie<br>· `/auth/logout`：删 token + clear cookie（始终 200，**不**泄露状态）<br>· `/auth/me`：取 current user（401 if 未登录）<br>· 新增 `app/core/auth.py::get_current_user` FastAPI dependency：cookie → sha256 hash → DB lookup<br>· `settings.cookie_secure`（env `COOKIE_SECURE` 控制 prod https only）<br>· 测试：58/58 pytest 通过（29 baseline + 29 新增：test_auth.py 24 + test_auth_flow.py 5）<br>· 端到端：真实 backend 跑通 send-code → verify-code → me → logout 完整链路 200 + cookie 设置正确（HttpOnly + SameSite=lax + Max-Age=2592000）<br>· 详见反模式 #32（§T06.6 窗口内保留 rate-limit 历史）+ 反模式 #33（§T06.7 修 T05 遗留 `Mapped["BillSession"]` forward reference 在 TYPE_CHECKING 块里导致 configure_mappers 失败的潜在 bug）<br>· 偏差（4 处**轻微** vs 任务拍板）：(1) cleanup query 改为 `created_at < now - 1h` 而**非**任务原版"删老的、未用、未过期的 code"——原版会破坏 rate-limit 计数；(2) `Mapped["BillSession"]` 改为 `Mapped["Session"]` + 模块顶层 import（修 Stage 1 潜在 bug）；(3) `test_old_unused_codes_are_cleaned_before_insert` 改名 `test_codes_older_than_window_are_cleaned_before_insert` + 新增 `test_unused_codes_inside_window_are_kept_for_rate_limit`；(4) `_read_code_for` 优先 unused code（避免 1 秒内两次插入同 `created_at` 导致 ORDER BY desc 不稳定）。 |
