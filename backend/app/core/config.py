@@ -4,7 +4,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import List
 
-from pydantic import Field, field_validator
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -29,13 +29,18 @@ class Settings(BaseSettings):
     )
 
     # --- CORS ---
+    # NOTE: pydantic-settings 2.x dotenv loader JSON-decodes List fields BEFORE field_validator
+    # (mode="before") runs, so we cannot parse comma-separated strings here. The .env file
+    # MUST use a JSON array, e.g.:
+    #   CORS_ALLOW_ORIGINS=["http://localhost:5173","http://127.0.0.1:5173"]
+    # See SPEC.md antipattern #31.
     cors_allow_origins: List[str] = Field(
         default_factory=lambda: [
-            "http://localhost:5173",
+            "http://localhost:5173", "http://localhost:8448", "http://127.0.0.1:8448",
             "http://127.0.0.1:5173",
             "http://localhost:8000",
         ],
-        description="Allowed CORS origins.",
+        description="Allowed CORS origins (JSON array in .env).",
     )
 
     # --- Email (SMTP) ---
@@ -53,14 +58,6 @@ class Settings(BaseSettings):
     # --- App ---
     app_env: str = Field(default="dev")
     debug: bool = Field(default=False)
-
-    @field_validator("cors_allow_origins", mode="before")
-    @classmethod
-    def _parse_cors(cls, v):  # noqa: D401
-        """Allow comma-separated string env values for CORS origins."""
-        if isinstance(v, str):
-            return [o.strip() for o in v.split(",") if o.strip()]
-        return v
 
 
 @lru_cache(maxsize=1)
