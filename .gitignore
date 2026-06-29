@@ -27,3 +27,12 @@ venv/
 
 # Logs
 *.log
+
+# SQLite DB (keep data/.gitkeep but not the actual DB)
+backend/data/*.db
+backend/data/*.db-journal
+backend/data/*.db-wal
+backend/data/*.db-shm
+
+# Alembic compiled cache
+backend/alembic/__pycache__/
