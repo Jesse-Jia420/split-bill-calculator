@@ -1,2 +1,2 @@
 // Auto-generated - refresh: npm run version
-export const FRONTEND_VERSION = "f2fda59";
+export const FRONTEND_VERSION = "7182076";
