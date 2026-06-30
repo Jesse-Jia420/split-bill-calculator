@@ -26,7 +26,6 @@ from app.core.database import SessionLocal
 from app.db.models.auth_tokens import AuthToken
 from app.db.models.bill_participants import BillParticipant
 from app.db.models.bills import Bill
-from app.db.models.session_invites import SessionInvite
 from app.db.models.session_members import SessionMember, SessionRole
 from app.db.models.sessions import Session as SessionModel
 from app.db.models.users import User
@@ -50,7 +49,6 @@ def _truncate_all():
         # Order matters: child rows first.
         db.query(BillParticipant).delete()
         db.query(Bill).delete()
-        db.query(SessionInvite).delete()
         db.query(SessionMember).delete()
         db.query(SessionModel).delete()
         db.query(AuthToken).delete()
@@ -137,7 +135,16 @@ def _make_session_with_members(
     db = SessionLocal()
     try:
         owner = db.query(User).filter_by(email=owner_email).one()
-        session = SessionModel(name=session_name, owner_user_id=owner.id)
+        from datetime import datetime, timedelta, timezone
+        import secrets as _secrets
+        _now = datetime.now(timezone.utc)
+        session = SessionModel(
+            name=session_name,
+            owner_user_id=owner.id,
+            invite_token=_secrets.token_urlsafe(32),
+            invite_expires_at=_now + timedelta(days=30),
+            invite_created_at=_now,
+        )
         db.add(session)
         db.flush()
         owner_sm = SessionMember(
@@ -1022,7 +1029,16 @@ class TestSessionIsolationBills:
         # Create a separate session owned by bob (alice is NOT a member).
         db = SessionLocal()
         try:
-            sid_b = SessionModel(name="Bob Trip", owner_user_id=bob_user.id)
+            from datetime import datetime, timedelta, timezone
+            import secrets as _secrets
+            _now = datetime.now(timezone.utc)
+            sid_b = SessionModel(
+                name="Bob Trip",
+                owner_user_id=bob_user.id,
+                invite_token=_secrets.token_urlsafe(32),
+                invite_expires_at=_now + timedelta(days=30),
+                invite_created_at=_now,
+            )
             db.add(sid_b)
             db.flush()
             db.add(SessionMember(

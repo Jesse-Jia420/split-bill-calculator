@@ -10,7 +10,7 @@ class Base(DeclarativeBase):
 
 
 # Importing the models package registers tables on Base.metadata so that
-# Alembic autogenerate can see them.
+# Alembic autogenerate can see them. v0.1.1: session_invites removed.
 def _register_models() -> None:
     from app.db import models  # noqa: F401
     from app.db.models import (  # noqa: F401
@@ -18,7 +18,6 @@ def _register_models() -> None:
         bill_comments,
         bill_participants,
         bills,
-        session_invites,
         session_members,
         sessions,
         users,
