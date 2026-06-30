@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+    "version": "node -e \"import(\"fs\").then(fs=>fs.default.writeFileSync(\"src/lib/version.ts\",\"// Auto-generated - refresh: npm run version\nexport const FRONTEND_VERSION = \"d69e4a27\";\n\"))\""
   },
   "devDependencies": {
     "@sveltejs/adapter-auto": "^3.2.5",

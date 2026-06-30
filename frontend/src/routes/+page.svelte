@@ -1,8 +1,30 @@
 <script lang="ts">
-  // Home page — minimal placeholder for v0.1 scaffold.
+  import { FRONTEND_VERSION } from '$lib/version';
+  import { onMount } from 'svelte';
+
+  let backendVersion = '...';
+
+  onMount(async () => {
+    try {
+      const res = await fetch('/api/version');
+      if (res.ok) {
+        const data = await res.json();
+        backendVersion = data.backend;
+      } else {
+        backendVersion = 'HTTP ' + res.status;
+      }
+    } catch {
+      backendVersion = 'unreachable';
+    }
+  });
 </script>
 
 <section>
+  <div class="version-bar">
+    <span>FE: <strong>{FRONTEND_VERSION}</strong></span>
+    <span>BE: <strong>{backendVersion}</strong></span>
+  </div>
+
   <h2>分摊计算器 · v0.1-dev</h2>
   <p>
     多用户 + 多 session 纯 web 应用。当前为 Sprint 1 阶段 1 脚手架，后续 sprint 会接入：
@@ -24,5 +46,16 @@
   }
   ul {
     padding-left: 1.5rem;
+  }
+  .version-bar {
+    font-size: 0.75rem;
+    color: #888;
+    margin-bottom: 0.5rem;
+    display: flex;
+    gap: 1rem;
+  }
+  .version-bar strong {
+    color: #555;
+    font-family: monospace;
   }
 </style>
