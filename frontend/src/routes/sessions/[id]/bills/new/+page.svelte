@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { getSession } from '$api/sessions';
@@ -26,9 +27,6 @@
     await createBill(sessionId, payload);
     await goto('/sessions/' + sessionId);
   }
-
-  // Svelte 5: re-import onMount to make it available without explicit import above.
-  import { onMount } from 'svelte';
 </script>
 
 <section>
