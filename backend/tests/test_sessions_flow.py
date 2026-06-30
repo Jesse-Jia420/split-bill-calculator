@@ -157,13 +157,20 @@ class TestSessionLifecycle:
         assert "Bangkok 2026-07" in alice_sessions
         assert alice_sessions["Bangkok 2026-07"]["member_count"] == 2
 
-        # 9. Alice (owner) revokes the invite.
-        invite_id = invite_body["id"]
-        r = alice.delete(f"/sessions/{session_id}/invites/{invite_id}")
+        # 9. Alice (owner) mints a SECOND invite and revokes it.
+        #    (Revoking the first invite would fail — Bob already accepted it,
+        #     and the implementation correctly rejects revoking a used invite.)
+        r = alice.post(f"/sessions/{session_id}/invites")
+        assert r.status_code == 201, r.text
+        second_invite = r.json()
+        second_invite_id = second_invite["id"]
+        second_token = second_invite["token"]
+
+        r = alice.delete(f"/sessions/{session_id}/invites/{second_invite_id}")
         assert r.status_code == 204, r.text
 
-        # 10. The invite is now gone (404 for everyone).
-        r = anon.get(f"/invites/{token}")
+        # 10. The revoked second invite is gone (404 for everyone).
+        r = anon.get(f"/invites/{second_token}")
         assert r.status_code == 404, r.text
 
         # 11. Bob's membership is still valid (revoke only affects the invite token).

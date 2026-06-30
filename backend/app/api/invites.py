@@ -120,7 +120,11 @@ def _iso(dt: datetime | None) -> str:
     if dt is None:
         return ""
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=datetime.now().astimezone().tzinfo)
+        # SQLite strips tzinfo on roundtrip from DateTime(timezone=True).
+        # Production code always inserts tz-aware UTC datetimes, so a
+        # naive value still represents UTC — annotate it that way so the
+        # serialised ISO string is correct (not offset by local tz).
+        dt = dt.replace(tzinfo=timezone.utc)
     return dt.isoformat()
 
 
@@ -138,14 +142,10 @@ def _classify_invite(invite: SessionInvite) -> str:
     now = datetime.now(timezone.utc)
     expires = invite.expires_at
     if expires is not None:
-        # SQLite stores naive datetimes even for DateTime(timezone=True).
-        # Production code always inserts timezone-aware UTC datetimes, so
-        # a naive value means it came from a direct INSERT in a test.
-        # Treat naive datetimes as local wall-clock time (same convention
-        # used in _iso), then convert to UTC for the comparison.
+        # Same convention as _iso: a naive value came from SQLite's
+        # naive storage of a tz-aware UTC datetime, so it represents UTC.
         if expires.tzinfo is None:
-            expires_local = expires.replace(tzinfo=datetime.now().astimezone().tzinfo)
-            expires = expires_local.astimezone(timezone.utc)
+            expires = expires.replace(tzinfo=timezone.utc)
         if expires <= now:
             return "expired"
     return "active"
@@ -273,12 +273,14 @@ async def get_invite_public(
 ) -> dict:
     """Public preview of an invite — no auth required.
 
-    200: payload always returned (status field tells the UI whether
-         the link is still joinable).
+    200: payload returned for an active invite.
     400: invalid token format.
     404: invite does not exist (we deliberately do NOT distinguish
          "not in DB" from "deleted" here — both look the same to
          a non-member probing the link).
+    410: invite is in a non-active state (already accepted, or expired).
+         Body still carries the status field so the UI can render the
+         right "this link was already used / has expired" message.
     """
     if not token or len(token) < 16 or len(token) > 128:
         raise HTTPException(
@@ -316,13 +318,24 @@ async def get_invite_public(
         inviter = db.query(User).filter_by(id=invite.created_by).first()
         inviter_display_name = inviter.default_name if inviter is not None else ""
 
-    return {
+    body = {
         "session_id": session.id,
         "session_name": session.name,
         "inviter_display_name": inviter_display_name,
         "status": _classify_invite(invite),
         "expires_at": _iso(invite.expires_at),
     }
+
+    # Non-active invites (already accepted, or expired) return 410 Gone
+    # so the UI can show a "link no longer available" message. The body
+    # still carries `status` + session metadata for the screen.
+    if body["status"] != "active":
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail=body,
+        )
+
+    return body
 
 
 # ---------------------------------------------------------------------------
