@@ -1,51 +1,62 @@
-"""Invites API — Sprint 1 T09.
+"""Invites API — Sprint 1 T09 + v0.1.1 redesign.
 
-Endpoints (mounted under /invites + /sessions/{id}/invites):
+v0.1.1 redesign (2026-06-30)
+----------------------------
+OLD: each session could have N invite links, each row in session_invites.
+Owner minted new rows (POST) and revoked individual rows (DELETE).
 
-POST   /sessions/{session_id}/invites              Mint a fresh invite
-DELETE /sessions/{session_id}/invites/{invite_id}  Revoke (owner-only)
-GET    /invites/{token}                            Public invite preview
-POST   /invites/{token}/accept                     Accept + add as member
+NEW: each session has exactly ONE invite token stored as a column on the
+sessions table. 30-day TTL, rotatable by the owner. The token becomes the
+session URL: `/invites/{token}`. Same user re-accepting = idempotent
+membership lookup (PO decision B ii, "accepted still works").
+
+Endpoints
+---------
+GET    /sessions/{id}/invite          Member reads the current token + status
+POST   /sessions/{id}/invite/rotate   Owner rotates the token (new 32-byte secret
+                                      + 30-day TTL)
+GET    /invites/{token}                Public preview (no auth)
+POST   /invites/{token}/accept         Authenticated join (idempotent)
+
+Removed in v0.1.1
+-----------------
+POST   /sessions/{id}/invites          (replaced by /invite/rotate)
+DELETE /sessions/{id}/invites/{iid}    (rotation kills the old token outright)
 
 Auth model
 ----------
-- POST /sessions/{id}/invites — caller must be a session MEMBER
-  (any role). The link is for inviting teammates; both owner and
-  member can hand one out.
-- DELETE /sessions/{id}/invites/{iid} — caller must be the session
-  OWNER. v0.1 simplification: only the owner can revoke.
-- GET /invites/{token} — public; returns enough info for the join
-  page (session name + inviter nickname + status) but no internal
-  IDs of other members or anything sensitive.
-- POST /invites/{token}/accept — public route, but the caller MUST
-  already be authenticated (we bind the invite to *their* user_id).
-  If they're not logged in, the standard 401 fires.
+- GET /sessions/{id}/invite — caller must be a session MEMBER (any role).
+  Owner needs this to copy the link; non-owners can still see status so the
+  page can render "ask the owner for a new link" UX when needed.
+- POST /sessions/{id}/invite/rotate — caller must be the session OWNER.
+- GET /invites/{token} — public. Returns enough info for the join page
+  (session name + inviter nickname + status).
+- POST /invites/{token}/accept — requires auth (we bind membership to the
+  caller's user_id). Returns 200 with existing membership if the caller is
+  already a member (idempotent).
 
 Token + lifecycle
 -----------------
-- Tokens are 32-byte URL-safe (secrets.token_urlsafe(32)).
-- TTL is settings.invite_ttl_days (env INVITE_TTL_DAYS),
-  default 30.
-- We persist the SHA-style token in clear text (it's already a
-  random 256-bit value; hashing buys us nothing extra here — the
-  existing auth_token pattern is keyed by an external secret, this
-  isn't). v0.1 keeps the column unique so lookups are O(1).
-- Accept marks used_at + accepted_by_user_id; the row stays
-  in the table (cheap audit trail) but is treated as "accepted" by
-  subsequent GETs / accepts.
-- DELETE is a soft delete (deleted_at = now). Already-accepted
-  invites return 404 — the contract is "you can't revoke a used
-  invite".
+- Tokens are 32-byte URL-safe (secrets.token_urlsafe(32)), 256 bits of
+  entropy. Stored in clear text on the sessions row -- hashing buys nothing
+  because the token itself is the secret (different from auth_tokens, where
+  the client receives the raw token and we store sha256 for at-rest safety
+  since DB reads may not be the threat model).
+- TTL is settings.invite_ttl_days (env INVITE_TTL_DAYS), default 30.
+- Rotation: owner calls POST /sessions/{id}/invite/rotate, the old token is
+  invalidated immediately (no grace period -- simpler, matches PO spec
+  "rotate 之前 disable 旧 token 1 小时" rejection).
+- Accept idempotency: same user re-visiting the link = same membership row
+  returned. The token does NOT have a "used" state -- the public contract is
+  "valid until expiry or rotation".
 
 Errors
 ------
-- 400: invalid token format / bad display_name.
-- 401: caller is not logged in (accept).
-- 403: caller is not a member (create) / not the owner (revoke).
-- 404: invite not found / already revoked / already accepted (revoke
-  only — GET/accept use 410 for non-active states).
-- 410: invite exists but is in a non-active state (accepted /
-  expired / deleted).
+- 400: invalid token format / blank display_name.
+- 401: caller is not logged in (accept + invite/rotate).
+- 403: caller is not a member (GET /invite) / not the owner (rotate).
+- 404: session not found, or no member row (handled by get_session_member).
+- 410: token expired.
 """
 from __future__ import annotations
 
@@ -56,14 +67,12 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path, status
 from pydantic import BaseModel, Field
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.session_isolation import get_session_member, require_session_owner
-from app.db.models.session_invites import SessionInvite
+from app.core.session_isolation import get_session_member
 from app.db.models.session_members import SessionMember, SessionRole
 from app.db.models.sessions import Session as SessionModel
 from app.db.models.users import User
@@ -78,25 +87,32 @@ router = APIRouter(tags=["invites"])
 # ---------------------------------------------------------------------------
 
 
-class InviteCreateResponse(BaseModel):
-    id: int
+class SessionInviteView(BaseModel):
+    """Returned by GET /sessions/{id}/invite + POST /sessions/{id}/invite/rotate.
+
+    `url` is the client-relative path (`/invites/{token}`); the frontend
+    prepends `window.location.origin` at render time so we don't bake the
+    host/port into the API contract (no hardcoded dev port).
+    """
+
     token: str
-    session_id: int
+    url: str
     created_at: str
     expires_at: str
+    status: str  # "active" | "expired"
 
 
 class InvitePublicView(BaseModel):
     """Payload returned by the public GET /invites/{token}.
 
-    Deliberately minimal: the only fields needed to render a join
-    screen. No member list, no creator user_id, no internal IDs.
+    Deliberately minimal: the only fields needed to render a join screen.
+    No member list, no creator user_id, no internal IDs.
     """
 
     session_id: int
     session_name: str
     inviter_display_name: str
-    status: str  # "active" | "accepted" | "expired" | "deleted"
+    status: str  # "active" | "expired"
     expires_at: str
 
 
@@ -128,138 +144,112 @@ def _iso(dt: datetime | None) -> str:
     return dt.isoformat()
 
 
-def _classify_invite(invite: SessionInvite) -> str:
-    """Return the public status string for an invite row.
-
-    Order matters: deleted_at (owner-revoked) wins over "accepted"
-    because once revoked the invite is no longer joinable regardless
-    of prior acceptance.
-    """
-    if invite.deleted_at is not None:
-        return "deleted"
-    if invite.used_at is not None:
-        return "accepted"
-    now = datetime.now(timezone.utc)
-    expires = invite.expires_at
-    if expires is not None:
-        # Same convention as _iso: a naive value came from SQLite's
-        # naive storage of a tz-aware UTC datetime, so it represents UTC.
-        if expires.tzinfo is None:
-            expires = expires.replace(tzinfo=timezone.utc)
-        if expires <= now:
-            return "expired"
+def _invite_status(session: SessionModel) -> str:
+    """Return the public status string for a session's invite token."""
+    expires = session.invite_expires_at
+    if expires is None:
+        return "active"
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    if expires < datetime.now(timezone.utc):
+        return "expired"
     return "active"
 
 
-# ---------------------------------------------------------------------------
-# POST /sessions/{session_id}/invites
-# ---------------------------------------------------------------------------
-
-
-@router.post(
-    "/sessions/{session_id}/invites",
-    response_model=InviteCreateResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-async def create_invite(
-    sm: Annotated[SessionMember, Depends(get_session_member)],
-    db: Annotated[Session, Depends(get_db)],
-) -> dict:
-    """Mint a new invite link for the session.
-
-    Any member of the session can generate one (the link is just a
-    token; once it leaves the chat it works the same regardless of
-    who shared it).
-
-    201: invite row created with 32-byte URL-safe token + TTL.
-    401: not logged in.
-    403: not a member of the session.
-    """
-    now = datetime.now(timezone.utc)
-    expires_at = now + timedelta(days=settings.invite_ttl_days)
-
-    # Loop on the (extremely unlikely) unique-token collision. 32 bytes
-    # of randomness = 256 bits, but cheap to retry once just in case.
-    invite: SessionInvite | None = None
-    for _ in range(3):
-        token = secrets.token_urlsafe(32)
-        candidate = SessionInvite(
-            session_id=sm.session_id,
-            token=token,
-            created_by=sm.user_id,
-            expires_at=expires_at,
-        )
-        db.add(candidate)
-        try:
-            db.commit()
-            invite = candidate
-            break
-        except IntegrityError:
-            db.rollback()
-            continue
-    if invite is None:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": "could not mint unique invite token"},
-        )
-    db.refresh(invite)
-
+def _invite_payload(session: SessionModel) -> dict:
+    """Build the SessionInviteView payload for a session row."""
     return {
-        "id": invite.id,
-        "token": invite.token,
-        "session_id": invite.session_id,
-        "created_at": _iso(invite.created_at),
-        "expires_at": _iso(invite.expires_at),
+        "token": session.invite_token,
+        "url": f"/invites/{session.invite_token}",
+        "created_at": _iso(session.invite_created_at),
+        "expires_at": _iso(session.invite_expires_at),
+        "status": _invite_status(session),
     }
 
 
 # ---------------------------------------------------------------------------
-# DELETE /sessions/{session_id}/invites/{invite_id}
+# GET /sessions/{id}/invite   (any session member)
 # ---------------------------------------------------------------------------
 
 
-@router.delete(
-    "/sessions/{session_id}/invites/{invite_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
+@router.get(
+    "/sessions/{session_id}/invite",
+    response_model=SessionInviteView,
 )
-async def revoke_invite(
-    sm: Annotated[SessionMember, Depends(require_session_owner)],
+async def get_session_invite(
+    sm: Annotated[SessionMember, Depends(get_session_member)],
     db: Annotated[Session, Depends(get_db)],
-    invite_id: int = Path(..., description="SessionInvite.id"),
-) -> None:
-    """Owner-only soft-delete of an invite.
+) -> dict:
+    """Return the current invite token for a session.
 
-    204: deleted.
+    Any member can read this -- the link is meant to be shareable inside
+    the session. Non-members 403 via the dependency. Non-owners seeing the
+    token is fine: it doesn't grant extra privilege (they could already
+    list the session via /sessions).
+
+    200: payload with token + url + created/expires + status.
     401: not logged in.
-    403: not the session owner.
-    404: invite does not exist OR was already accepted (we do not let
-         owners revoke consumed invites — the accept flow is the
-         single point where membership is created).
+    403: not a member.
     """
-    invite = (
-        db.query(SessionInvite)
-        .filter_by(id=invite_id, session_id=sm.session_id)
-        .first()
-    )
-    if invite is None:
+    session = db.query(SessionModel).filter_by(id=sm.session_id).first()
+    if session is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail={"error": "invite not found"},
+            detail={"error": "session not found"},
         )
-    if invite.used_at is not None:
-        # Already accepted → cannot be revoked.
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"error": "invite not found"},
-        )
-
-    invite.deleted_at = datetime.now(timezone.utc)
-    db.commit()
-    return None
+    return _invite_payload(session)
 
 
 # ---------------------------------------------------------------------------
-# GET /invites/{token}  (public)
+# POST /sessions/{id}/invite/rotate   (owner only)
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/sessions/{session_id}/invite/rotate",
+    response_model=SessionInviteView,
+)
+async def rotate_session_invite(
+    sm: Annotated[SessionMember, Depends(get_session_member)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    """Owner-only: rotate the session's invite token.
+
+    Generates a fresh 32-byte URL-safe token and resets the 30-day TTL.
+    The old token is invalidated immediately -- the unique-index collision
+    is impossible (full 256-bit entropy) but even if it occurred, the
+    first row to commit would win and the rotation would still effectively
+    "rotate" because the public preview checks expiry + we update
+    invite_created_at so any "previously seen" copies no longer match.
+
+    200: new payload with the fresh token.
+    401: not logged in.
+    403: caller is not the session owner (checked explicitly so the error
+         message is precise -- "only owner can rotate").
+    """
+    session = db.query(SessionModel).filter_by(id=sm.session_id).first()
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "session not found"},
+        )
+    if sm.role != SessionRole.OWNER.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": "only the session owner can rotate the invite"},
+        )
+
+    now = datetime.now(timezone.utc)
+    session.invite_token = secrets.token_urlsafe(32)
+    session.invite_created_at = now
+    session.invite_expires_at = now + timedelta(days=settings.invite_ttl_days)
+    db.commit()
+    db.refresh(session)
+    return _invite_payload(session)
+
+
+# ---------------------------------------------------------------------------
+# GET /invites/{token}   (public)
 # ---------------------------------------------------------------------------
 
 
@@ -271,16 +261,14 @@ async def get_invite_public(
     db: Annotated[Session, Depends(get_db)],
     token: str = Path(..., description="Invite token from link"),
 ) -> dict:
-    """Public preview of an invite — no auth required.
+    """Public preview of an invite -- no auth required.
 
     200: payload returned for an active invite.
     400: invalid token format.
-    404: invite does not exist (we deliberately do NOT distinguish
-         "not in DB" from "deleted" here — both look the same to
-         a non-member probing the link).
-    410: invite is in a non-active state (already accepted, or expired).
-         Body still carries the status field so the UI can render the
-         right "this link was already used / has expired" message.
+    404: token does not exist (deliberately indistinct from "expired" to
+         avoid enumeration).
+    410: invite is expired. Body still carries the status field so the UI
+         can render "this link has expired" with context.
     """
     if not token or len(token) < 16 or len(token) > 128:
         raise HTTPException(
@@ -288,48 +276,40 @@ async def get_invite_public(
             detail={"error": "invalid token format"},
         )
 
-    invite = db.query(SessionInvite).filter_by(token=token).first()
-    if invite is None or invite.deleted_at is not None:
-        # Same shape as "not found" — no enumeration leak.
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"error": "invite not found"},
-        )
-
-    session = db.query(SessionModel).filter_by(id=invite.session_id).first()
+    session = db.query(SessionModel).filter_by(invite_token=token).first()
     if session is None:
-        # Orphan invite (parent session deleted). Treat as not found.
+        # Deliberately do not distinguish "never existed" from "rotated
+        # away" -- both look like 404 to a probing client.
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": "invite not found"},
         )
 
-    # The inviter is the user whose display name shows in the preview
-    # — we want their *session-scoped* nickname if we can find it,
-    # falling back to their global default_name.
-    inviter_member = (
+    # The inviter is the session owner -- in v0.1.1 the owner is the
+    # canonical source of the invite. Prefer the owner's per-session
+    # nickname (SessionMember.display_name) so the preview reflects how
+    # they sign themselves in this session, not their global default_name.
+    owner_member = (
         db.query(SessionMember)
-        .filter_by(session_id=invite.session_id, user_id=invite.created_by)
+        .filter_by(session_id=session.id, user_id=session.owner_user_id)
         .first()
     )
-    if inviter_member is not None:
-        inviter_display_name = inviter_member.display_name
+    if owner_member is not None:
+        inviter_display_name = owner_member.display_name
     else:
-        inviter = db.query(User).filter_by(id=invite.created_by).first()
-        inviter_display_name = inviter.default_name if inviter is not None else ""
+        owner = db.query(User).filter_by(id=session.owner_user_id).first()
+        inviter_display_name = owner.default_name if owner is not None else ""
 
+    status_str = _invite_status(session)
     body = {
         "session_id": session.id,
         "session_name": session.name,
         "inviter_display_name": inviter_display_name,
-        "status": _classify_invite(invite),
-        "expires_at": _iso(invite.expires_at),
+        "status": status_str,
+        "expires_at": _iso(session.invite_expires_at),
     }
 
-    # Non-active invites (already accepted, or expired) return 410 Gone
-    # so the UI can show a "link no longer available" message. The body
-    # still carries `status` + session metadata for the screen.
-    if body["status"] != "active":
+    if status_str != "active":
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
             detail=body,
@@ -339,7 +319,7 @@ async def get_invite_public(
 
 
 # ---------------------------------------------------------------------------
-# POST /invites/{token}/accept  (requires auth)
+# POST /invites/{token}/accept   (requires auth)
 # ---------------------------------------------------------------------------
 
 
@@ -355,14 +335,16 @@ async def accept_invite(
 ) -> dict:
     """Accept an invite; the caller becomes a session member.
 
-    200: caller added to the session as role='member'. Body carries
-         the resulting state so the UI can navigate straight into
-         the new session.
+    Idempotent: if the caller is already a member of this session, we
+    short-circuit and return the existing membership rather than failing.
+    This is the v0.1.1 PO contract: "accepted still works" -- a returning
+    member can re-visit the link from a new device and still get in.
+
+    200: caller is added (or already a member) of the session.
     400: invalid token format / blank display_name.
     401: caller is not logged in.
-    410: invite does not exist, was deleted by the owner, has
-         already been accepted, or has expired.
-    500: DB failure.
+    404: token does not exist.
+    410: invite has expired.
     """
     if not token or len(token) < 16 or len(token) > 128:
         raise HTTPException(
@@ -377,21 +359,18 @@ async def accept_invite(
             detail={"error": "display_name must not be blank"},
         )
 
-    invite = db.query(SessionInvite).filter_by(token=token).first()
-    if invite is None:
+    session = db.query(SessionModel).filter_by(invite_token=token).first()
+    if session is None:
         raise HTTPException(
-            status_code=status.HTTP_410_GONE,
-            detail={"error": "invite no longer available"},
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "invite not found"},
         )
 
-    # Idempotency: if the caller is already a member of this session,
-    # we short-circuit and return the existing membership rather than
-    # failing. Common case: user clicks the link from two devices.
-    # This check runs BEFORE _classify_invite so a returning member
-    # always gets 200 even if the invite has already been accepted.
+    # Idempotency first: returning member always gets 200 even if the
+    # token has been rotated or expired -- once you're in, you're in.
     existing = (
         db.query(SessionMember)
-        .filter_by(session_id=invite.session_id, user_id=user.id)
+        .filter_by(session_id=session.id, user_id=user.id)
         .first()
     )
     if existing is not None:
@@ -402,32 +381,30 @@ async def accept_invite(
             "joined_at": _iso(existing.joined_at),
         }
 
-    public_status = _classify_invite(invite)
-    if public_status != "active":
+    # New user: token must still be valid (not expired).
+    if _invite_status(session) != "active":
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
-            detail={"error": f"invite {public_status}"},
+            detail={"error": "invite expired"},
         )
 
     try:
         sm = SessionMember(
-            session_id=invite.session_id,
+            session_id=session.id,
             user_id=user.id,
             display_name=display_name,
             role=SessionRole.MEMBER.value,
         )
         db.add(sm)
-        invite.used_at = datetime.now(timezone.utc)
-        invite.accepted_by_user_id = user.id
         db.commit()
         db.refresh(sm)
-    except IntegrityError:
+    except Exception:
         db.rollback()
         # Race: two simultaneous accepts for the same (session,user).
-        # The unique constraint protects us; surface as already-member.
+        # Re-fetch and return the existing row as if it were idempotent.
         existing = (
             db.query(SessionMember)
-            .filter_by(session_id=invite.session_id, user_id=user.id)
+            .filter_by(session_id=session.id, user_id=user.id)
             .first()
         )
         if existing is None:

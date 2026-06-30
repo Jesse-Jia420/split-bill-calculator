@@ -1,5 +1,5 @@
 
-> 版本：v0.1-dev | 状态：🚧 5 决策点已拍 4，剩 §3.4.6 邮件服务 | 日期：2026-06-29
+> 版本：v0.1.1-dev | 状态：🚧 邀请 redesign 完成（PO 2026-06-30 16:50）| 日期：2026-06-30
 > 配套 PRD：/obsidian/Jesse OB VPS/JesseClaw/code-project/split-bill-calculator/PRD.md
 
 ---
@@ -89,11 +89,15 @@ auth_tokens (
 
 -- session = 一个记账本
 sessions (
-  id            INTEGER PK,
-  name          TEXT NOT NULL,        -- 「2026年6月曼谷旅行」
-  owner_user_id INTEGER NOT NULL,     -- 创建者
-  created_at    TIMESTAMP NOT NULL,
-  archived      BOOLEAN NOT NULL DEFAULT 0
+  id                  INTEGER PK,
+  name                TEXT NOT NULL,        -- 「2026年6月曼谷旅行」
+  owner_user_id       INTEGER NOT NULL,     -- 创建者
+  created_at          TIMESTAMP NOT NULL,
+  archived            BOOLEAN NOT NULL DEFAULT 0,
+  -- v0.1.1: per-session fixed invite token (replaces session_invites table)
+  invite_token        TEXT UNIQUE NOT NULL,  -- 32-byte URL-safe; 全 session 共享 1 个 token
+  invite_expires_at   TIMESTAMP NOT NULL,    -- TTL 30 天（settings.invite_ttl_days）
+  invite_created_at   TIMESTAMP NOT NULL     -- 最近一次 mint/rotate 时间
 )
 
 -- session 成员
@@ -107,17 +111,8 @@ session_members (
   UNIQUE (session_id, user_id)
 )
 
--- 邀请链接（持久 token）
-session_invites (
-  id            INTEGER PK,
-  session_id    INTEGER NOT NULL,
-  token         TEXT UNIQUE NOT NULL,
-  created_by    INTEGER NOT NULL,
-  created_at    TIMESTAMP NOT NULL,
-  revoked       BOOLEAN NOT NULL DEFAULT 0,
-  max_uses      INTEGER,              -- NULL = 不限次数
-  use_count     INTEGER NOT NULL DEFAULT 0
-)
+-- v0.1.1: session_invites 表已删除。每个 session 1 个 token 直接存 sessions 表。
+
 
 -- 一笔消费
 bills (
@@ -179,11 +174,11 @@ bill_comments (
   POST   /api/auth/logout
   GET    /api/me                   当前用户 + 我的 session 列表
 
-  POST   /api/sessions             创建（body: {name, email, display_name, code}）
+  POST   /api/sessions             创建（body: {name, email, display_name, code}）— 创建时自动 mint 邀请 token
   GET    /api/sessions             我的 session 列表
-  GET    /api/sessions/{id}        session 详情 + 成员
-  POST   /api/sessions/{id}/invites  生成邀请链接
-  DELETE /api/sessions/{id}/invites/{iid}  撤销
+  GET    /api/sessions/{id}        session 详情 + 成员（owner 还看到 invite_token_preview + invite_expires_at）
+  GET    /api/sessions/{id}/invite       任意成员可读：当前邀请 token + URL + 创建/过期时间 + status
+  POST   /api/sessions/{id}/invite/rotate  owner-only：重置 token（旧 token 立即失效）
 
   GET    /api/sessions/{id}/members         成员列表
   PATCH  /api/sessions/{id}/members/{mid}   改昵称
@@ -491,6 +486,7 @@ auth_token_ttl_days: int = 30
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2026-06-30 | v0.1.1 | **邀请链接 redesign** (PO 16:50 拍板 B②i)<br>· 旧 design: 每 session 多 invite, owner mint 新的 (POST + DELETE)<br>· 新 design: 每 session 固定 1 token, 30 天 TTL, owner 可重置 (POST /invite/rotate)<br>· DB: sessions 表加 invite_token / invite_expires_at / invite_created_at (NOT NULL UNIQUE)；alembic migration backfill 现 session + drop session_invites 表<br>· API: 删 `POST /sessions/{id}/invites` + `DELETE /sessions/{id}/invites/{iid}`；加 `GET /sessions/{id}/invite` (member 读) + `POST /sessions/{id}/invite/rotate` (owner 重置)；改 `GET /invites/{token}` + `POST /invites/{token}/accept` 查 sessions 表<br>· Accept 幂等保留 (PO i: 已接受仍可用, 同 user re-accept 直接 return existing membership)<br>· TTL 保留: `settings.invite_ttl_days` (env `INVITE_TTL_DAYS`, 默认 30)<br>· 前端 `InviteLinkButton.svelte` 重写: onMount GET 拿 token + 显示完整 URL (`window.location.origin` 前缀, 不硬编码端口) + 复制按钮 + owner-only 二级「重置」按钮 (confirm 弹窗防误点) + 过期状态红 badge + 倒计时提示<br>· 测试: 179/179 pytest pass (baseline 169 + 新增 10)；`test_invites` / `test_sessions` / `test_sessions_flow` 大改适配新 API；`test_bills` / `test_settle` `_make_session_with_members` helper 加 invite 字段以适配 NOT NULL<br>· 偏差 (vs 任务拍板): (1) `_iso()` helper 在 `app/api/sessions.py` 改 "naive datetime → 当地时区" → "naive datetime → UTC" — 修 SQLite CURRENT_TIMESTAMP 返回 UTC 但 Python 端 `_iso()` 把 naive 当作 local 处理的潜在 8h 时区漂移 bug (Asia/Shanghai container)；现有 `created_at` 之前没测试 ISO 时区所以潜伏；现在所有时间字段统一按 UTC 序列化的语义；(2) `get_invite_public` 的 `inviter_display_name` 优先取 `SessionMember.display_name` (per-session nickname)，fallback 到 `User.default_name` — 比任务原版只查 `default_name` 更准确（owner 可在 session 内改名）|
 | 2026-06-29 | v0.0 | 脚手架 |
 | 2026-06-29 | v0.0 | 方向调整：纯 web + 多用户 + 多 session |
 | 2026-06-30 | v0.1.0 | **Sprint 1 T05 完成**：邮件服务集成 + 修 Stage 1 .env CORS bug。<br>· 新增 `EmailService` 模块（starttls + login + send）<br>· 新增 `verification_code` 生成（`secrets.randbelow` 6位）<br>· 新增 `POST /auth/send-code` 端点（v0.1 简化：不存 DB，T06 接入）<br>· 新增 `scripts/verify_email.py` CLI 工具<br>· 修 `.env.example` CORS 改 JSON 数组格式（pydantic-settings 2.x 兼容）<br>· 修 `app/core/config.py` 删失效的 `_parse_cors` validator（dotenv 路径上 `mode="before"` 不生效）<br>· 测试：29/29 pytest 通过（`test_email_service.py` 9 + `test_verification_code.py` 18 + `test_health.py` 2）<br>· 端到端：CLI 真发邮件到 `jessejia1001@gmail.com` 成功（hard requirement）<br>· 详见反模式 #31（§8.5）。commit 关联见 Sprint Board T05 行。 |

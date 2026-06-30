@@ -1,4 +1,4 @@
-"""Sessions API — Sprint 1 T08.
+"""Sessions API — Sprint 1 T08 + v0.1.1 invite redesign.
 
 Endpoints (mounted under /sessions; frontend calls them as
 /api/sessions — the dev proxy strips the /api prefix):
@@ -23,11 +23,32 @@ Response shape notes
   only the caller's email is included (use /auth/me if needed).
   This keeps the response payload tight and avoids accidental PII
   leakage via logs.
+
+v0.1.1 changes (2026-06-30)
+---------------------------
+- create_session now also mints the per-session fixed invite token
+  (30-day TTL, secrets.token_urlsafe(32)). The token + expiry are
+  read back via GET /sessions/{id}/invite (see invites.py), not the
+  summary response (keeps the list/detail payloads tight).
+- The detail endpoint now exposes `invite_token_preview` only when
+  the caller IS the owner (so the session page can show a copy/rotate
+  shortcut inline). Non-owners still 200 but get no preview.
+
+Datetime handling
+-----------------
+SQLite strips tzinfo on roundtrip for DateTime(timezone=True) columns,
+so every value read back is naive. We always *write* tz-aware UTC
+datetimes (Python-side) and rely on SQLAlchemy to normalise on save.
+On read, naive values are interpreted as UTC (matching what we wrote).
+The previous version re-tagged naive datetimes as local time, which
+silently shifted UTC values by the local offset -- a latent bug that
+v0.1.1's explicit invite_expires_at field surfaced in tests.
 """
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+import secrets
+from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path, status
@@ -36,6 +57,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.session_isolation import get_session_member
 from app.db.models.session_members import SessionMember, SessionRole
@@ -82,6 +104,11 @@ class SessionDetail(BaseModel):
     owner_user_id: int
     members: list[SessionMemberOut]
     created_at: str
+    # v0.1.1: owner-only token preview. Frontend prefers the dedicated
+    # GET /sessions/{id}/invite endpoint for live data; this is a hint
+    # for inline display when the owner loads the page.
+    invite_token_preview: str | None = None
+    invite_expires_at: str | None = None
 
 
 class UpdateMemberRequest(BaseModel):
@@ -99,11 +126,16 @@ class UpdateMemberResponse(BaseModel):
 
 
 def _iso(dt: datetime | None) -> str:
-    """Serialise a (possibly naive) datetime as an ISO 8601 string."""
+    """Serialise a (possibly naive) datetime as an ISO 8601 string.
+
+    Always treats naive datetimes as UTC. SQLite stores our tz-aware
+    UTC writes as naive UTC values; treating them as local on read
+    would silently shift every timestamp by the local offset.
+    """
     if dt is None:
         return ""
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=datetime.now().astimezone().tzinfo)
+        dt = dt.replace(tzinfo=timezone.utc)
     return dt.isoformat()
 
 
@@ -116,6 +148,25 @@ def _summary_dict(session: SessionModel, role: str, member_count: int | None) ->
         "member_count": member_count,
         "created_at": _iso(session.created_at),
     }
+
+
+def _classify_invite_status(session: SessionModel) -> str:
+    """Public invite status string for a session.
+
+    Used by the invite endpoints (invites.py) and (mirrored) by the
+    session detail endpoint. Returns "active" or "expired"; deleted /
+    accepted no longer apply because there is one token per session
+    that never goes into an "accepted" state (revisits are idempotent
+    membership lookups, see SPEC §3.4.2 + PO decision B ii).
+    """
+    expires = session.invite_expires_at
+    if expires is None:
+        return "active"
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    if expires < datetime.now(timezone.utc):
+        return "expired"
+    return "active"
 
 
 # ---------------------------------------------------------------------------
@@ -135,6 +186,11 @@ async def create_session(
 ) -> dict:
     """Create a new session and make the caller the owner member.
 
+    v0.1.1: also mints the per-session fixed invite token (30-day TTL
+    by default). The token is returned indirectly via
+    GET /sessions/{id}/invite -- the summary response intentionally
+    omits it so list payloads stay compact.
+
     201: session created.
     401: no/invalid cookie.
     422: missing/empty/over-long name (pydantic).
@@ -146,7 +202,16 @@ async def create_session(
             detail={"error": "name must not be blank"},
         )
 
-    session = SessionModel(name=name, owner_user_id=user.id)
+    now = datetime.now(timezone.utc)
+    invite_token = secrets.token_urlsafe(32)
+
+    session = SessionModel(
+        name=name,
+        owner_user_id=user.id,
+        invite_token=invite_token,
+        invite_expires_at=now + timedelta(days=settings.invite_ttl_days),
+        invite_created_at=now,
+    )
     db.add(session)
     db.flush()  # populate session.id
 
@@ -221,6 +286,11 @@ async def get_session(
     404: session does not exist (only reached if the membership row
          points to a now-deleted session — see session_isolation for the
          403 path).
+
+    v0.1.1: when the caller is the owner, the response also carries
+    `invite_token_preview` + `invite_expires_at` so the frontend can
+    pre-populate the inline invite link without an extra round-trip.
+    Non-owners get the response without those fields.
     """
     session = db.query(SessionModel).filter_by(id=sm.session_id).first()
     if session is None:
@@ -238,7 +308,7 @@ async def get_session(
         .all()
     )
 
-    return {
+    payload: dict = {
         "id": session.id,
         "name": session.name,
         "owner_user_id": session.owner_user_id,
@@ -254,7 +324,17 @@ async def get_session(
             for sm_row, u in members
         ],
         "created_at": _iso(session.created_at),
+        "invite_token_preview": None,
+        "invite_expires_at": None,
     }
+
+    # Owner-only invite preview. Non-owners still get 200 but with NULL
+    # fields; the frontend then loads GET /sessions/{id}/invite on demand.
+    if sm.role == SessionRole.OWNER.value:
+        payload["invite_token_preview"] = session.invite_token
+        payload["invite_expires_at"] = _iso(session.invite_expires_at)
+
+    return payload
 
 
 # ---------------------------------------------------------------------------
