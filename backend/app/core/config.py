@@ -55,6 +55,11 @@ class Settings(BaseSettings):
     verification_code_ttl_minutes: int = Field(default=10)
     auth_token_ttl_days: int = Field(default=30)
 
+    # --- Session invites (T09) ---
+    # Default TTL for newly minted session invite links. v0.1 default: 30 days.
+    # Controlled via env INVITE_TTL_DAYS.
+    invite_ttl_days: int = Field(default=30)
+
     # --- Auth rate limits ---
     # Maximum /auth/send-code requests per email per hour. v0.1: 5/h.
     send_code_rate_limit_per_hour: int = Field(default=5)
