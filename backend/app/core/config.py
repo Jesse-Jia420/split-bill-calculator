@@ -60,6 +60,24 @@ class Settings(BaseSettings):
     # Controlled via env INVITE_TTL_DAYS.
     invite_ttl_days: int = Field(default=30)
 
+    # --- AI parse (T11) ---
+    # MiniMax API key for POST /sessions/{id}/bills/parse.
+    # v0.1 simplification: read directly from env MINIMAX_API_KEY.
+    # When empty / unset, /bills/parse returns 422 {error: ai_unavailable}
+    # so the frontend falls back to a plain manual form. See SPEC sec 6.
+    minimax_api_key: str = Field(
+        default="",
+        description="MiniMax API key. Empty/unset -> /bills/parse returns 422 ai_unavailable.",
+    )
+    minimax_api_base: str = Field(
+        default="https://api.minimaxi.com",
+        description="MiniMax API base URL.",
+    )
+    minimax_model: str = Field(
+        default="MiniMax-Text-01",
+        description="MiniMax chat model id used by /bills/parse.",
+    )
+
     # --- Auth rate limits ---
     # Maximum /auth/send-code requests per email per hour. v0.1: 5/h.
     send_code_rate_limit_per_hour: int = Field(default=5)
