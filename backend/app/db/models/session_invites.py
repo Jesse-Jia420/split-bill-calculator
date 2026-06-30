@@ -2,14 +2,16 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 
-from app.db.models.sessions import Session
-from app.db.models.users import User
+if TYPE_CHECKING:
+    from app.db.models.sessions import Session
+    from app.db.models.users import User
 
 
 class SessionInvite(Base):
@@ -26,6 +28,22 @@ class SessionInvite(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+    # -- T09 lifecycle (added in add_session_invite_lifecycle migration) -----
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    used_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    accepted_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # -------------------------------------------------------------------------
     revoked: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="0"
     )
@@ -36,3 +54,4 @@ class SessionInvite(Base):
 
     session: Mapped["Session"] = relationship(back_populates="invites")
     creator: Mapped["User"] = relationship(foreign_keys=[created_by])
+    accepted_by: Mapped["User | None"] = relationship(foreign_keys=[accepted_by_user_id])

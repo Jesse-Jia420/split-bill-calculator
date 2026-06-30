@@ -5,6 +5,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.auth import router as auth_router
+from app.api.invites import router as invites_router
+from app.api.sessions import router as sessions_router
 from app.api.version import router as version_router
 from app.core.config import settings
 
@@ -27,7 +29,12 @@ app.add_middleware(
 )
 
 # Routers
+# NOTE on prefixes: the dev proxy (vite.config.ts) strips /api from
+# incoming requests, so backend routers live at the URL the SPEC names
+# without the /api prefix. The frontend always talks to /api/....
 app.include_router(auth_router)
+app.include_router(sessions_router)
+app.include_router(invites_router)
 app.include_router(version_router)
 
 
