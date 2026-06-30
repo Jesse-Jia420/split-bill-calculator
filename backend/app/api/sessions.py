@@ -68,6 +68,7 @@ class SessionSummary(BaseModel):
 
 
 class SessionMemberOut(BaseModel):
+    id: int
     user_id: int
     email: str
     display_name: str
@@ -243,6 +244,7 @@ async def get_session(
         "owner_user_id": session.owner_user_id,
         "members": [
             {
+                "id": sm_row.id,
                 "user_id": u.id,
                 "email": u.email,
                 "display_name": sm_row.display_name,

@@ -1,52 +1,37 @@
 <script lang="ts">
   import '../app.css';
+  import NavBar from '$components/NavBar.svelte';
+  import { onMount } from 'svelte';
+  import { loadUser } from '$stores/user';
+  import { goto } from '$app/navigation';
+  import { page } from '$app/stores';
+
+  // Best-effort user load on every page mount. The home page also has
+  // its own version-bar loader, so we don't block rendering here.
+  onMount(async () => {
+    const u = await loadUser();
+    // Redirect "/" to "/sessions" when logged in (per spec §1.5).
+    if (u && ($page.url.pathname === '/' || $page.url.pathname === '')) {
+      await goto('/sessions', { replaceState: true });
+    }
+  });
 </script>
 
-<div class="app">
-  <header>
-    <h1>split-bill-calculator</h1>
-    <nav>
-      <a href="/">Home</a>
-      <a href="/health">Backend status</a>
-    </nav>
-  </header>
-  <main>
-    <slot />
-  </main>
-</div>
+<NavBar />
+<main class="page">
+  <slot />
+</main>
 
 <style>
-  .app {
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    max-width: 960px;
+  .page {
+    max-width: 720px;
     margin: 0 auto;
-    padding: 1rem 1.5rem;
-    color: #222;
+    padding: var(--space-4);
+    min-height: calc(100vh - 56px);
   }
-  header {
-    border-bottom: 1px solid #ddd;
-    padding-bottom: 0.75rem;
-    margin-bottom: 1.5rem;
-    display: flex;
-    align-items: baseline;
-    gap: 1.5rem;
-  }
-  header h1 {
-    font-size: 1.25rem;
-    margin: 0;
-  }
-  nav {
-    display: flex;
-    gap: 1rem;
-  }
-  nav a {
-    color: #555;
-    text-decoration: none;
-  }
-  nav a:hover {
-    text-decoration: underline;
-  }
-  main {
-    line-height: 1.6;
+  @media (min-width: 960px) {
+    .page {
+      padding: var(--space-5) var(--space-6);
+    }
   }
 </style>
