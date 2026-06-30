@@ -7,7 +7,7 @@
   let error: string | null = null;
   let loading = true;
 
-  const backendBase = 'http://localhost:8000';
+  const backendBase = 'http://localhost:8449';
 
   onMount(async () => {
     try {
