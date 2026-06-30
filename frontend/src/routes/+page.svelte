@@ -1,28 +1,13 @@
 <script lang="ts">
   import { FRONTEND_VERSION } from '$lib/version';
-  import { onMount } from 'svelte';
-
-  let backendVersion = '...';
-
-  onMount(async () => {
-    try {
-      const res = await fetch('/api/version');
-      if (res.ok) {
-        const data = await res.json();
-        backendVersion = data.backend;
-      } else {
-        backendVersion = 'HTTP ' + res.status;
-      }
-    } catch {
-      backendVersion = 'unreachable';
-    }
-  });
+  import type { PageData } from './\$types';
+  export let data: PageData;
 </script>
 
 <section>
   <div class="version-bar">
     <span>FE: <strong>{FRONTEND_VERSION}</strong></span>
-    <span>BE: <strong>{backendVersion}</strong></span>
+    <span>BE: <strong>{data.backendVersion}</strong></span>
   </div>
 
   <h2>分摊计算器 · v0.1-dev</h2>
