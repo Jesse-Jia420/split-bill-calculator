@@ -546,3 +546,273 @@ class TestSettleEndpoint:
             assert count == 3
         finally:
             db.close()
+
+# ---------------------------------------------------------------------------
+# v0.1.2 (T18): per-member breakdown tests
+# ---------------------------------------------------------------------------
+
+
+class TestSettlePerMemberBreakdown:
+    def test_per_member_field_present_and_structure(self, client: TestClient) -> None:
+        """Each session member appears in `per_member` with the expected fields."""
+        c = _login_as("alice@settle.local")
+        sid, mids = _make_session_with_members(
+            member_emails=[
+                ("bob@settle.local", "Bob"),
+                ("carol@settle.local", "Carol"),
+            ],
+        )
+        r = c.get(f"/sessions/{sid}/settle")
+        assert r.status_code == 200
+        body = r.json()
+
+        assert "per_member" in body
+        pm = body["per_member"]
+        assert isinstance(pm, list)
+        assert len(pm) == 3  # alice + bob + carol
+
+        # Spot-check one member's shape
+        alice_pm = next(p for p in pm if p["member_id"] == mids["alice@settle.local"])
+        assert alice_pm["display_name"] == "Alice"
+        assert alice_pm["role"] == "owner"
+        assert set(alice_pm.keys()) >= {
+            "member_id",
+            "display_name",
+            "role",
+            "total_paid",
+            "total_consumed",
+            "net",
+            "paid_bills",
+            "consumed_bills",
+        }
+        # Empty session -> all zero / empty lists.
+        assert alice_pm["total_paid"] == 0.0
+        assert alice_pm["total_consumed"] == 0.0
+        assert alice_pm["net"] == 0.0
+        assert alice_pm["paid_bills"] == []
+        assert alice_pm["consumed_bills"] == []
+
+    def test_per_member_paid_bills_correct(self, client: TestClient) -> None:
+        """Each member's paid_bills lists exactly the bills they paid for."""
+        c = _login_as("alice@settle.local")
+        sid, mids = _make_session_with_members(
+            member_emails=[("bob@settle.local", "Bob")],
+        )
+        alice_mid = mids["alice@settle.local"]
+        bob_mid = mids["bob@settle.local"]
+        # Alice paid 100 (both share). Bob paid 60 (both share).
+        bill1 = _insert_bill(
+            session_id=sid,
+            payer_id=alice_mid,
+            amount=100.0,
+            parts=[{"member_id": alice_mid}, {"member_id": bob_mid}],
+            description="alice-paid",
+        )
+        bill2 = _insert_bill(
+            session_id=sid,
+            payer_id=bob_mid,
+            amount=60.0,
+            parts=[{"member_id": alice_mid}, {"member_id": bob_mid}],
+            description="bob-paid",
+        )
+
+        r = c.get(f"/sessions/{sid}/settle")
+        pm = {p["member_id"]: p for p in r.json()["per_member"]}
+
+        alice_paid = pm[alice_mid]["paid_bills"]
+        assert len(alice_paid) == 1
+        assert alice_paid[0]["bill_id"] == bill1
+        assert alice_paid[0]["amount"] == 100.0
+        assert alice_paid[0]["description"] == "alice-paid"
+
+        bob_paid = pm[bob_mid]["paid_bills"]
+        assert len(bob_paid) == 1
+        assert bob_paid[0]["bill_id"] == bill2
+        assert bob_paid[0]["amount"] == 60.0
+        assert bob_paid[0]["description"] == "bob-paid"
+
+    def test_per_member_consumed_bills_correct(self, client: TestClient) -> None:
+        """Each member's consumed_bills lists bills they participated in with
+        the correct `share_amount` (using the bills-API formula)."""
+        c = _login_as("alice@settle.local")
+        sid, mids = _make_session_with_members(
+            member_emails=[("bob@settle.local", "Bob")],
+        )
+        alice_mid = mids["alice@settle.local"]
+        bob_mid = mids["bob@settle.local"]
+        # Alice paid 100, all 3 share 33.33 each -- but here only alice+bob.
+        # 100 / 2 = 50 each.
+        bill1 = _insert_bill(
+            session_id=sid,
+            payer_id=alice_mid,
+            amount=100.0,
+            parts=[{"member_id": alice_mid}, {"member_id": bob_mid}],
+            description="dinner",
+        )
+
+        r = c.get(f"/sessions/{sid}/settle")
+        pm = {p["member_id"]: p for p in r.json()["per_member"]}
+
+        alice_consumed = pm[alice_mid]["consumed_bills"]
+        assert len(alice_consumed) == 1
+        assert alice_consumed[0]["bill_id"] == bill1
+        assert alice_consumed[0]["amount"] == 100.0
+        assert alice_consumed[0]["share_amount"] == 50.0
+
+        bob_consumed = pm[bob_mid]["consumed_bills"]
+        assert len(bob_consumed) == 1
+        assert bob_consumed[0]["bill_id"] == bill1
+        assert bob_consumed[0]["share_amount"] == 50.0
+
+    def test_per_member_with_exclusive_amount(self, client: TestClient) -> None:
+        """A bill with one exclusive participant correctly increases that
+        member's `share_amount` by the exclusive portion."""
+        c = _login_as("alice@settle.local")
+        sid, mids = _make_session_with_members(
+            member_emails=[("bob@settle.local", "Bob")],
+        )
+        alice_mid = mids["alice@settle.local"]
+        bob_mid = mids["bob@settle.local"]
+        # Alice paid 1000; Eve-like scenario where Alice eats 200 alone.
+        # Bob has no exclusive. shared_pool = 1000 - 200 = 800; per_user_shared
+        # = 800 / 2 = 400. Alice share = 400 + 200 = 600. Bob share = 400.
+        _insert_bill(
+            session_id=sid,
+            payer_id=alice_mid,
+            amount=1000.0,
+            parts=[
+                {"member_id": alice_mid, "is_exclusive": True, "exclusive_amount": 200.0},
+                {"member_id": bob_mid},
+            ],
+            description="mixed",
+        )
+
+        r = c.get(f"/sessions/{sid}/settle")
+        pm = {p["member_id"]: p for p in r.json()["per_member"]}
+
+        alice_consumed = pm[alice_mid]["consumed_bills"]
+        assert len(alice_consumed) == 1
+        assert alice_consumed[0]["share_amount"] == 600.0
+
+        bob_consumed = pm[bob_mid]["consumed_bills"]
+        assert len(bob_consumed) == 1
+        assert bob_consumed[0]["share_amount"] == 400.0
+
+        # And totals reconcile.
+        assert pm[alice_mid]["total_consumed"] == 600.0
+        assert pm[alice_mid]["total_paid"] == 1000.0
+        assert pm[alice_mid]["net"] == 400.0  # paid 1000, owes 600
+
+    def test_per_member_empty_session(self, client: TestClient) -> None:
+        """Empty session -> per_member list still has one entry per session
+        member, all zeros, all empty lists."""
+        c = _login_as("alice@settle.local")
+        sid, mids = _make_session_with_members(
+            member_emails=[("bob@settle.local", "Bob")],
+        )
+        r = c.get(f"/sessions/{sid}/settle")
+        pm = r.json()["per_member"]
+        assert len(pm) == 2
+        for entry in pm:
+            assert entry["total_paid"] == 0.0
+            assert entry["total_consumed"] == 0.0
+            assert entry["net"] == 0.0
+            assert entry["paid_bills"] == []
+            assert entry["consumed_bills"] == []
+
+    def test_per_member_net_matches_balances(self, client: TestClient) -> None:
+        """The invariant: per_member[i].net == balances[per_member[i].member_id].
+
+        This holds for any session state (empty, partial, mixed)."""
+        c = _login_as("alice@settle.local")
+        sid, mids = _make_session_with_members(
+            member_emails=[
+                ("bob@settle.local", "Bob"),
+                ("carol@settle.local", "Carol"),
+            ],
+        )
+        all_ids = list(mids.values())
+
+        # A mix of bills so the numbers aren't trivial.
+        _insert_bill(
+            session_id=sid,
+            payer_id=mids["alice@settle.local"],
+            amount=900.0,
+            parts=[{"member_id": mid} for mid in all_ids],
+            description="Lunch",
+        )
+        _insert_bill(
+            session_id=sid,
+            payer_id=mids["bob@settle.local"],
+            amount=300.0,
+            parts=[{"member_id": mid} for mid in all_ids],
+            description="Coffee",
+        )
+        _insert_bill(
+            session_id=sid,
+            payer_id=mids["carol@settle.local"],
+            amount=150.0,
+            parts=[
+                {"member_id": mids["carol@settle.local"]},
+                {"member_id": mids["alice@settle.local"]},
+            ],
+            description="Cab",
+        )
+
+        r = c.get(f"/sessions/{sid}/settle")
+        body = r.json()
+        balances = body["balances"]
+        pm_by_id = {p["member_id"]: p for p in body["per_member"]}
+        for mid, net in balances.items():
+            mid = int(mid)
+            assert mid in pm_by_id, f"member {mid} missing from per_member"
+            assert pm_by_id[mid]["net"] == net, (
+                f"net mismatch for {mid}: per_member={pm_by_id[mid]['net']}, "
+                f"balances={net}"
+            )
+
+    def test_per_member_paid_and_consumed_both_present_for_self_paid_bill(
+        self, client: TestClient
+    ) -> None:
+        """If Alice pays a bill she's also a participant of, she appears in
+        BOTH her paid_bills and her consumed_bills lists -- the two are
+        independent views."""
+        c = _login_as("alice@settle.local")
+        sid, mids = _make_session_with_members(
+            member_emails=[("bob@settle.local", "Bob")],
+        )
+        alice_mid = mids["alice@settle.local"]
+        _insert_bill(
+            session_id=sid,
+            payer_id=alice_mid,
+            amount=80.0,
+            parts=[
+                {"member_id": alice_mid},
+                {"member_id": mids["bob@settle.local"]},
+            ],
+            description="self-paid-and-shared",
+        )
+        r = c.get(f"/sessions/{sid}/settle")
+        pm = {p["member_id"]: p for p in r.json()["per_member"]}
+        alice = pm[alice_mid]
+        assert len(alice["paid_bills"]) == 1
+        assert len(alice["consumed_bills"]) == 1
+        # And her share is 80 / 2 = 40; net = 80 - 40 = 40.
+        assert alice["total_paid"] == 80.0
+        assert alice["total_consumed"] == 40.0
+        assert alice["net"] == 40.0
+
+    def test_per_member_non_member_still_403(self, client: TestClient) -> None:
+        """`per_member` is only exposed to session members."""
+        c_alice = _login_as("alice@settle.local")
+        sid, _ = _make_session_with_members(
+            member_emails=[
+                ("bob@settle.local", "Bob"),
+                ("carol@settle.local", "Carol"),
+                ("dave@settle.local", "Dave"),
+                ("eve@settle.local", "Eve"),
+            ],
+        )
+        c_frank = _login_as("frank@settle.local")
+        r = c_frank.get(f"/sessions/{sid}/settle")
+        assert r.status_code == 403

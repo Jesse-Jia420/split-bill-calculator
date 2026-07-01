@@ -21,6 +21,12 @@ export interface SessionSummary {
 
 export interface SessionDetail extends Omit<SessionSummary, 'role' | 'member_count'> {
   members: SessionMember[];
+  /** v0.1.1: first ~12 chars of `sessions.invite_token`, returned only to
+   * the session owner (NULL for non-owners). Used by the frontend to
+   * show an inline copy-paste affordance next to the member list. */
+  invite_token_preview?: string | null;
+  /** v0.1.1: ISO 8601 invite expiration, also owner-only. */
+  invite_expires_at?: string | null;
 }
 
 export const createSession = (name: string) =>
