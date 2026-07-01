@@ -22,6 +22,13 @@
   let activeTab: Tab = 'overview';
 
   onMount(async () => {
+    // T8 (PO 反馈): 从 session 详情页点「个人账单」按钮时带 #personal hash
+    // → 自动切到「个人视图」tab。点击 tab 后 URL hash 不会自动更新 (Svelte 默认
+    // 不开 hash sync)，所以本逻辑只在初次进入时生效；如果用户手动切到
+    // 「全 session」tab，再刷新页面会恢复 #personal 默认行为（这是 OK 的）。
+    if ($page.url.hash === '#personal') {
+      activeTab = 'personal';
+    }
     try {
       session = await getSession(sessionId);
       for (const m of session.members) {
