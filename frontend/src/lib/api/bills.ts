@@ -1,4 +1,3 @@
-
 import { apiFetch } from './client';
 
 export interface BillParticipant {
@@ -40,6 +39,28 @@ export interface CreateBillInput {
 export const listBills = (sessionId: number) => {
   const url = "/sessions/" + sessionId + "/bills";
   return apiFetch<Bill[]>(url);
+};
+
+/**
+ * v0.1.2 (PO 2026-07-01 fix #3): fetch a single bill for the edit page.
+ *
+ * The backend doesn't have a dedicated GET /bills/{bill_id} endpoint
+ * (the v0.1 list endpoint already returns the full BillOut shape
+ * including participants with computed share_amount). We reuse the
+ * list and pick the one with the matching id, keeping the surface
+ * small and avoiding a new BE route for what's effectively a
+ * client-side lookup.
+ */
+export const getBill = async (sessionId: number, billId: number): Promise<Bill> => {
+  const all = await listBills(sessionId);
+  const found = all.find((b) => b.id === billId);
+  if (!found) {
+    const err: any = new Error("账单不存在");
+    err.code = "not_found";
+    err.status = 404;
+    throw err;
+  }
+  return found;
 };
 
 export const createBill = (sessionId: number, body: CreateBillInput) => {
