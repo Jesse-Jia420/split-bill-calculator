@@ -71,6 +71,19 @@
 
   $: selectedMember = members.find((m) => m.member_id === selectedMemberId) ?? null;
 
+  /** v0.1.2 反馈修 (me badge): 把 currentUserId (user_id) 映射到 SessionMember.id,
+   * 用于在 chip / 明细面板上标「me」徽章。无论 selectedMemberId 是谁,
+   * 「me」始终挂在 current user 对应的 member 上。 */
+  $: meMemberId = (() => {
+    if (currentUserId === null || currentUserId === undefined) return null;
+    const sm = session?.members?.find((m) => m.user_id === currentUserId);
+    return sm?.id ?? null;
+  })();
+  /** helper: 判断某 member 是否是当前用户 */
+  function isMe(memberId: number | null | undefined): boolean {
+    return meMemberId !== null && memberId === meMemberId;
+  }
+
   /** T14: chip 选中时把 chip 滚到可见区域 */
   async function selectMember(memberId: number) {
     selectedMemberId = memberId;
@@ -120,30 +133,38 @@
   {:else if members.length === 0}
     <p class="muted">这个 session 还没有成员。</p>
   {:else}
-    <!-- T14: 横向 chip 行 (role=tablist) -->
-    <div
-      class="member-tabs"
-      role="tablist"
-      aria-label="成员选择"
-    >
-      {#each members as m (m.member_id)}
-        <button
-          type="button"
-          class="member-chip"
-          class:active={selectedMemberId === m.member_id}
-          role="tab"
-          aria-selected={selectedMemberId === m.member_id}
-          aria-controls="member-panel-{m.member_id}"
-          bind:this={chipRefs[m.member_id]}
-          on:click={() => selectMember(m.member_id)}
-        >
-          <div class="chip-avatar" aria-hidden="true">{avatarLetter(m.display_name)}</div>
-          <div class="chip-info">
-            <div class="chip-name">{m.display_name}{#if m.role === 'owner'}<span class="chip-badge">owner</span>{/if}</div>
-            <div class="chip-net" class:pos={m.net > 0} class:neg={m.net < 0}>{fmtChipNet(m.net)}</div>
-          </div>
-        </button>
-      {/each}
+    <!-- T14: 横向 chip 行 (role=tablist)
+         v0.1.2 反馈修 (chip fade): 外层 .member-tabs-wrapper (position: relative)
+         + ::after fade gradient,提示用户右侧有可横滑的 chip。
+         内层 .member-tabs 保持 overflow-x: auto 滚动行为。 -->
+    <div class="member-tabs-wrapper">
+      <div
+        class="member-tabs"
+        role="tablist"
+        aria-label="成员选择"
+      >
+        {#each members as m (m.member_id)}
+          <button
+            type="button"
+            class="member-chip"
+            class:active={selectedMemberId === m.member_id}
+            class:me={isMe(m.member_id)}
+            role="tab"
+            aria-selected={selectedMemberId === m.member_id}
+            aria-controls="member-panel-{m.member_id}"
+            bind:this={chipRefs[m.member_id]}
+            on:click={() => selectMember(m.member_id)}
+          >
+            <div class="chip-avatar" aria-hidden="true">{avatarLetter(m.display_name)}</div>
+            <div class="chip-info">
+              <div class="chip-name">
+                {m.display_name}{#if m.role === 'owner'}<span class="chip-badge">owner</span>{/if}{#if isMe(m.member_id)}<span class="me-badge" aria-label="当前用户">me</span>{/if}
+              </div>
+              <div class="chip-net" class:pos={m.net > 0} class:neg={m.net < 0}>{fmtChipNet(m.net)}</div>
+            </div>
+          </button>
+        {/each}
+      </div>
     </div>
 
     <!-- T14: 单成员明细面板 -->
@@ -158,6 +179,7 @@
           <span class="panel-avatar" aria-hidden="true">{avatarLetter(selectedMember.display_name)}</span>
           <span>{selectedMember.display_name}</span>
           {#if selectedMember.role === 'owner'}<span class="chip-badge owner-badge">owner</span>{/if}
+          {#if isMe(selectedMember.member_id)}<span class="me-badge" aria-label="当前用户">me</span>{/if}
         </h3>
 
         <!-- 3-col stats (付款 / 消费 / 净) -->
@@ -243,7 +265,26 @@
 </div>
 
 <style>
-  /* === T14: chip row === */
+  /* === T14: chip row ===
+   * v0.1.2 反馈修 (chip fade): 外层 .member-tabs-wrapper 相对定位,
+   * ::after 绝对定位 32px 宽 fade gradient 盖在右边缘,
+   * 提示 chip 可横滑。pointer-events: none 不挡点击。
+   * (v1 简化: 不监听 scroll 隐藏 fade; 滚到最右时仍有 fade 但因为没更多内容,
+   *  视觉上 fade 后面没东西,自然不会让用户误以为还能滑) */
+  .member-tabs-wrapper {
+    position: relative;
+  }
+  .member-tabs-wrapper::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 32px;
+    background: linear-gradient(to right, transparent, var(--color-surface, #fff));
+    pointer-events: none;
+    z-index: 1;
+  }
   .member-tabs {
     overflow-x: auto;
     scroll-snap-type: x mandatory;
@@ -340,6 +381,27 @@
     font-weight: 500;
     margin-left: 4px;
     vertical-align: middle;
+  }
+  /* v0.1.2 反馈修 (me badge): 当前用户的 chip + 明细面板上挂的「me」徽章。
+   * 比 owner badge 更显眼 (12px / 600 / 8px padding),PO 设计意图:
+   * 当前用户一眼可识别,但不抢 chip 主信息 (名字 + 净金额) 的视觉重心。
+   * chip 自身 .me 状态额外加 box-shadow ring 让选中 + 自己 更突出。 */
+  .me-badge {
+    display: inline-block;
+    background: var(--color-accent, #3b82f6);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    margin-left: var(--space-2, 8px);
+    letter-spacing: 0.02em;
+    line-height: 1.2;
+    vertical-align: middle;
+    text-transform: lowercase;
+  }
+  .member-chip.me .chip-avatar {
+    box-shadow: 0 0 0 2px var(--color-accent, #3b82f6), 0 0 0 4px rgba(59, 130, 246, 0.25);
   }
 
   /* === T14: member panel === */

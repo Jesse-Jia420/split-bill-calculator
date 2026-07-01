@@ -440,7 +440,9 @@
     flex: 0 0 auto;
     text-align: right;
   }
-  /* T10: 货币单位 10px, 紧跟数字 */
+  /* T10: 货币单位 10px, 紧跟数字
+   * v0.1.2 反馈修 (THB wrap): nowrap 防止 THB 单位被推到下一行
+   * (row2 flex-wrap 时, 整体 .your-share 移下一行, 但 THB 不会被单独切开) */
   .unit {
     font-size: 10px;
     font-weight: 400;
@@ -448,6 +450,7 @@
     color: inherit;
     opacity: 0.85;
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
   }
 
   .day-bills {
@@ -496,6 +499,7 @@
     font-weight: 600;
     font-size: 1rem;
     color: var(--color-text);
+    white-space: nowrap; /* 金额 + THB 单位同行 */
   }
   .bill-menu-btn {
     flex: 0 0 auto;
@@ -546,6 +550,7 @@
     color: var(--color-accent, #3b82f6);
     font-variant-numeric: tabular-nums;
     font-size: var(--font-size-sm);
+    white-space: nowrap; /* 你分摊 + THB 单位同行 (row2 wrap 时整体换行) */
   }
 
   /* T11: ⋯ 菜单 popover */
