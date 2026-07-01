@@ -399,6 +399,7 @@
     line-height: 1.2;
     vertical-align: middle;
     text-transform: lowercase;
+    transition: transform 200ms cubic-bezier(0.2, 0, 0, 1), opacity 200ms ease;
   }
   .member-chip.me .chip-avatar {
     box-shadow: 0 0 0 2px var(--color-accent, #3b82f6), 0 0 0 4px rgba(59, 130, 246, 0.25);

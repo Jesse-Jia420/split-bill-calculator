@@ -21,10 +21,14 @@
    *     - 一次只能有一个 item open
    *     - tap 任意空白处 / tap 别的 bill row / 滑动另一个 item 时自动 close 已开的
    *
+   * Commit 3 (项目 9): bill item mount 入场 in:fly={{ y: 8, duration: 200 }}
+   *  - 列表初次 mount 时从下方 8px 滑入,200ms 完成,克制不花哨
+   *
    * 历史: v0.1.2 反馈修5 Commit 1 (9ccebcc) — 文字+按钮位置调整已实施
    */
   import { onMount, tick } from 'svelte';
   import { goto } from '$app/navigation';
+  import { fly } from 'svelte/transition';
   import type { Bill } from '$api/bills';
 
   export let bills: Bill[];
@@ -328,7 +332,7 @@
         openSwipeBillId = null;
         e.preventDefault();
         e.stopPropagation();
-      }
+          }
     }
   }
 
@@ -449,9 +453,8 @@
             <ul class="day-bills">
               {#each g.bills as b (b.id)}
                 {@const share = yourShare(b)}
-                {@const offset = getRowOffset(b.id)}
-                {@const swiping = !!isDragging[b.id]}
-                <li class="bill-swipe-wrap">
+                <!-- reactivity fix: 内联表达式让 Svelte 5 tracked; @const 不 reassign each 可缓存 -->
+                <li class="bill-swipe-wrap" in:fly={{ y: 8, duration: 200 }}>
                   {#if onDelete}
                     <!-- 左滑 → 露出 删除 (右边, 红色) -->
                     <button
@@ -477,10 +480,11 @@
                   <!-- svelte-ignore a11y-no-noninteractive-element-to-interactive-role -->
                   <!-- svelte-ignore a11y-no-static-element-interactions -->
                   <!-- svelte-ignore a11y-click-events-have-key-events -->
+                  <!-- reactivity fix: 内联表达式 — Svelte 5 tracks these direct reads; 不依赖 @const 缓存 -->
                   <div
                     class="bill-row"
-                    class:swiping
-                    style="transform: translateX({offset}px)"
+                    class:swiping={!!isDragging[b.id]}
+                    style="transform: translateX({isDragging[b.id] ? (dragOffset[b.id] ?? 0) : (swipeOffset[b.id] ?? 0)}px)"
                     role="group"
                     aria-label="账单: {b.description || '(无说明)'}"
                     on:touchstart={(e) => onTouchStart(b.id, e)}

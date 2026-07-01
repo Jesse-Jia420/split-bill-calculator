@@ -1,7 +1,20 @@
 <script lang="ts">
+  /**
+   * v0.1.2 反馈修 5 (PO 2026-07-01 23:00 UX 改写) — 全局 +layout.svelte。
+   *
+   * 项目 9 (跨页面动画):
+   * - 页面切换: <slot /> 包 {#key $page.url.pathname} + transition:fade={{duration:150}}
+   * - 不要动画过度,每个 transition ≤ 300ms
+   *
+   * 设计原则:
+   * - 让页面切换有「轻量」反馈 (150ms fade)
+   * - 不影响子组件本身的过渡 (子组件可继续用 Svelte transition 局部)
+   * - 用 Svelte 内置 fade/fly/slide,不引第三方动画库
+   */
   import '../app.css';
   import NavBar from '$components/NavBar.svelte';
   import { onMount } from 'svelte';
+  import { fade } from 'svelte/transition';
   import { loadUser } from '$stores/user';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
@@ -19,7 +32,12 @@
 
 <NavBar />
 <main class="page">
-  <slot />
+  {#key $page.url.pathname}
+    <!-- 项目 9: 全局页面切换 fade 150ms (克制, 不超过 300ms) -->
+    <div in:fade={{ duration: 150 }}>
+      <slot />
+    </div>
+  {/key}
 </main>
 
 <style>
