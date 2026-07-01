@@ -1,4 +1,3 @@
-
 import { apiFetch } from './client';
 
 export interface Transfer {
@@ -20,6 +19,14 @@ export interface BillShare {
   description: string | null;
   amount: number;
   share_amount: number;
+  /**
+   * v0.1.2 (PO 2026-07-01 fix #4): the portion of `share_amount` that
+   * this member ate alone (is_exclusive=true on the participant row).
+   * 0 when the member is not exclusive on this bill. Always present
+   * (default 0) on the response so the FE doesn't need to handle
+   * `undefined` separately.
+   */
+  exclusive_amount: number;
   currency: string;
   occurred_at: string;
 }

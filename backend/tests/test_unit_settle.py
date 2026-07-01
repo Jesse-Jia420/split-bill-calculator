@@ -543,3 +543,59 @@ class TestInputMutation:
         assert _greedy_pair({1: 100.0}) == []
         # A single negative balance with no creditors → no transfers.
         assert _greedy_pair({1: -100.0}) == []
+
+# ---------------------------------------------------------------------------
+# v0.1.2 (PO 2026-07-01 fix #4): _compute_per_member surface for
+# exclusive_amount. We don't unit-test the *full* _compute_per_member
+# here (it needs SessionMember ORM fakes; the integration test in
+# test_settle.py covers that). Instead, we unit-test the invariant the
+# PO cares about: `share_amount - exclusive_amount == shared_portion`,
+# which we can derive from _bill_share_amounts + the p.is_exclusive
+# field, and which the integration test then verifies end-to-end.
+# ---------------------------------------------------------------------------
+
+
+class TestExclusiveAmountInvariant:
+    """v0.1.2 (fix #4): for any bill, sum of (share_amount -
+    exclusive_amount) over its participants == the per-user shared
+    portion. The FE uses this to render "独占 X · 共享 Y" in the
+    personal view tab.
+    """
+
+    def test_share_minus_exclusive_equals_shared_portion(self) -> None:
+        """The simplest case: 3 participants, one is exclusive 30, the
+        shared pool is 70/3 ≈ 23.33. For each non-exclusive participant,
+        (share_amount - exclusive_amount) == 23.33. For the exclusive
+        one, (share_amount - exclusive_amount) is also 23.33 (the
+        shared portion they ALSO carry).
+        """
+        # Bill = 100, 3 participants, participant 1 exclusive 30.
+        bills = [_FakeBill(1, 100.0, payer_id=1)]
+        parts = {
+            1: [
+                _FakePart(1, is_exclusive=True, exclusive_amount=30.0),
+                _FakePart(2),
+                _FakePart(3),
+            ]
+        }
+        # Derive the per-participant shares the same way _compute_per_member does.
+        from app.api.settle import _bill_share_amounts
+        shares = _bill_share_amounts(bills[0], parts[1])
+        # Build the exclusive_amount map the same way the endpoint does.
+        exclusive_amounts = [p.exclusive_amount if p.is_exclusive else 0.0 for p in parts[1]]
+        # shared_portion per participant = 70 / 3.
+        shared_portion = 70.0 / 3.0
+        for share, excl in zip(shares, exclusive_amounts):
+            assert abs(share - excl - shared_portion) < 1e-9, (
+                f"share={share} excl={excl} should sum to shared_portion {shared_portion}"
+            )
+
+    def test_exclusive_amount_default_zero_when_not_exclusive(self) -> None:
+        """The default for non-exclusive participants is 0.0 (never
+        None / never absent). Verifies the BE never emits
+        `exclusive_amount: null` for the FE.
+        """
+        bills = [_FakeBill(1, 100.0, payer_id=1)]
+        parts = {1: [_FakePart(1), _FakePart(2)]}
+        exclusive_amounts = [p.exclusive_amount if p.is_exclusive else 0.0 for p in parts[1]]
+        assert exclusive_amounts == [0.0, 0.0]

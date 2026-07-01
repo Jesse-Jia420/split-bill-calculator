@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { getSettle } from '$api/settle';
-  import type { MemberSettlement, BillSummary, BillShare } from '$api/settle';
+  import type { MemberSettlement } from '$api/settle';
   import type { SessionDetail } from '$api/sessions';
 
   export let session: SessionDetail;
@@ -101,10 +101,21 @@
               {:else}
                 <ul class="bill-sublist" style="list-style: none; padding: 0; margin: 0;">
                   {#each m.paid_bills as b (b.bill_id)}
+                    <!--
+                      v0.1.2 (PO 2026-07-01 fix #6): 2-row layout for bill
+                      rows. Row 1: description (left, big-ish) + amount
+                      (right, primary). Row 2: date + (独占/共享/账单总)
+                      tags separated by "·". Mobile-safe (description
+                      truncates, amount column doesn't shrink).
+                    -->
                     <li class="bill-subrow">
-                      <span class="muted bill-sub-date">{fmtDate(b.occurred_at)}</span>
-                      <span class="bill-sub-desc">{b.description || '(无说明)'}</span>
-                      <span class="amount">{fmt(b.amount)} {b.currency}</span>
+                      <div class="row1">
+                        <span class="bill-sub-desc">{b.description || '(无说明)'}</span>
+                        <span class="amount-primary">{fmt(b.amount)} {b.currency}</span>
+                      </div>
+                      <div class="row2 muted">
+                        <span class="bill-sub-date">{fmtDate(b.occurred_at)}</span>
+                      </div>
                     </li>
                   {/each}
                 </ul>
@@ -116,12 +127,33 @@
               {:else}
                 <ul class="bill-sublist" style="list-style: none; padding: 0; margin: 0;">
                   {#each m.consumed_bills as b (b.bill_id)}
+                    {@const excl = b.exclusive_amount ?? 0}
+                    {@const shared = b.share_amount - excl}
                     <li class="bill-subrow">
-                      <span class="muted bill-sub-date">{fmtDate(b.occurred_at)}</span>
-                      <span class="bill-sub-desc">{b.description || '(无说明)'}</span>
-                      <span class="amount">
-                        {fmt(b.amount)} <span class="muted">(share {fmt(b.share_amount)} {b.currency})</span>
-                      </span>
+                      <!--
+                        v0.1.2 (fix #5+#6):
+                        - Primary amount is the member's share
+                          (b.share_amount), not the bill total. That's
+                          what the user actually cares about.
+                        - 独占 + 共享 tags only show when relevant:
+                          独占 only when excl > 0 (avoid noise).
+                        - 账单总 is muted secondary info at the end.
+                      -->
+                      <div class="row1">
+                        <span class="bill-sub-desc">{b.description || '(无说明)'}</span>
+                        <span class="amount-primary">{fmt(b.share_amount)} {b.currency}</span>
+                      </div>
+                      <div class="row2 muted">
+                        <span class="bill-sub-date">{fmtDate(b.occurred_at)}</span>
+                        {#if excl > 0}
+                          <span class="sep" aria-hidden="true">·</span>
+                          <span class="tag exclusive-tag">独占 {fmt(excl)}</span>
+                        {/if}
+                        <span class="sep" aria-hidden="true">·</span>
+                        <span class="tag shared-tag">共享 {fmt(shared)}</span>
+                        <span class="sep" aria-hidden="true">·</span>
+                        <span class="bill-total">账单总 {fmt(b.amount)}</span>
+                      </div>
                     </li>
                   {/each}
                 </ul>
@@ -234,29 +266,60 @@
   }
   .bill-subrow {
     display: flex;
-    align-items: baseline;
-    gap: var(--space-2);
-    flex-wrap: wrap;
-    padding: var(--space-1) 0;
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--space-2) 0;
     border-bottom: 1px dashed var(--color-border);
-    font-size: var(--font-size-sm);
   }
   .bill-subrow:last-child {
     border-bottom: none;
   }
-  .bill-sub-date {
-    flex: 0 0 auto;
-    font-variant-numeric: tabular-nums;
-    min-width: 90px;
+  .row1 {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+  .row2 {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-1);
+    font-size: var(--font-size-sm);
   }
   .bill-sub-desc {
     flex: 1 1 auto;
     min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
   }
-  .amount {
+  .amount-primary {
     flex: 0 0 auto;
     font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    font-size: 1rem; /* primary: bigger than muted row 2 */
+  }
+  .bill-sub-date {
+    font-variant-numeric: tabular-nums;
+  }
+  .tag {
+    /* Small tag-like inline label for 独占 / 共享. */
+    display: inline-block;
+  }
+  .exclusive-tag {
+    color: var(--color-accent, #3b82f6);
     font-weight: 500;
+  }
+  .shared-tag {
+    color: var(--color-text-muted, #666);
+  }
+  .bill-total {
+    color: var(--color-text-muted, #999);
+  }
+  .sep {
+    color: var(--color-text-muted, #999);
   }
   .badge {
     display: inline-block;
