@@ -1,23 +1,17 @@
 <script lang="ts">
   /**
-   * v0.1.2 反馈修3 (PO 2026-07-01 20:30 UX 改写) — bills grouped list。
+   * v0.1.2 反馈修 5 (PO 2026-07-01 23:00 UX 改写) — bills grouped list。
    *
-   * 本次改写涉及 T10 + T11 (8 项 UX 改写中的 2+3):
-   * - T10 (day header 排版): summary 内分 day-header-main (日期 / 合计金额 1rem 600) +
-   *   day-header-sub (「人均 X · N 笔」 + (合计) 标签)。单位 THB 10px 紧跟数字。
-   *   折叠箭头 +/- 字符(不用 ▸ rotate),flex-wrap 控制好 375px 不跳。
-   * - T11 (bill item 排版): 每行 row1 (description + 金额 + ⋯ 菜单) + row2 (时间·付款人·人均 + 右侧「你分摊 X」若当前用户在 participants)。
-   *   整行 hover/focus 背景 + cursor pointer + 键盘可达。
-   *   props 加 currentUserMemberId: number | null。
+   * 本 Commit 1 只动项目 6 (day header 排版文案 / 单位 / 标签),
+   * Bill item 重构 (3+4+5) 在 Commit 2 实施。
    *
-   * 历史 v0.1.2:
-   * - T1+T2 (`73e5cb9`): <details>+<summary> 单 source of truth; total + per-capita 共享 font-size-sm
-   * - 反馈修2 (`e77163a`): bill row click 跳编辑 + delete stopPropagation
+   * 本 Commit 1 涉及:
+   * - 项目 6 (day header 排版调整):
+   *   主行: 日期 (左, 1rem 600) + 合计金额 (右, 1rem 600 tabular-nums) [沿用]
+   *   副行: 人均金额 (左, muted) + 总笔数 (中, muted) + (合计) 标签 (右, muted, 灰色)
+   *   把原来「N 笔」改成「总笔数 N」(PO: 更明确)
    *
-   * 反模式预防:
-   * - T11 整行 button vs 内嵌 button — 不能嵌套 button。用 div + role=button + tabindex + keyboard handler
-   *   或者外层 button + 内部 ⋯ 菜单 button 也用 stopPropagation 不嵌套。
-   *   用外层 svelte 提供的 clickable row + 内部 stops propagation 的 ⋯ 按钮。
+   * 历史: v0.1.2 反馈修3 (`056dc2b`) day-header-main/sub 已实现,本次只动文案。
    */
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
@@ -27,8 +21,7 @@
   export let sessionId: number;
   /** map SessionMember.id -> display_name, used in the bill row meta. */
   export let memberIdToName: Record<number, string> = {};
-  /** T11: 当前登录人在此 session 内的 member_id。用于「你分摊 X」高亮显示。
-   *  null 表示当前用户不是 session member 或未登录。 */
+  /** 当前登录人在此 session 内的 member_id。用于「分摊 X」高亮显示。 */
   export let currentUserMemberId: number | null = null;
   /** Called when the user confirms deletion of a bill. */
   export let onDelete: ((billId: number) => void | Promise<void>) | null = null;
@@ -42,7 +35,7 @@
   };
 
   let collapsed: Record<string, boolean> = {};
-  /** T11: 当前打开 ⋯ 菜单的 bill id, 用于控制菜单 popover */
+  /** 当前打开 ⋯ 菜单的 bill id, 用于控制菜单 popover */
   let openMenuForBillId: number | null = null;
 
   function localDateKey(iso: string): string {
@@ -129,9 +122,9 @@
     return memberIdToName[b.payer_id] ?? ('#' + b.payer_id);
   }
 
-  /** T11: 当前用户的 share_amount (per-bill AA),如果当前用户在 participants 里。
+  /** 当前用户的 share_amount (per-bill AA),如果当前用户在 participants 里。
    * PO 要求: AA = bill.amount / bill.participants.length,不考虑 exclusive 差异。
-   * 不在 participants 内 → null (UI 不显示「你分摊」)。 */
+   * 不在 participants 内 → null (UI 不显示「分摊」)。 */
   function yourShare(b: Bill): number | null {
     if (currentUserMemberId === null || currentUserMemberId === undefined) return null;
     const inPart = (b.participants ?? []).some((p) => p.member_id === currentUserMemberId);
@@ -179,12 +172,12 @@
     saveCollapsedState();
   }
 
-  /** 跳转到 bill 编辑页 (T1 行为沿用) */
+  /** 跳转到 bill 编辑页 */
   function openBillEdit(billId: number) {
     goto(`/sessions/${sessionId}/bills/${billId}/edit`);
   }
 
-  /** 整行点击/键盘触发编辑 (T11 增强: 整行可点 + 键盘可达) */
+  /** 整行点击/键盘触发编辑 */
   function onBillRowClick(billId: number, e: MouseEvent | KeyboardEvent) {
     // 阻止内部 button (e.g. ⋯ 菜单) 触发表层跳转
     const t = e.target as HTMLElement;
@@ -204,7 +197,7 @@
     }
   }
 
-  /** T11: ⋯ 菜单 toggle */
+  /** ⋯ 菜单 toggle */
   function toggleMenu(billId: number, e: MouseEvent) {
     e.stopPropagation();
     openMenuForBillId = openMenuForBillId === billId ? null : billId;
@@ -229,7 +222,7 @@
     }
   }
 
-  /** 兼容: inline delete 按钮 (PO 允许保留作为兜底) */
+  /** 兼容: inline delete 按钮 */
   function onDeleteClick(billId: number, e: MouseEvent | KeyboardEvent) {
     e.stopPropagation();
     if (onDelete) {
@@ -260,17 +253,20 @@
           <details open={isOpen(g.date)} on:toggle={(e) => onGroupToggle(g.date, e)}>
             <summary class="day-header">
               <span class="day-toggle" aria-hidden="true">{isOpen(g.date) ? '−' : '+'}</span>
-              <!-- T10: 主行: 日期(左 1rem 600) + 合计金额(右 1rem 600 tabular-nums) -->
+              <!-- 项目 6: 主行 — 日期(左, 1rem 600) + 合计金额(右, 1rem 600 tabular-nums) -->
               <div class="day-header-main">
                 <span class="day-date">{g.date}</span>
                 <span class="day-total">
                   {fmtAmount(g.total)}<span class="unit">{g.currency}</span>
                 </span>
               </div>
-              <!-- T10: 副行: 人均 X · N 笔 + 右侧 (合计) muted -->
+              <!-- 项目 6: 副行 — 人均金额(左, muted) + 总笔数(中, muted) + (合计) 标签(右, muted, 灰色)
+                   把「N 笔」改成「总笔数 N」(PO: 更明确);
+                   移动端 375px 借助 flex-wrap 优雅换行 -->
               <div class="day-header-sub">
-                <span class="muted">人均 {fmtAmount(g.perCapita)}{g.currency} · {g.bills.length} 笔</span>
-                <span class="muted">(合计)</span>
+                <span class="muted">人均 {fmtAmount(g.perCapita)}{g.currency}</span>
+                <span class="muted">总笔数 {g.bills.length}</span>
+                <span class="muted day-header-tag">(合计)</span>
               </div>
             </summary>
 
@@ -286,7 +282,7 @@
                   on:click={(e) => onBillRowClick(b.id, e)}
                   on:keydown={(e) => onBillRowKey(b.id, e)}
                 >
-                  <!-- T11: row1 - description + 金额 + ⋯ 菜单 -->
+                  <!-- row1 - description + 金额 + ⋯ 菜单 -->
                   <div class="bill-row1">
                     <span class="bill-desc">{b.description || '(无说明)'}</span>
                     <span class="bill-amount">
@@ -304,19 +300,20 @@
                       >⋯</button>
                     {/if}
                   </div>
-                  <!-- T11: row2 - 时间·付款人·人均 muted + 右侧 你分摊 X (accent) -->
+                  <!-- row2 - 时间·付款人·人均 muted + 右侧 分摊 X (accent) -->
                   <div class="bill-row2 muted">
                     <span class="bill-meta-line">
                       {fmtBillTime(b.occurred_at)} · {payerName(b)} 付 · {b.participants.length} 人均 {fmtAmount(b.amount / Math.max(1, b.participants.length))}{b.currency}
                     </span>
                     {#if share !== null}
+                      <!-- 项目 4 (在 Commit 2 改): 你分摊 X → 分摊 X (PO: 简洁专业) -->
                       <span class="your-share">你分摊 {fmtAmount(share)}<span class="unit">{b.currency}</span></span>
                     {/if}
                   </div>
 
                   {#if openMenuForBillId === b.id}
                     <!-- svelte-ignore a11y_click_events_have_key_events a11y_interactive_supports_focus -->
-                    <!-- T11: ⋯ 菜单 popover -->
+                    <!-- ⋯ 菜单 popover -->
                     <div class="bill-menu-popover" role="menu" on:click|stopPropagation>
                       <button
                         type="button"
@@ -335,7 +332,7 @@
                     </div>
                   {/if}
 
-                  <!-- 兼容: inline delete 按钮 (PO 允许保留,移动端 ⋯ 菜单为主) -->
+                  <!-- 兼容: inline delete 按钮 (桌面端兜底) -->
                   {#if onDelete}
                     <div class="bill-row-inline-delete">
                       <button
@@ -371,7 +368,7 @@
     width: 100%;
   }
 
-  /* === T10: day header 排版 (主行 + 副行) === */
+  /* === 项目 6: day header 排版 — 主行 + 副行(2-column / 3-column) === */
   .day-header {
     display: flex;
     flex-direction: column;
@@ -391,7 +388,7 @@
     outline: 2px solid var(--color-accent, #3b82f6);
     outline-offset: -2px;
   }
-  /* T10: 折叠箭头 +/− 字符,放左上 */
+  /* 折叠箭头 +/− 字符,放左上 */
   .day-toggle {
     position: absolute;
     top: var(--space-2);
@@ -427,6 +424,11 @@
     flex-wrap: wrap;
     font-size: var(--font-size-sm, 13px);
   }
+  /* 项目 6: (合计) 标签 — 移动端 375px 时跟其他两栏一起换行,放在最右 */
+  .day-header-tag {
+    color: var(--color-text-muted);
+    opacity: 0.85;
+  }
   .day-date {
     font-weight: 600;
     font-size: 1rem;
@@ -439,10 +441,10 @@
     font-variant-numeric: tabular-nums;
     flex: 0 0 auto;
     text-align: right;
+    margin-left: auto; /* justify-between + 换行兜底 — 推到右侧 */
   }
-  /* T10: 货币单位 10px, 紧跟数字
-   * v0.1.2 反馈修 (THB wrap): nowrap 防止 THB 单位被推到下一行
-   * (row2 flex-wrap 时, 整体 .your-share 移下一行, 但 THB 不会被单独切开) */
+  /* 货币单位 10px, 紧跟数字
+   * v0.1.2 反馈修 (THB wrap): nowrap 防止 THB 单位被推到下一行 */
   .unit {
     font-size: 10px;
     font-weight: 400;
@@ -458,7 +460,7 @@
     border-top: 1px solid var(--color-border);
   }
 
-  /* === T11: bill row 2 行排版 (复用 Coder 7 的 .row1/.row2 风格) === */
+  /* === bill row 2 行排版 === */
   .bill-row {
     position: relative;
     padding: var(--space-3) 0;
@@ -470,7 +472,7 @@
   .bill-row:last-child {
     border-bottom: none;
   }
-  /* T11: 整行 hover/focus 背景高亮 (不依赖 underline) */
+  /* 整行 hover/focus 背景高亮 (不依赖 underline) */
   .bill-row:hover {
     background: rgba(0, 0, 0, 0.04);
   }
@@ -499,7 +501,7 @@
     font-weight: 600;
     font-size: 1rem;
     color: var(--color-text);
-    white-space: nowrap; /* 金额 + THB 单位同行 */
+    white-space: nowrap;
   }
   .bill-menu-btn {
     flex: 0 0 auto;
@@ -550,10 +552,10 @@
     color: var(--color-accent, #3b82f6);
     font-variant-numeric: tabular-nums;
     font-size: var(--font-size-sm);
-    white-space: nowrap; /* 你分摊 + THB 单位同行 (row2 wrap 时整体换行) */
+    white-space: nowrap;
   }
 
-  /* T11: ⋯ 菜单 popover */
+  /* ⋯ 菜单 popover */
   .bill-menu-popover {
     position: absolute;
     top: 36px;
@@ -592,9 +594,9 @@
 
   /* 兼容 inline delete (桌面端兜底) */
   .bill-row-inline-delete {
-    display: none; /* 默认隐藏, ⋯ 菜单是主入口 */
+    display: none;
   }
-  /* 桌面端可保留 inline delete 作为备选(PO 明确「桌面端可保留」) */
+  /* 桌面端可保留 inline delete 作为备选 */
   @media (min-width: 720px) {
     .bill-row-inline-delete {
       display: block;

@@ -69,7 +69,7 @@
     open = false;
   }
 
-  /** Compact countdown, e.g. "29d 18h", or "已过期" when expired. */
+  /** Compact countdown, e.g. "X 天 Y 小时后过期" — PO 反馈修 5 项目 1: 简化文案 (只保留过期信息) */
   function remaining(expiresAtIso: string): string {
     const now = Date.now();
     const exp = new Date(expiresAtIso).getTime();
@@ -77,16 +77,20 @@
     if (ms <= 0) return '已过期';
     const days = Math.floor(ms / (1000 * 60 * 60 * 24));
     const hours = Math.floor((ms % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    if (days > 0) return `${days}天${hours}小时后过期`;
-    if (hours > 0) return `${hours}小时后过期`;
+    if (days > 0) return `${days} 天 ${hours} 小时后过期`;
+    if (hours > 0) return `${hours} 小时后过期`;
     const minutes = Math.floor(ms / (1000 * 60));
-    return `${minutes}分钟后过期`;
+    return `${minutes} 分钟后过期`;
   }
 </script>
 
 <div class="invite-row">
-  <button class="primary" on:click={load} disabled={busy}>
-    {busy ? '加载中…' : (invite ? '查看邀请链接' : '查看邀请链接')}
+  <!-- PO 反馈修 5 项目 1: 「查看邀请链接」→「邀请」+ 📨 icon,移动端 375px 不挤压 -->
+  <button class="primary" on:click={load} disabled={busy} title="邀请" aria-label="邀请">
+    <span class="btn-content">
+      <span class="btn-icon" aria-hidden="true">📨</span>
+      <span class="btn-label">{busy ? '加载中…' : '邀请'}</span>
+    </span>
   </button>
 
   {#if error}
@@ -94,7 +98,8 @@
   {/if}
 
   {#if invite && !open}
-    <div class="muted hint">链接 {remaining(invite.expires_at)}</div>
+    <!-- PO 反馈修 5 项目 1+2: 简化过期文案 (去掉 owner token preview 行) -->
+    <div class="muted hint">{remaining(invite.expires_at)}</div>
   {/if}
 
   {#if invite && open}
@@ -166,6 +171,28 @@
     gap: var(--space-1);
     align-items: flex-end;
   }
+  /* PO 反馈修 5 项目 1: 邀请按钮 — icon + 文字同行,不挤压 */
+  .btn-content {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+  .btn-icon {
+    font-size: 14px;
+    line-height: 1;
+  }
+  /* 移动端 375px: 极致紧凑,ICON + 文字同行,不挤压 */
+  @media (max-width: 380px) {
+    .invite-row > button {
+      padding: var(--space-2) var(--space-3);
+      min-height: 36px;
+    }
+    .btn-label {
+      font-size: var(--font-size-sm);
+    }
+  }
+
   .hint {
     font-size: var(--font-size-sm);
     margin: var(--space-1) 0;
