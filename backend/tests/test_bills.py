@@ -601,14 +601,16 @@ class TestUpdateBill:
         assert r.status_code == 201
         bid = r.json()["id"]
 
-        r = c.patch(f"/sessions/{sid}/bills/{bid}", json={"amount": 250.0, "description": "Updated"})
+        r = c.patch(f"/sessions/{sid}/bills/{bid}", json={"amount": 250.0, "currency": "USD"})
         assert r.status_code == 200, r.text
         updated = r.json()
         assert updated["amount"] == 250.0
-        assert updated["description"] == "Updated"
+        assert updated["currency"] == "USD"
 
-    def test_non_creator_cannot_update_returns_403(self, client: TestClient) -> None:
-        # Alice creates the bill, Bob (another member) tries to update it.
+    def test_non_creator_can_update_returns_200(self, client: TestClient) -> None:
+        # v0.1.2 (T17): any session member can update a bill -- the
+        # previous 'only the creator' 403 guard is removed. Alice creates
+        # the bill, Bob (another member) successfully edits the amount.
         c_alice, _ = _login_as("alice@bills.local")
         sid, mids = _make_5_member_session()
         body = _bill_payload(
@@ -622,8 +624,63 @@ class TestUpdateBill:
 
         c_bob, _ = _login_as("bob@bills.local")
         r = c_bob.patch(f"/sessions/{sid}/bills/{bid}", json={"amount": 200.0})
+        assert r.status_code == 200, r.text
+        assert r.json()["amount"] == 200.0
+
+    def test_update_bill_cannot_change_description(self, client: TestClient) -> None:
+        # v0.1.2 (T17): `description` is immutable. PATCH that includes
+        # `description` (or any other unknown field) is rejected with
+        # 422 by Pydantic `extra='forbid'`.
+        c, _ = _login_as("alice@bills.local")
+        sid, mids = _make_5_member_session()
+        body = _bill_payload(
+            payer_member_id=mids["alice@bills.local"],
+            member_ids=[mids["alice@bills.local"], mids["bob@bills.local"]],
+            amount=100.0,
+            description="Original",
+        )
+        r = c.post(f"/sessions/{sid}/bills", json=body)
+        bid = r.json()["id"]
+
+        r = c.patch(f"/sessions/{sid}/bills/{bid}", json={"description": "Hacked"})
+        assert r.status_code == 422, r.text
+
+        # And the description is still the original.
+        r = c.get(f"/sessions/{sid}/bills")
+        assert r.json()[0]["description"] == "Original"
+
+    def test_update_bill_unknown_field_returns_422(self, client: TestClient) -> None:
+        # extra='forbid' should reject any unknown field, not just description.
+        c, _ = _login_as("alice@bills.local")
+        sid, mids = _make_5_member_session()
+        body = _bill_payload(
+            payer_member_id=mids["alice@bills.local"],
+            member_ids=[mids["alice@bills.local"], mids["bob@bills.local"]],
+            amount=100.0,
+        )
+        r = c.post(f"/sessions/{sid}/bills", json=body)
+        bid = r.json()["id"]
+
+        r = c.patch(f"/sessions/{sid}/bills/{bid}", json={"totally_made_up": "value"})
+        assert r.status_code == 422, r.text
+
+    def test_update_bill_non_member_returns_403(self, client: TestClient) -> None:
+        # Even though any member can edit, a non-member still gets 403.
+        c_alice, _ = _login_as("alice@bills.local")
+        sid, mids = _make_5_member_session()
+        body = _bill_payload(
+            payer_member_id=mids["alice@bills.local"],
+            member_ids=[mids["alice@bills.local"], mids["bob@bills.local"]],
+            amount=100.0,
+        )
+        r = c_alice.post(f"/sessions/{sid}/bills", json=body)
+        bid = r.json()["id"]
+
+        # Frank is a real user but not a member of this session.
+        c_frank, _ = _login_as("frank@bills.local")
+        r = c_frank.patch(f"/sessions/{sid}/bills/{bid}", json={"amount": 200.0})
         assert r.status_code == 403
-        assert "creator" in r.json()["detail"]["error"]
+        assert "member" in r.json()["detail"]["error"]
 
     def test_nonexistent_bill_returns_404(self, client: TestClient) -> None:
         c, _ = _login_as("alice@bills.local")
@@ -691,9 +748,9 @@ class TestUpdateBill:
         r = c.post(f"/sessions/{sid}/bills", json=body)
         bid = r.json()["id"]
 
-        r = c.patch(f"/sessions/{sid}/bills/{bid}", json={"description": "Renamed"})
+        r = c.patch(f"/sessions/{sid}/bills/{bid}", json={"occurred_at": "2026-07-01T12:00:00+00:00"})
         assert r.status_code == 200
-        assert r.json()["description"] == "Renamed"
+        assert r.json()["occurred_at"].startswith("2026-07-01T12:00:00")
         assert r.json()["amount"] == 100.0  # unchanged
 
     def test_update_nonexistent_session_returns_403(self, client: TestClient) -> None:
@@ -743,7 +800,8 @@ class TestDeleteBill:
         finally:
             db.close()
 
-    def test_non_creator_cannot_delete_returns_403(self, client: TestClient) -> None:
+    def test_non_creator_can_delete_returns_204(self, client: TestClient) -> None:
+        # v0.1.2 (T17): any session member can delete a bill.
         c_alice, _ = _login_as("alice@bills.local")
         sid, mids = _make_5_member_session()
         body = _bill_payload(
@@ -756,6 +814,23 @@ class TestDeleteBill:
 
         c_bob, _ = _login_as("bob@bills.local")
         r = c_bob.delete(f"/sessions/{sid}/bills/{bid}")
+        assert r.status_code == 204, r.text
+
+    def test_delete_bill_non_member_returns_403(self, client: TestClient) -> None:
+        # Non-member still 403 (even though the v0.1.0 'creator-only'
+        # gate is gone, session membership is still required).
+        c_alice, _ = _login_as("alice@bills.local")
+        sid, mids = _make_5_member_session()
+        body = _bill_payload(
+            payer_member_id=mids["alice@bills.local"],
+            member_ids=[mids["alice@bills.local"], mids["bob@bills.local"]],
+            amount=100.0,
+        )
+        r = c_alice.post(f"/sessions/{sid}/bills", json=body)
+        bid = r.json()["id"]
+
+        c_frank, _ = _login_as("frank@bills.local")
+        r = c_frank.delete(f"/sessions/{sid}/bills/{bid}")
         assert r.status_code == 403
 
     def test_nonexistent_bill_returns_404(self, client: TestClient) -> None:

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import type { SessionDetail } from '$api/sessions';
   import type { ParseBillResult } from '$api/bills';
   import AiAssistInput from './AiAssistInput.svelte';
@@ -14,6 +15,15 @@
     participants: Array<{ member_id: number; is_exclusive: boolean; exclusive_amount: number }>;
   }) => Promise<void> | void) | null = null;
 
+  /**
+   * v0.1.2 (T19): if provided, the payer dropdown will default to this
+   * SessionMember.id when the form first mounts. Pass the caller's own
+   * SessionMember.id from the new-bill page (which already has the user
+   * + session in scope). If null/undefined the dropdown starts blank and
+   * the user has to pick.
+   */
+  export let defaultPayerMemberId: number | null = null;
+
   let amount = '';
   let payerMemberId: number | null = null;
   let description = '';
@@ -27,6 +37,20 @@
   let showAi = false;
   let submitting = false;
   let formError: string | null = null;
+
+  // v0.1.2 (T19): apply the caller-supplied default payer once the form
+  // mounts. We only set it if the payer is currently null so the
+  // component remains reusable (e.g. embedded somewhere that wants to
+  // pre-set the payer explicitly).
+  onMount(() => {
+    if (
+      defaultPayerMemberId != null &&
+      payerMemberId === null &&
+      session.members.some((m) => m.id === defaultPayerMemberId)
+    ) {
+      payerMemberId = defaultPayerMemberId;
+    }
+  });
 
   function toggleParticipant(memberId: number) {
     if (!participantState[memberId]) return;

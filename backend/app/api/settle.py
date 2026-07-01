@@ -1,4 +1,4 @@
-"""Settle API — Sprint 1 T12.
+"""Settle API — Sprint 1 T12, v0.1.2 extension (T18).
 
 Endpoint (mounted under /sessions/{session_id}/settle; the dev proxy
 strips the /api prefix):
@@ -7,7 +7,8 @@ GET /sessions/{session_id}/settle
 
 Returns the per-member net balance (positive = owed money, negative =
 owes money) and a list of suggested transfers that zero everyone's
-balance.
+balance. v0.1.2 (T18) also returns a per-member breakdown for the
+frontend 'personal view' tab (see `per_member` field below).
 
 Auth model
 ----------
@@ -36,6 +37,25 @@ SQLite REAL stores IEEE-754 doubles; we round to 2 decimal places when
 serialising to the snapshot JSON to avoid noise like 0.00000001 in the
 UI. The in-memory computation uses full precision, only the stored
 snapshot gets the rounding.
+
+v0.1.2 (T18) per-member breakdown
+----------------------------------
+For each session member we emit one `MemberSettlement` with:
+  - total_paid      = sum(bill.amount for bill in session.bills if bill.payer_id == member.id)
+  - total_consumed  = sum(participant.share_amount for bill in session.bills
+                          for participant in bill.participants
+                          if participant.member_id == member.id)
+  - net             = total_paid - total_consumed
+                      (== `balances[member_id]` for the same session)
+  - paid_bills      = bills where the member was the payer (newest first)
+  - consumed_bills  = bills where the member was a participant, with
+                      `share_amount` filled in (newest first)
+
+The persisted `summary_json` snapshot keeps its v0.1.0 shape
+(`balances` + `transfers` only) so existing snapshots remain valid;
+the `per_member` list is computed on the fly from `bills` +
+`bill_participants` + `session_members` at request time, so format
+changes don't require a backfill migration.
 """
 from __future__ import annotations
 
@@ -71,11 +91,56 @@ class Transfer(BaseModel):
     amount: float
 
 
+class BillSummary(BaseModel):
+    """Lightweight bill row for per-member views."""
+
+    bill_id: int
+    description: str | None
+    amount: float
+    currency: str
+    occurred_at: str  # ISO 8601 (UTC)
+
+
+class BillShare(BaseModel):
+    """A bill + the share this particular member owes for it."""
+
+    bill_id: int
+    description: str | None
+    amount: float       # bill total
+    share_amount: float # this member's share
+    currency: str
+    occurred_at: str    # ISO 8601 (UTC)
+
+
+class MemberSettlement(BaseModel):
+    """v0.1.2 (T18): per-member breakdown for the 'personal view' tab.
+
+    `total_paid` / `total_consumed` mirror the same numbers that feed the
+    session-wide `balances` dict, so `net = total_paid - total_consumed`
+    always equals `balances[member_id]`.
+
+    `paid_bills` lists every bill where the member was the payer.
+    `consumed_bills` lists every bill that allocated a share to the
+    member (including bills they themselves paid -- those appear in
+    both lists).
+    """
+
+    member_id: int
+    display_name: str
+    role: str
+    total_paid: float
+    total_consumed: float
+    net: float
+    paid_bills: list[BillSummary]
+    consumed_bills: list[BillShare]
+
+
 class SettleResponse(BaseModel):
     session_id: int
     generated_at: str
     balances: dict[str, float]  # member_id (str) -> net
     transfers: list[Transfer]
+    per_member: list[MemberSettlement] = []  # v0.1.2 (T18)
 
 
 # ---------------------------------------------------------------------------
@@ -171,6 +236,93 @@ def _iso(dt: datetime | None) -> str:
     return dt.isoformat()
 
 
+def _bill_share_amounts(bill: Bill, parts: list[BillParticipant]) -> list[float]:
+    """Per-participant share for a single bill (same formula as bills API).
+
+    shared_pool = amount - sum(exclusive_amount for p in parts if is_exclusive)
+    per_user_shared = shared_pool / len(parts)
+    share = per_user_shared + (own_exclusive if is_exclusive else 0)
+    """
+    if not parts:
+        return []
+    exclusive_total = sum(p.exclusive_amount for p in parts if p.is_exclusive)
+    shared_pool = bill.amount - exclusive_total
+    per_user_shared = shared_pool / len(parts)
+    return [
+        per_user_shared + (p.exclusive_amount if p.is_exclusive else 0.0)
+        for p in parts
+    ]
+
+
+def _compute_per_member(
+    bills: list[Bill],
+    participants_by_bill: dict[int, list[BillParticipant]],
+    members: list[SessionMember],
+) -> list[MemberSettlement]:
+    """Build the per-member breakdown for the v0.1.2 personal view tab.
+
+    Pure function — easy to unit-test. Returns one MemberSettlement per
+    session member, in the order they were passed in (caller is
+    responsible for ordering, typically `joined_at asc`).
+    """
+    out: list[MemberSettlement] = []
+    for m in members:
+        paid_bills: list[BillSummary] = []
+        consumed_bills: list[BillShare] = []
+        total_paid = 0.0
+        total_consumed = 0.0
+
+        for bill in bills:
+            # Biller side: bills where this member is the payer.
+            if bill.payer_id == m.id:
+                paid_bills.append(
+                    BillSummary(
+                        bill_id=bill.id,
+                        description=bill.description,
+                        amount=bill.amount,
+                        currency=bill.currency,
+                        occurred_at=_iso(bill.occurred_at),
+                    )
+                )
+                total_paid += bill.amount
+
+            # Consumer side: bills that include this member as a participant.
+            ppts = participants_by_bill.get(bill.id, [])
+            shares = _bill_share_amounts(bill, ppts)
+            for idx, p in enumerate(ppts):
+                if p.member_id == m.id:
+                    share_amount = shares[idx] if idx < len(shares) else 0.0
+                    consumed_bills.append(
+                        BillShare(
+                            bill_id=bill.id,
+                            description=bill.description,
+                            amount=bill.amount,
+                            share_amount=share_amount,
+                            currency=bill.currency,
+                            occurred_at=_iso(bill.occurred_at),
+                        )
+                    )
+                    total_consumed += share_amount
+                    break  # one row per bill per member
+
+        net = round(total_paid - total_consumed, 2)
+        out.append(
+            MemberSettlement(
+                member_id=m.id,
+                display_name=m.display_name,
+                role=m.role,
+                total_paid=round(total_paid, 2),
+                total_consumed=round(total_consumed, 2),
+                net=net,
+                paid_bills=sorted(paid_bills, key=lambda b: b.occurred_at, reverse=True),
+                consumed_bills=sorted(
+                    consumed_bills, key=lambda b: b.occurred_at, reverse=True
+                ),
+            )
+        )
+    return out
+
+
 # ---------------------------------------------------------------------------
 # GET /sessions/{session_id}/settle
 # ---------------------------------------------------------------------------
@@ -221,7 +373,21 @@ async def settle_session(
     balances = _compute_balances(bills, participants_by_bill, member_ids)
     transfers = _greedy_pair(balances)
 
-    # Persist snapshot (SPEC §3 settlements table).
+    # v0.1.2 (T18): per-member breakdown for the personal view tab.
+    # Reuse the same per-bill `share_amount` math the bills API does
+    # (SPEC §3 "派生字段不入库"); build maps member_id -> total_paid +
+    # list of paid_bills / list of consumed_bills (with shares).
+    per_member = _compute_per_member(
+        bills=bills,
+        participants_by_bill=participants_by_bill,
+        members=members,
+    )
+
+    # Persist snapshot (SPEC §3 settlements table). v0.1.2 (T18) keeps
+    # the persisted `summary_json` shape backward-compatible: only
+    # balances + transfers. The richer `per_member` is computed
+    # on-the-fly so we don't bloat the snapshot and so future format
+    # changes don't need a backfill migration.
     now = datetime.now(timezone.utc)
     summary = {
         "balances": {str(mid): balances[mid] for mid in member_ids},
@@ -241,4 +407,5 @@ async def settle_session(
         "generated_at": _iso(snapshot.generated_at),
         "balances": {str(mid): balances[mid] for mid in member_ids},
         "transfers": transfers,
+        "per_member": [pm.model_dump() for pm in per_member],
     }

@@ -10,12 +10,14 @@ POST   /sessions/{session_id}/bills              Create a bill
 PATCH  /sessions/{session_id}/bills/{bill_id}    Update a bill
 DELETE /sessions/{session_id}/bills/{bill_id}    Delete a bill
 
-Auth model (SPEC §5)
---------------------
+Auth model (SPEC §5, v0.1.2 updated)
+--------------------------------------
 - Any session member can CREATE a bill (POST /bills).
-- Only the bill creator (bill.created_by == caller's user.id) can
-  UPDATE or DELETE; the session's bills are *not* locked yet (v0.1
-  status defaults to 'draft'), so the only gate is "you created it".
+- v0.1.2 (T17): any session member can also UPDATE and DELETE a bill
+  (the v0.1.0 'creator-only' check is removed). The bill's `description`
+  field remains immutable: PATCH bodies containing `description` (or
+  any other unknown field) get rejected with 422 by `extra='forbid'`.
+  `created_by` is still recorded on the bill for UI display ("recorded by X").
 - GET requires membership (uses get_session_member dependency).
 
 Derivation rules (PRD §3.1.2 + SPEC §3 "派生字段不入库")
@@ -47,7 +49,7 @@ from typing import Annotated, Any
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Path, status
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -101,9 +103,20 @@ class CreateBillRequest(BaseModel):
 
 
 class UpdateBillRequest(BaseModel):
+    """T17 (v0.1.2): any session member can update a bill.
+
+    - `description` is intentionally NOT exposed: once a bill is recorded,
+      its description is immutable (PO 2026-06-30 B②i). PATCHes that
+      include `description` (or any other unknown field) get rejected
+      with 422 by `extra='forbid'`.
+    - `created_by` is still returned by the API (for UI display of who
+      recorded the bill) but is **not** used as a permission gate.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
     amount: float | None = Field(default=None, gt=0)
     payer_member_id: int | None = None
-    description: str | None = Field(default=None, max_length=500)
     occurred_at: datetime | None = None
     currency: str | None = Field(default=None, min_length=1, max_length=8)
     participants: list[ParticipantIn] | None = Field(default=None, min_length=1)
@@ -550,7 +563,15 @@ async def update_bill(
     db: Annotated[Session, Depends(get_db)],
     bill_id: int = Path(..., description="Bill.id"),
 ) -> dict:
-    """Update a bill. Only the bill's creator may modify (SPEC §5).
+    """Update a bill. Any session member may modify (SPEC §5, v0.1.2).
+
+    v0.1.2: relaxed from 'creator-only' to 'any member' to support
+    group editing -- e.g. someone who wasn't around when the bill
+    was recorded can fix the amount / payer / participants on the
+    group's behalf. The bill's `description` is immutable (PO
+    2026-06-30 B②i): once a description is committed it is
+    treated as historical fact. The schema rejects PATCH bodies
+    containing `description` with 422 via `extra='forbid'`.
 
     v0.1 status defaults to 'draft', so the 'session not locked' check
     is implicitly satisfied (no lock endpoint exists in v0.1 yet).
@@ -560,9 +581,10 @@ async def update_bill(
     200: bill updated.
     400: invalid participant / amount / exclusive total.
     401: no/invalid cookie.
-    403: caller is not a session member OR did not create this bill.
+    403: caller is not a session member.
     404: bill not found in this session.
-    422: missing/over-long/invalid fields (pydantic).
+    422: missing/over-long/invalid fields OR `description`/unknown field
+         (pydantic extra='forbid').
     """
     bill = (
         db.query(Bill)
@@ -575,19 +597,16 @@ async def update_bill(
             detail={"error": "bill not found"},
         )
 
-    if bill.created_by != sm.user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={"error": "only the bill creator can modify it"},
-        )
+    # v0.1.2 (T17): removed creator check -- any session member can update.
 
     # Apply scalar updates first (any of these may be None).
     if payload.amount is not None:
         bill.amount = payload.amount
     if payload.payer_member_id is not None:
         bill.payer_id = payload.payer_member_id
-    if payload.description is not None:
-        bill.description = payload.description
+    # v0.1.2 (T17): description is no longer mutable. The schema rejects
+    # PATCH bodies containing `description` with 422 via `extra='forbid'`,
+    # so we don't need to skip updating it here -- it's already filtered.
     if payload.occurred_at is not None:
         bill.occurred_at = payload.occurred_at
     if payload.currency is not None:
@@ -664,11 +683,11 @@ async def delete_bill(
     db: Annotated[Session, Depends(get_db)],
     bill_id: int = Path(..., description="Bill.id"),
 ) -> None:
-    """Delete a bill. Only the bill's creator may delete (SPEC §5).
+    """Delete a bill. Any session member may delete (SPEC §5, v0.1.2).
 
     204: bill deleted (participants cascade).
     401: no/invalid cookie.
-    403: caller is not a session member OR did not create this bill.
+    403: caller is not a session member.
     404: bill not found in this session.
     """
     bill = (
@@ -681,11 +700,7 @@ async def delete_bill(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": "bill not found"},
         )
-    if bill.created_by != sm.user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={"error": "only the bill creator can delete it"},
-        )
+    # v0.1.2 (T17): removed creator check -- any session member can delete.
     db.delete(bill)
     db.commit()
     return None
