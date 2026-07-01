@@ -1,19 +1,29 @@
 <script lang="ts">
   /**
-   * v0.1.2 反馈修 5 (PO 2026-07-01 23:00 UX 改写) — bills grouped list。
+   * v0.1.2 反馈修 5 (PO 2026-07-01 23:00 UX 改写) — bills grouped list,
+   * Commit 2: 3+4+5 — Bill item 重构 + iOS Mail-style 滑动操作。
    *
-   * 本 Commit 1 只动项目 6 (day header 排版文案 / 单位 / 标签),
-   * Bill item 重构 (3+4+5) 在 Commit 2 实施。
+   * 本 Commit 2 涉及:
+   * - 项目 3 (Bill item 左右留出适当空间):
+   *     .bill-row padding: var(--space-3) 0 → var(--space-3) 0 → 行内 wrap padding
+   *     .day-bills 加 padding-left/right var(--space-3) (整组内缩)
+   * - 项目 4 (「你分摊」→「分摊」): 更克制专业, 跟结算页「付款 / 消费 / 净」对应
+   * - 项目 5 (iOS Mail-style 滑动操作 — 大改):
+   *     - 删除: .bill-row on:click 跳编辑页
+   *     - 删除: .bill-menu-btn + .bill-menu-popover
+   *     - 删除: @media (min-width: 720px) inline delete button 兜底
+   *     - 新增: 右滑 → 露出「编辑」(左,accent) | 左滑 → 露出「删除」(右,error)
+   *     - 触摸 + mouse 双通道(codeserver Playwright 用 mouse 模拟)
+   *     - 阈值 60-80px snap-open, 否则 snap-close
+   *     - 拖动 | Δx| > |Δy| 时 preventDefault 阻止垂直滚动
+   *     - tap 视为 < 10px 拖动, 走 click fallback (无 swipe open 时)
+   *     - snap 250ms cubic-bezier(0.2, 0, 0, 1) 动画
+   *     - 一次只能有一个 item open
+   *     - tap 任意空白处 / tap 别的 bill row / 滑动另一个 item 时自动 close 已开的
    *
-   * 本 Commit 1 涉及:
-   * - 项目 6 (day header 排版调整):
-   *   主行: 日期 (左, 1rem 600) + 合计金额 (右, 1rem 600 tabular-nums) [沿用]
-   *   副行: 人均金额 (左, muted) + 总笔数 (中, muted) + (合计) 标签 (右, muted, 灰色)
-   *   把原来「N 笔」改成「总笔数 N」(PO: 更明确)
-   *
-   * 历史: v0.1.2 反馈修3 (`056dc2b`) day-header-main/sub 已实现,本次只动文案。
+   * 历史: v0.1.2 反馈修5 Commit 1 (9ccebcc) — 文字+按钮位置调整已实施
    */
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { goto } from '$app/navigation';
   import type { Bill } from '$api/bills';
 
@@ -35,12 +45,29 @@
   };
 
   let collapsed: Record<string, boolean> = {};
-  /** 当前打开 ⋯ 菜单的 bill id, 用于控制菜单 popover */
-  let openMenuForBillId: number | null = null;
+
+  // === 项目 5: swipe state ===
+  /** Per-bill real-time drag offset during a touch/mouse drag. */
+  let dragOffset: Record<number, number> = {};
+  /** Per-bill snap-open offset (after release, when commited as open). */
+  let swipeOffset: Record<number, number> = {};
+  /** Whether the row is currently being dragged (real-time, no transition). */
+  let isDragging: Record<number, boolean> = {};
+  /** Which bill is currently snap-open (one at a time). */
+  let openSwipeBillId: number | null = null;
+
+  // drag tracking (single active drag at a time)
+  let dragBillId: number | null = null;
+  let dragStartX = 0;
+  let dragStartY = 0;
+  let dragLastX = 0;
+  let dragAxis: 'h' | 'v' | null = null; // 'h'=horizontal swipe, 'v'=vertical scroll
+
+  const ACTION_WIDTH = 80;     // 露出 action button 的宽度
+  const SWIPE_THRESHOLD = 60;  // 触发 snap-open 的阈值
+  const TAP_THRESHOLD = 10;    // < 10px 视为 tap,不进入 swipe
 
   function localDateKey(iso: string): string {
-    // YYYY-MM-DD in Asia/Shanghai. We avoid `toISOString()` because that
-    // forces UTC and would shift the bucket for late-evening entries.
     const d = new Date(iso);
     if (isNaN(d.getTime())) return 'unknown';
     const parts = new Intl.DateTimeFormat('en-CA', {
@@ -54,10 +81,6 @@
   }
 
   function computePerCapita(groupBills: Bill[]): number {
-    // Per-bill AA: Σ (bill.amount / bill.participants.length).
-    // The spec calls out that this is NOT total / num_members -- it
-    // weights each bill by the number of people who actually shared
-    // that specific expense.
     let sum = 0;
     for (const b of groupBills) {
       const n = b.participants?.length ?? 0;
@@ -76,7 +99,6 @@
     }
     const out: Group[] = [];
     for (const [date, list] of buckets.entries()) {
-      // Within group: earliest first.
       const sorted = [...list].sort((a, b) => {
         const ta = new Date(a.occurred_at).getTime();
         const tb = new Date(b.occurred_at).getTime();
@@ -84,8 +106,6 @@
         return a.id - b.id;
       });
       const total = sorted.reduce((acc, b) => acc + b.amount, 0);
-      // Currency: v0.1 simplification -- we assume single currency per
-      // session (multi-currency is v0.2). Take the first bill's currency.
       const currency = sorted[0]?.currency ?? '';
       out.push({
         date,
@@ -95,12 +115,10 @@
         perCapita: computePerCapita(sorted),
       });
     }
-    // Newest date first.
     out.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
     return out;
   }
 
-  // Reactive: recompute when bills prop changes.
   $: groups = buildGroups(bills);
 
   function fmtAmount(n: number): string {
@@ -122,9 +140,6 @@
     return memberIdToName[b.payer_id] ?? ('#' + b.payer_id);
   }
 
-  /** 当前用户的 share_amount (per-bill AA),如果当前用户在 participants 里。
-   * PO 要求: AA = bill.amount / bill.participants.length,不考虑 exclusive 差异。
-   * 不在 participants 内 → null (UI 不显示「分摊」)。 */
   function yourShare(b: Bill): number | null {
     if (currentUserMemberId === null || currentUserMemberId === undefined) return null;
     const inPart = (b.participants ?? []).some((p) => p.member_id === currentUserMemberId);
@@ -134,6 +149,221 @@
     return b.amount / n;
   }
 
+  // ===== 项目 5: iOS Mail-style swipe logic =====
+
+  /**
+   * Resolve the current visual offset for a bill row:
+   *  - if currently being dragged → real-time `dragOffset`
+   *  - else if snap-open → `swipeOffset` (capped at ±ACTION_WIDTH)
+   *  - else → 0
+   */
+  function getRowOffset(billId: number): number {
+    if (isDragging[billId]) return dragOffset[billId] ?? 0;
+    return swipeOffset[billId] ?? 0;
+  }
+
+  /** Cap a raw offset to ±ACTION_WIDTH for snap-open state. */
+  function clampOffset(n: number): number {
+    if (n > ACTION_WIDTH) return ACTION_WIDTH;
+    if (n < -ACTION_WIDTH) return -ACTION_WIDTH;
+    return n;
+  }
+
+  /** Initialize a drag (touchstart or mousedown). */
+  function startDrag(billId: number, clientX: number, clientY: number) {
+    dragBillId = billId;
+    dragStartX = clientX;
+    dragStartY = clientY;
+    dragLastX = clientX;
+    dragAxis = null;
+    // If another bill is open, close it immediately on drag start of any bill
+    if (openSwipeBillId !== null && openSwipeBillId !== billId) {
+      swipeOffset = { ...swipeOffset, [openSwipeBillId]: 0 };
+      openSwipeBillId = null;
+    }
+    // The drag offset starts from the snap-open offset (continue from open)
+    const baseOffset = swipeOffset[billId] ?? 0;
+    dragOffset = { ...dragOffset, [billId]: baseOffset };
+    // Real-time drag flag
+    isDragging = { ...isDragging, [billId]: true };
+  }
+
+  /** Update during drag (touchmove or mousemove). */
+  function moveDrag(billId: number, clientX: number, clientY: number, e?: MouseEvent | TouchEvent) {
+    if (dragBillId !== billId) return;
+    const dx = clientX - dragStartX;
+    const dy = clientY - dragStartY;
+
+    // Determine axis on first significant movement
+    if (dragAxis === null) {
+      if (Math.abs(dx) < TAP_THRESHOLD && Math.abs(dy) < TAP_THRESHOLD) {
+        return; // too small, still ambiguous
+      }
+      dragAxis = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v';
+      // On horizontal swipe, preventDefault to stop vertical scroll (touch)
+      if (dragAxis === 'h' && e && 'cancelable' in e && e.cancelable) {
+        e.preventDefault();
+      }
+    }
+
+    // 误触防护: vertical scroll 优先 — 当轴已确定是 vertical,不要翻译成 swipe
+    if (dragAxis === 'v') return;
+
+    // 拖动距离 < TAP_THRESHOLD 时视为 tap,不进入 swipe state
+    if (Math.abs(dx) < TAP_THRESHOLD && (swipeOffset[billId] ?? 0) === 0) {
+      return;
+    }
+
+    dragLastX = clientX;
+
+    // Real-time visual: clamp to [-ACTION_WIDTH - 60px overshoot, +ACTION_WIDTH + 60px]
+    // Allow small overshoot for elasticity; cap at ±100 visually.
+    let next = (swipeOffset[billId] ?? 0) + dx - (dragOffset[billId] ?? 0) + (dragOffset[billId] ?? 0);
+    // Simpler: cumulative visual position from start (so users can drag back closed)
+    next = (swipeOffset[billId] ?? 0) + (clientX - dragStartX);
+
+    // Allow overshoot up to ±100px for elasticity feel
+    if (next > 100) next = 100;
+    if (next < -100) next = -100;
+    // But cap snap-open (which we'll compute on end) to ±ACTION_WIDTH
+
+    dragOffset = { ...dragOffset, [billId]: next };
+    // Force reactivity — touchend will read this
+    dragOffset = dragOffset;
+  }
+
+  /** End drag (touchend / mouseup). Snap-open or snap-close. */
+  function endDrag(billId: number) {
+    if (dragBillId !== billId) {
+      // No drag in progress or different bill
+      return;
+    }
+    const finalOffset = dragOffset[billId] ?? 0;
+
+    if (Math.abs(finalOffset) >= SWIPE_THRESHOLD) {
+      // Snap-open — cap to ±ACTION_WIDTH
+      const snap = finalOffset > 0 ? ACTION_WIDTH : -ACTION_WIDTH;
+      swipeOffset = { ...swipeOffset, [billId]: snap };
+      openSwipeBillId = billId;
+    } else {
+      // Snap-close
+      swipeOffset = { ...swipeOffset, [billId]: 0 };
+      if (openSwipeBillId === billId) openSwipeBillId = null;
+    }
+
+    // Reset drag state
+    isDragging = { ...isDragging, [billId]: false };
+    dragOffset = { ...dragOffset, [billId]: 0 };
+    dragBillId = null;
+    dragAxis = null;
+    dragStartX = 0;
+    dragStartY = 0;
+    dragLastX = 0;
+  }
+
+  /** Cancel drag (e.g., touch cancel). */
+  function cancelDrag(billId: number) {
+    if (dragBillId === billId) {
+      swipeOffset = { ...swipeOffset, [billId]: 0 };
+      isDragging = { ...isDragging, [billId]: false };
+      dragOffset = { ...dragOffset, [billId]: 0 };
+      dragBillId = null;
+      dragAxis = null;
+    }
+  }
+
+  // Touch event handlers
+  function onTouchStart(billId: number, e: TouchEvent) {
+    const t = e.touches[0];
+    if (!t) return;
+    startDrag(billId, t.clientX, t.clientY);
+  }
+  function onTouchMove(billId: number, e: TouchEvent) {
+    const t = e.touches[0];
+    if (!t) return;
+    moveDrag(billId, t.clientX, t.clientY, e);
+  }
+  function onTouchEnd(billId: number, e: TouchEvent) {
+    // touchend has no touches[0] — use changedTouches
+    endDrag(billId);
+  }
+  function onTouchCancel(billId: number, e: TouchEvent) {
+    cancelDrag(billId);
+  }
+
+  // Mouse event handlers (mirror for desktop / Playwright test)
+  function onMouseDown(billId: number, e: MouseEvent) {
+    // Only respond to primary button
+    if (e.button !== 0) return;
+    startDrag(billId, e.clientX, e.clientY);
+    // Capture for mousemove/up outside the row
+    window.addEventListener('mousemove', onWindowMouseMove);
+    window.addEventListener('mouseup', onWindowMouseUp);
+    // Prevent text selection during drag
+    e.preventDefault();
+  }
+  function onWindowMouseMove(e: MouseEvent) {
+    if (dragBillId === null) return;
+    moveDrag(dragBillId, e.clientX, e.clientY, e);
+  }
+  function onWindowMouseUp(e: MouseEvent) {
+    if (dragBillId === null) return;
+    const id = dragBillId;
+    endDrag(id);
+    window.removeEventListener('mousemove', onWindowMouseMove);
+    window.removeEventListener('mouseup', onWindowMouseUp);
+  }
+
+  // Tap on row (no drag) — close any open swipe, or do nothing if already closed.
+  // We intentionally do NOT auto-open edit on tap; the row itself is no longer
+  // "clickable to open edit" — user must swipe-right to reveal "编辑", or
+  // swipe-left to reveal "删除". Tap simply closes an open swipe.
+  function onRowTap(e: MouseEvent | TouchEvent) {
+    // If a swipe was in progress and ended as tap, do nothing special
+    if (openSwipeBillId !== null) {
+      const target = e.target as HTMLElement;
+      // If tap landed on the row content (not action button), close it
+      if (!target.closest('.bill-swipe-action')) {
+        swipeOffset = { ...swipeOffset, [openSwipeBillId]: 0 };
+        openSwipeBillId = null;
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }
+  }
+
+  // Click on action button
+  async function onSwipeEdit(billId: number, e: MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    // Close swipe first
+    swipeOffset = { ...swipeOffset, [billId]: 0 };
+    if (openSwipeBillId === billId) openSwipeBillId = null;
+    await tick();
+    goto(`/sessions/${sessionId}/bills/${billId}/edit`);
+  }
+  async function onSwipeDelete(billId: number, e: MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    // Close swipe first
+    swipeOffset = { ...swipeOffset, [billId]: 0 };
+    if (openSwipeBillId === billId) openSwipeBillId = null;
+    await tick();
+    if (onDelete) {
+      // onDelete is async; intentionally not awaited.
+      void onDelete(billId);
+    }
+  }
+
+  /** Close any open swipe (used by outside-click handler). */
+  function closeAllSwipes() {
+    if (openSwipeBillId !== null) {
+      swipeOffset = { ...swipeOffset, [openSwipeBillId]: 0 };
+      openSwipeBillId = null;
+    }
+  }
+
+  // ===== Storage: collapsed day groups =====
   function storageKey(): string {
     return `sbc.billGroupCollapsed.${sessionId}`;
   }
@@ -172,72 +402,21 @@
     saveCollapsedState();
   }
 
-  /** 跳转到 bill 编辑页 */
-  function openBillEdit(billId: number) {
-    goto(`/sessions/${sessionId}/bills/${billId}/edit`);
-  }
-
-  /** 整行点击/键盘触发编辑 */
-  function onBillRowClick(billId: number, e: MouseEvent | KeyboardEvent) {
-    // 阻止内部 button (e.g. ⋯ 菜单) 触发表层跳转
-    const t = e.target as HTMLElement;
-    if (t.closest('button, a, .bill-menu-popover')) return;
-    openBillEdit(billId);
-  }
-
-  function onBillRowKey(billId: number, e: KeyboardEvent) {
-    if (e.key === 'Enter' || e.key === ' ') {
-      // 键盘触发时,焦点在内部 button 时不响应
-      const t = e.target as HTMLElement;
-      if (t !== e.currentTarget && t.closest('button')) return;
-      e.preventDefault();
-      openBillEdit(billId);
-    } else if (e.key === 'Escape') {
-      openMenuForBillId = null;
-    }
-  }
-
-  /** ⋯ 菜单 toggle */
-  function toggleMenu(billId: number, e: MouseEvent) {
-    e.stopPropagation();
-    openMenuForBillId = openMenuForBillId === billId ? null : billId;
-  }
-
-  function closeMenu() {
-    openMenuForBillId = null;
-  }
-
-  function onMenuEdit(billId: number, e: MouseEvent) {
-    e.stopPropagation();
-    closeMenu();
-    openBillEdit(billId);
-  }
-
-  function onMenuDelete(billId: number, e: MouseEvent) {
-    e.stopPropagation();
-    closeMenu();
-    if (onDelete) {
-      // onDelete is async; intentionally not awaited.
-      void onDelete(billId);
-    }
-  }
-
-  /** 兼容: inline delete 按钮 */
-  function onDeleteClick(billId: number, e: MouseEvent | KeyboardEvent) {
-    e.stopPropagation();
-    if (onDelete) {
-      void onDelete(billId);
-    }
-  }
-
   onMount(() => {
     loadCollapsedState();
-    // outside-click 关闭 ⋯ 菜单
-    const onDocClick = () => {
-      if (openMenuForBillId !== null) openMenuForBillId = null;
+    // outside-click 关闭 swipe
+    const onDocClick = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (t.closest('.bill-swipe-wrap')) return; // 点击 row 内 → 由 row 自己处理
+      closeAllSwipes();
     };
+    // Use capture: false, but a slight delay to avoid race with row tap
     document.addEventListener('click', onDocClick);
-    return () => document.removeEventListener('click', onDocClick);
+    return () => {
+      document.removeEventListener('click', onDocClick);
+      window.removeEventListener('mousemove', onWindowMouseMove);
+      window.removeEventListener('mouseup', onWindowMouseUp);
+    };
   });
 </script>
 
@@ -253,16 +432,12 @@
           <details open={isOpen(g.date)} on:toggle={(e) => onGroupToggle(g.date, e)}>
             <summary class="day-header">
               <span class="day-toggle" aria-hidden="true">{isOpen(g.date) ? '−' : '+'}</span>
-              <!-- 项目 6: 主行 — 日期(左, 1rem 600) + 合计金额(右, 1rem 600 tabular-nums) -->
               <div class="day-header-main">
                 <span class="day-date">{g.date}</span>
                 <span class="day-total">
                   {fmtAmount(g.total)}<span class="unit">{g.currency}</span>
                 </span>
               </div>
-              <!-- 项目 6: 副行 — 人均金额(左, muted) + 总笔数(中, muted) + (合计) 标签(右, muted, 灰色)
-                   把「N 笔」改成「总笔数 N」(PO: 更明确);
-                   移动端 375px 借助 flex-wrap 优雅换行 -->
               <div class="day-header-sub">
                 <span class="muted">人均 {fmtAmount(g.perCapita)}{g.currency}</span>
                 <span class="muted">总笔数 {g.bills.length}</span>
@@ -270,78 +445,70 @@
               </div>
             </summary>
 
-            <ul class="day-bills" style="list-style: none; padding: 0; margin: 0;">
+            <!-- 项目 3: day-bills 加 padding-inline, 整个 day group 内缩,bill row 不贴边缘 -->
+            <ul class="day-bills">
               {#each g.bills as b (b.id)}
                 {@const share = yourShare(b)}
-                <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
-                <li
-                  class="bill-row"
-                  role="button"
-                  tabindex="0"
-                  aria-label="打开账单: {b.description || '(无说明)'}"
-                  on:click={(e) => onBillRowClick(b.id, e)}
-                  on:keydown={(e) => onBillRowKey(b.id, e)}
-                >
-                  <!-- row1 - description + 金额 + ⋯ 菜单 -->
-                  <div class="bill-row1">
-                    <span class="bill-desc">{b.description || '(无说明)'}</span>
-                    <span class="bill-amount">
-                      {fmtAmount(b.amount)}<span class="unit">{b.currency}</span>
-                    </span>
-                    {#if onDelete}
-                      <button
-                        type="button"
-                        class="bill-menu-btn"
-                        aria-label="账单菜单"
-                        title="菜单"
-                        aria-haspopup="menu"
-                        aria-expanded={openMenuForBillId === b.id}
-                        on:click={(e) => toggleMenu(b.id, e)}
-                      >⋯</button>
-                    {/if}
-                  </div>
-                  <!-- row2 - 时间·付款人·人均 muted + 右侧 分摊 X (accent) -->
-                  <div class="bill-row2 muted">
-                    <span class="bill-meta-line">
-                      {fmtBillTime(b.occurred_at)} · {payerName(b)} 付 · {b.participants.length} 人均 {fmtAmount(b.amount / Math.max(1, b.participants.length))}{b.currency}
-                    </span>
-                    {#if share !== null}
-                      <!-- 项目 4 (在 Commit 2 改): 你分摊 X → 分摊 X (PO: 简洁专业) -->
-                      <span class="your-share">你分摊 {fmtAmount(share)}<span class="unit">{b.currency}</span></span>
-                    {/if}
-                  </div>
-
-                  {#if openMenuForBillId === b.id}
-                    <!-- svelte-ignore a11y_click_events_have_key_events a11y_interactive_supports_focus -->
-                    <!-- ⋯ 菜单 popover -->
-                    <div class="bill-menu-popover" role="menu" on:click|stopPropagation>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        class="bill-menu-item"
-                        on:click={(e) => onMenuEdit(b.id, e)}
-                      >编辑</button>
-                      {#if onDelete}
-                        <button
-                          type="button"
-                          role="menuitem"
-                          class="bill-menu-item danger"
-                          on:click={(e) => onMenuDelete(b.id, e)}
-                        >删除</button>
+                {@const offset = getRowOffset(b.id)}
+                {@const swiping = !!isDragging[b.id]}
+                <li class="bill-swipe-wrap">
+                  {#if onDelete}
+                    <!-- 左滑 → 露出 删除 (右边, 红色) -->
+                    <button
+                      type="button"
+                      class="bill-swipe-action bill-swipe-action-right"
+                      tabindex={swipeOffset[b.id] !== undefined && swipeOffset[b.id] < 0 ? 0 : -1}
+                      aria-hidden={swipeOffset[b.id] === undefined || swipeOffset[b.id] >= 0}
+                      aria-label="删除账单: {b.description || '(无说明)'}"
+                      on:click={(e) => onSwipeDelete(b.id, e)}
+                    >删除</button>
+                  {/if}
+                  <!-- 右滑 → 露出 编辑 (左边, 蓝色) -->
+                  <button
+                    type="button"
+                    class="bill-swipe-action bill-swipe-action-left"
+                    tabindex={swipeOffset[b.id] !== undefined && swipeOffset[b.id] > 0 ? 0 : -1}
+                    aria-hidden={swipeOffset[b.id] === undefined || swipeOffset[b.id] <= 0}
+                    aria-label="编辑账单: {b.description || '(无说明)'}"
+                    on:click={(e) => onSwipeEdit(b.id, e)}
+                  >编辑</button>
+                  <!-- 项目 5: bill-row 是 swipe 表面,不是传统 button — 用 svelte-ignore 抑制 a11y 警告 -->
+                  <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+                  <!-- svelte-ignore a11y-no-noninteractive-element-to-interactive-role -->
+                  <!-- svelte-ignore a11y-no-static-element-interactions -->
+                  <!-- svelte-ignore a11y-click-events-have-key-events -->
+                  <div
+                    class="bill-row"
+                    class:swiping
+                    style="transform: translateX({offset}px)"
+                    role="group"
+                    aria-label="账单: {b.description || '(无说明)'}"
+                    on:touchstart={(e) => onTouchStart(b.id, e)}
+                    on:touchmove={(e) => onTouchMove(b.id, e)}
+                    on:touchend={(e) => onTouchEnd(b.id, e)}
+                    on:touchcancel={(e) => onTouchCancel(b.id, e)}
+                    on:mousedown={(e) => onMouseDown(b.id, e)}
+                    on:click={onRowTap}
+                  >
+                    <!-- row1 - description + 金额 -->
+                    <div class="bill-row1">
+                      <span class="bill-desc">{b.description || '(无说明)'}</span>
+                      <span class="bill-amount">
+                        {fmtAmount(b.amount)}<span class="unit">{b.currency}</span>
+                      </span>
+                    </div>
+                    <!-- row2 - 时间·付款人·人均 muted + 右侧 分摊 X (accent) -->
+                    <div class="bill-row2 muted">
+                      <span class="bill-meta-line">
+                        {fmtBillTime(b.occurred_at)} · {payerName(b)} 付 · {b.participants.length} 人均 {fmtAmount(b.amount / Math.max(1, b.participants.length))}{b.currency}
+                      </span>
+                      {#if share !== null}
+                        <!-- 项目 4: 你分摊 X → 分摊 X (PO: 简洁专业)
+                             注释: 「PO 反馈修 5: 原「你分摊」非常不专业, 改为「分摊」更克制, 跟结算页「付款 / 消费 / 净」对应」 -->
+                        <span class="your-share">分摊 {fmtAmount(share)}<span class="unit">{b.currency}</span></span>
                       {/if}
                     </div>
-                  {/if}
-
-                  <!-- 兼容: inline delete 按钮 (桌面端兜底) -->
-                  {#if onDelete}
-                    <div class="bill-row-inline-delete">
-                      <button
-                        type="button"
-                        class="ghost btn-sm"
-                        on:click={(e) => onDeleteClick(b.id, e)}
-                      >删除</button>
-                    </div>
-                  {/if}
+                  </div>
                 </li>
               {/each}
             </ul>
@@ -368,7 +535,7 @@
     width: 100%;
   }
 
-  /* === 项目 6: day header 排版 — 主行 + 副行(2-column / 3-column) === */
+  /* === day header 排版 === */
   .day-header {
     display: flex;
     flex-direction: column;
@@ -388,7 +555,6 @@
     outline: 2px solid var(--color-accent, #3b82f6);
     outline-offset: -2px;
   }
-  /* 折叠箭头 +/− 字符,放左上 */
   .day-toggle {
     position: absolute;
     top: var(--space-2);
@@ -403,12 +569,10 @@
     line-height: 1;
     font-weight: 400;
   }
-  /* 让主行/副行有左 padding 给 toggle 留位 */
   .day-header-main,
   .day-header-sub {
     padding-left: 28px;
   }
-
   .day-header-main {
     display: flex;
     align-items: baseline;
@@ -424,7 +588,6 @@
     flex-wrap: wrap;
     font-size: var(--font-size-sm, 13px);
   }
-  /* 项目 6: (合计) 标签 — 移动端 375px 时跟其他两栏一起换行,放在最右 */
   .day-header-tag {
     color: var(--color-text-muted);
     opacity: 0.85;
@@ -441,10 +604,8 @@
     font-variant-numeric: tabular-nums;
     flex: 0 0 auto;
     text-align: right;
-    margin-left: auto; /* justify-between + 换行兜底 — 推到右侧 */
+    margin-left: auto;
   }
-  /* 货币单位 10px, 紧跟数字
-   * v0.1.2 反馈修 (THB wrap): nowrap 防止 THB 单位被推到下一行 */
   .unit {
     font-size: 10px;
     font-weight: 400;
@@ -455,29 +616,88 @@
     white-space: nowrap;
   }
 
+  /* === 项目 3: day-bills 加 padding-inline → 整个 group 内缩 === */
   .day-bills {
+    list-style: none;
     padding: 0 var(--space-3);
+    margin: 0;
     border-top: 1px solid var(--color-border);
   }
 
-  /* === bill row 2 行排版 === */
+  /* === 项目 5: iOS Mail-style swipe wrapper & actions === */
+  .bill-swipe-wrap {
+    position: relative;
+    overflow: hidden;
+    /* 关键: 默认隐藏 action buttons 的 tabindex/aria,只在 snap-open 时启用 */
+  }
+
+  .bill-swipe-action {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-weight: 600;
+    font-size: var(--font-size-base);
+    border: 0;
+    cursor: pointer;
+    z-index: 1;
+    /* Avoid default button styles */
+    appearance: none;
+    padding: 0;
+    font-family: inherit;
+    /* Action buttons reveal animation */
+    opacity: 0;
+    transform: scale(0.85);
+    transition: opacity 200ms ease, transform 200ms cubic-bezier(0.2, 0, 0, 1);
+    pointer-events: none;
+  }
+  /* 项目 5: 当 .bill-swipe-action[aria-hidden="false"] 时,action 露出 (opacity 1, scale 1)
+   * 配合 aria-hidden flip 控制可访问性 + 视觉动画 */
+  .bill-swipe-action[aria-hidden="false"] {
+    opacity: 1;
+    transform: scale(1);
+    pointer-events: auto;
+  }
+  .bill-swipe-action-left {
+    left: 0;
+    background: var(--color-accent, #3b82f6);
+  }
+  .bill-swipe-action-left:hover {
+    background: var(--color-accent-hover, #2563eb);
+  }
+  .bill-swipe-action-right {
+    right: 0;
+    background: var(--color-error, #dc2626);
+  }
+  .bill-swipe-action-right:hover {
+    background: #b91c1c; /* darker error */
+  }
+
+  /* === 项目 3+5: bill-row (with swipe transform) === */
   .bill-row {
     position: relative;
-    padding: var(--space-3) 0;
+    z-index: 2;
+    background: var(--color-surface, #fff);
+    padding: var(--space-3) var(--space-4);  /* 项目 3: 左右 16px */
     border-bottom: 1px solid var(--color-border);
-    cursor: pointer;
-    transition: background-color 0.12s ease;
+    transition: transform 250ms cubic-bezier(0.2, 0, 0, 1);  /* snap animation */
     outline: none;
+    user-select: none;
+    -webkit-user-select: none;
+    /* 不再 cursor: pointer — 编辑入口是右滑,不是 click */
   }
   .bill-row:last-child {
     border-bottom: none;
   }
-  /* 整行 hover/focus 背景高亮 (不依赖 underline) */
-  .bill-row:hover {
-    background: rgba(0, 0, 0, 0.04);
+  /* 项目 5: 拖动期间禁用 transition (实时跟随手指) */
+  .bill-row.swiping {
+    transition: none;
   }
   .bill-row:focus-visible {
-    background: rgba(0, 0, 0, 0.06);
     box-shadow: inset 2px 0 0 var(--color-accent, #3b82f6);
   }
 
@@ -503,35 +723,6 @@
     color: var(--color-text);
     white-space: nowrap;
   }
-  .bill-menu-btn {
-    flex: 0 0 auto;
-    appearance: none;
-    background: transparent;
-    border: 1px solid var(--color-border);
-    color: var(--color-text-muted, #666);
-    width: 32px;
-    height: 32px;
-    min-height: 32px;
-    padding: 0;
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 18px;
-    line-height: 1;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin-left: var(--space-1);
-  }
-  .bill-menu-btn:hover {
-    background: rgba(0, 0, 0, 0.06);
-    color: var(--color-text);
-    border-color: var(--color-accent, #3b82f6);
-  }
-  .bill-menu-btn[aria-expanded='true'] {
-    background: var(--color-accent, #3b82f6);
-    color: #fff;
-    border-color: var(--color-accent, #3b82f6);
-  }
 
   .bill-row2 {
     display: flex;
@@ -546,6 +737,7 @@
     flex: 1 1 auto;
     min-width: 0;
   }
+  /* 项目 4: 分摊 X */
   .your-share {
     flex: 0 0 auto;
     font-weight: 600;
@@ -553,62 +745,5 @@
     font-variant-numeric: tabular-nums;
     font-size: var(--font-size-sm);
     white-space: nowrap;
-  }
-
-  /* ⋯ 菜单 popover */
-  .bill-menu-popover {
-    position: absolute;
-    top: 36px;
-    right: var(--space-3);
-    background: var(--color-surface, #fff);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius, 8px);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
-    padding: var(--space-1);
-    z-index: 20;
-    display: flex;
-    flex-direction: column;
-    min-width: 110px;
-  }
-  .bill-menu-item {
-    appearance: none;
-    background: transparent;
-    border: 0;
-    padding: 8px 12px;
-    text-align: left;
-    cursor: pointer;
-    border-radius: 4px;
-    font: inherit;
-    color: var(--color-text);
-    min-height: 32px;
-  }
-  .bill-menu-item:hover {
-    background: rgba(0, 0, 0, 0.06);
-  }
-  .bill-menu-item.danger {
-    color: var(--color-error, #dc2626);
-  }
-  .bill-menu-item.danger:hover {
-    background: rgba(239, 68, 68, 0.08);
-  }
-
-  /* 兼容 inline delete (桌面端兜底) */
-  .bill-row-inline-delete {
-    display: none;
-  }
-  /* 桌面端可保留 inline delete 作为备选 */
-  @media (min-width: 720px) {
-    .bill-row-inline-delete {
-      display: block;
-      position: absolute;
-      bottom: var(--space-3);
-      right: 0;
-    }
-  }
-
-  .btn-sm {
-    min-height: 36px;
-    padding: 4px 10px;
-    font-size: var(--font-size-sm);
   }
 </style>
