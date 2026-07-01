@@ -1,19 +1,16 @@
 <script lang="ts">
   /**
-   * v0.1.2 反馈修3 (PO 2026-07-01 20:30 UX 改写) — session 详情页。
+   * v0.1.2 反馈修 5 (PO 2026-07-01 23:00 UX 改写) — session 详情页。
    *
-   * 8 项 UX 改写,本组件涉及 1+4+5+6:
-   * - T9 (members section 重构): summary 极简 1 行 (成员N + [邀请] + ▾) +
-   *   始终可见头像叠放 + 「共 N 人」; 展开后 inline 紧凑成员列表
-   *   (头像 + 名字 + 净金额 + 删除按钮 [owner-only, v0.2 待 BE 支持,目前 disabled])
-   *   + owner token hint 移到 summary 区域, 不再依赖展开。
-   * - T11 (header 3 按钮): [查看结算] [个人账单] [+ 新建账单] 并排, 前 2 ghost / 后 1 primary。
-   * - T12 (FAB 悬浮按钮): fixed 右下 56px 圆形, 跳新建账单页面。
-   * - T13 (查看结算保留): 位置不变。
+   * 本次改写涉及 2+7+8:
+   * - 项目 2 (members section): 删除 owner token: j7hA... preview 整段,只保留
+   *   「X 天 Y 小时后过期」文案(由 InviteLinkButton.hint 渲染)。
+   * - 项目 7 (header 按钮): 删 header 「+ 新建账单」,从 3 按钮 → 2 按钮
+   *   [查看结算] [个人账单 → 移到 bills section header 右侧]
+   * - 项目 8 (个人账单按钮): bills-card header 右侧「个人账单」ghost 按钮
+   *   跳 `/sessions/{id}/settle#personal` (hash 路由 settle 页已实现)。
    *
-   * 历史 (v0.1.2 T7+T8 by Coder 4 `e77163a`): members 折叠 + 头像叠放,
-   * 个人账单按钮在账单 section header 右侧。本次重构 (PO 2026-07-01 20:30)
-   * 把这些再次改写为更紧凑的视觉连续性布局。
+   * 历史: v0.1.2 反馈修3 (`056dc2b`) + 修2 (`e77163a`) — 收尾改写 9 项中 3 项。
    */
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
@@ -38,7 +35,7 @@
   // 加载失败 / 非 session member 时为 null,但 UI 不会崩。
   let memberIdToNet: Record<number, number> = {};
   // 当前登录人 (user_id) → 该 session 内的 SessionMember.id。
-  // BillListGrouped 需要这个判断「你分摊 X」是否显示。
+  // BillListGrouped 需要这个判断「分摊 X」是否显示。
   let currentMemberId: number | null = null;
 
   $: sessionId = Number($page.params.id);
@@ -48,7 +45,7 @@
     : null;
   $: isOwner = currentMember?.role === 'owner';
 
-  // T9: members section 默认折叠 (沿用 T7 设计)。
+  // 反馈修3: members section 默认折叠 (沿用 T7 设计)。
   let membersOpen = false;
 
   function membersStorageKey(): string {
@@ -87,7 +84,7 @@
     return trimmed ? trimmed.charAt(0).toUpperCase() : '?';
   }
 
-  // T9: 净金额显示 — net > 0 加 "+", < 0 加 "-", = 0 显示 "0.00"。
+  // 净金额显示 — net > 0 加 "+", < 0 加 "-", = 0 显示 "0.00"。
   // 用单空格分隔 "+/-" 让 tabular-nums 视觉对齐。
   function fmtNet(n: number | undefined): string {
     if (n === undefined || n === null || Number.isNaN(n)) return '';
@@ -105,7 +102,7 @@
       for (const m of session.members) {
         memberIdToName[m.id] = m.display_name;
       }
-      // T9: 加载 settle.balances 用于在 members 行显示净金额。
+      // 加载 settle.balances 用于在 members 行显示净金额。
       // 失败不致命 — 净金额列会留空。
       try {
         const settle = await getSettle(sessionId);
@@ -120,7 +117,7 @@
         // ignore — members 列表仍可用
       }
       bills = await listBills(sessionId);
-      // T11: 当前登录人的 member_id 给 BillListGrouped 用
+      // 当前登录人的 member_id 给 BillListGrouped 用
       currentMemberId = currentMember?.id ?? null;
     } catch (e: any) {
       const c = e?.code ?? '';
@@ -151,7 +148,7 @@
     }
   }
 
-  // T9: 删除成员 (owner-only). v0.2 待 BE 支持 removeMember 接口,
+  // 删除成员 (owner-only). v0.2 待 BE 支持 removeMember 接口,
   // 当前没有 DELETE /sessions/{id}/members/{mid},按钮 disabled 加 tooltip 解释。
   // 这里保留 placeholder 是 PO 设计评审明确要求: 「(owner only, 复用现 handleDeleteMember 或留 placeholder)」 — 我们留 placeholder。
   function handleDeleteMemberClick(m: { id: number; display_name: string }) {
@@ -168,19 +165,21 @@
   {:else if error}
     <div class="error">{error}</div>
   {:else if session}
-    <!-- T11: header 3 按钮 [查看结算] [个人账单] [+ 新建账单],前 2 ghost,后 1 primary -->
+    <!-- PO 反馈修 5 项目 7: header 从 3 按钮 → 2 按钮
+         「+ 新建账单」已由 FAB 承担入口,删 header 重复。
+         [查看结算] [个人账单 → 已移到 bills section header 右侧] -->
     <div class="row between session-header" style="margin-bottom: var(--space-3); flex-wrap: wrap; gap: var(--space-2);">
       <h2 style="margin: 0;">{session.name}</h2>
       <div class="session-header-actions">
         <a class="btn ghost" href="/sessions/{session.id}/settle">查看结算</a>
-        <a class="btn ghost" href="/sessions/{session.id}/settle#personal">个人账单</a>
-        <a class="btn primary" href="/sessions/{session.id}/bills/new">+ 新建账单</a>
       </div>
     </div>
 
-    <!-- T9: members section 重构。summary 极简 1 行 (成员N + [邀请] + ▾)。
-         头像叠放 + 共 N 人 + owner token hint 都住在 summary 内
-         (始终可见,不依赖展开)。展开后 details body 显示紧凑成员列表。 -->
+    <!-- members section 重构。summary 极简 1 行 (成员N + [邀请] + ▾)。
+         头像叠放 + 共 N 人 住在 summary 内 (始终可见,不依赖展开)。
+         展开后 details body 显示紧凑成员列表。
+         PO 反馈修 5 项目 2: 删除 owner token: j7hA... preview 整段 + 简化过期文案
+         (现在 InviteLinkButton.hint 只显示「X 天 Y 小时后过期」)。 -->
     <div class="card members-card">
       <details class="members-section" open={membersOpen} on:toggle={handleMembersToggle}>
         <summary class="members-summary">
@@ -204,18 +203,12 @@
             </div>
             <span class="muted members-count">共 {session.members.length} 人</span>
           </div>
-          <!-- T9: owner token hint 移到 summary 内,始终可见 -->
-          {#if isOwner && session.invite_token_preview}
-            <div class="owner-token-hint muted">
-              owner token: <code>{session.invite_token_preview.slice(0, 8)}…</code>
-              {#if session.invite_expires_at}
-                <span class="hint-inline">· {new Date(session.invite_expires_at).toLocaleString('zh-CN')}</span>
-              {/if}
-            </div>
-          {/if}
+          <!-- PO 反馈修 5 项目 2: 删除 owner token: j7hA... preview 整段
+               PO 反馈原话: "为什么需要放owner token？为什么放了 xxx天后过期，又放2026/8/1？？？"
+               现在 InviteLinkButton.hint 已显示「X 天 Y 小时后过期」,不需要在这里重复 owner token -->
         </summary>
 
-        <!-- T9: 展开后 inline 紧凑成员列表(替换原 SessionMemberList 组件) -->
+        <!-- 展开后 inline 紧凑成员列表(替换原 SessionMemberList 组件) -->
         <ul class="member-list-compact">
           {#each session.members as m (m.id)}
             <li class="member-row">
@@ -248,10 +241,20 @@
       </details>
     </div>
 
+    <!-- PO 反馈修 5 项目 8: 「个人账单」按钮移到 bills section head (右侧)
+         跟 「共 N 笔」 一行, ghost button。
+         跳转 `/sessions/{id}/settle#personal` (hash 路由已实现 → 自动切到 personal tab) -->
     <div class="card bills-card">
-      <div class="row between" style="margin-bottom: var(--space-3); flex-wrap: wrap; gap: var(--space-2); align-items: center;">
-        <h3 style="margin: 0;">账单</h3>
-        <span class="muted" style="font-size: var(--font-size-sm);">共 {bills.length} 笔</span>
+      <div class="bills-card-head">
+        <div class="bills-card-head-left">
+          <h3 class="bills-card-title">账单</h3>
+          <span class="muted bills-card-count">共 {bills.length} 笔</span>
+        </div>
+        <a
+          class="btn ghost btn-sm bills-personal-link"
+          href="/sessions/{session.id}/settle#personal"
+          aria-label="查看个人账单"
+        >个人账单</a>
       </div>
       <BillListGrouped
         {bills}
@@ -262,7 +265,7 @@
       />
     </div>
 
-    <!-- T12: FAB 悬浮按钮 -->
+    <!-- FAB 悬浮按钮 (项目 7: 现在 header 没有「+ 新建账单」,FAB 是唯一入口) -->
     <a
       class="fab"
       href="/sessions/{session.id}/bills/new"
@@ -273,7 +276,7 @@
 </section>
 
 <style>
-  /* === T11: header 3 按钮 wrap 行为 === */
+  /* === T11: header 2 按钮 wrap 行为 (项目 7: 删 [+ 新建账单] 后) === */
   .session-header-actions {
     display: flex;
     gap: var(--space-2);
@@ -289,7 +292,7 @@
     }
   }
 
-  /* === T9: members summary === */
+  /* === members summary === */
   .members-card {
     padding: 0;
     overflow: hidden;
@@ -374,19 +377,10 @@
   .members-count {
     font-size: var(--font-size-sm);
   }
-  /* T9: owner token hint 在 summary 内,始终可见 */
-  .owner-token-hint {
-    font-size: var(--font-size-sm);
-  }
-  .owner-token-hint code {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    background: rgba(0, 0, 0, 0.05);
-    padding: 1px 6px;
-    border-radius: 4px;
-  }
-  .hint-inline {
-    margin-left: var(--space-1);
-  }
+
+  /* PO 反馈修 5 项目 2: 删除 .owner-token-hint 整段
+     (PO 反馈: "为什么需要放owner token？为什么放了 xxx天后过期，又放2026/8/1？？？")
+     InviteLinkButton.hint 现在显示「X 天 Y 小时后过期」,不需要在 members 区域再重复一次 owner token preview */
 
   /* 展开时 summary 加底部分隔,body 显示紧凑成员列表 */
   details.members-section[open] .members-summary {
@@ -397,7 +391,7 @@
     padding-bottom: var(--space-2);
   }
 
-  /* === T9: 紧凑成员列表 (替换 SessionMemberList) === */
+  /* === 紧凑成员列表 (替换 SessionMemberList) === */
   .member-list-compact {
     list-style: none;
     padding: 0 var(--space-3) var(--space-3);
@@ -469,7 +463,43 @@
     color: var(--color-error, #dc2626);
   }
 
-  /* === T12: FAB 悬浮按钮 === */
+  /* === PO 反馈修 5 项目 8: bills section header (标题 + 笔数 + 个人账单按钮) === */
+  .bills-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-3);
+  }
+  .bills-card-head-left {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--space-3);
+  }
+  .bills-card-title {
+    margin: 0;
+  }
+  .bills-card-count {
+    font-size: var(--font-size-sm);
+  }
+  .bills-personal-link {
+    /* 移动端不挤压,跟标题/笔数同样行 */
+    min-height: 36px;
+    padding: 4px 12px;
+  }
+  @media (max-width: 480px) {
+    /* 极窄屏 (≤480px): 标题+笔数+按钮全在同一行紧凑布局 */
+    .bills-card-head-left {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    .bills-personal-link {
+      flex: 0 0 auto;
+    }
+  }
+
+  /* === FAB 悬浮按钮 === */
   .fab {
     position: fixed;
     right: 24px;
@@ -512,10 +542,8 @@
     }
   }
 
-  /* T12: 最后一个 card (bills-card) 给底部留 padding 避免被 FAB 遮挡。
-     members-card 在页面顶部,FAB 不覆盖;不需要额外 padding。 */
+  /* FAB 56px + 24px bottom offset + ~16px 安全间距 */
   .bills-card {
-    /* FAB 56px + 24px bottom offset + ~16px 安全间距 */
     padding-bottom: 96px;
   }
 
