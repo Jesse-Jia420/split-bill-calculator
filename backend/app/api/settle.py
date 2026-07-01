@@ -102,12 +102,20 @@ class BillSummary(BaseModel):
 
 
 class BillShare(BaseModel):
-    """A bill + the share this particular member owes for it."""
+    """A bill + the share this particular member owes for it.
+
+    v0.1.2 (PO 2026-07-01 fix #4): adds `exclusive_amount` so the
+    per-member personal view can split "shared part" (split equally
+    with everyone) from "exclusive part" (this member ate the entire
+    portion alone). `share_amount == shared_part + exclusive_amount`.
+    Default 0.0 for backward compatibility with existing snapshots.
+    """
 
     bill_id: int
     description: str | None
     amount: float       # bill total
-    share_amount: float # this member's share
+    share_amount: float # this member's share (= shared + exclusive)
+    exclusive_amount: float = 0.0  # this member's exclusive portion
     currency: str
     occurred_at: str    # ISO 8601 (UTC)
 
@@ -292,12 +300,22 @@ def _compute_per_member(
             for idx, p in enumerate(ppts):
                 if p.member_id == m.id:
                     share_amount = shares[idx] if idx < len(shares) else 0.0
+                    # v0.1.2 (fix #4): surface the exclusive portion as
+                    # its own field so the FE can show "独占 X" vs
+                    # "共享 Y" without re-deriving from the bill shape.
+                    # exclusive_amount is 0 when the member is not
+                    # flagged is_exclusive, and is always present
+                    # (default 0) on the response.
+                    exclusive_amount = (
+                        p.exclusive_amount if p.is_exclusive else 0.0
+                    )
                     consumed_bills.append(
                         BillShare(
                             bill_id=bill.id,
                             description=bill.description,
                             amount=bill.amount,
                             share_amount=share_amount,
+                            exclusive_amount=exclusive_amount,
                             currency=bill.currency,
                             occurred_at=_iso(bill.occurred_at),
                         )

@@ -666,7 +666,12 @@ class TestSettlePerMemberBreakdown:
 
     def test_per_member_with_exclusive_amount(self, client: TestClient) -> None:
         """A bill with one exclusive participant correctly increases that
-        member's `share_amount` by the exclusive portion."""
+        member's `share_amount` by the exclusive portion.
+
+        v0.1.2 (PO 2026-07-01 fix #4): also asserts the new
+        `exclusive_amount` field surfaces the exclusive portion
+        explicitly (was previously buried inside `share_amount`).
+        """
         c = _login_as("alice@settle.local")
         sid, mids = _make_session_with_members(
             member_emails=[("bob@settle.local", "Bob")],
@@ -693,15 +698,106 @@ class TestSettlePerMemberBreakdown:
         alice_consumed = pm[alice_mid]["consumed_bills"]
         assert len(alice_consumed) == 1
         assert alice_consumed[0]["share_amount"] == 600.0
+        # v0.1.2 (fix #4): Alice is the exclusive participant on this
+        # bill, so her `exclusive_amount` is the original 200 she ate
+        # alone. The `shared` portion is share_amount - exclusive_amount
+        # = 600 - 200 = 400 (= 800 shared_pool / 2 participants).
+        assert alice_consumed[0]["exclusive_amount"] == 200.0
+        assert alice_consumed[0]["share_amount"] - alice_consumed[0]["exclusive_amount"] == 400.0
 
         bob_consumed = pm[bob_mid]["consumed_bills"]
         assert len(bob_consumed) == 1
         assert bob_consumed[0]["share_amount"] == 400.0
+        # Bob is NOT exclusive, so his exclusive_amount is 0 (NOT
+        # absent). The field is always present on the response.
+        assert bob_consumed[0]["exclusive_amount"] == 0.0
+        # Bob's "shared" portion == share_amount - exclusive_amount = 400.
+        assert bob_consumed[0]["share_amount"] - bob_consumed[0]["exclusive_amount"] == 400.0
 
         # And totals reconcile.
         assert pm[alice_mid]["total_consumed"] == 600.0
         assert pm[alice_mid]["total_paid"] == 1000.0
         assert pm[alice_mid]["net"] == 400.0  # paid 1000, owes 600
+
+    def test_per_member_exclusive_amount_field_always_present(
+        self, client: TestClient
+    ) -> None:
+        """v0.1.2 (PO 2026-07-01 fix #4): `exclusive_amount` is always
+        present on every `consumed_bills` row, defaulting to 0.0 for
+        members who are not flagged `is_exclusive`. The FE relies on
+        this to avoid `undefined` checks.
+        """
+        c = _login_as("alice@settle.local")
+        sid, mids = _make_session_with_members(
+            member_emails=[
+                ("bob@settle.local", "Bob"),
+                ("carol@settle.local", "Carol"),
+            ],
+        )
+        alice_mid = mids["alice@settle.local"]
+        bob_mid = mids["bob@settle.local"]
+        carol_mid = mids["carol@settle.local"]
+
+        # Bill 1: pure AA, no exclusives (3-way AA).
+        _insert_bill(
+            session_id=sid,
+            payer_id=alice_mid,
+            amount=90.0,
+            parts=[
+                {"member_id": alice_mid},
+                {"member_id": bob_mid},
+                {"member_id": carol_mid},
+            ],
+            description="aa",
+        )
+        # Bill 2: Bob is exclusive (eats 30 alone); shared_pool = 70/3.
+        _insert_bill(
+            session_id=sid,
+            payer_id=alice_mid,
+            amount=100.0,
+            parts=[
+                {"member_id": alice_mid},
+                {"member_id": bob_mid, "is_exclusive": True, "exclusive_amount": 30.0},
+                {"member_id": carol_mid},
+            ],
+            description="mixed",
+        )
+
+        r = c.get(f"/sessions/{sid}/settle")
+        pm = {p["member_id"]: p for p in r.json()["per_member"]}
+
+        for mid, label in [
+            (alice_mid, "alice"),
+            (bob_mid, "bob"),
+            (carol_mid, "carol"),
+        ]:
+            consumed = pm[mid]["consumed_bills"]
+            assert len(consumed) == 2, f"{label} should have 2 consumed_bills"
+            for bill in consumed:
+                # Field is always present (no KeyError).
+                assert "exclusive_amount" in bill, (
+                    f"{label} bill {bill['bill_id']} missing exclusive_amount"
+                )
+                # And it's a number (default 0.0 or the exclusive portion).
+                assert isinstance(bill["exclusive_amount"], (int, float)), (
+                    f"{label} bill {bill['bill_id']} exclusive_amount is not a number"
+                )
+
+        # Bob is the only one with exclusive_amount > 0 (on bill 2).
+        bob_consumed = pm[bob_mid]["consumed_bills"]
+        # bill 1 (aa): bob's exclusive_amount = 0
+        bill1 = next(b for b in bob_consumed if b["description"] == "aa")
+        assert bill1["exclusive_amount"] == 0.0
+        assert bill1["share_amount"] - bill1["exclusive_amount"] == 30.0  # 90/3
+        # bill 2 (mixed): bob's exclusive_amount = 30, share = 30 + 70/3 ≈ 53.33
+        bill2 = next(b for b in bob_consumed if b["description"] == "mixed")
+        assert bill2["exclusive_amount"] == 30.0
+        # share_amount = per_user_shared + exclusive = 70/3 + 30 ≈ 53.33
+        assert abs(bill2["share_amount"] - (70.0 / 3.0 + 30.0)) < 1e-9
+        # shared = share_amount - exclusive_amount = 70/3
+        assert abs(
+            bill2["share_amount"] - bill2["exclusive_amount"] - 70.0 / 3.0
+        ) < 1e-9
 
     def test_per_member_empty_session(self, client: TestClient) -> None:
         """Empty session -> per_member list still has one entry per session
