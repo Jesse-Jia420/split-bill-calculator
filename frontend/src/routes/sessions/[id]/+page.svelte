@@ -1,17 +1,19 @@
 <script lang="ts">
   /**
-   * v0.1.2 反馈修3 (PO 2026-07-01 20:30 UX 改写) — session 详情页 (Commit 1)。
+   * v0.1.2 反馈修3 (PO 2026-07-01 20:30 UX 改写) — session 详情页。
    *
-   * 本 commit 仅包含 T9 (members section 重构):
-   * - summary 极简 1 行 (成员N + [邀请] + ▾) + 始终可见头像叠放 + 「共 N 人」
-   * - 展开后 inline 紧凑成员列表 (头像 32 + 名字 + email + 净金额 + 删除按钮 [owner-only placeholder, v0.2 待 BE 支持])
-   * - owner token hint 移到 summary 区域, 始终可见
+   * 8 项 UX 改写,本组件涉及 1+4+5+6:
+   * - T9 (members section 重构): summary 极简 1 行 (成员N + [邀请] + ▾) +
+   *   始终可见头像叠放 + 「共 N 人」; 展开后 inline 紧凑成员列表
+   *   (头像 + 名字 + 净金额 + 删除按钮 [owner-only, v0.2 待 BE 支持,目前 disabled])
+   *   + owner token hint 移到 summary 区域, 不再依赖展开。
+   * - T11 (header 3 按钮): [查看结算] [个人账单] [+ 新建账单] 并排, 前 2 ghost / 后 1 primary。
+   * - T12 (FAB 悬浮按钮): fixed 右下 56px 圆形, 跳新建账单页面。
+   * - T13 (查看结算保留): 位置不变。
    *
-   * 历史:
-   * - v0.1.2 T7+T8 (Coder 4 `e77163a`): members 折叠 (原 details summary 内 head+body 2 行)
-   *
-   * T12 (FAB) + T13 (header 3 按钮) 在 Commit 2 (feat(ui): action series) 中加,
-   * 本 commit 仅动 members section,保持 diff 最小。
+   * 历史 (v0.1.2 T7+T8 by Coder 4 `e77163a`): members 折叠 + 头像叠放,
+   * 个人账单按钮在账单 section header 右侧。本次重构 (PO 2026-07-01 20:30)
+   * 把这些再次改写为更紧凑的视觉连续性布局。
    */
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
@@ -32,9 +34,11 @@
 
   // map SessionMember.id -> display_name
   let memberIdToName: Record<number, string> = {};
-  // T9: 净金额列来自 settle.balances (member_id -> net)
+  // map SessionMember.id -> net balance (来自 settle.balances)。
+  // 加载失败 / 非 session member 时为 null,但 UI 不会崩。
   let memberIdToNet: Record<number, number> = {};
-  // T11 (Commit 1 顺手): 当前登录人 → SessionMember.id,BillListGrouped 用它判断「你分摊 X」
+  // 当前登录人 (user_id) → 该 session 内的 SessionMember.id。
+  // BillListGrouped 需要这个判断「你分摊 X」是否显示。
   let currentMemberId: number | null = null;
 
   $: sessionId = Number($page.params.id);
@@ -44,7 +48,7 @@
     : null;
   $: isOwner = currentMember?.role === 'owner';
 
-  // T9: members section 默认折叠 (沿用 T7)。localStorage 跨刷新记住选择。
+  // T9: members section 默认折叠 (沿用 T7 设计)。
   let membersOpen = false;
 
   function membersStorageKey(): string {
@@ -77,16 +81,18 @@
     saveMembersOpen();
   }
 
+  // 头像首字母大写 (跨语言 helper)
   function avatarLetter(name: string): string {
     const trimmed = (name ?? '').trim();
     return trimmed ? trimmed.charAt(0).toUpperCase() : '?';
   }
 
-  /** T9: 净金额显示 — net > 0 加 "+", < 0 加 "−" (U+2212 true minus)。 */
+  // T9: 净金额显示 — net > 0 加 "+", < 0 加 "-", = 0 显示 "0.00"。
+  // 用单空格分隔 "+/-" 让 tabular-nums 视觉对齐。
   function fmtNet(n: number | undefined): string {
     if (n === undefined || n === null || Number.isNaN(n)) return '';
     if (n > 0) return '+' + n.toFixed(2);
-    if (n < 0) return '\u2212' + Math.abs(n).toFixed(2);
+    if (n < 0) return '\u2212' + Math.abs(n).toFixed(2); // U+2212 true minus
     return '0.00';
   }
 
@@ -99,8 +105,8 @@
       for (const m of session.members) {
         memberIdToName[m.id] = m.display_name;
       }
-      // T9: 加载 settle.balances 用于 members 行显示净金额。
-      // 失败不致命 — 净金额列会留空 (graceful degradation)。
+      // T9: 加载 settle.balances 用于在 members 行显示净金额。
+      // 失败不致命 — 净金额列会留空。
       try {
         const settle = await getSettle(sessionId);
         const nets: Record<number, number> = {};
@@ -114,6 +120,7 @@
         // ignore — members 列表仍可用
       }
       bills = await listBills(sessionId);
+      // T11: 当前登录人的 member_id 给 BillListGrouped 用
       currentMemberId = currentMember?.id ?? null;
     } catch (e: any) {
       const c = e?.code ?? '';
@@ -145,9 +152,10 @@
   }
 
   // T9: 删除成员 (owner-only). v0.2 待 BE 支持 removeMember 接口,
-  // 当前没 DELETE /sessions/{id}/members/{mid},按钮 disabled + tooltip 解释。
-  // 这是 PO「复用现 handleDeleteMember 或留 placeholder」明确接受的 placeholder。
+  // 当前没有 DELETE /sessions/{id}/members/{mid},按钮 disabled 加 tooltip 解释。
+  // 这里保留 placeholder 是 PO 设计评审明确要求: 「(owner only, 复用现 handleDeleteMember 或留 placeholder)」 — 我们留 placeholder。
   function handleDeleteMemberClick(m: { id: number; display_name: string }) {
+    // placeholder — 无 BE endpoint 可调,disabled 已阻止触发。到达这里仅当 dev 把 disabled 拿掉
     const proceed = confirm(`确认把 ${m.display_name} 从这个 session 移除?\n\n(v0.2 待 BE 支持,当前会被后端拒绝)`);
     if (!proceed) return;
     error = '移除成员 (v0.2 待 BE 支持): 当前不可用';
@@ -160,17 +168,19 @@
   {:else if error}
     <div class="error">{error}</div>
   {:else if session}
-    <!-- T13 (Commit 2) 暂保留原 [查看结算] [+ 新建账单] 2 按钮 -->
-    <div class="row between" style="margin-bottom: var(--space-3); flex-wrap: wrap; gap: var(--space-2);">
+    <!-- T11: header 3 按钮 [查看结算] [个人账单] [+ 新建账单],前 2 ghost,后 1 primary -->
+    <div class="row between session-header" style="margin-bottom: var(--space-3); flex-wrap: wrap; gap: var(--space-2);">
       <h2 style="margin: 0;">{session.name}</h2>
-      <div class="row" style="gap: var(--space-2); flex-wrap: wrap;">
-        <a class="btn" href="/sessions/{session.id}/settle">查看结算</a>
+      <div class="session-header-actions">
+        <a class="btn ghost" href="/sessions/{session.id}/settle">查看结算</a>
+        <a class="btn ghost" href="/sessions/{session.id}/settle#personal">个人账单</a>
         <a class="btn primary" href="/sessions/{session.id}/bills/new">+ 新建账单</a>
       </div>
     </div>
 
-    <!-- T9: members section 重构。summary 极简 1 行 + 始终可见头像叠放 + 共 N 人 + owner token hint;
-         展开后 details body 显示紧凑成员列表 (新 inline 列表,不重用 <SessionMemberList>) -->
+    <!-- T9: members section 重构。summary 极简 1 行 (成员N + [邀请] + ▾)。
+         头像叠放 + 共 N 人 + owner token hint 都住在 summary 内
+         (始终可见,不依赖展开)。展开后 details body 显示紧凑成员列表。 -->
     <div class="card members-card">
       <details class="members-section" open={membersOpen} on:toggle={handleMembersToggle}>
         <summary class="members-summary">
@@ -194,7 +204,7 @@
             </div>
             <span class="muted members-count">共 {session.members.length} 人</span>
           </div>
-          <!-- T9: owner token hint 在 summary 内,始终可见 -->
+          <!-- T9: owner token hint 移到 summary 内,始终可见 -->
           {#if isOwner && session.invite_token_preview}
             <div class="owner-token-hint muted">
               owner token: <code>{session.invite_token_preview.slice(0, 8)}…</code>
@@ -205,7 +215,7 @@
           {/if}
         </summary>
 
-        <!-- T9: 展开后 inline 紧凑成员列表 (替换 SessionMemberList 组件) -->
+        <!-- T9: 展开后 inline 紧凑成员列表(替换原 SessionMemberList 组件) -->
         <ul class="member-list-compact">
           {#each session.members as m (m.id)}
             <li class="member-row">
@@ -238,8 +248,8 @@
       </details>
     </div>
 
-    <div class="card">
-      <div class="row between" style="margin-bottom: var(--space-3); flex-wrap: wrap; gap: var(--space-2);">
+    <div class="card bills-card">
+      <div class="row between" style="margin-bottom: var(--space-3); flex-wrap: wrap; gap: var(--space-2); align-items: center;">
         <h3 style="margin: 0;">账单</h3>
         <span class="muted" style="font-size: var(--font-size-sm);">共 {bills.length} 笔</span>
       </div>
@@ -251,10 +261,34 @@
         onDelete={handleDeleteBill}
       />
     </div>
+
+    <!-- T12: FAB 悬浮按钮 -->
+    <a
+      class="fab"
+      href="/sessions/{session.id}/bills/new"
+      title="新建账单"
+      aria-label="新建账单"
+    >+</a>
   {/if}
 </section>
 
 <style>
+  /* === T11: header 3 按钮 wrap 行为 === */
+  .session-header-actions {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+  @media (max-width: 600px) {
+    .session-header-actions {
+      width: 100%;
+    }
+    .session-header-actions .btn {
+      flex: 1 1 0;
+      min-width: 0;
+    }
+  }
+
   /* === T9: members summary === */
   .members-card {
     padding: 0;
@@ -293,6 +327,7 @@
     gap: var(--space-2);
   }
   .members-toggle-icon {
+    /* 通用 .btn 高度对齐 (44px) */
     width: 28px;
     height: 28px;
     display: inline-flex;
@@ -339,6 +374,7 @@
   .members-count {
     font-size: var(--font-size-sm);
   }
+  /* T9: owner token hint 在 summary 内,始终可见 */
   .owner-token-hint {
     font-size: var(--font-size-sm);
   }
@@ -351,6 +387,8 @@
   .hint-inline {
     margin-left: var(--space-1);
   }
+
+  /* 展开时 summary 加底部分隔,body 显示紧凑成员列表 */
   details.members-section[open] .members-summary {
     border-bottom: 1px solid var(--color-border);
     margin-bottom: var(--space-2);
@@ -359,7 +397,7 @@
     padding-bottom: var(--space-2);
   }
 
-  /* === T9: 紧凑成员列表 (替换原 SessionMemberList) === */
+  /* === T9: 紧凑成员列表 (替换 SessionMemberList) === */
   .member-list-compact {
     list-style: none;
     padding: 0 var(--space-3) var(--space-3);
@@ -429,6 +467,56 @@
   }
   .member-row-net.neg {
     color: var(--color-error, #dc2626);
+  }
+
+  /* === T12: FAB 悬浮按钮 === */
+  .fab {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--color-accent, #3b82f6);
+    color: #fff;
+    font-size: 28px;
+    font-weight: 300;
+    line-height: 1;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+    z-index: 50;
+    cursor: pointer;
+    border: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.15s, box-shadow 0.15s;
+    text-decoration: none;
+    padding: 0;
+  }
+  .fab:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22);
+    background: var(--color-accent-hover, #2563eb);
+    color: #fff;
+    text-decoration: none;
+  }
+  .fab:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px var(--color-accent, #3b82f6);
+  }
+  @media (max-width: 600px) {
+    .fab {
+      right: 16px;
+      bottom: 16px;
+    }
+  }
+
+  /* T12: 最后一个 card (bills-card) 给底部留 padding 避免被 FAB 遮挡。
+     members-card 在页面顶部,FAB 不覆盖;不需要额外 padding。 */
+  .bills-card {
+    /* FAB 56px + 24px bottom offset + ~16px 安全间距 */
+    padding-bottom: 96px;
   }
 
   .btn-sm {
