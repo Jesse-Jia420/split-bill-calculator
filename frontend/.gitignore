@@ -5,3 +5,9 @@ build/
 .env.local
 .DS_Store
 *.log
+
+# T16: Playwright screenshots and test results (kept locally, not in git)
+e2e/screenshots/
+e2e/report/
+test-results/
+playwright-report/
