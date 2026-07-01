@@ -2,6 +2,21 @@
   /**
    * v0.1.2 (T20+T21): grouped bill list.
    *
+   * v0.1.2 (PO 2026-07-01 fix #1+#2):
+   * - Collapse: now uses native <details>/<summary> + a one-line `on:toggle`
+   *   sync, mirroring the pattern in SettleMemberBreakdown. The previous
+   *   version called `isCollapsed(date)` from a function and relied on
+   *   Svelte 5 reactive tracking to update the DOM, but the JSX expression
+   *   `{#if !isCollapsed(g.date)}` only re-evaluated when the *function
+   *   reference* changed, not when the underlying `collapsed[date]` value
+   *   changed. Native <details> flips the `open` attribute for free.
+   * - Typography (fix #2): total spend and per-capita now share the
+   *   smaller secondary text size. Date stays slightly larger as the
+   *   visual anchor. Layout: date · total · "·" · per-capita — single
+   *   horizontal row, dot-separated, with the date slightly larger to
+   *   lead the eye.
+   *
+   * Original notes (T20+T21):
    * - Bills are grouped by the LOCAL date of `occurred_at` (Asia/Shanghai
    *   per the server / environment; `Intl.DateTimeFormat` with a fixed
    *   timezone gives deterministic "YYYY-MM-DD" labels).
@@ -14,6 +29,7 @@
    *   by sessionId+date so users keep their preferences across reloads.
    */
   import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
   import type { Bill } from '$api/bills';
 
   export let bills: Bill[];
@@ -144,14 +160,40 @@
     }
   }
 
-  function toggleGroup(date: string) {
-    collapsed = { ...collapsed, [date]: !collapsed[date] };
+  /**
+   * v0.1.2 fix #1: now the <details> `open` attribute is the single
+   * source of truth for the DOM, and we sync it to localStorage via
+   * `on:toggle`. This avoids the Svelte 5 reactivity quirk where
+   * `isCollapsed(date)` (a regular function call) didn't trigger a
+   * re-render of the `{#if !isCollapsed(...)}` block when only
+   * `collapsed[date]` changed.
+   */
+  function isOpen(date: string): boolean {
+    return !collapsed[date];
+  }
+
+  function onGroupToggle(date: string, e: Event) {
+    const el = e.currentTarget as HTMLDetailsElement;
+    const isOpenNow = el.open;
+    collapsed = { ...collapsed, [date]: !isOpenNow };
     saveCollapsedState();
   }
 
-  function isCollapsed(date: string): boolean {
-    // Default: expanded. The collapsed map only stores overrides (true).
-    return collapsed[date] === true;
+  /**
+   * v0.1.2 (PO 2026-07-01 fix #3): clicking a bill row opens the
+   * edit page. Delete button stops propagation so its handler
+   * doesn't double as a row click.
+   */
+  function openBillEdit(billId: number) {
+    goto(`/sessions/${sessionId}/bills/${billId}/edit`);
+  }
+
+  function onDeleteClick(billId: number, e: MouseEvent | KeyboardEvent) {
+    e.stopPropagation();
+    if (onDelete) {
+      // onDelete is async; intentionally not awaited.
+      void onDelete(billId);
+    }
   }
 
   onMount(() => {
@@ -168,44 +210,45 @@
     <ul class="day-list" style="list-style: none; padding: 0; margin: 0;">
       {#each groups as g (g.date)}
         <li class="day-group">
-          <button
-            type="button"
-            class="day-header"
-            aria-expanded={!isCollapsed(g.date)}
-            on:click={() => toggleGroup(g.date)}
-          >
-            <span class="day-toggle" aria-hidden="true">
-              {isCollapsed(g.date) ? '▸' : '▾'}
-            </span>
-            <span class="day-date">{g.date}</span>
-            <span class="day-total">{fmtAmount(g.total)} {g.currency}</span>
-            <span class="day-capita">
-              <span class="muted">人均</span> {fmtAmount(g.perCapita)} {g.currency}
-            </span>
-          </button>
+          <details open={isOpen(g.date)} on:toggle={(e) => onGroupToggle(g.date, e)}>
+            <summary class="day-header">
+              <span class="day-toggle" aria-hidden="true">▸</span>
+              <span class="day-date">{g.date}</span>
+              <span class="day-sep" aria-hidden="true">·</span>
+              <span class="day-capita">
+                <span class="muted">人均</span> {fmtAmount(g.perCapita)} {g.currency}
+              </span>
+              <span class="day-sep" aria-hidden="true">·</span>
+              <span class="day-total">
+                <span class="muted">总</span> {fmtAmount(g.total)} {g.currency}
+              </span>
+            </summary>
 
-          {#if !isCollapsed(g.date)}
             <ul class="day-bills" style="list-style: none; padding: 0; margin: 0;">
               {#each g.bills as b (b.id)}
                 <li class="bill-row">
                   <div class="row between" style="flex-wrap: wrap; gap: var(--space-2);">
-                    <div>
-                      <div class="bill-desc">{b.description || '(无说明)'}</div>
-                      <div class="muted bill-meta">
+                    <button
+                      type="button"
+                      class="bill-link"
+                      on:click={() => openBillEdit(b.id)}
+                    >
+                      <span class="bill-desc">{b.description || '(无说明)'}</span>
+                      <span class="muted bill-meta">
                         <span class="bill-time">{fmtBillTime(b.occurred_at)}</span>
                         <span class="muted"> · </span>
                         <span>{payerName(b)} 付</span>
                         <span class="muted"> · </span>
                         <span>{b.participants.length} 人</span>
-                      </div>
-                    </div>
+                      </span>
+                    </button>
                     <div class="row" style="gap: var(--space-2);">
                       <span class="amount">{fmtAmount(b.amount)} {b.currency}</span>
                       {#if onDelete}
                         <button
                           type="button"
                           class="ghost btn-sm"
-                          on:click={() => onDelete?.(b.id)}
+                          on:click={(e) => onDeleteClick(b.id, e)}
                         >
                           删除
                         </button>
@@ -215,7 +258,7 @@
                 </li>
               {/each}
             </ul>
-          {/if}
+          </details>
         </li>
       {/each}
     </ul>
@@ -234,54 +277,100 @@
     overflow: hidden;
     background: var(--color-bg, #fff);
   }
-  .day-header {
+  .day-group details {
     width: 100%;
-    background: var(--color-surface, #fff);
-    border: none;
-    border-bottom: 1px solid var(--color-border);
-    padding: var(--space-2) var(--space-3);
+  }
+  .day-header {
+    /* Typography (v0.1.2 fix #2): date is the visual anchor (slightly
+       larger, base size, weight 600); total + per-capita share the
+       same smaller secondary text size so they read as a pair. */
     display: flex;
-    align-items: center;
-    gap: var(--space-3);
+    align-items: baseline;
+    gap: var(--space-2);
     cursor: pointer;
-    text-align: left;
-    font-size: inherit;
+    list-style: none;
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-surface, #fff);
     min-height: var(--touch-target, 44px);
     flex-wrap: wrap;
+  }
+  .day-header::-webkit-details-marker {
+    display: none;
   }
   .day-header:focus-visible {
     outline: 2px solid var(--color-accent, #3b82f6);
     outline-offset: -2px;
   }
   .day-toggle {
-    font-size: 16px;
+    font-size: 14px;
     color: var(--color-text-muted, #666);
     flex: 0 0 auto;
+    line-height: 1;
+    transition: transform 0.15s ease;
+    align-self: center;
+  }
+  details[open] .day-toggle {
+    transform: rotate(90deg);
   }
   .day-date {
     font-weight: 600;
+    font-size: 1rem; /* base — visual anchor */
+    font-variant-numeric: tabular-nums;
+    flex: 0 0 auto;
+  }
+  .day-sep {
+    color: var(--color-text-muted, #999);
+    flex: 0 0 auto;
+    font-size: var(--font-size-sm, 13px);
+  }
+  .day-capita,
+  .day-total {
+    /* Same size + weight for total and per-capita (fix #2). Both read
+       as secondary information underneath the date anchor. */
+    font-size: var(--font-size-sm, 13px);
+    color: var(--color-text-muted, #666);
     font-variant-numeric: tabular-nums;
     flex: 0 0 auto;
   }
   .day-total {
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    color: var(--color-text, #111);
-    flex: 0 0 auto;
-  }
-  .day-capita {
-    font-size: var(--font-size-sm, 13px);
-    color: var(--color-text-muted, #666);
-    flex: 0 1 auto;
-    text-align: right;
     margin-left: auto;
+    text-align: right;
   }
   .day-bills {
     padding: 0 var(--space-3);
+    border-top: 1px solid var(--color-border);
   }
   .bill-row {
     padding: var(--space-3) 0;
     border-bottom: 1px solid var(--color-border);
+  }
+  .bill-link {
+    /* The whole left side of the row is a real <button> so the row
+       is keyboard-accessible. The amount + delete button on the
+       right sit outside this button. */
+    appearance: none;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    margin: 0;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  .bill-link:hover .bill-desc {
+    text-decoration: underline;
+  }
+  .bill-link:focus-visible {
+    outline: 2px solid var(--color-accent, #3b82f6);
+    outline-offset: 2px;
+    border-radius: 2px;
   }
   .bill-row:last-child {
     border-bottom: none;
