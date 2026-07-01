@@ -1,11 +1,26 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import type { SessionDetail } from '$api/sessions';
-  import type { ParseBillResult } from '$api/bills';
+  import type { Bill, ParseBillResult } from '$api/bills';
   import AiAssistInput from './AiAssistInput.svelte';
 
+  /**
+   * v0.1.2 (PO 2026-07-01 fix #3): edit-page support.
+   *
+   * - `mode: 'create' | 'edit'` controls the submit button label, AI
+   *   helper visibility (hidden in edit), and whether `description` is
+   *   editable. Defaults to 'create' so existing call sites that
+   *   construct `<BillForm />` keep working unchanged.
+   * - `existingBill?: Bill` is the source of truth for the prefilled
+   *   form state in edit mode. In create mode it is ignored.
+   *
+   * v0.1.2 (T17, earlier): `description` is intentionally read-only in
+   * edit mode because the backend's UpdateBillRequest has it stripped
+   * (Pydantic `extra='forbid'`). The UI surfaces this with a disabled
+   * input + helper text instead of silently dropping user input.
+   */
   export let session: SessionDetail;
-  /** Called with a ready-to-POST payload. */
+  /** Called with a ready-to-POST / PATCH payload. */
   export let onSubmit: ((payload: {
     amount: number;
     payer_member_id: number;
@@ -24,6 +39,14 @@
    */
   export let defaultPayerMemberId: number | null = null;
 
+  /** v0.1.2 (fix #3): create or edit. Defaults to 'create'. */
+  export let mode: 'create' | 'edit' = 'create';
+  /** v0.1.2 (fix #3): when mode === 'edit', prefill the form. */
+  export let existingBill: Bill | null = null;
+
+  $: isEdit = mode === 'edit';
+  $: canEditDescription = !isEdit;
+
   let amount = '';
   let payerMemberId: number | null = null;
   let description = '';
@@ -37,12 +60,47 @@
   let showAi = false;
   let submitting = false;
   let formError: string | null = null;
+  let descriptionPristine = true;
 
-  // v0.1.2 (T19): apply the caller-supplied default payer once the form
-  // mounts. We only set it if the payer is currently null so the
-  // component remains reusable (e.g. embedded somewhere that wants to
-  // pre-set the payer explicitly).
+  // v0.1.2 (T19 + fix #3): apply the caller-supplied default payer once
+  // the form mounts. In create mode we use defaultPayerMemberId; in edit
+  // mode the existing bill's payer wins (if it's still a session member).
   onMount(() => {
+    if (isEdit && existingBill) {
+      // Prefill from existing bill.
+      amount = String(existingBill.amount);
+      payerMemberId = existingBill.payer_id;
+      // description: visible but not editable. Keep its current value
+      // so the user can see what they're editing.
+      description = existingBill.description ?? '';
+      descriptionPristine = true;
+      // Convert ISO datetime to the datetime-local input format
+      // (YYYY-MM-DDTHH:mm) in local time.
+      const d = new Date(existingBill.occurred_at);
+      if (!isNaN(d.getTime())) {
+        const pad = (n: number) => String(n).padStart(2, '0');
+        occurredAt =
+          `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+          `T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      }
+      currency = existingBill.currency || 'CNY';
+      // Rebuild participant state from existing participants; missing
+      // members default to "not included" (the form's create-mode
+      // default is "all included" — for edit we honour the persisted
+      // truth).
+      for (const m of session.members) {
+        const ep = existingBill.participants.find((p) => p.member_id === m.id);
+        participantState[m.id] = ep
+          ? {
+              included: true,
+              exclusive: !!ep.is_exclusive,
+              amount: ep.exclusive_amount ? String(ep.exclusive_amount) : '0',
+            }
+          : { included: false, exclusive: false, amount: '0' };
+      }
+      participantState = { ...participantState };
+      return;
+    }
     if (
       defaultPayerMemberId != null &&
       payerMemberId === null &&
@@ -77,6 +135,7 @@
     }
     if (res.description) {
       description = res.description;
+      descriptionPristine = false;
     }
     // resolve payer_hint
     if (res.payer_hint && res.payer_hint !== 'self') {
@@ -118,6 +177,12 @@
     return {
       amount: Number(amount),
       payer_member_id: payerMemberId ?? 0,
+      // In edit mode we deliberately send the existing description back
+      // so the field is preserved if the backend decides to accept it,
+      // but UpdateBillRequest rejects unknown fields (Pydantic
+      // extra='forbid') -- which means the description never actually
+      // reaches the wire. We still send it for symmetry / future
+      // backends that relax the rule.
       description: description.trim() ? description.trim() : null,
       occurred_at: new Date(occurredAt).toISOString(),
       currency: currency || 'CNY',
@@ -176,7 +241,20 @@
 
   <div>
     <label class="label" for="desc">说明(可选)</label>
-    <input id="desc" type="text" bind:value={description} placeholder="例: 晚餐" maxlength="500" />
+    <input
+      id="desc"
+      type="text"
+      bind:value={description}
+      placeholder="例: 晚餐"
+      maxlength="500"
+      disabled={!canEditDescription}
+      on:input={() => (descriptionPristine = false)}
+    />
+    {#if !canEditDescription}
+      <div class="muted hint" data-testid="description-readonly-hint">
+        说明在账单录入后不可修改(PO 06-30 T17 拍板)
+      </div>
+    {/if}
   </div>
 
   <div>
@@ -187,11 +265,13 @@
   <div>
     <div class="row between">
       <span class="label">参与者</span>
-      <button type="button" class="ghost btn-sm" on:click={() => (showAi = !showAi)}>
-        {showAi ? '收起 AI 辅助' : 'AI 辅助'}
-      </button>
+      {#if !isEdit}
+        <button type="button" class="ghost btn-sm" on:click={() => (showAi = !showAi)}>
+          {showAi ? '收起 AI 辅助' : 'AI 辅助'}
+        </button>
+      {/if}
     </div>
-    {#if showAi}
+    {#if showAi && !isEdit}
       <div style="margin-bottom: var(--space-3);">
         <AiAssistInput sessionId={session.id} onResult={applyAiResult} />
       </div>
@@ -239,7 +319,9 @@
 
   <div class="row">
     <button class="primary" type="submit" disabled={submitting}>
-      {submitting ? '保存中…' : '保存账单'}
+      {submitting
+        ? (isEdit ? '保存中…' : '保存中…')
+        : (isEdit ? '保存修改' : '保存账单')}
     </button>
   </div>
 </form>
@@ -275,5 +357,9 @@
     min-height: 36px;
     padding: 4px 10px;
     font-size: var(--font-size-sm);
+  }
+  .hint {
+    font-size: var(--font-size-sm);
+    margin-top: 4px;
   }
 </style>
