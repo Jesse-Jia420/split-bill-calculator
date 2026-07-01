@@ -5,6 +5,7 @@
   import type { SessionDetail } from '$api/sessions';
   import SettleTransferPath from '$components/SettleTransferPath.svelte';
   import SettleMemberBreakdown from '$components/SettleMemberBreakdown.svelte';
+  import { user } from '$stores/user';
 
   let session: SessionDetail | null = null;
   let loading = true;
@@ -18,6 +19,8 @@
 
   // v0.1.2 (T18): tab switcher for the settlement view.
   // 'overview' = existing balances + transfers; 'personal' = per-member breakdown.
+  //
+  // v0.1.2 反馈修3 (PO 2026-07-01 20:30): 「全 session」→「概览」
   type Tab = 'overview' | 'personal';
   let activeTab: Tab = 'overview';
 
@@ -56,7 +59,7 @@
     <h2>{session.name} · 结算</h2>
     <p class="muted">谁付给谁多少,一目了然</p>
 
-    <!-- v0.1.2 (T18): tab bar -->
+    <!-- v0.1.2 (T18) + v0.1.2 反馈修3 (T15): tab bar -->
     <div class="tab-bar" role="tablist" aria-label="结算视图">
       <button
         type="button"
@@ -66,7 +69,7 @@
         aria-selected={activeTab === 'overview'}
         on:click={() => (activeTab = 'overview')}
       >
-        全 session
+        概览
       </button>
       <button
         type="button"
@@ -84,7 +87,8 @@
       {#if activeTab === 'overview'}
         <SettleTransferPath {session} {memberIdToName} />
       {:else}
-        <SettleMemberBreakdown {session} />
+        <!-- T14: 传 currentUserId 给个人视图用于默认选中自己 -->
+        <SettleMemberBreakdown {session} currentUserId={$user?.user_id ?? null} />
       {/if}
     </div>
   {/if}
