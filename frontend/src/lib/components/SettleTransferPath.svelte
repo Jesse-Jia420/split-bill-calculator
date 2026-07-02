@@ -1,13 +1,20 @@
 <script lang="ts">
   /**
-   * v0.1.2 反馈修 6 (PO 2026-07-02 11:23) — Transfer path 转账建议。
+   * v0.1.3 Sprint 2 Commit 1 (2026-07-02) — Transfer path 转账建议。
    *
-   * 本次修复:
-   * - 项目 5 (用户名不加粗): 移除 `<strong>` 标签 + font-weight: 600
-   *   原因: PO 反馈用户名不应加粗,转帐箭头 → 应该更克制。
+   * 本次 Commit 1 改动:
+   * - T6 千分位: 删除手写数字格式化,统一切到 $lib/utils/format.formatMoney。
+   *   - 日期生成时间也走 formatDate({ full: true }) → "2026年7月2日 17:42"
+   * - Token alias 迁移: var(--color-*) → var(--*) 主 token。
+   *
+   * T11 (转账路径卡片化) 在 Commit 2。
+   *
+   * 沿用:
+   * - v0.1.2 反馈修 6 项目 5 (用户名不加粗,转帐箭头克制)
    */
   import { onMount } from 'svelte';
   import { getSettle } from '$api/settle';
+  import { formatMoney, formatDate } from '$lib/utils/format';
   import type { SettleResponse } from '$api/settle';
   import type { SessionDetail } from '$api/sessions';
 
@@ -19,8 +26,9 @@
   let error: string | null = null;
   let data: SettleResponse | null = null;
 
+  /** T6: 金额显示用 formatMoney (千分位)。 */
   function fmt(n: number): string {
-    return n.toFixed(2);
+    return formatMoney(n, { showSymbol: false });
   }
 
   onMount(async () => {
@@ -38,6 +46,11 @@
   function displayName(memberId: number | string): string {
     const id = Number(memberId);
     return memberIdToName[id] ?? ('#' + id);
+  }
+
+  /** T6: 生成时间走 formatDate({ full: true })。 */
+  function fmtGenerated(iso: string): string {
+    return formatDate(iso, { full: true });
   }
 </script>
 
@@ -78,7 +91,7 @@
       </ul>
     {/if}
     <p class="hint" style="margin-top: var(--space-3);">
-      生成时间: {new Date(data.generated_at).toLocaleString('zh-CN')}
+      生成时间: {fmtGenerated(data.generated_at)}
     </p>
   {/if}
 </div>
@@ -93,15 +106,15 @@
     font-weight: 500;
   }
   .amount.pos {
-    color: var(--color-success);
+    color: var(--success-500);
   }
   .amount.neg {
-    color: var(--color-error);
+    color: var(--error-500);
   }
   /* 反馈修 6 项目 5: 用户名 normal 字体 (不加粗) */
   .member-name {
     font-weight: 400;
-    color: var(--color-text);
+    color: var(--gray-900);
   }
   .transfer-pair {
     display: inline-flex;
@@ -113,5 +126,15 @@
     font-weight: 400;
     font-size: 0.9em;
     opacity: 0.7;
+  }
+  .muted {
+    color: var(--gray-500);
+  }
+  .hint {
+    color: var(--gray-500);
+    font-size: var(--font-size-sm);
+  }
+  .error {
+    color: var(--error-500);
   }
 </style>
