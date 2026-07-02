@@ -1,25 +1,17 @@
 <script lang="ts">
   /**
-   * v0.1.2 反馈修3 (PO 2026-07-01 20:30 UX 改写) — 个人视图成员明细。
+   * v0.1.2 反馈修 6 Commit 1 (PO 2026-07-02 11:23 UX 改写) — 个人视图成员明细。
    *
-   * 本次完全重写 (333 → ~200 行):
-   * - T14: 横向 chip row (role=tablist) + 每个 member 一个 chip
-   *   - 圆角 8px + 边框 + 选中态 (accent bg + border)
-   *   - 高度 64px + 宽度按内容,最少 4 个可见,移动端 7+ 横滑
-   *   - scroll-snap + 切换时 scrollIntoView 平滑滚动
-   * - 下方: 单成员明细 (title + 3-col stats + 付款 list + 消费 list)
-   * - props 改: `{ session, currentUserId }`
-   * - 默认 selectedMemberId: members.find(m => m.user_id === currentUserId)?.member_id ?? members[0]?.member_id
+   * Commit 1 (fix):
+   * - 项目 6 (付款明细/消费明细 分割加强):
+   *     - 用 .bills-section + 左 border (paid=绿,consumed=蓝) 视觉分割
+   *     - .bills-section-head flex 布局 (icon + title + count)
+   *     - sticky header (top:0 + surface bg + z-index:5)
+   *       长列表滚动时 section 标题仍可见
+   *     - icon 16px 圆 bg + 白字
+   *     - 删除原 .section-h 样式 (uppercase + 13px small caps)
    *
-   * 历史 v0.1.2:
-   * - T18 (`835952d`): list-of-cards 嵌套 details,每 member 一个折叠 card
-   * - T4-T6 反馈修 (`4a648f7`): exclusive_amount + 优先级 + 2-row breakdown
-   *
-   * 反模式预防:
-   * - 切换 selected 之后没 scrollIntoView → 用户切到列表右侧看不到自己的 chip。
-   *   用 smooth scroll + scroll-snap + 初始 selected 也对齐到 center
-   * - 不要把 animate 放在 onMount 后,因为 onMount 时 chip 还没 render。
-   *   等 tick 后再 scroll (setTimeout 0)
+   * Commit 2 (feat) 加动画 stagger + tweened counter — 在原文件基础上叠 in:fly + tweened
    */
   import { onMount, tick } from 'svelte';
   import { getSettle } from '$api/settle';
@@ -27,17 +19,14 @@
   import type { SessionDetail } from '$api/sessions';
 
   export let session: SessionDetail;
-  /** T14: 当前登录用户 user_id (从 user store 传过来)。用于选中默认自己。 */
+  /** 当前登录用户 user_id。用于默认选中自己。 */
   export let currentUserId: number | null = null;
 
   let loading = true;
   let error: string | null = null;
   let members: MemberSettlement[] = [];
 
-  // T14: 当前选中的 member_id (chip state)
   let selectedMemberId: number | null = null;
-  /** chip refs map for scrollIntoView。Svelte bind:this 需要可写 id 表达式,
-   * 所以用 Record<number, HTMLButtonElement | null> (Map 类型不行)。 */
   let chipRefs: Record<number, HTMLButtonElement | null> = {};
 
   function fmt(n: number): string {
@@ -62,29 +51,24 @@
     return trimmed ? trimmed.charAt(0).toUpperCase() : '?';
   }
 
-  /** T14: 净金额展示 (+/- prefix) — user-friendly compact label */
   function fmtChipNet(n: number): string {
     if (n > 0) return '+' + fmt(n);
-    if (n < 0) return '−' + fmt(Math.abs(n)); // U+2212 true minus (vs hyphen-minus)
+    if (n < 0) return '\u2212' + fmt(Math.abs(n));
     return fmt(0);
   }
 
   $: selectedMember = members.find((m) => m.member_id === selectedMemberId) ?? null;
 
-  /** v0.1.2 反馈修 (me badge): 把 currentUserId (user_id) 映射到 SessionMember.id,
-   * 用于在 chip / 明细面板上标「me」徽章。无论 selectedMemberId 是谁,
-   * 「me」始终挂在 current user 对应的 member 上。 */
   $: meMemberId = (() => {
     if (currentUserId === null || currentUserId === undefined) return null;
     const sm = session?.members?.find((m) => m.user_id === currentUserId);
     return sm?.id ?? null;
   })();
-  /** helper: 判断某 member 是否是当前用户 */
+
   function isMe(memberId: number | null | undefined): boolean {
     return meMemberId !== null && memberId === meMemberId;
   }
 
-  /** T14: chip 选中时把 chip 滚到可见区域 */
   async function selectMember(memberId: number) {
     selectedMemberId = memberId;
     await tick();
@@ -93,7 +77,6 @@
       try {
         el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
       } catch {
-        // 老浏览器可能不支持 behavior smooth → fallback 直接对齐
         el.scrollIntoView();
       }
     }
@@ -105,13 +88,11 @@
     try {
       const data = await getSettle(session.id);
       members = data.per_member ?? [];
-      // T14: 默认选中当前用户,没找到就第一 member
       const me = members.find((m) => {
         const sm = session.members.find((sm) => sm.id === m.member_id);
         return sm && sm.user_id === currentUserId;
       });
       selectedMemberId = me?.member_id ?? members[0]?.member_id ?? null;
-      // 初始滚到自己(等 chip 渲染完)
       if (selectedMemberId !== null) {
         await tick();
         const el = chipRefs[selectedMemberId];
@@ -133,16 +114,8 @@
   {:else if members.length === 0}
     <p class="muted">这个 session 还没有成员。</p>
   {:else}
-    <!-- T14: 横向 chip 行 (role=tablist)
-         v0.1.2 反馈修 (chip fade): 外层 .member-tabs-wrapper (position: relative)
-         + ::after fade gradient,提示用户右侧有可横滑的 chip。
-         内层 .member-tabs 保持 overflow-x: auto 滚动行为。 -->
     <div class="member-tabs-wrapper">
-      <div
-        class="member-tabs"
-        role="tablist"
-        aria-label="成员选择"
-      >
+      <div class="member-tabs" role="tablist" aria-label="成员选择">
         {#each members as m (m.member_id)}
           <button
             type="button"
@@ -167,7 +140,6 @@
       </div>
     </div>
 
-    <!-- T14: 单成员明细面板 -->
     {#if selectedMember}
       <div
         class="member-panel"
@@ -182,7 +154,6 @@
           {#if isMe(selectedMember.member_id)}<span class="me-badge" aria-label="当前用户">me</span>{/if}
         </h3>
 
-        <!-- 3-col stats (付款 / 消费 / 净) -->
         <div class="stats-grid">
           <div class="stat-cell">
             <div class="stat-label muted">付款</div>
@@ -210,67 +181,72 @@
           </div>
         </div>
 
-        <!-- 付款明细 (复用 row1/row2 风格) -->
-        <h4 class="section-h">付款明细 ({selectedMember.paid_bills.length})</h4>
-        {#if selectedMember.paid_bills.length === 0}
-          <p class="muted">没有付过账单</p>
-        {:else}
-          <ul class="bill-sublist" style="list-style: none; padding: 0; margin: 0;">
-            {#each selectedMember.paid_bills as b (b.bill_id)}
-              <li class="bill-subrow">
-                <div class="row1">
-                  <span class="bill-sub-desc">{b.description || '(无说明)'}</span>
-                  <span class="amount-primary">{fmt(b.amount)} {b.currency}</span>
-                </div>
-                <div class="row2 muted">
-                  <span class="bill-sub-date">{fmtDate(b.occurred_at)}</span>
-                </div>
-              </li>
-            {/each}
-          </ul>
-        {/if}
+        <!-- 反馈修 6 项目 6: 付款明细 section — 左 border 绿色 + sticky header -->
+        <div class="bills-section bills-section-paid">
+          <h4 class="bills-section-head">
+            <span class="bills-section-icon icon-paid" aria-hidden="true">↑</span>
+            <span class="bills-section-title">付款明细</span>
+            <span class="bills-section-count muted">({selectedMember.paid_bills.length})</span>
+          </h4>
+          {#if selectedMember.paid_bills.length === 0}
+            <p class="muted empty-hint">没有付过账单</p>
+          {:else}
+            <ul class="bill-sublist">
+              {#each selectedMember.paid_bills as b (b.bill_id)}
+                <li class="bill-subrow">
+                  <div class="row1">
+                    <span class="bill-sub-desc">{b.description || '(无说明)'}</span>
+                    <span class="amount-primary">{fmt(b.amount)} {b.currency}</span>
+                  </div>
+                  <div class="row2 muted">
+                    <span class="bill-sub-date">{fmtDate(b.occurred_at)}</span>
+                  </div>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </div>
 
-        <!-- 消费明细 (复用 row1/row2 风格) -->
-        <h4 class="section-h">消费明细 ({selectedMember.consumed_bills.length})</h4>
-        {#if selectedMember.consumed_bills.length === 0}
-          <p class="muted">没有被分摊的账单</p>
-        {:else}
-          <ul class="bill-sublist" style="list-style: none; padding: 0; margin: 0;">
-            {#each selectedMember.consumed_bills as b (b.bill_id)}
-              {@const excl = b.exclusive_amount ?? 0}
-              {@const shared = b.share_amount - excl}
-              <li class="bill-subrow">
-                <div class="row1">
-                  <span class="bill-sub-desc">{b.description || '(无说明)'}</span>
-                  <span class="amount-primary">{fmt(b.share_amount)} {b.currency}</span>
-                </div>
-                <div class="row2 muted">
-                  <span class="bill-sub-date">{fmtDate(b.occurred_at)}</span>
-                  {#if excl > 0}
+        <div class="bills-section bills-section-consumed">
+          <h4 class="bills-section-head">
+            <span class="bills-section-icon icon-consumed" aria-hidden="true">↓</span>
+            <span class="bills-section-title">消费明细</span>
+            <span class="bills-section-count muted">({selectedMember.consumed_bills.length})</span>
+          </h4>
+          {#if selectedMember.consumed_bills.length === 0}
+            <p class="muted empty-hint">没有被分摊的账单</p>
+          {:else}
+            <ul class="bill-sublist">
+              {#each selectedMember.consumed_bills as b (b.bill_id)}
+                {@const excl = b.exclusive_amount ?? 0}
+                {@const shared = b.share_amount - excl}
+                <li class="bill-subrow">
+                  <div class="row1">
+                    <span class="bill-sub-desc">{b.description || '(无说明)'}</span>
+                    <span class="amount-primary">{fmt(b.share_amount)} {b.currency}</span>
+                  </div>
+                  <div class="row2 muted">
+                    <span class="bill-sub-date">{fmtDate(b.occurred_at)}</span>
+                    {#if excl > 0}
+                      <span class="sep" aria-hidden="true">·</span>
+                      <span class="tag exclusive-tag">独占 {fmt(excl)}</span>
+                    {/if}
                     <span class="sep" aria-hidden="true">·</span>
-                    <span class="tag exclusive-tag">独占 {fmt(excl)}</span>
-                  {/if}
-                  <span class="sep" aria-hidden="true">·</span>
-                  <span class="tag shared-tag">共享 {fmt(shared)}</span>
-                  <span class="sep" aria-hidden="true">·</span>
-                  <span class="bill-total">账单总 {fmt(b.amount)}</span>
-                </div>
-              </li>
-            {/each}
-          </ul>
-        {/if}
+                    <span class="tag shared-tag">共享 {fmt(shared)}</span>
+                    <span class="sep" aria-hidden="true">·</span>
+                    <span class="bill-total">账单总 {fmt(b.amount)}</span>
+                  </div>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </div>
       </div>
     {/if}
   {/if}
 </div>
 
 <style>
-  /* === T14: chip row ===
-   * v0.1.2 反馈修 (chip fade): 外层 .member-tabs-wrapper 相对定位,
-   * ::after 绝对定位 32px 宽 fade gradient 盖在右边缘,
-   * 提示 chip 可横滑。pointer-events: none 不挡点击。
-   * (v1 简化: 不监听 scroll 隐藏 fade; 滚到最右时仍有 fade 但因为没更多内容,
-   *  视觉上 fade 后面没东西,自然不会让用户误以为还能滑) */
   .member-tabs-wrapper {
     position: relative;
   }
@@ -292,7 +268,6 @@
     gap: var(--space-2, 8px);
     padding: var(--space-2, 8px) 0;
     margin-bottom: var(--space-3, 12px);
-    /* 隐藏滚动条但保留可滚动 */
     scrollbar-width: thin;
     -webkit-overflow-scrolling: touch;
   }
@@ -317,7 +292,7 @@
     text-align: left;
     color: inherit;
     font: inherit;
-    transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s;
+    transition: border-color 200ms ease, background-color 200ms ease, box-shadow 200ms ease;
   }
   .member-chip:hover {
     border-color: var(--color-accent, #3b82f6);
@@ -382,10 +357,6 @@
     margin-left: 4px;
     vertical-align: middle;
   }
-  /* v0.1.2 反馈修 (me badge): 当前用户的 chip + 明细面板上挂的「me」徽章。
-   * 比 owner badge 更显眼 (12px / 600 / 8px padding),PO 设计意图:
-   * 当前用户一眼可识别,但不抢 chip 主信息 (名字 + 净金额) 的视觉重心。
-   * chip 自身 .me 状态额外加 box-shadow ring 让选中 + 自己 更突出。 */
   .me-badge {
     display: inline-block;
     background: var(--color-accent, #3b82f6);
@@ -405,7 +376,6 @@
     box-shadow: 0 0 0 2px var(--color-accent, #3b82f6), 0 0 0 4px rgba(59, 130, 246, 0.25);
   }
 
-  /* === T14: member panel === */
   .member-panel {
     border-top: 1px solid var(--color-border, #e5e5e5);
     padding-top: var(--space-3, 12px);
@@ -463,17 +433,68 @@
     color: var(--color-error, #ef4444);
   }
 
-  .section-h {
-    margin: var(--space-3, 12px) 0 var(--space-2, 8px);
+  /* === 反馈修 6 项目 6: bills section — 左 border 视觉分割 === */
+  .bills-section {
+    margin-top: var(--space-5, 24px);
+    padding-left: var(--space-3, 12px);
+    border-left: 3px solid transparent;
+    border-radius: 2px;
+  }
+  .bills-section-paid {
+    border-left-color: var(--color-success, #10b981);
+  }
+  .bills-section-consumed {
+    border-left-color: var(--color-accent, #3b82f6);
+  }
+  .bills-section-head {
+    position: sticky;
+    top: 0;
+    background: var(--color-surface, #fff);
+    z-index: 5;
+    margin: 0 0 var(--space-2, 8px);
+    padding: var(--space-2, 8px) 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2, 8px);
     font-size: var(--font-size-sm, 14px);
-    color: var(--color-text-muted, #666);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
     font-weight: 600;
+    color: var(--color-text);
+  }
+  .bills-section-icon {
+    flex: 0 0 auto;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    color: #fff;
+  }
+  .icon-paid {
+    background: var(--color-success, #10b981);
+  }
+  .icon-consumed {
+    background: var(--color-accent, #3b82f6);
+  }
+  .bills-section-title {
+    flex: 0 0 auto;
+  }
+  .bills-section-count {
+    flex: 0 0 auto;
+    font-weight: 400;
+  }
+  .empty-hint {
+    margin: 0;
+    padding: var(--space-2, 8px) 0;
   }
 
-  /* 复用 row1/row2 风格 (沿用 T6 Coder 4) */
   .bill-sublist {
+    list-style: none;
+    padding: 0;
+    margin: 0;
     display: flex;
     flex-direction: column;
     gap: var(--space-1, 4px);

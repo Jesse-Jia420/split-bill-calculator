@@ -1,39 +1,34 @@
 <script lang="ts">
   /**
-   * v0.1.2 反馈修 5 (PO 2026-07-01 23:00 UX 改写) — 全局 +layout.svelte。
+   * v0.1.2 反馈修 6 Commit 1 (PO 2026-07-02 11:23 UX 改写) — 全局 +layout.svelte。
    *
-   * 项目 9 (跨页面动画):
-   * - 页面切换: <slot /> 包 {#key $page.url.pathname} + transition:fade={{duration:150}}
-   * - 不要动画过度,每个 transition ≤ 300ms
+   * Commit 1 (fix):
+   * - 加全局 Toast 挂载点 <Toast /> (PO 反馈: 邀请复制成功提示)
    *
-   * 设计原则:
-   * - 让页面切换有「轻量」反馈 (150ms fade)
-   * - 不影响子组件本身的过渡 (子组件可继续用 Svelte transition 局部)
-   * - 用 Svelte 内置 fade/fly/slide,不引第三方动画库
+   * Commit 2 (feat) 改页面切换 fade 150ms → 200ms in / 100ms out
    */
   import '../app.css';
   import NavBar from '$components/NavBar.svelte';
+  import Toast from '$components/Toast.svelte';
   import { onMount } from 'svelte';
   import { fade } from 'svelte/transition';
   import { loadUser } from '$stores/user';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
 
-  // Best-effort user load on every page mount. The home page also has
-  // its own version-bar loader, so we don't block rendering here.
   onMount(async () => {
     const u = await loadUser();
-    // Redirect "/" to "/sessions" when logged in (per spec §1.5).
-    if (u && ($page.url.pathname === '/' || $page.url.pathname === '')) {
+    const path = $page.url.pathname;
+    if (u && (path === '/' || path === '')) {
       await goto('/sessions', { replaceState: true });
     }
   });
 </script>
 
 <NavBar />
+<Toast />
 <main class="page">
   {#key $page.url.pathname}
-    <!-- 项目 9: 全局页面切换 fade 150ms (克制, 不超过 300ms) -->
     <div in:fade={{ duration: 150 }}>
       <slot />
     </div>

@@ -1,16 +1,16 @@
 <script lang="ts">
   /**
-   * v0.1.2 反馈修 5 (PO 2026-07-01 23:00 UX 改写) — session 详情页。
+   * v0.1.2 反馈修 6 Commit 1 (PO 2026-07-02 11:23 UX 改写) — session 详情页。
    *
-   * 本次改写涉及 2+7+8:
-   * - 项目 2 (members section): 删除 owner token: j7hA... preview 整段,只保留
-   *   「X 天 Y 小时后过期」文案(由 InviteLinkButton.hint 渲染)。
-   * - 项目 7 (header 按钮): 删 header 「+ 新建账单」,从 3 按钮 → 2 按钮
-   *   [查看结算] [个人账单 → 移到 bills section header 右侧]
-   * - 项目 8 (个人账单按钮): bills-card header 右侧「个人账单」ghost 按钮
-   *   跳 `/sessions/{id}/settle#personal` (hash 路由 settle 页已实现)。
+   * Commit 1 (fix):
+   * - 项目 2 (members section 彻底重写 — PO 已反馈 3 轮 "还是乱"):
+   *     - 用 grid 布局 (40px avatar + 1fr info + auto action)
+   *     - 头部: 「成员 (N)」 + [邀请] + [收起/展开]
+   *     - 展开后: 紧凑成员列表,grid 三列对齐
+   *     - 不要 `<details>` (Svelte 5 reactivity 问题),用 JS state + class toggle
+   *     - 响应式: 移动端 avatar 32px,desktop 40px
    *
-   * 历史: v0.1.2 反馈修3 (`056dc2b`) + 修2 (`e77163a`) — 收尾改写 9 项中 3 项。
+   * Commit 2 (feat) 加 stagger mount + FAB entrance — 在原文件基础上叠 in:fly
    */
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
@@ -23,19 +23,15 @@
   import InviteLinkButton from '$components/InviteLinkButton.svelte';
   import BillListGrouped from '$components/BillListGrouped.svelte';
   import { user } from '$stores/user';
+  import { toast } from '$stores/toast';
 
   let session: SessionDetail | null = null;
   let bills: Bill[] = [];
   let loading = true;
   let error: string | null = null;
 
-  // map SessionMember.id -> display_name
   let memberIdToName: Record<number, string> = {};
-  // map SessionMember.id -> net balance (来自 settle.balances)。
-  // 加载失败 / 非 session member 时为 null,但 UI 不会崩。
   let memberIdToNet: Record<number, number> = {};
-  // 当前登录人 (user_id) → 该 session 内的 SessionMember.id。
-  // BillListGrouped 需要这个判断「分摊 X」是否显示。
   let currentMemberId: number | null = null;
 
   $: sessionId = Number($page.params.id);
@@ -45,7 +41,6 @@
     : null;
   $: isOwner = currentMember?.role === 'owner';
 
-  // 反馈修3: members section 默认折叠 (沿用 T7 设计)。
   let membersOpen = false;
 
   function membersStorageKey(): string {
@@ -72,24 +67,20 @@
     }
   }
 
-  function handleMembersToggle(e: Event) {
-    const el = e.currentTarget as HTMLDetailsElement;
-    membersOpen = el.open;
+  function toggleMembers() {
+    membersOpen = !membersOpen;
     saveMembersOpen();
   }
 
-  // 头像首字母大写 (跨语言 helper)
   function avatarLetter(name: string): string {
     const trimmed = (name ?? '').trim();
     return trimmed ? trimmed.charAt(0).toUpperCase() : '?';
   }
 
-  // 净金额显示 — net > 0 加 "+", < 0 加 "-", = 0 显示 "0.00"。
-  // 用单空格分隔 "+/-" 让 tabular-nums 视觉对齐。
   function fmtNet(n: number | undefined): string {
     if (n === undefined || n === null || Number.isNaN(n)) return '';
     if (n > 0) return '+' + n.toFixed(2);
-    if (n < 0) return '\u2212' + Math.abs(n).toFixed(2); // U+2212 true minus
+    if (n < 0) return '\u2212' + Math.abs(n).toFixed(2);
     return '0.00';
   }
 
@@ -102,8 +93,6 @@
       for (const m of session.members) {
         memberIdToName[m.id] = m.display_name;
       }
-      // 加载 settle.balances 用于在 members 行显示净金额。
-      // 失败不致命 — 净金额列会留空。
       try {
         const settle = await getSettle(sessionId);
         const nets: Record<number, number> = {};
@@ -114,10 +103,9 @@
         }
         memberIdToNet = nets;
       } catch {
-        // ignore — members 列表仍可用
+        // ignore
       }
       bills = await listBills(sessionId);
-      // 当前登录人的 member_id 给 BillListGrouped 用
       currentMemberId = currentMember?.id ?? null;
     } catch (e: any) {
       const c = e?.code ?? '';
@@ -143,19 +131,16 @@
     try {
       await deleteBill(sessionId, billId);
       bills = bills.filter((b) => b.id !== billId);
+      toast.success('已删除账单');
     } catch (e: any) {
-      error = e?.message ?? '删除失败';
+      toast.error(e?.message ?? '删除失败');
     }
   }
 
-  // 删除成员 (owner-only). v0.2 待 BE 支持 removeMember 接口,
-  // 当前没有 DELETE /sessions/{id}/members/{mid},按钮 disabled 加 tooltip 解释。
-  // 这里保留 placeholder 是 PO 设计评审明确要求: 「(owner only, 复用现 handleDeleteMember 或留 placeholder)」 — 我们留 placeholder。
   function handleDeleteMemberClick(m: { id: number; display_name: string }) {
-    // placeholder — 无 BE endpoint 可调,disabled 已阻止触发。到达这里仅当 dev 把 disabled 拿掉
-    const proceed = confirm(`确认把 ${m.display_name} 从这个 session 移除?\n\n(v0.2 待 BE 支持,当前会被后端拒绝)`);
+    const proceed = confirm(`确认把 ${m.display_name} 从这个 session 移除?\n\n(v0.2 待 BE 支持,当前不可用)`);
     if (!proceed) return;
-    error = '移除成员 (v0.2 待 BE 支持): 当前不可用';
+    toast.error('移除成员 (v0.2 待 BE 支持): 当前不可用');
   }
 </script>
 
@@ -165,9 +150,6 @@
   {:else if error}
     <div class="error">{error}</div>
   {:else if session}
-    <!-- PO 反馈修 5 项目 7: header 从 3 按钮 → 2 按钮
-         「+ 新建账单」已由 FAB 承担入口,删 header 重复。
-         [查看结算] [个人账单 → 已移到 bills section header 右侧] -->
     <div class="row between session-header" style="margin-bottom: var(--space-3); flex-wrap: wrap; gap: var(--space-2);">
       <h2 style="margin: 0;">{session.name}</h2>
       <div class="session-header-actions">
@@ -175,75 +157,72 @@
       </div>
     </div>
 
-    <!-- members section 重构。summary 极简 1 行 (成员N + [邀请] + ▾)。
-         头像叠放 + 共 N 人 住在 summary 内 (始终可见,不依赖展开)。
-         展开后 details body 显示紧凑成员列表。
-         PO 反馈修 5 项目 2: 删除 owner token: j7hA... preview 整段 + 简化过期文案
-         (现在 InviteLinkButton.hint 只显示「X 天 Y 小时后过期」)。 -->
+    <!-- 反馈修 6 项目 2: members section 彻底重写 — grid 布局 -->
     <div class="card members-card">
-      <details class="members-section" open={membersOpen} on:toggle={handleMembersToggle}>
-        <summary class="members-summary">
-          <div class="members-summary-top">
-            <span class="members-title">成员 ({session.members.length})</span>
-            <div class="members-summary-actions">
-              <InviteLinkButton sessionId={session.id} {isOwner} />
-              <span class="members-toggle-icon" aria-hidden="true">{membersOpen ? '−' : '+'}</span>
-            </div>
-          </div>
-          <div class="members-summary-stack">
-            <div class="avatar-stack" aria-label="成员头像">
-              {#each session.members.slice(0, 8) as m (m.id)}
-                <div class="avatar-sm" title={m.display_name} aria-hidden="true">
-                  {avatarLetter(m.display_name)}
-                </div>
-              {/each}
-              {#if session.members.length > 8}
-                <div class="avatar-sm more" title={`还有 ${session.members.length - 8} 人`} aria-hidden="true">…</div>
-              {/if}
-            </div>
-            <span class="muted members-count">共 {session.members.length} 人</span>
-          </div>
-          <!-- PO 反馈修 5 项目 2: 删除 owner token: j7hA... preview 整段
-               PO 反馈原话: "为什么需要放owner token？为什么放了 xxx天后过期，又放2026/8/1？？？"
-               现在 InviteLinkButton.hint 已显示「X 天 Y 小时后过期」,不需要在这里重复 owner token -->
-        </summary>
+      <header class="members-head">
+        <h3 class="members-title">
+          成员 <span class="muted members-count-inline">({session.members.length})</span>
+        </h3>
+        <div class="members-actions">
+          <InviteLinkButton sessionId={session.id} {isOwner} />
+          <button
+            type="button"
+            class="members-toggle"
+            on:click={toggleMembers}
+            aria-expanded={membersOpen}
+            aria-label={membersOpen ? '收起成员列表' : '展开成员列表'}
+          >
+            <span class="toggle-caret" class:open={membersOpen} aria-hidden="true">▾</span>
+            <span class="toggle-label">{membersOpen ? '收起' : '展开'}</span>
+          </button>
+        </div>
+      </header>
 
-        <!-- 展开后 inline 紧凑成员列表(替换原 SessionMemberList 组件) -->
-        <ul class="member-list-compact">
+      {#if membersOpen}
+        <ul class="members-list">
           {#each session.members as m (m.id)}
-            <li class="member-row">
-              <div class="avatar-md" aria-hidden="true">{avatarLetter(m.display_name)}</div>
-              <div class="member-row-info">
-                <span class="member-row-name">
-                  {m.display_name}{#if m.role === 'owner'}<span class="role-badge-inline">owner</span>{/if}
-                </span>
-                <span class="muted member-row-email">{m.email}</span>
+            <li class="member-item">
+              <div class="member-avatar" aria-hidden="true">{avatarLetter(m.display_name)}</div>
+              <div class="member-info">
+                <div class="member-name-row">
+                  <span class="member-name">{m.display_name}</span>
+                  {#if m.role === 'owner'}
+                    <span class="owner-badge">owner</span>
+                  {/if}
+                  {#if currentMember?.id === m.id}
+                    <span class="me-badge">me</span>
+                  {/if}
+                </div>
+                <div class="member-meta-row">
+                  <span
+                    class="member-net"
+                    class:pos={(memberIdToNet[m.id] ?? 0) > 0}
+                    class:neg={(memberIdToNet[m.id] ?? 0) < 0}
+                  >
+                    {memberIdToNet[m.id] !== undefined ? fmtNet(memberIdToNet[m.id]) : '—'}
+                  </span>
+                  {#if m.email}
+                    <span class="member-email muted">{m.email}</span>
+                  {/if}
+                </div>
               </div>
-              <span
-                class="member-row-net"
-                class:pos={(memberIdToNet[m.id] ?? 0) > 0}
-                class:neg={(memberIdToNet[m.id] ?? 0) < 0}
-              >
-                {memberIdToNet[m.id] !== undefined ? fmtNet(memberIdToNet[m.id]) : ''}
-              </span>
               {#if isOwner && m.role !== 'owner'}
                 <button
                   type="button"
-                  class="ghost btn-sm"
+                  class="member-remove"
+                  on:click={() => handleDeleteMemberClick(m)}
+                  aria-label="移除成员 {m.display_name}"
                   title="owner-only: v0.2 待 BE 支持 removeMember"
-                  aria-label="删除成员 (v0.2 待 BE 支持,当前禁用)"
                   disabled
-                >删除</button>
+                >×</button>
               {/if}
             </li>
           {/each}
         </ul>
-      </details>
+      {/if}
     </div>
 
-    <!-- PO 反馈修 5 项目 8: 「个人账单」按钮移到 bills section head (右侧)
-         跟 「共 N 笔」 一行, ghost button。
-         跳转 `/sessions/{id}/settle#personal` (hash 路由已实现 → 自动切到 personal tab) -->
+    <!-- bills section head (沿用 反馈修 5 项目 8) -->
     <div class="card bills-card">
       <div class="bills-card-head">
         <div class="bills-card-head-left">
@@ -265,7 +244,7 @@
       />
     </div>
 
-    <!-- FAB 悬浮按钮 (项目 7: 现在 header 没有「+ 新建账单」,FAB 是唯一入口) -->
+    <!-- FAB 悬浮按钮 (沿用 T12) -->
     <a
       class="fab"
       href="/sessions/{session.id}/bills/new"
@@ -276,7 +255,6 @@
 </section>
 
 <style>
-  /* === T11: header 2 按钮 wrap 行为 (项目 7: 删 [+ 新建账单] 后) === */
   .session-header-actions {
     display: flex;
     gap: var(--space-2);
@@ -292,125 +270,91 @@
     }
   }
 
-  /* === members summary === */
+  /* === 反馈修 6 项目 2: members section — grid 布局 彻底重写 === */
   .members-card {
-    padding: 0;
-    overflow: hidden;
+    padding: var(--space-3) var(--space-4);
   }
-  .members-summary {
-    list-style: none;
-    cursor: pointer;
-    padding: var(--space-3);
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    user-select: none;
-  }
-  .members-summary::-webkit-details-marker {
-    display: none;
-  }
-  .members-summary::marker {
-    display: none;
-    content: '';
-  }
-  .members-summary-top {
+  .members-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: var(--space-2);
+    gap: var(--space-3);
     flex-wrap: wrap;
+    padding-bottom: var(--space-2);
   }
-  .members-title {
-    font-weight: 600;
-    font-size: 1rem;
-  }
-  .members-summary-actions {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-  }
-  .members-toggle-icon {
-    /* 通用 .btn 高度对齐 (44px) */
-    width: 28px;
-    height: 28px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--color-text-muted, #666);
-    font-size: 18px;
-    font-weight: 400;
-    line-height: 1;
-    user-select: none;
-  }
-  .members-summary-stack {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    flex-wrap: wrap;
-  }
-  .avatar-stack {
-    display: inline-flex;
-    align-items: center;
-    flex-wrap: wrap;
-  }
-  .avatar-sm {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    background: var(--color-accent, #3b82f6);
-    color: #fff;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 600;
-    font-size: 12px;
-    border: 2px solid var(--color-surface, #fff);
-    margin-left: -6px;
-    flex: 0 0 auto;
-  }
-  .avatar-sm:first-child {
-    margin-left: 0;
-  }
-  .avatar-sm.more {
-    background: var(--color-text-muted, #6b7280);
-  }
-  .members-count {
-    font-size: var(--font-size-sm);
-  }
-
-  /* PO 反馈修 5 项目 2: 删除 .owner-token-hint 整段
-     (PO 反馈: "为什么需要放owner token？为什么放了 xxx天后过期，又放2026/8/1？？？")
-     InviteLinkButton.hint 现在显示「X 天 Y 小时后过期」,不需要在 members 区域再重复一次 owner token preview */
-
-  /* 展开时 summary 加底部分隔,body 显示紧凑成员列表 */
-  details.members-section[open] .members-summary {
+  .members-head:has(+ .members-list) {
     border-bottom: 1px solid var(--color-border);
     margin-bottom: var(--space-2);
   }
-  details.members-section[open] {
-    padding-bottom: var(--space-2);
-  }
-
-  /* === 紧凑成员列表 (替换 SessionMemberList) === */
-  .member-list-compact {
-    list-style: none;
-    padding: 0 var(--space-3) var(--space-3);
+  .members-title {
     margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--space-1);
   }
-  .member-row {
-    display: flex;
+  .members-count-inline {
+    font-weight: 400;
+    font-size: var(--font-size-sm);
+  }
+  .members-actions {
+    display: inline-flex;
     align-items: center;
     gap: var(--space-2);
-    padding: var(--space-2) 0;
+  }
+  .members-toggle {
+    appearance: none;
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius, 8px);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    min-height: 36px;
+    padding: 0 var(--space-3);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font: inherit;
+    font-size: var(--font-size-sm);
+    transition: border-color 150ms ease, color 150ms ease, background 150ms ease;
+  }
+  .members-toggle:hover {
+    border-color: var(--color-accent, #3b82f6);
+    color: var(--color-text);
+  }
+  .toggle-caret {
+    display: inline-block;
+    transition: transform 200ms cubic-bezier(0.2, 0, 0, 1);
+    font-size: 12px;
+    line-height: 1;
+  }
+  .toggle-caret.open {
+    transform: rotate(180deg);
+  }
+  .toggle-label {
+    line-height: 1;
+  }
+
+  .members-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .member-item {
+    display: grid;
+    grid-template-columns: 40px 1fr auto;
+    align-items: center;
+    gap: var(--space-3, 12px);
+    padding: var(--space-3, 12px) 0;
     border-bottom: 1px solid var(--color-border);
   }
-  .member-row:last-child {
+  .member-item:last-child {
     border-bottom: none;
   }
-  .avatar-md {
-    flex: 0 0 auto;
-    width: 32px;
-    height: 32px;
+  .member-avatar {
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
     background: var(--color-accent, #3b82f6);
     color: #fff;
@@ -418,52 +362,131 @@
     align-items: center;
     justify-content: center;
     font-weight: 600;
-    font-size: 14px;
+    font-size: 16px;
+    flex-shrink: 0;
   }
-  .member-row-info {
-    flex: 1 1 auto;
+  .member-info {
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 4px;
   }
-  .member-row-name {
-    font-weight: 500;
-    display: inline-flex;
+  .member-name-row {
+    display: flex;
     align-items: center;
-    gap: var(--space-1);
+    gap: var(--space-2, 8px);
+    flex-wrap: wrap;
+    min-width: 0;
   }
-  .role-badge-inline {
-    display: inline-block;
-    background: var(--color-accent, #3b82f6);
-    color: #fff;
-    font-size: 11px;
-    padding: 1px 6px;
-    border-radius: 999px;
+  .member-name {
+    font-size: 1rem;
     font-weight: 500;
-  }
-  .member-row-email {
-    font-size: var(--font-size-sm);
+    color: var(--color-text);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .member-row-net {
-    flex: 0 0 auto;
+  .owner-badge {
+    display: inline-block;
+    background: var(--color-accent, #3b82f6);
+    color: #fff;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
+  }
+  .me-badge {
+    display: inline-block;
+    background: var(--color-accent, #3b82f6);
+    color: #fff;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
+  }
+  .member-meta-row {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3, 12px);
+    flex-wrap: wrap;
+    font-size: 13px;
+  }
+  .member-net {
     font-variant-numeric: tabular-nums;
-    font-size: var(--font-size-sm);
+    font-weight: 600;
     color: var(--color-text-muted, #666);
-    min-width: 56px;
-    text-align: right;
   }
-  .member-row-net.pos {
-    color: var(--color-success, #16a34a);
+  .member-net.pos {
+    color: var(--color-success, #10b981);
   }
-  .member-row-net.neg {
-    color: var(--color-error, #dc2626);
+  .member-net.neg {
+    color: var(--color-error, #ef4444);
+  }
+  .member-email {
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 200px;
+  }
+  .member-remove {
+    appearance: none;
+    background: transparent;
+    border: 0;
+    color: var(--color-text-muted, #666);
+    font-size: 22px;
+    line-height: 1;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 150ms ease, background-color 150ms ease, color 150ms ease;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .member-item:hover .member-remove:not(:disabled) {
+    opacity: 1;
+  }
+  .member-remove:hover:not(:disabled) {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--color-error, #ef4444);
   }
 
-  /* === PO 反馈修 5 项目 8: bills section header (标题 + 笔数 + 个人账单按钮) === */
+  @media (max-width: 480px) {
+    .members-card {
+      padding: var(--space-3);
+    }
+    .member-item {
+      grid-template-columns: 32px 1fr auto;
+      gap: var(--space-2, 8px);
+      padding: var(--space-2, 8px) 0;
+    }
+    .member-avatar {
+      width: 32px;
+      height: 32px;
+      font-size: 14px;
+    }
+    .member-name {
+      font-size: 14px;
+    }
+    .member-remove {
+      opacity: 1;
+    }
+    .member-email {
+      display: none;
+    }
+    .members-toggle .toggle-label {
+      display: none;
+    }
+  }
+
   .bills-card-head {
     display: flex;
     align-items: center;
@@ -484,12 +507,10 @@
     font-size: var(--font-size-sm);
   }
   .bills-personal-link {
-    /* 移动端不挤压,跟标题/笔数同样行 */
     min-height: 36px;
     padding: 4px 12px;
   }
   @media (max-width: 480px) {
-    /* 极窄屏 (≤480px): 标题+笔数+按钮全在同一行紧凑布局 */
     .bills-card-head-left {
       flex: 1 1 auto;
       min-width: 0;
@@ -499,7 +520,6 @@
     }
   }
 
-  /* === FAB 悬浮按钮 === */
   .fab {
     position: fixed;
     right: 24px;
@@ -519,9 +539,9 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    transition: transform 0.15s, box-shadow 0.15s;
     text-decoration: none;
     padding: 0;
+    transition: transform 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
   }
   .fab:hover {
     transform: translateY(-2px);
@@ -529,6 +549,9 @@
     background: var(--color-accent-hover, #2563eb);
     color: #fff;
     text-decoration: none;
+  }
+  .fab:active {
+    transform: scale(0.96);
   }
   .fab:focus-visible {
     outline: 2px solid #fff;
@@ -542,7 +565,6 @@
     }
   }
 
-  /* FAB 56px + 24px bottom offset + ~16px 安全间距 */
   .bills-card {
     padding-bottom: 96px;
   }
