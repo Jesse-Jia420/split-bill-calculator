@@ -36,3 +36,10 @@ backend/data/*.db-shm
 
 # Alembic compiled cache
 backend/alembic/__pycache__/
+
+# Local dev artifacts (Coder test scripts / DB / xlsx)
+backend/sbc.db
+backend/_*.py
+backend/_*.xlsx
+backend/_*.json
+frontend/*.mjs
