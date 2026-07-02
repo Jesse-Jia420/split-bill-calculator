@@ -1,6 +1,9 @@
 """FastAPI application entry point."""
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+from typing import AsyncIterator
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -11,6 +14,34 @@ from app.api.settle import router as settle_router
 from app.api.sessions import router as sessions_router
 from app.api.version import router as version_router
 from app.core.config import settings
+from app.core.database import SessionLocal
+from scripts.seed_dev_data import seed_dev_data
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    """Application lifespan hook.
+
+    On startup, idempotently seed development test fixtures (Thailand
+    session + Personal session + their members / bills). Skipped when
+    ``ENV=production`` so a production deploy never seeds dev data.
+
+    Errors are logged but do not prevent startup — we never want the
+    app to refuse to boot because the seed failed.
+    """
+    db = SessionLocal()
+    try:
+        result = seed_dev_data(db)
+        print(f"[startup] seed_dev_data: {result}", flush=True)
+    except Exception as exc:  # noqa: BLE001
+        # Log + rollback, then keep going. The app should boot even if
+        # the seed blew up; /health will still return 200.
+        print(f"[startup] seed_dev_data error: {exc!r}", flush=True)
+        db.rollback()
+    finally:
+        db.close()
+    yield
+
 
 app = FastAPI(
     title="Split Bill Calculator API",
@@ -19,6 +50,7 @@ app = FastAPI(
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
+    lifespan=lifespan,
 )
 
 # CORS — v0.1 dev: allow localhost dev server origins.
