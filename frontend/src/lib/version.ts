@@ -1,1 +1,1 @@
-export const FRONTEND_VERSION = "c7f900b";
+export const FRONTEND_VERSION = "0cc051b";
