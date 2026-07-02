@@ -1,8 +1,15 @@
 <script lang="ts">
   /**
-   * v0.1.3 Sprint 2 (2026-07-02) — bills grouped list。
+   * v0.1.4 (2026-07-02) — bills grouped list polish。
    *
-   * 本次改写 (Sprint 2):
+   * 本次 polish (v0.1.4):
+   * - <details> 顺滑折叠动画: 包一层 .day-body-wrap + .day-body,用 grid-template-rows
+   *   0fr ↔ 1fr 实现 250ms cubic-bezier 过渡。Chrome 117+/Safari 17.4+/Firefox 127+
+   *   支持,老浏览器降级到 <details> 默认瞬时展开。
+   * - share_amount 独立一行: .bill-row2 从 row 改 column 布局,让 share_amount
+   *   从右侧变到下一行,与 meta 上下两行展示,避免元信息被挤压。
+   *
+   * 沿用 v0.1.3 Sprint 2:
    * - T6 千分位: 删除手写数字格式化,统一切到 $lib/utils/format.formatMoney。
    * - T7 折叠默认: 找 session 中**最新**的 occurred_at 日期作为「当天」,只有
    *   「当天」group 默认展开,其他全部默认折叠。用户手动 toggle 后用 localStorage
@@ -432,69 +439,76 @@
               </div>
             </summary>
 
-            <!-- 反馈修 6 项目 3: 删 .day-bills padding + border-top,
-                 bill row 直接贴在 day header 下,共享同一背景色 -->
-            <ul class="day-bills">
-              {#each g.bills as b, bi (b.id)}
-                {@const share = yourShare(b)}
-                <li
-                  class="bill-swipe-wrap"
-                  in:fly={{ y: 8, duration: 220, delay: Math.min(bi * 25, 200) }}
-                >
-                  {#if onDelete}
-                    <button
-                      type="button"
-                      class="bill-swipe-action bill-swipe-action-right"
-                      tabindex={swipeOffset[b.id] !== undefined && swipeOffset[b.id] < 0 ? 0 : -1}
-                      aria-hidden={swipeOffset[b.id] === undefined || swipeOffset[b.id] >= 0}
-                      aria-label="删除账单: {b.description || '(无说明)'}"
-                      on:click={(e) => onSwipeDelete(b.id, e)}
-                    >删除</button>
-                  {/if}
-                  <button
-                    type="button"
-                    class="bill-swipe-action bill-swipe-action-left"
-                    tabindex={swipeOffset[b.id] !== undefined && swipeOffset[b.id] > 0 ? 0 : -1}
-                    aria-hidden={swipeOffset[b.id] === undefined || swipeOffset[b.id] <= 0}
-                    aria-label="编辑账单: {b.description || '(无说明)'}"
-                    on:click={(e) => onSwipeEdit(b.id, e)}
-                  >编辑</button>
-                  <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
-                  <!-- svelte-ignore a11y-no-noninteractive-element-to-interactive-role -->
-                  <!-- svelte-ignore a11y-no-static-element-interactions -->
-                  <!-- svelte-ignore a11y-click-events-have-key-events -->
-                  <div
-                    class="bill-row"
-                    class:swiping={!!isDragging[b.id]}
-                    style="transform: translateX({isDragging[b.id] ? (dragOffset[b.id] ?? 0) : (swipeOffset[b.id] ?? 0)}px)"
-                    role="group"
-                    aria-label="账单: {b.description || '(无说明)'}"
-                    on:touchstart={(e) => onTouchStart(b.id, e)}
-                    on:touchmove={(e) => onTouchMove(b.id, e)}
-                    on:touchend={(e) => onTouchEnd(b.id, e)}
-                    on:touchcancel={(e) => onTouchCancel(b.id, e)}
-                    on:mousedown={(e) => onMouseDown(b.id, e)}
-                    on:click={onRowTap}
-                  >
-                    <div class="bill-row1">
-                      <CategoryIcon description={b.description ?? ''} size={18} />
-                      <span class="bill-desc">{b.description || '(无说明)'}</span>
-                      <span class="bill-amount">
-                        {fmtAmount(b.amount)}<span class="unit">{b.currency}</span>
-                      </span>
-                    </div>
-                    <div class="bill-row2 muted">
-                      <span class="bill-meta-line">
-                        {fmtBillTime(b.occurred_at)} · {payerName(b)} 付 · {b.participants.length} 人均 {fmtAmount(b.amount / Math.max(1, b.participants.length))}{b.currency}
-                      </span>
-                      {#if share !== null}
-                        <span class="your-share">分摊 {fmtAmount(share)}<span class="unit">{b.currency}</span></span>
+            <!-- v0.1.4: 折叠顺滑动画 (grid-template-rows 0fr ↔ 1fr)。
+                 Chrome 117+ / Safari 17.4+ / Firefox 127+ 全部支持;
+                 老浏览器降级到浏览器默认的瞬时展开 (已是 details 的默认行为) -->
+            <div class="day-body-wrap">
+              <div class="day-body">
+                <!-- 反馈修 6 项目 3: 删 .day-bills padding + border-top,
+                     bill row 直接贴在 day header 下,共享同一背景色 -->
+                <ul class="day-bills">
+                  {#each g.bills as b, bi (b.id)}
+                    {@const share = yourShare(b)}
+                    <li
+                      class="bill-swipe-wrap"
+                      in:fly={{ y: 8, duration: 220, delay: Math.min(bi * 25, 200) }}
+                    >
+                      {#if onDelete}
+                        <button
+                          type="button"
+                          class="bill-swipe-action bill-swipe-action-right"
+                          tabindex={swipeOffset[b.id] !== undefined && swipeOffset[b.id] < 0 ? 0 : -1}
+                          aria-hidden={swipeOffset[b.id] === undefined || swipeOffset[b.id] >= 0}
+                          aria-label="删除账单: {b.description || '(无说明)'}"
+                          on:click={(e) => onSwipeDelete(b.id, e)}
+                        >删除</button>
                       {/if}
-                    </div>
-                  </div>
-                </li>
-              {/each}
-            </ul>
+                      <button
+                        type="button"
+                        class="bill-swipe-action bill-swipe-action-left"
+                        tabindex={swipeOffset[b.id] !== undefined && swipeOffset[b.id] > 0 ? 0 : -1}
+                        aria-hidden={swipeOffset[b.id] === undefined || swipeOffset[b.id] <= 0}
+                        aria-label="编辑账单: {b.description || '(无说明)'}"
+                        on:click={(e) => onSwipeEdit(b.id, e)}
+                      >编辑</button>
+                      <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+                      <!-- svelte-ignore a11y-no-noninteractive-element-to-interactive-role -->
+                      <!-- svelte-ignore a11y-no-static-element-interactions -->
+                      <!-- svelte-ignore a11y-click-events-have-key-events -->
+                      <div
+                        class="bill-row"
+                        class:swiping={!!isDragging[b.id]}
+                        style="transform: translateX({isDragging[b.id] ? (dragOffset[b.id] ?? 0) : (swipeOffset[b.id] ?? 0)}px)"
+                        role="group"
+                        aria-label="账单: {b.description || '(无说明)'}"
+                        on:touchstart={(e) => onTouchStart(b.id, e)}
+                        on:touchmove={(e) => onTouchMove(b.id, e)}
+                        on:touchend={(e) => onTouchEnd(b.id, e)}
+                        on:touchcancel={(e) => onTouchCancel(b.id, e)}
+                        on:mousedown={(e) => onMouseDown(b.id, e)}
+                        on:click={onRowTap}
+                      >
+                        <div class="bill-row1">
+                          <CategoryIcon description={b.description ?? ''} size={18} />
+                          <span class="bill-desc">{b.description || '(无说明)'}</span>
+                          <span class="bill-amount">
+                            {fmtAmount(b.amount)}<span class="unit">{b.currency}</span>
+                          </span>
+                        </div>
+                        <div class="bill-row2 muted">
+                          <span class="bill-meta-line">
+                            {fmtBillTime(b.occurred_at)} · {payerName(b)} 付 · {b.participants.length} 人均 {fmtAmount(b.amount / Math.max(1, b.participants.length))}{b.currency}
+                          </span>
+                          {#if share !== null}
+                            <span class="your-share">分摊 {fmtAmount(share)}<span class="unit">{b.currency}</span></span>
+                          {/if}
+                        </div>
+                      </div>
+                    </li>
+                  {/each}
+                </ul>
+              </div>
+            </div>
           </details>
         </li>
       {/each}
@@ -633,6 +647,23 @@
     /* 删除 border-top + padding,bill row 跟 day header 同一容器背景色 */
   }
 
+  /* === v0.1.4 polish: <details> 顺滑折叠动画 (grid-template-rows 0fr ↔ 1fr)
+     包装 day-bills 的两层 div: 外层做 grid 高度过渡,内层装内容做 overflow:hidden。
+     Chrome 117+ / Safari 17.4+ / Firefox 127+ 全部支持;
+     老浏览器降级到 <details> 默认的瞬时展开。 === */
+  .day-body-wrap {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  details[open] .day-body-wrap {
+    grid-template-rows: 1fr;
+  }
+  .day-body {
+    overflow: hidden;
+    min-height: 0;
+  }
+
   /* === iOS Mail-style swipe wrapper & actions === */
   .bill-swipe-wrap {
     position: relative;
@@ -735,20 +766,18 @@
   }
 
   .bill-row2 {
+    /* v0.1.4 polish: share_amount 独立新一行 — column 布局让 meta 在上、share 在下 */
     display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--space-2);
-    flex-wrap: wrap;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
     margin-top: 2px;
     font-size: var(--font-size-sm);
   }
   .bill-meta-line {
-    flex: 1 1 auto;
     min-width: 0;
   }
   .your-share {
-    flex: 0 0 auto;
     font-weight: 600;
     color: var(--accent-500);
     font-variant-numeric: tabular-nums;

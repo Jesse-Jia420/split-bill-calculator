@@ -1,8 +1,16 @@
 <script lang="ts">
   /**
-   * v0.1.3 Sprint 2 Commit 1 (2026-07-02) — session 详情页。
+   * v0.1.4 (2026-07-02) — session 详情页 polish。
    *
-   * 本次 Commit 1 改动:
+   * 本次 polish (v0.1.4):
+   * - 移除 members 折叠 toggle 按钮: 删掉 <button class="members-toggle">、
+   *   membersOpen state、membersStorageKey / loadMembersOpen / saveMembersOpen /
+   *   toggleMembers 5 个函数,以及对应 .members-toggle / .toggle-caret /
+   *   .toggle-label CSS。
+   * - members 列表 + 头像始终显示: 去掉 {#if membersOpen} 包裹,空成员时仍渲染
+   *   EmptyState,多人时直接渲染 <ul class="members-list">。
+   *
+   * 沿用 v0.1.3 Sprint 2 Commit 1:
    * - T6 千分位: 删除手写数字格式化,统一切到 $lib/utils/format.formatMoney。
    *   - 净金额 fmtNet 保留 '+' / U+2212 前缀 (Sprint 1 文档约束)。
    * - Token alias 迁移: var(--color-*) → var(--*) 主 token。
@@ -44,37 +52,9 @@
     : null;
   $: isOwner = currentMember?.role === 'owner';
 
-  // 反馈修 6 项目 2: members section 默认折叠,JS state (Svelte 5 兼容)。
-  let membersOpen = false;
-
-  function membersStorageKey(): string {
-    return `sbc.membersOpen.${sessionId}`;
-  }
-
-  function loadMembersOpen() {
-    if (typeof window === 'undefined') return;
-    try {
-      const raw = window.localStorage.getItem(membersStorageKey());
-      if (raw === null) return;
-      membersOpen = raw === 'true';
-    } catch {
-      // ignore
-    }
-  }
-
-  function saveMembersOpen() {
-    if (typeof window === 'undefined') return;
-    try {
-      window.localStorage.setItem(membersStorageKey(), String(membersOpen));
-    } catch {
-      // ignore
-    }
-  }
-
-  function toggleMembers() {
-    membersOpen = !membersOpen;
-    saveMembersOpen();
-  }
+  // v0.1.4 polish: 移除 members 折叠 toggle,始终展示成员列表 + 头像。
+  // 删掉了 membersOpen state / membersStorageKey / loadMembersOpen /
+  // saveMembersOpen / toggleMembers 5 个 block,以及 localStorage 读写代码。
 
   // 头像首字母大写 (跨语言 helper)
   function avatarLetter(name: string): string {
@@ -131,7 +111,6 @@
   }
 
   onMount(async () => {
-    loadMembersOpen();
     await load();
   });
 
@@ -206,29 +185,19 @@
         </h3>
         <div class="members-actions">
           <InviteLinkButton sessionId={session.id} {isOwner} />
-          <button
-            type="button"
-            class="members-toggle"
-            on:click={toggleMembers}
-            aria-expanded={membersOpen}
-            aria-label={membersOpen ? '收起成员列表' : '展开成员列表'}
-          >
-            <span class="toggle-caret" class:open={membersOpen} aria-hidden="true">▾</span>
-            <span class="toggle-label">{membersOpen ? '收起' : '展开'}</span>
-          </button>
         </div>
       </header>
 
-      {#if membersOpen}
-        {#if session.members.length <= 1}
-          <EmptyState
-            icon="users"
-            title="还没有成员"
-            description="分享邀请链接,邀请朋友加入这个 session。"
-            ctaLabel={copyingInvite ? '已复制' : '复制邀请链接'}
-            onCtaClick={copyInviteLink}
-          />
-        {:else}
+      <!-- v0.1.4 polish: 去掉 {#if membersOpen} 包裹,members 列表始终渲染 (改动 4) -->
+      {#if session.members.length <= 1}
+        <EmptyState
+          icon="users"
+          title="还没有成员"
+          description="分享邀请链接,邀请朋友加入这个 session。"
+          ctaLabel={copyingInvite ? '已复制' : '复制邀请链接'}
+          onCtaClick={copyInviteLink}
+        />
+      {:else}
         <!-- stagger mount: 每个 li delay i*30ms (cap 300ms) -->
         <ul class="members-list">
           {#each session.members as m, i (m.id)}
@@ -273,7 +242,6 @@
             </li>
           {/each}
         </ul>
-        {/if}
       {/if}
     </div>
 
@@ -371,38 +339,9 @@
     align-items: center;
     gap: var(--space-2);
   }
-  .members-toggle {
-    appearance: none;
-    background: transparent;
-    border: 1px solid var(--gray-200);
-    border-radius: var(--radius-md, 8px);
-    color: var(--gray-500);
-    cursor: pointer;
-    min-height: 36px;
-    padding: 0 var(--space-3);
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font: inherit;
-    font-size: var(--font-size-sm);
-    transition: border-color 150ms ease, color 150ms ease, background 150ms ease;
-  }
-  .members-toggle:hover {
-    border-color: var(--accent-500);
-    color: var(--gray-900);
-  }
-  .toggle-caret {
-    display: inline-block;
-    transition: transform 200ms cubic-bezier(0.2, 0, 0, 1);
-    font-size: 12px;
-    line-height: 1;
-  }
-  .toggle-caret.open {
-    transform: rotate(180deg);
-  }
-  .toggle-label {
-    line-height: 1;
-  }
+
+  /* v0.1.4 polish: .members-toggle / .toggle-caret / .toggle-label CSS 已删除 —
+     头部收起按钮移除后,这些 class 不再使用。 */
 
   /* === members list — grid 布局 === */
   .members-list {
@@ -552,9 +491,8 @@
     .member-email {
       display: none; /* 移动端太挤,隐藏 */
     }
-    .members-toggle .toggle-label {
-      display: none; /* 移动端只留 ▾ icon,节省空间 */
-    }
+    /* v0.1.4 polish: .members-toggle .toggle-label 移动端隐藏 CSS 已删除
+       (toggle 按钮整体不再渲染,这条规则失去意义) */
   }
 
   /* === bills section header === */
