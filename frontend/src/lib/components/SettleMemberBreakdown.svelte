@@ -1,17 +1,20 @@
 <script lang="ts">
   /**
-   * v0.1.3 Sprint 2 Commit 2 (2026-07-02) — 个人视图成员明细。
+   * v0.1.3 Sprint 2 Commit 3 (2026-07-02) — 个人视图成员明细。
    *
-   * 本次 Commit 2 改动:
-   * - T8 Hero Metric: 3-col stats-grid → hero 区(净大数字居中 + meta 行)
-   * - T10 Sticky: .bills-section-head 加 section-header sticky + backdrop-blur
-   * - T11 转账路径卡片化: 在 Commit 2 SettleTransferPath 里
-   *
-   * T9 (chip redesign) 在 Commit 3。
+   * 本次 Commit 3 改动:
+   * - T9 Chip Redesign: filled bg pill style, fade gradient mask, me double ring
+   *   - Active: accent-500 bg + white text + shadow-sm
+   *   - Inactive: white bg + gray-200 border, hover accent border+text
+   *   - Pill shape (radius-full), gap space-3, padding space-3/space-4
+   *   - Numbers: formatMoney(no symbol) + tabular-nums + color by sign
+   *   - me badge removed (active=filled enough), me ring via class:me kept
+   *   - Fade gradient mask in member-tabs-wrapper (already present)
    *
    * 沿用:
-   * - v0.1.2 反馈修 6 项目 6 (付款/消费 sticky section header + 左 border 分割)
-   * - v0.1.2 反馈修 6 项目 7 (chip/bill stagger + 数字 counter tweened 动画)
+   * - T8 Hero Metric (Commit 2)
+   * - T10 Sticky Section Header (Commit 2)
+   * - v0.1.2 反馈修 6 项目 6/7
    */
   import { onMount, tick } from 'svelte';
   import { tweened } from 'svelte/motion';
@@ -61,8 +64,8 @@
   }
 
   /**
-   * chip 上的 net 金额显示:`+` 用 ASCII、`−` 用 U+2212 真字符 (Sprint 1 文档约束)。
-   * 数字部分走 formatMoney (千分位)。
+   * T9 chip net amount: formatMoney no symbol, tabular-nums.
+   * Color via CSS classes .pos / .neg / .zero on the chip-net element.
    */
   function fmtChipNet(n: number): string {
     if (n > 0) return '+' + formatMoney(n, { showSymbol: false });
@@ -127,16 +130,18 @@
   {:else if members.length === 0}
     <p class="muted">这个 session 还没有成员。</p>
   {:else}
+    <!-- T9: member-tabs-wrapper with fade gradient mask (already present, kept) -->
     <div class="member-tabs-wrapper">
       <div class="member-tabs" role="tablist" aria-label="成员选择">
         {#each members as m, i (m.member_id)}
+          <!-- T9: chip redesign — filled pill + no badge text -->
           <button
             type="button"
             class="member-chip"
-            class:active={selectedMemberId === m.member_id}
+            class:selected={m.member_id === selectedMemberId}
             class:me={isMe(m.member_id)}
             role="tab"
-            aria-selected={selectedMemberId === m.member_id}
+            aria-selected={m.member_id === selectedMemberId}
             aria-controls="member-panel-{m.member_id}"
             bind:this={chipRefs[m.member_id]}
             on:click={() => selectMember(m.member_id)}
@@ -144,10 +149,13 @@
           >
             <div class="chip-avatar" aria-hidden="true">{avatarLetter(m.display_name)}</div>
             <div class="chip-info">
-              <div class="chip-name">
-                {m.display_name}{#if m.role === 'owner'}<span class="chip-badge">owner</span>{/if}{#if isMe(m.member_id)}<span class="me-badge" aria-label="当前用户">me</span>{/if}
-              </div>
-              <div class="chip-net" class:pos={m.net > 0} class:neg={m.net < 0}>{fmtChipNet(m.net)}</div>
+              <div class="chip-name">{m.display_name}</div>
+              <div
+                class="chip-net"
+                class:pos={m.net > 0}
+                class:neg={m.net < 0}
+                class:zero={m.net === 0}
+              >{fmtChipNet(m.net)}</div>
             </div>
           </button>
         {/each}
@@ -155,7 +163,6 @@
     </div>
 
     {#if selectedMember}
-      <!-- key=selectedMemberId: 切换成员时整个 panel 重 mount,触发淡入动画 -->
       {#key selectedMember.member_id}
         <div
           class="member-panel"
@@ -171,7 +178,7 @@
             {#if isMe(selectedMember.member_id)}<span class="me-badge" aria-label="当前用户">me</span>{/if}
           </h3>
 
-          <!-- T8: Hero Metric — 净大数字居中 + meta 行 -->
+          <!-- T8: Hero Metric -->
           <div class="hero">
             <div
               class="hero-net"
@@ -192,7 +199,7 @@
             </div>
           </div>
 
-          <!-- 反馈修 6 项目 6: 付款明细 section — 左 border 绿色 + sticky header -->
+          <!-- T10: 付款明细 section with sticky header -->
           <div class="bills-section bills-section-paid">
             <h4 class="bills-section-head section-header">
               <span class="bills-section-icon icon-paid" aria-hidden="true">↑</span>
@@ -221,7 +228,7 @@
             {/if}
           </div>
 
-          <!-- 消费明细 section — 左 border 蓝色 -->
+          <!-- T10: 消费明细 section with sticky header -->
           <div class="bills-section bills-section-consumed">
             <h4 class="bills-section-head section-header">
               <span class="bills-section-icon icon-consumed" aria-hidden="true">↓</span>
@@ -266,8 +273,7 @@
 </div>
 
 <style>
-  /* === chip row ===
-     T9 (chip redesign) 在 Commit 3 重做,这里只做 token alias 迁移。 */
+  /* === T9: Chip Redesign — filled pill === */
   .member-tabs-wrapper {
     position: relative;
   }
@@ -286,39 +292,46 @@
     overflow-x: auto;
     scroll-snap-type: x mandatory;
     display: flex;
-    gap: var(--space-2, 8px);
-    padding: var(--space-2, 8px) 0;
-    margin-bottom: var(--space-3, 12px);
+    gap: var(--space-3);
+    padding: var(--space-2) 0;
+    margin-bottom: var(--space-3);
     scrollbar-width: thin;
     -webkit-overflow-scrolling: touch;
   }
   .member-tabs::-webkit-scrollbar {
     height: 4px;
   }
+
+  /* T9 chip: pill shape, filled when selected */
   .member-chip {
     scroll-snap-align: start;
     flex: 0 0 auto;
     appearance: none;
+    /* Inactive base */
     background: white;
-    border: 1.5px solid var(--gray-200);
-    border-radius: 8px;
-    padding: var(--space-2, 8px) 12px;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-full);
+    padding: var(--space-3) var(--space-4);
     cursor: pointer;
     display: flex;
     align-items: center;
-    gap: var(--space-2, 8px);
+    gap: var(--space-2);
     min-height: 64px;
     min-width: 110px;
     max-width: 180px;
     text-align: left;
-    color: inherit;
+    color: var(--gray-700);
     font: inherit;
-    transition: border-color 200ms ease, background-color 200ms ease, box-shadow 200ms ease,
+    transition:
+      background-color 200ms ease,
+      border-color 200ms ease,
+      color 200ms ease,
+      box-shadow 200ms ease,
       transform 200ms cubic-bezier(0.2, 0, 0, 1);
   }
   .member-chip:hover {
     border-color: var(--accent-500);
-    transform: translateY(-1px);
+    color: var(--accent-700);
   }
   .member-chip:active {
     transform: scale(0.97);
@@ -327,10 +340,25 @@
     outline: 2px solid var(--accent-500);
     outline-offset: 2px;
   }
-  .member-chip.active {
+  /* T9 Active state: filled accent bg */
+  .member-chip.selected {
+    background: var(--accent-500);
+    border: 1px solid var(--accent-500);
+    color: white;
+    box-shadow: var(--shadow-sm);
+  }
+  .member-chip.selected:hover {
+    background: var(--accent-500);
     border-color: var(--accent-500);
-    background: rgba(59, 130, 246, 0.1);
-    box-shadow: 0 0 0 1px var(--accent-500);
+    color: white;
+  }
+  /* T9 me double ring (kept even though me badge text removed) */
+  .member-chip.me .chip-avatar {
+    box-shadow: 0 0 0 2px var(--accent-700), 0 0 0 4px rgba(59, 130, 246, 0.25);
+  }
+  /* selected + me: inner ring adapts to white bg of active chip */
+  .member-chip.selected.me .chip-avatar {
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.6), 0 0 0 4px var(--accent-700);
   }
 
   .chip-avatar {
@@ -345,6 +373,11 @@
     justify-content: center;
     font-weight: 600;
     font-size: 14px;
+    transition: background-color 200ms ease;
+  }
+  /* Inactive chip: avatar uses gray bg */
+  .member-chip:not(.selected) .chip-avatar {
+    background: var(--gray-400);
   }
   .chip-info {
     flex: 1 1 auto;
@@ -360,18 +393,22 @@
     text-overflow: ellipsis;
     font-size: var(--font-size-sm, 14px);
   }
+  /* T9 chip net: tabular-nums, color by sign */
   .chip-net {
     font-variant-numeric: tabular-nums;
     font-weight: 600;
-    color: var(--gray-500);
     font-size: var(--font-size-sm, 14px);
+    /* default / inactive: gray-500 */
+    color: var(--gray-500);
   }
-  .chip-net.pos {
-    color: var(--success-500);
-  }
-  .chip-net.neg {
-    color: var(--error-500);
-  }
+  .chip-net.pos { color: var(--success-500); }
+  .chip-net.neg { color: var(--error-500); }
+  .chip-net.zero { color: var(--gray-500); }
+  /* Selected chip: net numbers white */
+  .member-chip.selected .chip-net { color: rgba(255,255,255,0.9); }
+  .member-chip.selected .chip-net.pos { color: white; }
+  .member-chip.selected .chip-net.neg { color: rgba(255,255,255,0.85); }
+
   .chip-badge {
     display: inline-block;
     background: var(--accent-500);
@@ -385,7 +422,7 @@
   }
   .me-badge {
     display: inline-block;
-    background: var(--accent-500);
+    background: rgba(255, 255, 255, 0.25);
     color: #fff;
     font-size: 12px;
     font-weight: 600;
@@ -396,11 +433,9 @@
     line-height: 1.2;
     vertical-align: middle;
     text-transform: lowercase;
-    transition: transform 200ms cubic-bezier(0.2, 0, 0, 1), opacity 200ms ease;
+    border: 1px solid rgba(255,255,255,0.4);
   }
-  .member-chip.me .chip-avatar {
-    box-shadow: 0 0 0 2px var(--accent-500), 0 0 0 4px rgba(59, 130, 246, 0.25);
-  }
+  /* Selected chip: badge adapts to white text (chip-badge lives in panel-title, not chip) */
 
   /* === member panel === */
   .member-panel {
@@ -446,15 +481,9 @@
     line-height: 1.1;
     margin-bottom: var(--space-2, 8px);
   }
-  .hero-net.pos {
-    color: var(--success-500);
-  }
-  .hero-net.neg {
-    color: var(--error-500);
-  }
-  .hero-net.zero {
-    color: var(--gray-500);
-  }
+  .hero-net.pos { color: var(--success-500); }
+  .hero-net.neg { color: var(--error-500); }
+  .hero-net.zero { color: var(--gray-500); }
   .settled-text {
     font-size: var(--font-size-2xl, 32px);
   }
@@ -471,9 +500,7 @@
     font-weight: 500;
     font-variant-numeric: tabular-nums;
   }
-  .meta-sep {
-    color: var(--gray-400);
-  }
+  .meta-sep { color: var(--gray-400); }
 
   /* === T10: Sticky Section Header === */
   .section-header {
@@ -486,19 +513,15 @@
     border-bottom: 1px solid var(--gray-200);
   }
 
-  /* === bills section — 左 border 视觉分割 === */
+  /* === bills section — left border visual separation === */
   .bills-section {
     margin-top: var(--space-5, 24px);
     padding-left: var(--space-3, 12px);
     border-left: 3px solid transparent;
     border-radius: 2px;
   }
-  .bills-section-paid {
-    border-left-color: var(--success-500);
-  }
-  .bills-section-consumed {
-    border-left-color: var(--accent-500);
-  }
+  .bills-section-paid { border-left-color: var(--success-500); }
+  .bills-section-consumed { border-left-color: var(--accent-500); }
   .bills-section-head {
     margin: 0 0 var(--space-2, 8px);
     padding: var(--space-2, 8px) 0;
@@ -523,25 +546,13 @@
     line-height: 1;
     color: #fff;
   }
-  .icon-paid {
-    background: var(--success-500);
-  }
-  .icon-consumed {
-    background: var(--accent-500);
-  }
-  .bills-section-title {
-    flex: 0 0 auto;
-  }
-  .bills-section-count {
-    flex: 0 0 auto;
-    font-weight: 400;
-  }
-  .empty-hint {
-    margin: 0;
-    padding: var(--space-2, 8px) 0;
-  }
+  .icon-paid { background: var(--success-500); }
+  .icon-consumed { background: var(--accent-500); }
+  .bills-section-title { flex: 0 0 auto; }
+  .bills-section-count { flex: 0 0 auto; font-weight: 400; }
+  .empty-hint { margin: 0; padding: var(--space-2, 8px) 0; }
 
-  /* === 列表行样式 (沿用) === */
+  /* === bill list rows === */
   .bill-sublist {
     list-style: none;
     padding: 0;
@@ -557,9 +568,7 @@
     padding: var(--space-2, 8px) 0;
     border-bottom: 1px dashed var(--gray-200);
   }
-  .bill-subrow:last-child {
-    border-bottom: none;
-  }
+  .bill-subrow:last-child { border-bottom: none; }
   .row1 {
     display: flex;
     align-items: baseline;
@@ -587,20 +596,9 @@
     font-weight: 600;
     font-size: 1rem;
   }
-  .bill-sub-date {
-    font-variant-numeric: tabular-nums;
-  }
-  .exclusive-tag {
-    color: var(--accent-500);
-    font-weight: 500;
-  }
-  .shared-tag {
-    color: var(--gray-500);
-  }
-  .bill-total {
-    color: var(--gray-400);
-  }
-  .sep {
-    color: var(--gray-400);
-  }
+  .bill-sub-date { font-variant-numeric: tabular-nums; }
+  .exclusive-tag { color: var(--accent-500); font-weight: 500; }
+  .shared-tag { color: var(--gray-500); }
+  .bill-total { color: var(--gray-400); }
+  .sep { color: var(--gray-400); }
 </style>
