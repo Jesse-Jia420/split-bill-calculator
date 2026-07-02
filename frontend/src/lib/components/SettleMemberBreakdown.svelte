@@ -1,8 +1,8 @@
 <script lang="ts">
   /**
-   * v0.1.2 反馈修 6 Commit 1 (PO 2026-07-02 11:23 UX 改写) — 个人视图成员明细。
+   * v0.1.2 反馈修 6 (PO 2026-07-02 11:23 UX 改写) — 个人视图成员明细。
    *
-   * Commit 1 (fix):
+   * 本次改写:
    * - 项目 6 (付款明细/消费明细 分割加强):
    *     - 用 .bills-section + 左 border (paid=绿,consumed=蓝) 视觉分割
    *     - .bills-section-head flex 布局 (icon + title + count)
@@ -10,10 +10,16 @@
    *       长列表滚动时 section 标题仍可见
    *     - icon 16px 圆 bg + 白字
    *     - 删除原 .section-h 样式 (uppercase + 13px small caps)
-   *
-   * Commit 2 (feat) 加动画 stagger + tweened counter — 在原文件基础上叠 in:fly + tweened
+   * - 项目 7 动画:
+   *     - chip 选中 transition:scale (0.9 → 1)
+   *     - chip 列表 stagger mount
+   *     - bill item list stagger mount
+   *     - 3-col stats 数字 counter animation (tweened, 600ms cubicOut)
    */
   import { onMount, tick } from 'svelte';
+  import { tweened } from 'svelte/motion';
+  import { cubicOut } from 'svelte/easing';
+  import { scale, fly, fade } from 'svelte/transition';
   import { getSettle } from '$api/settle';
   import type { MemberSettlement } from '$api/settle';
   import type { SessionDetail } from '$api/sessions';
@@ -28,6 +34,20 @@
 
   let selectedMemberId: number | null = null;
   let chipRefs: Record<number, HTMLButtonElement | null> = {};
+
+  // === 项目 7: 数字 counter animation (tweened) ===
+  const tweenPaid = tweened(0, { duration: 600, easing: cubicOut });
+  const tweenConsumed = tweened(0, { duration: 600, easing: cubicOut });
+  const tweenNet = tweened(0, { duration: 600, easing: cubicOut });
+  // 标志:数字是否要变化时让 tween 平滑过渡
+  let prevSelectedMemberId: number | null = null;
+  $: if (selectedMember) {
+    // member 切换时重新 trigger tween (从 0 → 当前值,或从 prev → 当前)
+    tweenPaid.set(selectedMember.total_paid ?? 0);
+    tweenConsumed.set(selectedMember.total_consumed ?? 0);
+    tweenNet.set(selectedMember.net ?? 0);
+    prevSelectedMemberId = selectedMember.member_id;
+  }
 
   function fmt(n: number): string {
     return n.toFixed(2);
@@ -116,7 +136,7 @@
   {:else}
     <div class="member-tabs-wrapper">
       <div class="member-tabs" role="tablist" aria-label="成员选择">
-        {#each members as m (m.member_id)}
+        {#each members as m, i (m.member_id)}
           <button
             type="button"
             class="member-chip"
@@ -127,6 +147,7 @@
             aria-controls="member-panel-{m.member_id}"
             bind:this={chipRefs[m.member_id]}
             on:click={() => selectMember(m.member_id)}
+            in:fly={{ y: 6, duration: 220, delay: Math.min(i * 30, 240) }}
           >
             <div class="chip-avatar" aria-hidden="true">{avatarLetter(m.display_name)}</div>
             <div class="chip-info">
@@ -141,112 +162,125 @@
     </div>
 
     {#if selectedMember}
-      <div
-        class="member-panel"
-        id="member-panel-{selectedMember.member_id}"
-        role="tabpanel"
-        aria-label="{selectedMember.display_name} 明细"
-      >
-        <h3 class="member-panel-title">
-          <span class="panel-avatar" aria-hidden="true">{avatarLetter(selectedMember.display_name)}</span>
-          <span>{selectedMember.display_name}</span>
-          {#if selectedMember.role === 'owner'}<span class="chip-badge owner-badge">owner</span>{/if}
-          {#if isMe(selectedMember.member_id)}<span class="me-badge" aria-label="当前用户">me</span>{/if}
-        </h3>
+      <!-- key=selectedMemberId: 切换成员时整个 panel 重 mount,触发淡入动画 -->
+      {#key selectedMember.member_id}
+        <div
+          class="member-panel"
+          id="member-panel-{selectedMember.member_id}"
+          role="tabpanel"
+          aria-label="{selectedMember.display_name} 明细"
+          in:fade={{ duration: 220 }}
+        >
+          <h3 class="member-panel-title">
+            <span class="panel-avatar" aria-hidden="true">{avatarLetter(selectedMember.display_name)}</span>
+            <span>{selectedMember.display_name}</span>
+            {#if selectedMember.role === 'owner'}<span class="chip-badge owner-badge">owner</span>{/if}
+            {#if isMe(selectedMember.member_id)}<span class="me-badge" aria-label="当前用户">me</span>{/if}
+          </h3>
 
-        <div class="stats-grid">
-          <div class="stat-cell">
-            <div class="stat-label muted">付款</div>
-            <div class="stat-value">{fmt(selectedMember.total_paid)}</div>
-          </div>
-          <div class="stat-cell">
-            <div class="stat-label muted">消费</div>
-            <div class="stat-value">{fmt(selectedMember.total_consumed)}</div>
-          </div>
-          <div class="stat-cell">
-            <div class="stat-label muted">净</div>
-            <div
-              class="stat-value"
-              class:pos={selectedMember.net > 0}
-              class:neg={selectedMember.net < 0}
-            >
-              {#if selectedMember.net > 0}
-                +{fmt(selectedMember.net)}
-              {:else if selectedMember.net < 0}
-                −{fmt(Math.abs(selectedMember.net))}
-              {:else}
-                0.00
-              {/if}
+          <!-- 3-col stats (付款 / 消费 / 净) — 数字 tweened 动画 -->
+          <div class="stats-grid">
+            <div class="stat-cell">
+              <div class="stat-label muted">付款</div>
+              <div class="stat-value">{$tweenPaid.toFixed(2)}</div>
+            </div>
+            <div class="stat-cell">
+              <div class="stat-label muted">消费</div>
+              <div class="stat-value">{$tweenConsumed.toFixed(2)}</div>
+            </div>
+            <div class="stat-cell">
+              <div class="stat-label muted">净</div>
+              <div
+                class="stat-value"
+                class:pos={selectedMember.net > 0}
+                class:neg={selectedMember.net < 0}
+              >
+                {#if $tweenNet > 0}
+                  +{$tweenNet.toFixed(2)}
+                {:else if $tweenNet < 0}
+                  −{Math.abs($tweenNet).toFixed(2)}
+                {:else}
+                  0.00
+                {/if}
+              </div>
             </div>
           </div>
-        </div>
 
-        <!-- 反馈修 6 项目 6: 付款明细 section — 左 border 绿色 + sticky header -->
-        <div class="bills-section bills-section-paid">
-          <h4 class="bills-section-head">
-            <span class="bills-section-icon icon-paid" aria-hidden="true">↑</span>
-            <span class="bills-section-title">付款明细</span>
-            <span class="bills-section-count muted">({selectedMember.paid_bills.length})</span>
-          </h4>
-          {#if selectedMember.paid_bills.length === 0}
-            <p class="muted empty-hint">没有付过账单</p>
-          {:else}
-            <ul class="bill-sublist">
-              {#each selectedMember.paid_bills as b (b.bill_id)}
-                <li class="bill-subrow">
-                  <div class="row1">
-                    <span class="bill-sub-desc">{b.description || '(无说明)'}</span>
-                    <span class="amount-primary">{fmt(b.amount)} {b.currency}</span>
-                  </div>
-                  <div class="row2 muted">
-                    <span class="bill-sub-date">{fmtDate(b.occurred_at)}</span>
-                  </div>
-                </li>
-              {/each}
-            </ul>
-          {/if}
-        </div>
+          <!-- 反馈修 6 项目 6: 付款明细 section — 左 border 绿色 + sticky header -->
+          <div class="bills-section bills-section-paid">
+            <h4 class="bills-section-head">
+              <span class="bills-section-icon icon-paid" aria-hidden="true">↑</span>
+              <span class="bills-section-title">付款明细</span>
+              <span class="bills-section-count muted">({selectedMember.paid_bills.length})</span>
+            </h4>
+            {#if selectedMember.paid_bills.length === 0}
+              <p class="muted empty-hint">没有付过账单</p>
+            {:else}
+              <ul class="bill-sublist">
+                {#each selectedMember.paid_bills as b, i (b.bill_id)}
+                  <li
+                    class="bill-subrow"
+                    in:fly={{ y: 6, duration: 200, delay: Math.min(i * 25, 200) }}
+                  >
+                    <div class="row1">
+                      <span class="bill-sub-desc">{b.description || '(无说明)'}</span>
+                      <span class="amount-primary">{fmt(b.amount)} {b.currency}</span>
+                    </div>
+                    <div class="row2 muted">
+                      <span class="bill-sub-date">{fmtDate(b.occurred_at)}</span>
+                    </div>
+                  </li>
+                {/each}
+              </ul>
+            {/if}
+          </div>
 
-        <div class="bills-section bills-section-consumed">
-          <h4 class="bills-section-head">
-            <span class="bills-section-icon icon-consumed" aria-hidden="true">↓</span>
-            <span class="bills-section-title">消费明细</span>
-            <span class="bills-section-count muted">({selectedMember.consumed_bills.length})</span>
-          </h4>
-          {#if selectedMember.consumed_bills.length === 0}
-            <p class="muted empty-hint">没有被分摊的账单</p>
-          {:else}
-            <ul class="bill-sublist">
-              {#each selectedMember.consumed_bills as b (b.bill_id)}
-                {@const excl = b.exclusive_amount ?? 0}
-                {@const shared = b.share_amount - excl}
-                <li class="bill-subrow">
-                  <div class="row1">
-                    <span class="bill-sub-desc">{b.description || '(无说明)'}</span>
-                    <span class="amount-primary">{fmt(b.share_amount)} {b.currency}</span>
-                  </div>
-                  <div class="row2 muted">
-                    <span class="bill-sub-date">{fmtDate(b.occurred_at)}</span>
-                    {#if excl > 0}
+          <!-- 消费明细 section — 左 border 蓝色 -->
+          <div class="bills-section bills-section-consumed">
+            <h4 class="bills-section-head">
+              <span class="bills-section-icon icon-consumed" aria-hidden="true">↓</span>
+              <span class="bills-section-title">消费明细</span>
+              <span class="bills-section-count muted">({selectedMember.consumed_bills.length})</span>
+            </h4>
+            {#if selectedMember.consumed_bills.length === 0}
+              <p class="muted empty-hint">没有被分摊的账单</p>
+            {:else}
+              <ul class="bill-sublist">
+                {#each selectedMember.consumed_bills as b, i (b.bill_id)}
+                  {@const excl = b.exclusive_amount ?? 0}
+                  {@const shared = b.share_amount - excl}
+                  <li
+                    class="bill-subrow"
+                    in:fly={{ y: 6, duration: 200, delay: Math.min(i * 25, 200) }}
+                  >
+                    <div class="row1">
+                      <span class="bill-sub-desc">{b.description || '(无说明)'}</span>
+                      <span class="amount-primary">{fmt(b.share_amount)} {b.currency}</span>
+                    </div>
+                    <div class="row2 muted">
+                      <span class="bill-sub-date">{fmtDate(b.occurred_at)}</span>
+                      {#if excl > 0}
+                        <span class="sep" aria-hidden="true">·</span>
+                        <span class="tag exclusive-tag">独占 {fmt(excl)}</span>
+                      {/if}
                       <span class="sep" aria-hidden="true">·</span>
-                      <span class="tag exclusive-tag">独占 {fmt(excl)}</span>
-                    {/if}
-                    <span class="sep" aria-hidden="true">·</span>
-                    <span class="tag shared-tag">共享 {fmt(shared)}</span>
-                    <span class="sep" aria-hidden="true">·</span>
-                    <span class="bill-total">账单总 {fmt(b.amount)}</span>
-                  </div>
-                </li>
-              {/each}
-            </ul>
-          {/if}
+                      <span class="tag shared-tag">共享 {fmt(shared)}</span>
+                      <span class="sep" aria-hidden="true">·</span>
+                      <span class="bill-total">账单总 {fmt(b.amount)}</span>
+                    </div>
+                  </li>
+                {/each}
+              </ul>
+            {/if}
+          </div>
         </div>
-      </div>
+      {/key}
     {/if}
   {/if}
 </div>
 
 <style>
+  /* === chip row === */
   .member-tabs-wrapper {
     position: relative;
   }
@@ -292,10 +326,15 @@
     text-align: left;
     color: inherit;
     font: inherit;
-    transition: border-color 200ms ease, background-color 200ms ease, box-shadow 200ms ease;
+    transition: border-color 200ms ease, background-color 200ms ease, box-shadow 200ms ease,
+      transform 200ms cubic-bezier(0.2, 0, 0, 1);
   }
   .member-chip:hover {
     border-color: var(--color-accent, #3b82f6);
+    transform: translateY(-1px);
+  }
+  .member-chip:active {
+    transform: scale(0.97);
   }
   .member-chip:focus-visible {
     outline: 2px solid var(--color-accent, #3b82f6);
@@ -376,6 +415,7 @@
     box-shadow: 0 0 0 2px var(--color-accent, #3b82f6), 0 0 0 4px rgba(59, 130, 246, 0.25);
   }
 
+  /* === member panel === */
   .member-panel {
     border-top: 1px solid var(--color-border, #e5e5e5);
     padding-top: var(--space-3, 12px);
@@ -447,6 +487,7 @@
     border-left-color: var(--color-accent, #3b82f6);
   }
   .bills-section-head {
+    /* sticky header: 长列表滚动时 section 标题仍可见 */
     position: sticky;
     top: 0;
     background: var(--color-surface, #fff);
@@ -491,6 +532,7 @@
     padding: var(--space-2, 8px) 0;
   }
 
+  /* === 列表行样式 (沿用) === */
   .bill-sublist {
     list-style: none;
     padding: 0;
