@@ -91,6 +91,9 @@
   --transition-fast: 150ms ease-out;
   --transition-base: 200ms ease-out;
   --transition-slow: 300ms ease-out;
+  /* Sprint 3: spring-style cubic-bezier(0.34, 1.56, 0.64, 1) for digital
+   * counters and pill-style chips. Slight overshoot gives a tactile feel. */
+  --transition-spring: 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
 
   /* Component */
   --touch-target: 44px;
@@ -207,3 +210,20 @@ button.ghost:hover:not(:disabled), .btn.ghost:hover { border-color: var(--gray-2
 @media (min-width: 720px) { body { background: var(--gray-50); } }
 
 /* Sprint 2+: 在卡片 / modal 应用 var(--shadow-md/lg) */
+
+/* ============================================================
+ * Sprint 3: T12 全站 press feedback + T13 数字 / chip spring
+ * ------------------------------------------------------------
+ * 只对**可点击**元素加 scale-down,避免全局 transform 引发的
+ * layout 抖动。其他元素不参与 press 动效。
+ *
+ * 关键:transition 已经存在于 base button / .btn / .member-chip /
+ * .transfer-card 上,所以这里加 :active 不会出现「按下才出现的
+ * 跳变」。
+ * ============================================================ */
+button:not(:disabled):active,
+.btn:not(:disabled):active,
+.member-chip:not(:disabled):active,
+.transfer-card:active {
+  transform: scale(0.98);
+}
