@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import hmac
 import logging
+import os
 import re
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -65,6 +66,21 @@ _EMAIL_RE = re.compile(r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$")
 _CODE_RE = re.compile(r"^\d{6}$")
 
 _RATELIMIT_WINDOW_HOURS = 1
+
+# ---------------------------------------------------------------------------
+# Dev bypass (v0.1.4)
+# ---------------------------------------------------------------------------
+# Emails listed in the ``DEV_BYPASS_EMAILS`` env var (CSV, lower-cased on
+# load) skip the SMTP send + the real verification_code lookup. They
+# are a developer affordance for browser-based screenshot/QA flows that
+# cannot read a real inbox. In production the env var is unset so this
+# set is empty and the bypass is a no-op. See SPEC.md antipattern #48 +
+# v0.1.4 decision (option B: full bypass).
+DEV_BYPASS_EMAILS: set[str] = {
+    e.strip().lower()
+    for e in os.getenv("DEV_BYPASS_EMAILS", "").split(",")
+    if e.strip()
+}
 
 
 # ---------------------------------------------------------------------------
@@ -128,6 +144,19 @@ async def send_verification_code(
         raise HTTPException(
             status_code=400,
             detail={"error": "invalid email format"},
+        )
+
+    # Dev bypass: skip rate-limit + SMTP + DB write. The client gets the
+    # same response shape as the normal flow so the FE never knows.
+    if email.lower() in DEV_BYPASS_EMAILS:
+        logger.info(
+            "dev bypass send-code email=%s (no email sent, no row written)",
+            email,
+        )
+        return SendCodeResponse(
+            sent=True,
+            email=email,
+            ttl_minutes=settings.verification_code_ttl_minutes,
         )
 
     # Rate limit: count MAGIC_LINK codes created for this email in the
@@ -264,39 +293,64 @@ async def verify_code(
             detail={"error": "invalid code format"},
         )
 
-    # Look up the latest unused, unexpired MAGIC_LINK code for this email.
     now = datetime.now(timezone.utc)
-    candidate = (
-        db.query(VerificationCode)
-        .filter(
-            VerificationCode.email == email,
-            VerificationCode.purpose == VerificationPurpose.MAGIC_LINK.value,
-            VerificationCode.used.is_(False),
-            VerificationCode.expires_at > now,
-        )
-        .order_by(VerificationCode.created_at.desc())
-        .first()
-    )
-    if candidate is None:
-        raise HTTPException(
-            status_code=401,
-            detail={"error": "invalid or expired code"},
-        )
+    is_bypass = email.lower() in DEV_BYPASS_EMAILS
 
-    # Compare with constant-time equality to defeat timing oracles.
-    # Both sides must be bytes of the same length; codes are fixed 6-digit
-    # strings so this is fine.
-    stored = candidate.code.encode("utf-8")
-    submitted = code.encode("utf-8")
-    if not hmac.compare_digest(stored, submitted):
-        raise HTTPException(
-            status_code=401,
-            detail={"error": "invalid or expired code"},
+    if is_bypass:
+        # Dev bypass: accept ANY 6-digit code. We still write a row to
+        # ``verification_codes`` (code="000000", used=True) so an audit
+        # trail exists. The row is created used=True so the rate-limit
+        # GC leaves it alone (used rows aren't eligible) and so the row
+        # cannot be replayed.
+        bypass_code = VerificationCode(
+            email=email,
+            code="000000",
+            purpose=VerificationPurpose.MAGIC_LINK.value,
+            session_id=None,
+            expires_at=now + timedelta(hours=24),
+            used=True,
         )
+        db.add(bypass_code)
+        db.flush()
+        candidate = bypass_code
+        logger.info(
+            "dev bypass verify-code email=%s (any code accepted)",
+            email,
+        )
+    else:
+        # Look up the latest unused, unexpired MAGIC_LINK code for this email.
+        candidate = (
+            db.query(VerificationCode)
+            .filter(
+                VerificationCode.email == email,
+                VerificationCode.purpose == VerificationPurpose.MAGIC_LINK.value,
+                VerificationCode.used.is_(False),
+                VerificationCode.expires_at > now,
+            )
+            .order_by(VerificationCode.created_at.desc())
+            .first()
+        )
+        if candidate is None:
+            raise HTTPException(
+                status_code=401,
+                detail={"error": "invalid or expired code"},
+            )
 
-    # Mark the code consumed (single-use).
-    candidate.used = True
-    db.flush()
+        # Compare with constant-time equality to defeat timing oracles.
+        # Both sides must be bytes of the same length; codes are fixed 6-digit
+        # strings so this is fine.
+        stored = candidate.code.encode("utf-8")
+        submitted = code.encode("utf-8")
+        if not hmac.compare_digest(stored, submitted):
+            raise HTTPException(
+                status_code=401,
+                detail={"error": "invalid or expired code"},
+            )
+
+        # Mark the code consumed (single-use). Bypass rows are already
+        # used=True at insert time, so this is a no-op for them.
+        candidate.used = True
+        db.flush()
 
     # Find or auto-create the User. Lightweight identity model: the
     # first time we see an email, we mint a User with default_name =
