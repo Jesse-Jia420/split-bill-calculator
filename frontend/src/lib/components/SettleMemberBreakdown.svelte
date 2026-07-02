@@ -1,15 +1,13 @@
 <script lang="ts">
   /**
-   * v0.1.3 Sprint 2 Commit 1 (2026-07-02) — 个人视图成员明细。
+   * v0.1.3 Sprint 2 Commit 2 (2026-07-02) — 个人视图成员明细。
    *
-   * 本次 Commit 1 改动:
-   * - T6 千分位: 删除手写数字格式化,统一切到 $lib/utils/format.formatMoney。
-   *   - chip-net 仍保留 "+"/U+2212 前缀 (手写,符合 Sprint 1 文档约束)
-   *   - 日期改用 formatDate(... { time: true }) → "20:00"
-   * - Token alias 迁移: var(--color-*) → var(--*) 主 token。
+   * 本次 Commit 2 改动:
+   * - T8 Hero Metric: 3-col stats-grid → hero 区(净大数字居中 + meta 行)
+   * - T10 Sticky: .bills-section-head 加 section-header sticky + backdrop-blur
+   * - T11 转账路径卡片化: 在 Commit 2 SettleTransferPath 里
    *
-   * 注: T9 (chip redesign) 在 Commit 3。T8/T10 (settle hero + sticky section header)
-   *   在 Commit 2。
+   * T9 (chip redesign) 在 Commit 3。
    *
    * 沿用:
    * - v0.1.2 反馈修 6 项目 6 (付款/消费 sticky section header + 左 border 分割)
@@ -173,37 +171,30 @@
             {#if isMe(selectedMember.member_id)}<span class="me-badge" aria-label="当前用户">me</span>{/if}
           </h3>
 
-          <!-- 3-col stats (付款 / 消费 / 净) — 数字 tweened 动画 -->
-          <div class="stats-grid">
-            <div class="stat-cell">
-              <div class="stat-label muted">付款</div>
-              <div class="stat-value">{fmt($tweenPaid)}</div>
+          <!-- T8: Hero Metric — 净大数字居中 + meta 行 -->
+          <div class="hero">
+            <div
+              class="hero-net"
+              class:pos={selectedMember.net > 0}
+              class:neg={selectedMember.net < 0}
+              class:zero={selectedMember.net === 0}
+            >
+              {#if selectedMember.net === 0}
+                <span class="settled-text">已结清</span>
+              {:else}
+                {fmtChipNet(selectedMember.net)}
+              {/if}
             </div>
-            <div class="stat-cell">
-              <div class="stat-label muted">消费</div>
-              <div class="stat-value">{fmt($tweenConsumed)}</div>
-            </div>
-            <div class="stat-cell">
-              <div class="stat-label muted">净</div>
-              <div
-                class="stat-value"
-                class:pos={selectedMember.net > 0}
-                class:neg={selectedMember.net < 0}
-              >
-                {#if $tweenNet > 0}
-                  +{fmt($tweenNet)}
-                {:else if $tweenNet < 0}
-                  −{fmt(Math.abs($tweenNet))}
-                {:else}
-                  0.00
-                {/if}
-              </div>
+            <div class="hero-meta">
+              <span>consumed <strong>{fmt($tweenConsumed)}</strong></span>
+              <span class="meta-sep" aria-hidden="true">·</span>
+              <span>paid <strong>{fmt($tweenPaid)}</strong></span>
             </div>
           </div>
 
           <!-- 反馈修 6 项目 6: 付款明细 section — 左 border 绿色 + sticky header -->
           <div class="bills-section bills-section-paid">
-            <h4 class="bills-section-head">
+            <h4 class="bills-section-head section-header">
               <span class="bills-section-icon icon-paid" aria-hidden="true">↑</span>
               <span class="bills-section-title">付款明细</span>
               <span class="bills-section-count muted">({selectedMember.paid_bills.length})</span>
@@ -232,7 +223,7 @@
 
           <!-- 消费明细 section — 左 border 蓝色 -->
           <div class="bills-section bills-section-consumed">
-            <h4 class="bills-section-head">
+            <h4 class="bills-section-head section-header">
               <span class="bills-section-icon icon-consumed" aria-hidden="true">↓</span>
               <span class="bills-section-title">消费明细</span>
               <span class="bills-section-count muted">({selectedMember.consumed_bills.length})</span>
@@ -440,36 +431,62 @@
   .owner-badge {
     margin-left: 0;
   }
-  .stats-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: var(--space-2, 8px);
+
+  /* === T8: Hero Metric === */
+  .hero {
+    text-align: center;
+    padding: var(--space-7, 48px) var(--space-5, 20px);
     margin-bottom: var(--space-4, 16px);
   }
-  .stat-cell {
-    background: var(--gray-50);
-    border: 1px solid var(--gray-200);
-    border-radius: 8px;
-    padding: var(--space-2, 8px) 12px;
-    text-align: center;
-  }
-  .stat-label {
-    font-size: var(--font-size-sm, 14px);
-    margin-bottom: 2px;
-  }
-  .stat-value {
-    font-size: 1rem;
+  .hero-net {
+    font-size: var(--font-size-3xl, 40px);
     font-weight: 600;
     font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    margin-bottom: var(--space-2, 8px);
   }
-  .stat-value.pos {
+  .hero-net.pos {
     color: var(--success-500);
   }
-  .stat-value.neg {
+  .hero-net.neg {
     color: var(--error-500);
   }
+  .hero-net.zero {
+    color: var(--gray-500);
+  }
+  .settled-text {
+    font-size: var(--font-size-2xl, 32px);
+  }
+  .hero-meta {
+    font-size: var(--font-size-sm, 14px);
+    color: var(--gray-500);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2, 8px);
+    flex-wrap: wrap;
+  }
+  .hero-meta strong {
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+  .meta-sep {
+    color: var(--gray-400);
+  }
 
-  /* === 反馈修 6 项目 6: bills section — 左 border 视觉分割 === */
+  /* === T10: Sticky Section Header === */
+  .section-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: saturate(180%) blur(12px);
+    -webkit-backdrop-filter: saturate(180%) blur(12px);
+    border-bottom: 1px solid var(--gray-200);
+  }
+
+  /* === bills section — 左 border 视觉分割 === */
   .bills-section {
     margin-top: var(--space-5, 24px);
     padding-left: var(--space-3, 12px);
@@ -482,9 +499,7 @@
   .bills-section-consumed {
     border-left-color: var(--accent-500);
   }
-  /* T10 sticky (Sprint 2 Commit 2 会加 backdrop-blur)。本 commit 只迁移 token。 */
   .bills-section-head {
-    /* Sprint 2 Commit 2: position: sticky + backdrop-blur */
     margin: 0 0 var(--space-2, 8px);
     padding: var(--space-2, 8px) 0;
     display: flex;
@@ -493,7 +508,7 @@
     font-size: var(--font-size-sm, 14px);
     font-weight: 600;
     color: var(--gray-900);
-    background: white;
+    background: transparent;
   }
   .bills-section-icon {
     flex: 0 0 auto;

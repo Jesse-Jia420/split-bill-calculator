@@ -407,7 +407,7 @@
       {#each groups as g, gi (g.date)}
         <li class="day-group" in:fly={{ y: 8, duration: 220, delay: Math.min(gi * 40, 240) }}>
           <details open={isOpen(g.date)} on:toggle={(e) => onGroupToggle(g.date, e)}>
-            <summary class="day-header">
+            <summary class="day-header section-header">
               <span class="day-toggle" aria-hidden="true">{isOpen(g.date) ? '−' : '+'}</span>
               <div class="day-header-main">
                 <span class="day-date">{g.date}</span>
@@ -502,7 +502,7 @@
        共享同一背景色,消除原灰色边框的"两层卡片"视觉 */
     border: 1px solid var(--gray-200);
     border-radius: var(--radius-md, 8px);
-    overflow: hidden;
+    /* overflow:hidden removed: T10 sticky backdrop-blur needs visible overflow */
     background: white;
   }
   .day-group details {
@@ -529,6 +529,17 @@
   .day-header:focus-visible {
     outline: 2px solid var(--accent-500);
     outline-offset: -2px;
+  }
+
+  /* T10: Sticky section header with glassmorphism */
+  .section-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: saturate(180%) blur(12px);
+    -webkit-backdrop-filter: saturate(180%) blur(12px);
+    border-bottom: 1px solid var(--gray-200);
   }
   .day-toggle {
     position: absolute;

@@ -1,13 +1,10 @@
 <script lang="ts">
   /**
-   * v0.1.3 Sprint 2 Commit 1 (2026-07-02) — Transfer path 转账建议。
+   * v0.1.3 Sprint 2 Commit 2 (2026-07-02) — Transfer path 转账建议。
    *
-   * 本次 Commit 1 改动:
-   * - T6 千分位: 删除手写数字格式化,统一切到 $lib/utils/format.formatMoney。
-   *   - 日期生成时间也走 formatDate({ full: true }) → "2026年7月2日 17:42"
-   * - Token alias 迁移: var(--color-*) → var(--*) 主 token。
-   *
-   * T11 (转账路径卡片化) 在 Commit 2。
+   * 本次 Commit 2 改动:
+   * - T11 转账路径卡片化: 每笔转账独立 card,付款方→收款方头像+名字,金额居中
+   * - Token alias 迁移: var(--color-*) → var(--*) 主 token (已在 Commit 1 完成)
    *
    * 沿用:
    * - v0.1.2 反馈修 6 项目 5 (用户名不加粗,转帐箭头克制)
@@ -48,6 +45,11 @@
     return memberIdToName[id] ?? ('#' + id);
   }
 
+  function avatarLetter(name: string): string {
+    const trimmed = (name ?? '').trim();
+    return trimmed ? trimmed.charAt(0).toUpperCase() : '?';
+  }
+
   /** T6: 生成时间走 formatDate({ full: true })。 */
   function fmtGenerated(iso: string): string {
     return formatDate(iso, { full: true });
@@ -74,18 +76,28 @@
 
     <h3>建议转账</h3>
     {#if data.transfers.length === 0}
-      <p class="muted">所有人都已结清 🎉</p>
+      <p class="muted settled-emoji">所有人都已结清 🎉</p>
     {:else}
-      <ul class="list transfers" style="list-style: none; padding: 0; margin: 0;">
+      <ul class="transfers-list" style="list-style: none; padding: 0; margin: 0;">
         {#each data.transfers as t, i (i)}
-          <li class="t-row row between">
-            <span class="transfer-pair">
-              <!-- 反馈修 6 项目 5: 用户名不再加粗,用 normal font-weight -->
-              <span class="member-name">{displayName(t.from_member_id)}</span>
-              <span class="muted arrow" aria-hidden="true">→</span>
-              <span class="member-name">{displayName(t.to_member_id)}</span>
-            </span>
-            <span class="amount">{fmt(t.amount)}</span>
+          <li class="transfer-card">
+            <!-- 付款方 -->
+            <div class="transfer-party">
+              <div class="avatar" aria-hidden="true">{avatarLetter(displayName(t.from_member_id))}</div>
+              <span class="transfer-name">{displayName(t.from_member_id)}</span>
+            </div>
+
+            <!-- 金额 + 箭头 -->
+            <div class="transfer-center">
+              <span class="transfer-amount">{fmt(t.amount)}</span>
+              <span class="transfer-arrow" aria-hidden="true">→</span>
+            </div>
+
+            <!-- 收款方 -->
+            <div class="transfer-party">
+              <div class="avatar" aria-hidden="true">{avatarLetter(displayName(t.to_member_id))}</div>
+              <span class="transfer-name">{displayName(t.to_member_id)}</span>
+            </div>
           </li>
         {/each}
       </ul>
@@ -97,8 +109,7 @@
 </div>
 
 <style>
-  .bal-row,
-  .t-row {
+  .bal-row {
     padding: var(--space-3) 0;
   }
   .amount {
@@ -116,17 +127,6 @@
     font-weight: 400;
     color: var(--gray-900);
   }
-  .transfer-pair {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 6px;
-    flex-wrap: wrap;
-  }
-  .arrow {
-    font-weight: 400;
-    font-size: 0.9em;
-    opacity: 0.7;
-  }
   .muted {
     color: var(--gray-500);
   }
@@ -136,5 +136,76 @@
   }
   .error {
     color: var(--error-500);
+  }
+  .settled-emoji {
+    font-size: var(--font-size-base);
+  }
+
+  /* T11: Transfer cards */
+  .transfers-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+  .transfer-card {
+    background: white;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: var(--space-3);
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+  /* Remove bottom margin from last card (gap handles spacing) */
+  .transfer-card:last-child {
+    margin-bottom: 0;
+  }
+  .transfer-party {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+  .avatar {
+    flex: 0 0 auto;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--accent-500);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 13px;
+  }
+  .transfer-name {
+    font-weight: 400;
+    color: var(--gray-700);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .transfer-center {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 0 var(--space-2);
+  }
+  .transfer-amount {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    font-size: 1rem;
+    color: var(--gray-900);
+  }
+  .transfer-arrow {
+    color: var(--gray-400);
+    font-size: 18px;
+    line-height: 1;
   }
 </style>
