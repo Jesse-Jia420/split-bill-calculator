@@ -1,4 +1,11 @@
 <script lang="ts">
+  /**
+   * v0.1.2 反馈修 6 (PO 2026-07-02 11:23) — Transfer path 转账建议。
+   *
+   * 本次修复:
+   * - 项目 5 (用户名不加粗): 移除 `<strong>` 标签 + font-weight: 600
+   *   原因: PO 反馈用户名不应加粗,转帐箭头 → 应该更克制。
+   */
   import { onMount } from 'svelte';
   import { getSettle } from '$api/settle';
   import type { SettleResponse } from '$api/settle';
@@ -42,9 +49,9 @@
   {:else if data}
     <h3>每人净收/净付</h3>
     <ul class="list balances" style="list-style: none; padding: 0; margin: 0 0 var(--space-4);">
-      {#each Object.entries(data.balances) as [mid, net] (mid)}
+      {#each Object.entries(data.balances) as [mid, net], i (mid)}
         <li class="bal-row row between">
-          <span>{displayName(mid)}</span>
+          <span class="member-name">{displayName(mid)}</span>
           <span class:pos={net > 0} class:neg={net < 0} class="amount">
             {net > 0 ? '+' : ''}{fmt(net)}
           </span>
@@ -59,10 +66,11 @@
       <ul class="list transfers" style="list-style: none; padding: 0; margin: 0;">
         {#each data.transfers as t, i (i)}
           <li class="t-row row between">
-            <span>
-              <strong>{displayName(t.from_member_id)}</strong>
-              <span class="muted"> → </span>
-              <strong>{displayName(t.to_member_id)}</strong>
+            <span class="transfer-pair">
+              <!-- 反馈修 6 项目 5: 用户名不再加粗,用 normal font-weight -->
+              <span class="member-name">{displayName(t.from_member_id)}</span>
+              <span class="muted arrow" aria-hidden="true">→</span>
+              <span class="member-name">{displayName(t.to_member_id)}</span>
             </span>
             <span class="amount">{fmt(t.amount)}</span>
           </li>
@@ -89,5 +97,21 @@
   }
   .amount.neg {
     color: var(--color-error);
+  }
+  /* 反馈修 6 项目 5: 用户名 normal 字体 (不加粗) */
+  .member-name {
+    font-weight: 400;
+    color: var(--color-text);
+  }
+  .transfer-pair {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .arrow {
+    font-weight: 400;
+    font-size: 0.9em;
+    opacity: 0.7;
   }
 </style>

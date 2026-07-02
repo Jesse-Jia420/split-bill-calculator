@@ -1,75 +1,92 @@
 <script lang="ts">
+  /**
+   * v0.1.2 反馈修 6 Commit 1 (PO 2026-07-02 11:23) — 邀请按钮点击立即复制邀请链接。
+   *
+   * 设计 (PO 反馈):
+   * - 点击「邀请」 → 立即复制 invite URL + 显示 Toast「已复制邀请链接」
+   * - 按钮文字短时变「已复制」(1200ms 反馈)
+   * - 不弹 modal,无需用户再点一次
+   * - 失败兜底: 隐藏 textarea + execCommand('copy')
+   * - 第一次点击 lazy load invite,后续点击只复制
+   *
+   * Commit 2 (feat) 加按钮按下 scale 0.97 微动 — 在此基础上加 active transition
+   */
   import { onMount } from 'svelte';
-  import { getSessionInvite, rotateSessionInvite } from '$api/invites';
+  import { getSessionInvite } from '$api/invites';
   import type { SessionInvite } from '$api/invites';
+  import { toast } from '$stores/toast';
 
   export let sessionId: number;
-  /** True if the caller is the session owner (shows the "rotate" affordance). */
-  export let isOwner: boolean = false;
+  /** True if the caller is the session owner (保留 prop,后续 v0.2 rotate 功能回归使用)。 */
+  export const isOwner: boolean = false;
 
   let invite: SessionInvite | null = null;
   let busy = false;
   let error: string | null = null;
-  let open = false;
   let copied = false;
-  let confirmingRotate = false;
 
-  /** Full shareable URL (origin + client-relative path). */
   $: inviteUrl = invite
     ? (typeof window !== 'undefined' ? window.location.origin : '') + invite.url
     : '';
 
-  async function load() {
+  async function ensureLoaded(): Promise<string | null> {
+    if (invite && inviteUrl) return inviteUrl;
+    if (busy) return null;
     busy = true;
     error = null;
     try {
       invite = await getSessionInvite(sessionId);
+      return inviteUrl;
     } catch (e: any) {
-      // 403 if not a member (shouldn't happen here -- guarded by page), but be defensive
-      error = e?.message ?? 'failed to load invite';
+      error = e?.message ?? '加载邀请链接失败';
+      toast.error(error ?? '加载邀请链接失败');
+      return null;
     } finally {
       busy = false;
     }
   }
 
-  onMount(load);
+  async function handleInviteClick() {
+    const url = await ensureLoaded();
+    if (!url) return;
 
-  async function handleCopy() {
-    if (!inviteUrl) return;
+    let ok = false;
     try {
-      await navigator.clipboard.writeText(inviteUrl);
-      copied = true;
-      setTimeout(() => (copied = false), 1500);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(url);
+        ok = true;
+      }
     } catch {
-      // Fallback: select the text so the user can copy manually.
-      const el = document.getElementById('invite-url') as HTMLInputElement | null;
-      if (el) el.select();
+      ok = false;
     }
-  }
 
-  async function handleRotateClick() {
-    confirmingRotate = true;
-  }
-
-  async function handleRotateConfirm() {
-    confirmingRotate = false;
-    if (busy) return;
-    busy = true;
-    error = null;
-    try {
-      invite = await rotateSessionInvite(sessionId);
-    } catch (e: any) {
-      error = e?.message ?? 'failed to rotate invite';
-    } finally {
-      busy = false;
+    if (!ok) {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = url;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        ta.style.top = '0';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+      } catch {
+        ok = false;
+      }
     }
+
+    if (ok) {
+      toast.success('已复制邀请链接');
+    } else {
+      toast.info('复制失败,请手动选中链接');
+    }
+
+    copied = true;
+    setTimeout(() => (copied = false), 1200);
   }
 
-  function close() {
-    open = false;
-  }
-
-  /** Compact countdown, e.g. "X 天 Y 小时后过期" — PO 反馈修 5 项目 1: 简化文案 (只保留过期信息) */
   function remaining(expiresAtIso: string): string {
     const now = Date.now();
     const exp = new Date(expiresAtIso).getTime();
@@ -85,82 +102,27 @@
 </script>
 
 <div class="invite-row">
-  <!-- PO 反馈修 5 项目 1: 「查看邀请链接」→「邀请」+ 📨 icon,移动端 375px 不挤压 -->
-  <button class="primary" on:click={load} disabled={busy} title="邀请" aria-label="邀请">
+  <button
+    type="button"
+    class="primary invite-btn"
+    class:copied
+    on:click={handleInviteClick}
+    disabled={busy}
+    title="复制邀请链接"
+    aria-label="复制邀请链接"
+  >
     <span class="btn-content">
-      <span class="btn-icon" aria-hidden="true">📨</span>
-      <span class="btn-label">{busy ? '加载中…' : '邀请'}</span>
+      <span class="btn-icon" aria-hidden="true">{copied ? '✓' : '📨'}</span>
+      <span class="btn-label">{busy ? '加载中…' : copied ? '已复制' : '邀请'}</span>
     </span>
   </button>
 
+  {#if invite}
+    <span class="muted hint">{remaining(invite.expires_at)}</span>
+  {/if}
+
   {#if error}
     <div class="error">{error}</div>
-  {/if}
-
-  {#if invite && !open}
-    <!-- PO 反馈修 5 项目 1+2: 简化过期文案 (去掉 owner token preview 行) -->
-    <div class="muted hint">{remaining(invite.expires_at)}</div>
-  {/if}
-
-  {#if invite && open}
-    <div
-      class="modal-backdrop"
-      on:click={close}
-      on:keydown={(e) => e.key === 'Escape' && close()}
-      role="button"
-      tabindex="-1"
-    >
-      <div class="modal" on:click|stopPropagation role="dialog" aria-modal="true">
-        <h3>邀请链接</h3>
-        <p class="hint">
-          把这个链接发给队友，他们打开后会看到 session 名字。
-          {#if invite.status === 'expired'}
-            <span class="badge danger">已过期</span>
-          {:else}
-            链接 <strong>{remaining(invite.expires_at)}</strong>。
-          {/if}
-        </p>
-
-        <div class="url-row">
-          <input
-            id="invite-url"
-            type="text"
-            readonly
-            value={inviteUrl}
-            on:focus={(e) => e.currentTarget.select()}
-          />
-          <button on:click={handleCopy}>{copied ? '已复制' : '复制'}</button>
-        </div>
-
-        <div class="meta muted">
-          创建于 {new Date(invite.created_at).toLocaleString('zh-CN')}
-        </div>
-
-        {#if isOwner}
-          <div class="owner-actions">
-            {#if !confirmingRotate}
-              <button class="ghost" on:click={handleRotateClick} disabled={busy}>
-                重置链接（旧链接立即失效）
-              </button>
-            {:else}
-              <div class="confirm">
-                <span>确认重置？旧链接会立刻失效。</span>
-                <button class="danger" on:click={handleRotateConfirm} disabled={busy}>
-                  确认重置
-                </button>
-                <button class="ghost" on:click={() => (confirmingRotate = false)} disabled={busy}>
-                  取消
-                </button>
-              </div>
-            {/if}
-          </div>
-        {/if}
-
-        <div class="row between modal-footer">
-          <button class="ghost" on:click={close}>关闭</button>
-        </div>
-      </div>
-    </div>
   {/if}
 </div>
 
@@ -171,7 +133,14 @@
     gap: var(--space-1);
     align-items: flex-end;
   }
-  /* PO 反馈修 5 项目 1: 邀请按钮 — icon + 文字同行,不挤压 */
+  .invite-btn {
+    transition: background-color 150ms ease, box-shadow 200ms ease;
+  }
+  .invite-btn.copied {
+    background: var(--color-success, #10b981);
+    border-color: var(--color-success, #10b981);
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.18);
+  }
   .btn-content {
     display: inline-flex;
     align-items: center;
@@ -182,9 +151,8 @@
     font-size: 14px;
     line-height: 1;
   }
-  /* 移动端 375px: 极致紧凑,ICON + 文字同行,不挤压 */
   @media (max-width: 380px) {
-    .invite-row > button {
+    .invite-btn {
       padding: var(--space-2) var(--space-3);
       min-height: 36px;
     }
@@ -196,62 +164,5 @@
   .hint {
     font-size: var(--font-size-sm);
     margin: var(--space-1) 0;
-  }
-  .badge.danger {
-    display: inline-block;
-    margin-left: var(--space-2);
-    padding: 2px 8px;
-    border-radius: 999px;
-    background: var(--color-danger, #d33);
-    color: #fff;
-    font-size: var(--font-size-sm);
-  }
-  .modal-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.4);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 50;
-    padding: var(--space-4);
-  }
-  .modal {
-    background: var(--color-surface);
-    border-radius: var(--radius);
-    padding: var(--space-5);
-    width: 100%;
-    max-width: 480px;
-    box-sizing: border-box;
-  }
-  .modal h3 {
-    margin: 0 0 var(--space-2);
-  }
-  .url-row {
-    display: flex;
-    gap: var(--space-2);
-    margin: var(--space-3) 0;
-  }
-  .url-row input {
-    flex: 1;
-    min-width: 0;
-  }
-  .meta {
-    font-size: var(--font-size-sm);
-  }
-  .owner-actions {
-    margin-top: var(--space-4);
-    padding-top: var(--space-3);
-    border-top: 1px solid var(--color-border, rgba(0, 0, 0, 0.08));
-  }
-  .confirm {
-    display: flex;
-    gap: var(--space-2);
-    align-items: center;
-    flex-wrap: wrap;
-    font-size: var(--font-size-sm);
-  }
-  .modal-footer {
-    margin-top: var(--space-4);
   }
 </style>
