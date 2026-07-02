@@ -1,19 +1,20 @@
 <script lang="ts">
   /**
-   * v0.1.2 反馈修 6 Commit 1 (PO 2026-07-02 11:23 UX 改写) — bills grouped list。
+   * v0.1.2 反馈修 6 (PO 2026-07-02 11:23 UX 改写) — bills grouped list。
    *
-   * Commit 1 (fix):
+   * 本次改写:
    * - 项目 3 (Bill item 背景色统一):
    *     .bill-row 删除独立 background (默认透明继承)
    *     .day-bills 删除 padding + border-top,bill row 直接贴在 day header 下
-   *     结果: bill row 跟 day group 内部容器共享同一背景色
-   *
-   * Commit 2 (feat) 加动画 stagger + fly — 在原文件基础上叠 in:fly
+   *     结果: bill row 跟 day group 内部容器共享同一背景色 (消除灰色边框)
    *
    * 沿用项目 5 (iOS Mail-style swipe) + 项目 4 (「分摊」克制文案)
+   *
+   * 历史: v0.1.2 反馈修 5 Commit 2 (bd0cf89) — bill item 重构 + swipe
    */
   import { onMount, tick } from 'svelte';
   import { goto } from '$app/navigation';
+  import { fly } from 'svelte/transition';
   import type { Bill } from '$api/bills';
 
   export let bills: Bill[];
@@ -130,6 +131,11 @@
   }
 
   // ===== swipe logic =====
+
+  function getRowOffset(billId: number): number {
+    if (isDragging[billId]) return dragOffset[billId] ?? 0;
+    return swipeOffset[billId] ?? 0;
+  }
 
   function startDrag(billId: number, clientX: number, clientY: number) {
     dragBillId = billId;
@@ -347,8 +353,8 @@
     </p>
   {:else}
     <ul class="day-list" style="list-style: none; padding: 0; margin: 0;">
-      {#each groups as g (g.date)}
-        <li class="day-group">
+      {#each groups as g, gi (g.date)}
+        <li class="day-group" in:fly={{ y: 8, duration: 220, delay: Math.min(gi * 40, 240) }}>
           <details open={isOpen(g.date)} on:toggle={(e) => onGroupToggle(g.date, e)}>
             <summary class="day-header">
               <span class="day-toggle" aria-hidden="true">{isOpen(g.date) ? '−' : '+'}</span>
@@ -368,9 +374,12 @@
             <!-- 反馈修 6 项目 3: 删 .day-bills padding + border-top,
                  bill row 直接贴在 day header 下,共享同一背景色 -->
             <ul class="day-bills">
-              {#each g.bills as b (b.id)}
+              {#each g.bills as b, bi (b.id)}
                 {@const share = yourShare(b)}
-                <li class="bill-swipe-wrap">
+                <li
+                  class="bill-swipe-wrap"
+                  in:fly={{ y: 8, duration: 220, delay: Math.min(bi * 25, 200) }}
+                >
                   {#if onDelete}
                     <button
                       type="button"
@@ -438,6 +447,8 @@
     gap: var(--space-3);
   }
   .day-group {
+    /* 反馈修 6 项目 3: day group 用 surface 背景,bill row 默认透明继承,
+       共享同一背景色,消除原灰色边框的"两层卡片"视觉 */
     border: 1px solid var(--color-border);
     border-radius: var(--radius, 8px);
     overflow: hidden;
@@ -528,11 +539,13 @@
     white-space: nowrap;
   }
 
-  /* === 反馈修 6 项目 3: day-bills 删 padding + border-top === */
+  /* === 反馈修 6 项目 3: day-bills 删 padding + border-top,
+       bill row 直接贴在 day header 下 === */
   .day-bills {
     list-style: none;
     padding: 0;
     margin: 0;
+    /* 删除 border-top + padding,bill row 跟 day header 同一容器背景色 */
   }
 
   /* === iOS Mail-style swipe wrapper & actions === */
@@ -587,11 +600,14 @@
     background: #b91c1c;
   }
 
-  /* === 反馈修 6 项目 3: .bill-row 删独立 background,默认透明继承 === */
+  /* === 反馈修 6 项目 3: .bill-row 删独立 background,默认透明继承,
+       跟 .day-group 共享同一 surface 背景色 === */
   .bill-row {
     position: relative;
     z-index: 2;
+    /* 删除 background: var(--color-surface, #fff) — 让 day-group 背景透出 */
     padding: var(--space-3) var(--space-4);
+    /* 删除 border-bottom (已移到 .bill-swipe-wrap,避免双层) */
     transition: transform 250ms cubic-bezier(0.2, 0, 0, 1), background-color 200ms ease;
     outline: none;
     user-select: none;
@@ -603,6 +619,7 @@
   .bill-row:focus-visible {
     box-shadow: inset 2px 0 0 var(--color-accent, #3b82f6);
   }
+  /* 触摸设备无 hover 反馈 (避免 :hover 误触) */
   @media (hover: hover) {
     .bill-row:hover {
       background: rgba(0, 0, 0, 0.035);

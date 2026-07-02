@@ -1,20 +1,23 @@
 <script lang="ts">
   /**
-   * v0.1.2 反馈修 6 Commit 1 (PO 2026-07-02 11:23 UX 改写) — session 详情页。
+   * v0.1.2 反馈修 6 (PO 2026-07-02 11:23 UX 改写) — session 详情页。
    *
-   * Commit 1 (fix):
-   * - 项目 2 (members section 彻底重写 — PO 已反馈 3 轮 "还是乱"):
-   *     - 用 grid 布局 (40px avatar + 1fr info + auto action)
-   *     - 头部: 「成员 (N)」 + [邀请] + [收起/展开]
-   *     - 展开后: 紧凑成员列表,grid 三列对齐
-   *     - 不要 `<details>` (Svelte 5 reactivity 问题),用 JS state + class toggle
-   *     - 响应式: 移动端 avatar 32px,desktop 40px
+   * 本次改写涉及 2 (members section 彻底重写 — PO 已反馈 3 轮 "还是乱"):
+   * - 项目 2: members section 用 grid 布局 (40px avatar + 1fr info + auto action)
+   * - 头部: 「成员 (N)」 + [邀请] + [收起/展开]
+   * - 展开后: 紧凑成员列表,grid 三列对齐
+   * - 不要 `<details>` (Svelte 5 reactivity 问题),用 JS state + class toggle
+   * - 响应式: 移动端 avatar 32px,desktop 40px
+   * - 加 stagger 动画 (commit 2)
    *
-   * Commit 2 (feat) 加 stagger mount + FAB entrance — 在原文件基础上叠 in:fly
+   * 项目 7 动画 commit 2 加: stagger mount / FAB entrance / bill list stagger
+   *
+   * 历史: v0.1.2 反馈修 5 (c7f900b) — 跨页面动画已实施
    */
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
+  import { fly } from 'svelte/transition';
   import { getSession } from '$api/sessions';
   import { listBills, deleteBill } from '$api/bills';
   import { getSettle } from '$api/settle';
@@ -41,6 +44,8 @@
     : null;
   $: isOwner = currentMember?.role === 'owner';
 
+  // 反馈修 6 项目 2: members section 默认折叠 (沿用 T7 设计),
+  // 但用 JS state 而非 <details> (Svelte 5 reactivity 兼容性更好)。
   let membersOpen = false;
 
   function membersStorageKey(): string {
@@ -72,15 +77,17 @@
     saveMembersOpen();
   }
 
+  // 头像首字母大写 (跨语言 helper)
   function avatarLetter(name: string): string {
     const trimmed = (name ?? '').trim();
     return trimmed ? trimmed.charAt(0).toUpperCase() : '?';
   }
 
+  // 净金额显示 — net > 0 加 "+", < 0 加 "-", = 0 显示 "0.00"。
   function fmtNet(n: number | undefined): string {
     if (n === undefined || n === null || Number.isNaN(n)) return '';
     if (n > 0) return '+' + n.toFixed(2);
-    if (n < 0) return '\u2212' + Math.abs(n).toFixed(2);
+    if (n < 0) return '\u2212' + Math.abs(n).toFixed(2); // U+2212 true minus
     return '0.00';
   }
 
@@ -138,6 +145,7 @@
   }
 
   function handleDeleteMemberClick(m: { id: number; display_name: string }) {
+    // placeholder — 无 BE endpoint 可调,disabled 已阻止触发
     const proceed = confirm(`确认把 ${m.display_name} 从这个 session 移除?\n\n(v0.2 待 BE 支持,当前不可用)`);
     if (!proceed) return;
     toast.error('移除成员 (v0.2 待 BE 支持): 当前不可用');
@@ -179,9 +187,13 @@
       </header>
 
       {#if membersOpen}
+        <!-- stagger mount: 每个 li delay i*30ms (cap 300ms) -->
         <ul class="members-list">
-          {#each session.members as m (m.id)}
-            <li class="member-item">
+          {#each session.members as m, i (m.id)}
+            <li
+              class="member-item"
+              in:fly={{ y: 8, duration: 220, delay: Math.min(i * 30, 300) }}
+            >
               <div class="member-avatar" aria-hidden="true">{avatarLetter(m.display_name)}</div>
               <div class="member-info">
                 <div class="member-name-row">
@@ -222,7 +234,7 @@
       {/if}
     </div>
 
-    <!-- bills section head (沿用 反馈修 5 项目 8) -->
+    <!-- 反馈修 5 项目 8: 「个人账单」按钮移到 bills section head -->
     <div class="card bills-card">
       <div class="bills-card-head">
         <div class="bills-card-head-left">
@@ -244,17 +256,19 @@
       />
     </div>
 
-    <!-- FAB 悬浮按钮 (沿用 T12) -->
+    <!-- FAB: 200ms 后从下方 60px 飞入 -->
     <a
       class="fab"
       href="/sessions/{session.id}/bills/new"
       title="新建账单"
       aria-label="新建账单"
+      in:fly={{ y: 60, duration: 400, delay: 200 }}
     >+</a>
   {/if}
 </section>
 
 <style>
+  /* === header === */
   .session-header-actions {
     display: flex;
     gap: var(--space-2);
@@ -336,6 +350,7 @@
     line-height: 1;
   }
 
+  /* === members list — grid 布局 (PO 反馈 3 轮 "还是乱" 后彻底重写) === */
   .members-list {
     list-style: none;
     padding: 0;
@@ -459,6 +474,7 @@
     color: var(--color-error, #ef4444);
   }
 
+  /* === 移动端 ≤380px: avatar 32px, padding 紧凑 === */
   @media (max-width: 480px) {
     .members-card {
       padding: var(--space-3);
@@ -477,16 +493,17 @@
       font-size: 14px;
     }
     .member-remove {
-      opacity: 1;
+      opacity: 1; /* 触摸设备 hover 不可靠,默认显示 */
     }
     .member-email {
-      display: none;
+      display: none; /* 移动端太挤,隐藏 */
     }
     .members-toggle .toggle-label {
-      display: none;
+      display: none; /* 移动端只留 ▾ icon,节省空间 */
     }
   }
 
+  /* === bills section header === */
   .bills-card-head {
     display: flex;
     align-items: center;
@@ -520,6 +537,7 @@
     }
   }
 
+  /* === FAB === */
   .fab {
     position: fixed;
     right: 24px;
