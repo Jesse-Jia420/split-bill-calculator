@@ -24,6 +24,7 @@
   import type { Bill } from '$api/bills';
   import InviteLinkButton from '$components/InviteLinkButton.svelte';
   import BillListGrouped from '$components/BillListGrouped.svelte';
+  import EmptyState from '$components/EmptyState.svelte';
   import { user } from '$stores/user';
   import { toast } from '$stores/toast';
 
@@ -145,6 +146,37 @@
     }
   }
 
+  // T14: copy invite link to clipboard (EmptyState CTA 用)
+  let copyingInvite = false;
+  async function copyInviteLink() {
+    if (!session) return;
+    copyingInvite = true;
+    try {
+      const preview = session.invite_token_preview ?? '';
+      const url = `${window.location.origin}/invites/${preview}`;
+      try {
+        await navigator.clipboard.writeText(url);
+        toast.success('邀请链接已复制');
+      } catch {
+        // 兜底:用 textarea + execCommand
+        const ta = document.createElement('textarea');
+        ta.value = url;
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+          document.execCommand('copy');
+          toast.success('邀请链接已复制');
+        } catch {
+          toast.error('复制失败,请手动复制');
+        } finally {
+          document.body.removeChild(ta);
+        }
+      }
+    } finally {
+      copyingInvite = false;
+    }
+  }
+
   function handleDeleteMemberClick(m: { id: number; display_name: string }) {
     // placeholder — 无 BE endpoint 可调,disabled 已阻止触发
     const proceed = confirm(`确认把 ${m.display_name} 从这个 session 移除?\n\n(v0.2 待 BE 支持,当前不可用)`);
@@ -188,6 +220,15 @@
       </header>
 
       {#if membersOpen}
+        {#if session.members.length <= 1}
+          <EmptyState
+            icon="users"
+            title="还没有成员"
+            description="分享邀请链接,邀请朋友加入这个 session。"
+            ctaLabel={copyingInvite ? '已复制' : '复制邀请链接'}
+            onCtaClick={copyInviteLink}
+          />
+        {:else}
         <!-- stagger mount: 每个 li delay i*30ms (cap 300ms) -->
         <ul class="members-list">
           {#each session.members as m, i (m.id)}
@@ -232,6 +273,7 @@
             </li>
           {/each}
         </ul>
+        {/if}
       {/if}
     </div>
 
@@ -248,14 +290,24 @@
           aria-label="查看个人账单"
         >个人账单</a>
       </div>
-      <BillListGrouped
-        {bills}
-        sessionId={session.id}
-        memberIdToName={memberIdToName}
-        currentUserMemberId={currentMemberId}
-        onDelete={handleDeleteBill}
-        loading={loading}
-      />
+      {#if bills.length === 0 && !loading}
+        <EmptyState
+          icon="receipt"
+          title="还没有账单"
+          description="添加你的第一笔消费,分摊自动结算。"
+          ctaLabel="+ 新建账单"
+          ctaHref="/sessions/{session.id}/bills/new"
+        />
+      {:else}
+        <BillListGrouped
+          {bills}
+          sessionId={session.id}
+          memberIdToName={memberIdToName}
+          currentUserMemberId={currentMemberId}
+          onDelete={handleDeleteBill}
+          loading={loading}
+        />
+      {/if}
     </div>
 
     <!-- FAB: 200ms 后从下方 60px 飞入 -->
