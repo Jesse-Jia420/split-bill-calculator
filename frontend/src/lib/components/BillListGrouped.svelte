@@ -20,6 +20,7 @@
   import { formatMoney, formatDate } from '$lib/utils/format';
   import type { Bill } from '$api/bills';
   import SkeletonBill from './SkeletonBill.svelte';
+  import CategoryIcon from './CategoryIcon.svelte';
 
   export let bills: Bill[];
   export let sessionId: number;
@@ -476,6 +477,7 @@
                     on:click={onRowTap}
                   >
                     <div class="bill-row1">
+                      <CategoryIcon description={b.description ?? ''} size={18} />
                       <span class="bill-desc">{b.description || '(无说明)'}</span>
                       <span class="bill-amount">
                         {fmtAmount(b.amount)}<span class="unit">{b.currency}</span>
@@ -711,7 +713,7 @@
 
   .bill-row1 {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
     gap: var(--space-2);
   }
