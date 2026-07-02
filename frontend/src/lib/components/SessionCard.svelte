@@ -1,5 +1,13 @@
 <script lang="ts">
+  /**
+   * v0.1.3 Sprint 2 Commit 1 — Session card (sessions 列表页)。
+   *
+   * 本次 Commit 1 改动:
+   * - T6 千分位: 日期改用 formatDate()。
+   * - Token alias 迁移: var(--color-*) → var(--*) 主 token。
+   */
   import type { SessionSummary } from '$api/sessions';
+  import { formatDate } from '$lib/utils/format';
 
   export let session: SessionSummary;
 </script>
@@ -15,7 +23,7 @@
     <div class="meta">
       <span class="muted">{session.member_count ?? 1} 人</span>
       <span class="dot">·</span>
-      <span class="muted">{new Date(session.created_at).toLocaleDateString('zh-CN')}</span>
+      <span class="muted">{formatDate(session.created_at)}</span>
     </div>
   </div>
 </a>
@@ -27,31 +35,31 @@
     display: block;
   }
   .card-link:hover .session-card {
-    border-color: var(--color-accent);
+    border-color: var(--accent-500);
   }
   .session-card {
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius);
+    background: white;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-md);
     padding: var(--space-4);
-    transition: border-color var(--transition);
+    transition: border-color var(--transition-fast);
   }
   .title {
     font-weight: 600;
     font-size: var(--font-size-lg);
-    color: var(--color-text);
+    color: var(--gray-900);
   }
   .role {
     font-size: var(--font-size-sm);
-    color: var(--color-text-muted);
+    color: var(--gray-500);
     padding: 2px 8px;
     border-radius: 999px;
-    background: var(--color-bg);
-    border: 1px solid var(--color-border);
+    background: var(--gray-50);
+    border: 1px solid var(--gray-200);
   }
   .role.owner {
-    color: var(--color-accent);
-    border-color: var(--color-accent);
+    color: var(--accent-500);
+    border-color: var(--accent-500);
   }
   .meta {
     margin-top: var(--space-2);
@@ -60,6 +68,9 @@
     font-size: var(--font-size-sm);
   }
   .dot {
-    color: var(--color-text-muted);
+    color: var(--gray-500);
+  }
+  .muted {
+    color: var(--gray-500);
   }
 </style>

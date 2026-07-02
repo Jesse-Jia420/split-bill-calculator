@@ -1,18 +1,16 @@
 <script lang="ts">
   /**
-   * v0.1.2 反馈修 6 (PO 2026-07-02 11:23 UX 改写) — session 详情页。
+   * v0.1.3 Sprint 2 Commit 1 (2026-07-02) — session 详情页。
    *
-   * 本次改写涉及 2 (members section 彻底重写 — PO 已反馈 3 轮 "还是乱"):
-   * - 项目 2: members section 用 grid 布局 (40px avatar + 1fr info + auto action)
-   * - 头部: 「成员 (N)」 + [邀请] + [收起/展开]
-   * - 展开后: 紧凑成员列表,grid 三列对齐
-   * - 不要 `<details>` (Svelte 5 reactivity 问题),用 JS state + class toggle
-   * - 响应式: 移动端 avatar 32px,desktop 40px
-   * - 加 stagger 动画 (commit 2)
+   * 本次 Commit 1 改动:
+   * - T6 千分位: 删除手写数字格式化,统一切到 $lib/utils/format.formatMoney。
+   *   - 净金额 fmtNet 保留 '+' / U+2212 前缀 (Sprint 1 文档约束)。
+   * - Token alias 迁移: var(--color-*) → var(--*) 主 token。
    *
-   * 项目 7 动画 commit 2 加: stagger mount / FAB entrance / bill list stagger
-   *
-   * 历史: v0.1.2 反馈修 5 (c7f900b) — 跨页面动画已实施
+   * 沿用:
+   * - v0.1.2 反馈修 6 项目 2 (members section grid 布局)
+   * - v0.1.2 反馈修 5 (跨页面动画)
+   * - BillListGrouped 在 T7 中已支持「默认最新一天展开」智能逻辑
    */
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
@@ -21,6 +19,7 @@
   import { getSession } from '$api/sessions';
   import { listBills, deleteBill } from '$api/bills';
   import { getSettle } from '$api/settle';
+  import { formatMoney } from '$lib/utils/format';
   import type { SessionDetail } from '$api/sessions';
   import type { Bill } from '$api/bills';
   import InviteLinkButton from '$components/InviteLinkButton.svelte';
@@ -44,8 +43,7 @@
     : null;
   $: isOwner = currentMember?.role === 'owner';
 
-  // 反馈修 6 项目 2: members section 默认折叠 (沿用 T7 设计),
-  // 但用 JS state 而非 <details> (Svelte 5 reactivity 兼容性更好)。
+  // 反馈修 6 项目 2: members section 默认折叠,JS state (Svelte 5 兼容)。
   let membersOpen = false;
 
   function membersStorageKey(): string {
@@ -83,12 +81,15 @@
     return trimmed ? trimmed.charAt(0).toUpperCase() : '?';
   }
 
-  // 净金额显示 — net > 0 加 "+", < 0 加 "-", = 0 显示 "0.00"。
+  /**
+   * T6: 净金额显示,>0 加 "+", <0 加 U+2212 (Sprint 1 文档约束), =0 "0.00"。
+   * 数字部分走 formatMoney (千分位)。
+   */
   function fmtNet(n: number | undefined): string {
     if (n === undefined || n === null || Number.isNaN(n)) return '';
-    if (n > 0) return '+' + n.toFixed(2);
-    if (n < 0) return '\u2212' + Math.abs(n).toFixed(2); // U+2212 true minus
-    return '0.00';
+    if (n > 0) return '+' + formatMoney(n, { showSymbol: false });
+    if (n < 0) return '\u2212' + formatMoney(Math.abs(n), { showSymbol: false });
+    return formatMoney(0, { showSymbol: false });
   }
 
   async function load() {
@@ -297,7 +298,7 @@
     padding-bottom: var(--space-2);
   }
   .members-head:has(+ .members-list) {
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--gray-200);
     margin-bottom: var(--space-2);
   }
   .members-title {
@@ -320,9 +321,9 @@
   .members-toggle {
     appearance: none;
     background: transparent;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius, 8px);
-    color: var(--color-text-muted);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-md, 8px);
+    color: var(--gray-500);
     cursor: pointer;
     min-height: 36px;
     padding: 0 var(--space-3);
@@ -334,8 +335,8 @@
     transition: border-color 150ms ease, color 150ms ease, background 150ms ease;
   }
   .members-toggle:hover {
-    border-color: var(--color-accent, #3b82f6);
-    color: var(--color-text);
+    border-color: var(--accent-500);
+    color: var(--gray-900);
   }
   .toggle-caret {
     display: inline-block;
@@ -350,7 +351,7 @@
     line-height: 1;
   }
 
-  /* === members list — grid 布局 (PO 反馈 3 轮 "还是乱" 后彻底重写) === */
+  /* === members list — grid 布局 === */
   .members-list {
     list-style: none;
     padding: 0;
@@ -362,7 +363,7 @@
     align-items: center;
     gap: var(--space-3, 12px);
     padding: var(--space-3, 12px) 0;
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--gray-200);
   }
   .member-item:last-child {
     border-bottom: none;
@@ -371,7 +372,7 @@
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    background: var(--color-accent, #3b82f6);
+    background: var(--accent-500);
     color: #fff;
     display: inline-flex;
     align-items: center;
@@ -396,14 +397,14 @@
   .member-name {
     font-size: 1rem;
     font-weight: 500;
-    color: var(--color-text);
+    color: var(--gray-900);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   .owner-badge {
     display: inline-block;
-    background: var(--color-accent, #3b82f6);
+    background: var(--accent-500);
     color: #fff;
     font-size: 11px;
     padding: 2px 8px;
@@ -414,7 +415,7 @@
   }
   .me-badge {
     display: inline-block;
-    background: var(--color-accent, #3b82f6);
+    background: var(--accent-500);
     color: #fff;
     font-size: 11px;
     padding: 2px 8px;
@@ -433,13 +434,13 @@
   .member-net {
     font-variant-numeric: tabular-nums;
     font-weight: 600;
-    color: var(--color-text-muted, #666);
+    color: var(--gray-500);
   }
   .member-net.pos {
-    color: var(--color-success, #10b981);
+    color: var(--success-500);
   }
   .member-net.neg {
-    color: var(--color-error, #ef4444);
+    color: var(--error-500);
   }
   .member-email {
     font-size: 12px;
@@ -452,7 +453,7 @@
     appearance: none;
     background: transparent;
     border: 0;
-    color: var(--color-text-muted, #666);
+    color: var(--gray-500);
     font-size: 22px;
     line-height: 1;
     width: 32px;
@@ -471,7 +472,7 @@
   }
   .member-remove:hover:not(:disabled) {
     background: rgba(239, 68, 68, 0.1);
-    color: var(--color-error, #ef4444);
+    color: var(--error-500);
   }
 
   /* === 移动端 ≤380px: avatar 32px, padding 紧凑 === */
@@ -545,7 +546,7 @@
     width: 56px;
     height: 56px;
     border-radius: 50%;
-    background: var(--color-accent, #3b82f6);
+    background: var(--accent-500);
     color: #fff;
     font-size: 28px;
     font-weight: 300;
@@ -564,7 +565,7 @@
   .fab:hover {
     transform: translateY(-2px);
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22);
-    background: var(--color-accent-hover, #2563eb);
+    background: var(--accent-700);
     color: #fff;
     text-decoration: none;
   }
@@ -574,7 +575,7 @@
   .fab:focus-visible {
     outline: 2px solid #fff;
     outline-offset: 2px;
-    box-shadow: 0 0 0 4px var(--color-accent, #3b82f6);
+    box-shadow: 0 0 0 4px var(--accent-500);
   }
   @media (max-width: 600px) {
     .fab {
@@ -591,5 +592,13 @@
     min-height: 36px;
     padding: 4px 10px;
     font-size: var(--font-size-sm);
+  }
+
+  /* === utility classes (token-migrated) === */
+  .muted {
+    color: var(--gray-500);
+  }
+  .error {
+    color: var(--error-500);
   }
 </style>

@@ -2,6 +2,9 @@
  * Design Tokens — split-bill-calculator v0.1.3
  * Layered token system inspired by Linear / Mercury / Radix UI.
  * Light mode only this sprint; dark mode stub reserved for v0.2.
+ *
+ * Sprint 2 (v0.1.3) migration: 全站 var(--color-*) alias 已迁到主 token。
+ * 残余的 `--color-*` alias 仍留在 :root 块,作为 backward-compat 安全网。
  * ============================================================ */
 
 @font-face {
@@ -78,7 +81,7 @@
   --space-9: 48px;
   --space-10: 56px;
 
-  /* Shadow (subtle layered, all rgba(0,0,0,xxx)) */
+  /* Shadow */
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
@@ -92,8 +95,8 @@
   /* Component */
   --touch-target: 44px;
 
-  /* Backward-compat aliases — T13 originals.
-   * Migrate components to primary tokens in Sprint 2/3. */
+  /* Backward-compat aliases (Sprint 1 引入,Sprint 2 后只用于迁移兜底)。
+   * 不在组件 CSS 中再使用,只在没迁完的第三方代码兜底。 */
   --color-bg: var(--gray-50);
   --color-surface: #ffffff;
   --color-text: var(--gray-800);
@@ -112,15 +115,15 @@
 }
 
 /* ============================================================
- * Base reset + globals
+ * Base reset + globals (Sprint 2: 已迁到主 token)
  * ============================================================ */
 *, *::before, *::after { box-sizing: border-box; }
 
 html, body {
   margin: 0;
   padding: 0;
-  background: var(--color-bg);
-  color: var(--color-text);
+  background: var(--gray-50);
+  color: var(--gray-800);
   font-family: var(--font-family);
   font-size: var(--font-size-base);
   line-height: var(--line-height-normal);
@@ -146,9 +149,9 @@ button, input, select, textarea { font-family: inherit; font-size: var(--font-si
 input, textarea, select {
   width: 100%;
   padding: var(--space-3);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
-  background: var(--color-surface);
+  background: white;
   transition: border-color var(--transition-fast);
 }
 input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent-500); }
@@ -160,10 +163,10 @@ button, .btn {
   justify-content: center;
   min-height: var(--touch-target);
   padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
-  background: var(--color-surface);
-  color: var(--color-text);
+  background: white;
+  color: var(--gray-800);
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-medium);
   cursor: pointer;
@@ -176,31 +179,31 @@ button:disabled, .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 button.primary, .btn.primary { background: var(--accent-500); border-color: var(--accent-500); color: #fff; }
 button.primary:hover:not(:disabled), .btn.primary:hover { background: var(--accent-700); border-color: var(--accent-700); color: #fff; }
 
-button.ghost, .btn.ghost { background: transparent; border-color: transparent; color: var(--color-text-muted); }
-button.ghost:hover:not(:disabled), .btn.ghost:hover { border-color: var(--color-border); color: var(--color-text); }
+button.ghost, .btn.ghost { background: transparent; border-color: transparent; color: var(--gray-500); }
+button.ghost:hover:not(:disabled), .btn.ghost:hover { border-color: var(--gray-200); color: var(--gray-800); }
 
-.error { color: var(--color-error); font-size: var(--font-size-sm); margin-top: var(--space-2); }
-.success { color: var(--color-success); font-size: var(--font-size-sm); margin-top: var(--space-2); }
-.muted { color: var(--color-text-muted); }
-.hint { color: var(--color-text-muted); font-size: var(--font-size-sm); margin-top: var(--space-1); }
+.error { color: var(--error-500); font-size: var(--font-size-sm); margin-top: var(--space-2); }
+.success { color: var(--success-500); font-size: var(--font-size-sm); margin-top: var(--space-2); }
+.muted { color: var(--gray-500); }
+.hint { color: var(--gray-500); font-size: var(--font-size-sm); margin-top: var(--space-1); }
 
 .card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  background: white;
+  border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
   padding: var(--space-4);
   margin-bottom: var(--space-3);
 }
 
-.list > * { border-bottom: 1px solid var(--color-border); }
+.list > * { border-bottom: 1px solid var(--gray-200); }
 .list > *:last-child { border-bottom: none; }
 
 .row { display: flex; gap: var(--space-2); align-items: center; }
 .row.between { justify-content: space-between; }
 .stack { display: flex; flex-direction: column; gap: var(--space-3); }
 
-.label { display: block; font-size: var(--font-size-sm); color: var(--color-text-muted); margin-bottom: var(--space-1); }
+.label { display: block; font-size: var(--font-size-sm); color: var(--gray-500); margin-bottom: var(--space-1); }
 
-@media (min-width: 720px) { body { background: var(--color-bg); } }
+@media (min-width: 720px) { body { background: var(--gray-50); } }
 
 /* Sprint 2+: 在卡片 / modal 应用 var(--shadow-md/lg) */

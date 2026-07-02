@@ -1,4 +1,4 @@
-<script lang="ts">
+��<script lang="ts">
   /**
    * v0.1.2 (PO 2026-07-01 fix #3): edit-bill page.
    *
@@ -14,6 +14,7 @@
   import { goto } from '$app/navigation';
   import { getSession } from '$api/sessions';
   import { getBill, updateBill } from '$api/bills';
+  import { formatDate } from '$lib/utils/format';
   import type { SessionDetail } from '$api/sessions';
   import type { Bill } from '$api/bills';
   import BillForm from '$components/BillForm.svelte';
@@ -57,7 +58,7 @@
     <h2>编辑账单</h2>
     <p class="muted">
       session: {session.name} · 账单 #{bill.id} · 记录于
-      {new Date(bill.created_at).toLocaleString('zh-CN')}
+      {formatDate(bill.created_at, { full: true })}
     </p>
 
     <div class="card">

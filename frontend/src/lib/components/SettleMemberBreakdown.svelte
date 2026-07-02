@@ -1,26 +1,26 @@
 <script lang="ts">
   /**
-   * v0.1.2 反馈修 6 (PO 2026-07-02 11:23 UX 改写) — 个人视图成员明细。
+   * v0.1.3 Sprint 2 Commit 1 (2026-07-02) — 个人视图成员明细。
    *
-   * 本次改写:
-   * - 项目 6 (付款明细/消费明细 分割加强):
-   *     - 用 .bills-section + 左 border (paid=绿,consumed=蓝) 视觉分割
-   *     - .bills-section-head flex 布局 (icon + title + count)
-   *     - sticky header (top:0 + surface bg + z-index:5)
-   *       长列表滚动时 section 标题仍可见
-   *     - icon 16px 圆 bg + 白字
-   *     - 删除原 .section-h 样式 (uppercase + 13px small caps)
-   * - 项目 7 动画:
-   *     - chip 选中 transition:scale (0.9 → 1)
-   *     - chip 列表 stagger mount
-   *     - bill item list stagger mount
-   *     - 3-col stats 数字 counter animation (tweened, 600ms cubicOut)
+   * 本次 Commit 1 改动:
+   * - T6 千分位: 删除手写数字格式化,统一切到 $lib/utils/format.formatMoney。
+   *   - chip-net 仍保留 "+"/U+2212 前缀 (手写,符合 Sprint 1 文档约束)
+   *   - 日期改用 formatDate(... { time: true }) → "20:00"
+   * - Token alias 迁移: var(--color-*) → var(--*) 主 token。
+   *
+   * 注: T9 (chip redesign) 在 Commit 3。T8/T10 (settle hero + sticky section header)
+   *   在 Commit 2。
+   *
+   * 沿用:
+   * - v0.1.2 反馈修 6 项目 6 (付款/消费 sticky section header + 左 border 分割)
+   * - v0.1.2 反馈修 6 项目 7 (chip/bill stagger + 数字 counter tweened 动画)
    */
   import { onMount, tick } from 'svelte';
   import { tweened } from 'svelte/motion';
   import { cubicOut } from 'svelte/easing';
   import { scale, fly, fade } from 'svelte/transition';
   import { getSettle } from '$api/settle';
+  import { formatMoney, formatDate } from '$lib/utils/format';
   import type { MemberSettlement } from '$api/settle';
   import type { SessionDetail } from '$api/sessions';
 
@@ -39,31 +39,22 @@
   const tweenPaid = tweened(0, { duration: 600, easing: cubicOut });
   const tweenConsumed = tweened(0, { duration: 600, easing: cubicOut });
   const tweenNet = tweened(0, { duration: 600, easing: cubicOut });
-  // 标志:数字是否要变化时让 tween 平滑过渡
   let prevSelectedMemberId: number | null = null;
   $: if (selectedMember) {
-    // member 切换时重新 trigger tween (从 0 → 当前值,或从 prev → 当前)
     tweenPaid.set(selectedMember.total_paid ?? 0);
     tweenConsumed.set(selectedMember.total_consumed ?? 0);
     tweenNet.set(selectedMember.net ?? 0);
     prevSelectedMemberId = selectedMember.member_id;
   }
 
+  /** T6: 金额统一改用 formatMoney (千分位 + 2dp)。 */
   function fmt(n: number): string {
-    return n.toFixed(2);
+    return formatMoney(n, { showSymbol: false });
   }
 
+  /** T6: 日期改用 formatDate(只取 time → "20:00")。 */
   function fmtDate(iso: string): string {
-    try {
-      const d = new Date(iso);
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      const hours = String(d.getHours()).padStart(2, '0');
-      const minutes = String(d.getMinutes()).padStart(2, '0');
-      return `${month}-${day} ${hours}:${minutes}`;
-    } catch {
-      return iso;
-    }
+    return formatDate(iso, { time: true });
   }
 
   function avatarLetter(name: string): string {
@@ -71,10 +62,14 @@
     return trimmed ? trimmed.charAt(0).toUpperCase() : '?';
   }
 
+  /**
+   * chip 上的 net 金额显示:`+` 用 ASCII、`−` 用 U+2212 真字符 (Sprint 1 文档约束)。
+   * 数字部分走 formatMoney (千分位)。
+   */
   function fmtChipNet(n: number): string {
-    if (n > 0) return '+' + fmt(n);
-    if (n < 0) return '\u2212' + fmt(Math.abs(n));
-    return fmt(0);
+    if (n > 0) return '+' + formatMoney(n, { showSymbol: false });
+    if (n < 0) return '\u2212' + formatMoney(Math.abs(n), { showSymbol: false });
+    return formatMoney(0, { showSymbol: false });
   }
 
   $: selectedMember = members.find((m) => m.member_id === selectedMemberId) ?? null;
@@ -182,11 +177,11 @@
           <div class="stats-grid">
             <div class="stat-cell">
               <div class="stat-label muted">付款</div>
-              <div class="stat-value">{$tweenPaid.toFixed(2)}</div>
+              <div class="stat-value">{fmt($tweenPaid)}</div>
             </div>
             <div class="stat-cell">
               <div class="stat-label muted">消费</div>
-              <div class="stat-value">{$tweenConsumed.toFixed(2)}</div>
+              <div class="stat-value">{fmt($tweenConsumed)}</div>
             </div>
             <div class="stat-cell">
               <div class="stat-label muted">净</div>
@@ -196,9 +191,9 @@
                 class:neg={selectedMember.net < 0}
               >
                 {#if $tweenNet > 0}
-                  +{$tweenNet.toFixed(2)}
+                  +{fmt($tweenNet)}
                 {:else if $tweenNet < 0}
-                  −{Math.abs($tweenNet).toFixed(2)}
+                  −{fmt(Math.abs($tweenNet))}
                 {:else}
                   0.00
                 {/if}
@@ -280,7 +275,8 @@
 </div>
 
 <style>
-  /* === chip row === */
+  /* === chip row ===
+     T9 (chip redesign) 在 Commit 3 重做,这里只做 token alias 迁移。 */
   .member-tabs-wrapper {
     position: relative;
   }
@@ -291,7 +287,7 @@
     top: 0;
     bottom: 0;
     width: 32px;
-    background: linear-gradient(to right, transparent, var(--color-surface, #fff));
+    background: linear-gradient(to right, transparent, white);
     pointer-events: none;
     z-index: 1;
   }
@@ -312,8 +308,8 @@
     scroll-snap-align: start;
     flex: 0 0 auto;
     appearance: none;
-    background: var(--color-surface, #fff);
-    border: 1.5px solid var(--color-border, #e5e5e5);
+    background: white;
+    border: 1.5px solid var(--gray-200);
     border-radius: 8px;
     padding: var(--space-2, 8px) 12px;
     cursor: pointer;
@@ -330,20 +326,20 @@
       transform 200ms cubic-bezier(0.2, 0, 0, 1);
   }
   .member-chip:hover {
-    border-color: var(--color-accent, #3b82f6);
+    border-color: var(--accent-500);
     transform: translateY(-1px);
   }
   .member-chip:active {
     transform: scale(0.97);
   }
   .member-chip:focus-visible {
-    outline: 2px solid var(--color-accent, #3b82f6);
+    outline: 2px solid var(--accent-500);
     outline-offset: 2px;
   }
   .member-chip.active {
-    border-color: var(--color-accent, #3b82f6);
+    border-color: var(--accent-500);
     background: rgba(59, 130, 246, 0.1);
-    box-shadow: 0 0 0 1px var(--color-accent, #3b82f6);
+    box-shadow: 0 0 0 1px var(--accent-500);
   }
 
   .chip-avatar {
@@ -351,7 +347,7 @@
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: var(--color-accent, #3b82f6);
+    background: var(--accent-500);
     color: #fff;
     display: inline-flex;
     align-items: center;
@@ -376,18 +372,18 @@
   .chip-net {
     font-variant-numeric: tabular-nums;
     font-weight: 600;
-    color: var(--color-text-muted, #666);
+    color: var(--gray-500);
     font-size: var(--font-size-sm, 14px);
   }
   .chip-net.pos {
-    color: var(--color-success, #10b981);
+    color: var(--success-500);
   }
   .chip-net.neg {
-    color: var(--color-error, #ef4444);
+    color: var(--error-500);
   }
   .chip-badge {
     display: inline-block;
-    background: var(--color-accent, #3b82f6);
+    background: var(--accent-500);
     color: #fff;
     font-size: 10px;
     padding: 1px 5px;
@@ -398,7 +394,7 @@
   }
   .me-badge {
     display: inline-block;
-    background: var(--color-accent, #3b82f6);
+    background: var(--accent-500);
     color: #fff;
     font-size: 12px;
     font-weight: 600;
@@ -412,12 +408,12 @@
     transition: transform 200ms cubic-bezier(0.2, 0, 0, 1), opacity 200ms ease;
   }
   .member-chip.me .chip-avatar {
-    box-shadow: 0 0 0 2px var(--color-accent, #3b82f6), 0 0 0 4px rgba(59, 130, 246, 0.25);
+    box-shadow: 0 0 0 2px var(--accent-500), 0 0 0 4px rgba(59, 130, 246, 0.25);
   }
 
   /* === member panel === */
   .member-panel {
-    border-top: 1px solid var(--color-border, #e5e5e5);
+    border-top: 1px solid var(--gray-200);
     padding-top: var(--space-3, 12px);
   }
   .member-panel-title {
@@ -433,7 +429,7 @@
     width: 32px;
     height: 32px;
     border-radius: 50%;
-    background: var(--color-accent, #3b82f6);
+    background: var(--accent-500);
     color: #fff;
     display: inline-flex;
     align-items: center;
@@ -451,8 +447,8 @@
     margin-bottom: var(--space-4, 16px);
   }
   .stat-cell {
-    background: var(--color-bg, #fafafa);
-    border: 1px solid var(--color-border, #e5e5e5);
+    background: var(--gray-50);
+    border: 1px solid var(--gray-200);
     border-radius: 8px;
     padding: var(--space-2, 8px) 12px;
     text-align: center;
@@ -467,10 +463,10 @@
     font-variant-numeric: tabular-nums;
   }
   .stat-value.pos {
-    color: var(--color-success, #10b981);
+    color: var(--success-500);
   }
   .stat-value.neg {
-    color: var(--color-error, #ef4444);
+    color: var(--error-500);
   }
 
   /* === 反馈修 6 项目 6: bills section — 左 border 视觉分割 === */
@@ -481,17 +477,14 @@
     border-radius: 2px;
   }
   .bills-section-paid {
-    border-left-color: var(--color-success, #10b981);
+    border-left-color: var(--success-500);
   }
   .bills-section-consumed {
-    border-left-color: var(--color-accent, #3b82f6);
+    border-left-color: var(--accent-500);
   }
+  /* T10 sticky (Sprint 2 Commit 2 会加 backdrop-blur)。本 commit 只迁移 token。 */
   .bills-section-head {
-    /* sticky header: 长列表滚动时 section 标题仍可见 */
-    position: sticky;
-    top: 0;
-    background: var(--color-surface, #fff);
-    z-index: 5;
+    /* Sprint 2 Commit 2: position: sticky + backdrop-blur */
     margin: 0 0 var(--space-2, 8px);
     padding: var(--space-2, 8px) 0;
     display: flex;
@@ -499,7 +492,8 @@
     gap: var(--space-2, 8px);
     font-size: var(--font-size-sm, 14px);
     font-weight: 600;
-    color: var(--color-text);
+    color: var(--gray-900);
+    background: white;
   }
   .bills-section-icon {
     flex: 0 0 auto;
@@ -515,10 +509,10 @@
     color: #fff;
   }
   .icon-paid {
-    background: var(--color-success, #10b981);
+    background: var(--success-500);
   }
   .icon-consumed {
-    background: var(--color-accent, #3b82f6);
+    background: var(--accent-500);
   }
   .bills-section-title {
     flex: 0 0 auto;
@@ -546,7 +540,7 @@
     flex-direction: column;
     gap: 2px;
     padding: var(--space-2, 8px) 0;
-    border-bottom: 1px dashed var(--color-border, #e5e5e5);
+    border-bottom: 1px dashed var(--gray-200);
   }
   .bill-subrow:last-child {
     border-bottom: none;
@@ -582,16 +576,16 @@
     font-variant-numeric: tabular-nums;
   }
   .exclusive-tag {
-    color: var(--color-accent, #3b82f6);
+    color: var(--accent-500);
     font-weight: 500;
   }
   .shared-tag {
-    color: var(--color-text-muted, #666);
+    color: var(--gray-500);
   }
   .bill-total {
-    color: var(--color-text-muted, #999);
+    color: var(--gray-400);
   }
   .sep {
-    color: var(--color-text-muted, #999);
+    color: var(--gray-400);
   }
 </style>

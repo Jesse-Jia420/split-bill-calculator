@@ -1,14 +1,18 @@
 <script lang="ts">
   /**
-   * v0.1.2 反馈修 6 (PO 2026-07-02 11:23 UX 改写) — settle 视图。
+   * v0.1.3 Sprint 2 Commit 1 (2026-07-02) — settle 视图。
    *
-   * 本次修复:
-   * - 项目 4 (返回按钮上方乱码): 修复文件开头 8 字节垃圾字符 (0x01 0x00 ... 0x1B)
-   *   这串字节在某些浏览器/字体无字形,显示为乱码方块。已彻底移除。
-   * - 项目 4: back 按钮用纯文本 "返回 session",不再用 ← (Unicode arrow 在
-   *   某些 Android 字体下可能渲染为方块)。
+   * 本次 Commit 1 改动:
+   * - Token alias 迁移: var(--color-*) → var(--*) 主 token。
    *
-   * 历史: v0.1.2 反馈修 5 (c7f900b) — 跨页面动画已实施
+   * 注:
+   * - 该页本身没有金额 / 日期 format 调用 (SettleTransferPath / SettleMemberBreakdown
+   *   已分别在子组件迁移)。
+   * - T8 (settle hero) / T10 (sticky) / T11 (transfer card) 在 Commit 2。
+   *
+   * 沿用:
+   * - v0.1.2 反馈修 6 项目 4 (返回按钮纯文本,无 ← Unicode arrow)。
+   * - v0.1.2 反馈修 5 (跨页面动画)。
    */
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
@@ -51,7 +55,6 @@
 
 <section>
   <div class="row" style="margin-bottom: var(--space-3);">
-    <!-- 反馈修 6 项目 4: 用纯文本 "返回 session",不用 ← Unicode arrow -->
     <a class="btn ghost back-btn" href="/sessions/{sessionId}">返回 session</a>
   </div>
 
@@ -101,7 +104,6 @@
 </section>
 
 <style>
-  /* 反馈修 6 项目 4: back 按钮纯文本 + 紧凑 */
   .back-btn {
     display: inline-flex;
     align-items: center;
@@ -114,7 +116,7 @@
   .tab-bar {
     display: flex;
     gap: var(--space-2);
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--gray-200);
     margin: var(--space-3) 0;
   }
   .tab {
@@ -124,21 +126,28 @@
     padding: var(--space-2) var(--space-3);
     min-height: var(--touch-target);
     cursor: pointer;
-    color: var(--color-text-muted);
+    color: var(--gray-500);
     font-weight: 500;
     transition: color 180ms ease, border-bottom-color 180ms ease, background-color 150ms ease;
   }
   .tab:hover:not(.active) {
-    color: var(--color-text);
+    color: var(--gray-900);
     background: rgba(0, 0, 0, 0.025);
   }
   .tab.active {
-    color: var(--color-text);
-    border-bottom-color: var(--color-accent, #3b82f6);
+    color: var(--gray-900);
+    border-bottom-color: var(--accent-500);
   }
   .tab:focus-visible {
-    outline: 2px solid var(--color-accent, #3b82f6);
+    outline: 2px solid var(--accent-500);
     outline-offset: 2px;
     border-radius: var(--radius-sm, 4px);
+  }
+
+  .muted {
+    color: var(--gray-500);
+  }
+  .error {
+    color: var(--error-500);
   }
 </style>

@@ -1,20 +1,23 @@
 <script lang="ts">
   /**
-   * v0.1.2 反馈修 6 (PO 2026-07-02 11:23 UX 改写) — bills grouped list。
+   * v0.1.3 Sprint 2 (2026-07-02) — bills grouped list。
    *
-   * 本次改写:
-   * - 项目 3 (Bill item 背景色统一):
-   *     .bill-row 删除独立 background (默认透明继承)
-   *     .day-bills 删除 padding + border-top,bill row 直接贴在 day header 下
-   *     结果: bill row 跟 day group 内部容器共享同一背景色 (消除灰色边框)
+   * 本次改写 (Sprint 2):
+   * - T6 千分位: 删除手写数字格式化,统一切到 $lib/utils/format.formatMoney。
+   * - T7 折叠默认: 找 session 中**最新**的 occurred_at 日期作为「当天」,只有
+   *   「当天」group 默认展开,其他全部默认折叠。用户手动 toggle 后用 localStorage
+   *   记住。
+   * - Token alias 迁移: var(--color-*) → var(--*) 主 token。
    *
-   * 沿用项目 5 (iOS Mail-style swipe) + 项目 4 (「分摊」克制文案)
-   *
-   * 历史: v0.1.2 反馈修 5 Commit 2 (bd0cf89) — bill item 重构 + swipe
+   * 沿用:
+   * - v0.1.2 反馈修 6 项目 3 (Bill item 背景色统一)
+   * - v0.1.2 反馈修 5 项目 4 (iOS Mail-style swipe)
+   * - v0.1.2 反馈修 5 Commit 2 (bd0cf89) — bill item 重构 + swipe
    */
   import { onMount, tick } from 'svelte';
   import { goto } from '$app/navigation';
   import { fly } from 'svelte/transition';
+  import { formatMoney, formatDate } from '$lib/utils/format';
   import type { Bill } from '$api/bills';
 
   export let bills: Bill[];
@@ -31,6 +34,17 @@
     perCapita: number;
   };
 
+  /**
+   * T7 默认展开日期映射 (YYYY-MM-DD → bool)。`true` 表示默认展开 (open),
+   * `false` 表示默认折叠 (closed)。在 onMount 内根据当前 bills 计算一次后
+   * freeze,用户切 session / 重渲染不会重算。
+   */
+  let defaultOpenDates: Record<string, boolean> = {};
+
+  /**
+   * 用户手动 toggle 后的折叠状态。localStorage 也持久化这里。
+   * key = date string, value = true (collapsed) | false (open)。
+   */
   let collapsed: Record<string, boolean> = {};
 
   let dragOffset: Record<number, number> = {};
@@ -100,21 +114,37 @@
     return out;
   }
 
-  $: groups = buildGroups(bills);
-
-  function fmtAmount(n: number): string {
-    return n.toFixed(2);
+  /**
+   * T7: 计算「今天 (Asia/Shanghai 视角下 bills 最新发生的那天)」对应的 YYYY-MM-DD
+   * bucket,其余 bucket 全部折叠。其他 bucket = `false` (closed)。
+   * 返回值为 `Record<dateKey, isOpen>`。
+   */
+  function computeDefaultOpenDates(billList: Bill[]): Record<string, boolean> {
+    if (!billList || billList.length === 0) return {};
+    // 找 session 中**最新**的 occurred_at (max ISO)
+    let maxIso = '';
+    for (const b of billList) {
+      if (b.occurred_at && b.occurred_at > maxIso) maxIso = b.occurred_at;
+    }
+    if (!maxIso) return {};
+    const todayBucket = localDateKey(maxIso);
+    const out: Record<string, boolean> = {};
+    for (const g of buildGroups(billList)) {
+      out[g.date] = g.date === todayBucket;
+    }
+    return out;
   }
 
+  $: groups = buildGroups(bills);
+
+  /** T6: 金额显示用 formatMoney,带千分位。 */
+  function fmtAmount(n: number): string {
+    return formatMoney(n, { showSymbol: false });
+  }
+
+  /** T6: 时间显示改用 formatDate({ time: true })。 */
   function fmtBillTime(iso: string): string {
-    try {
-      const d = new Date(iso);
-      const hh = String(d.getHours()).padStart(2, '0');
-      const mm = String(d.getMinutes()).padStart(2, '0');
-      return `${hh}:${mm}`;
-    } catch {
-      return iso;
-    }
+    return formatDate(iso, { time: true });
   }
 
   function payerName(b: Bill): string {
@@ -291,23 +321,23 @@
     }
   }
 
-  // ===== Storage: collapsed day groups =====
+  // ===== T7 Storage: collapsed day groups =====
+
   function storageKey(): string {
     return `sbc.billGroupCollapsed.${sessionId}`;
   }
 
-  function loadCollapsedState() {
-    if (typeof window === 'undefined') return;
+  function loadCollapsedState(): Record<string, boolean> {
+    if (typeof window === 'undefined') return {};
     try {
       const raw = window.localStorage.getItem(storageKey());
-      if (!raw) return;
+      if (!raw) return {};
       const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object') {
-        collapsed = { ...collapsed, ...parsed };
-      }
+      if (parsed && typeof parsed === 'object') return parsed;
     } catch {
       // ignore corrupt localStorage
     }
+    return {};
   }
 
   function saveCollapsedState() {
@@ -319,8 +349,14 @@
     }
   }
 
+  /**
+   * T7: 解析「date 这天 group 是否应展开」。
+   * 优先级: 用户在 collapsed 中**显式**设置的值 > 默认值。
+   * collapsed[key] 未设置 → 用 defaultOpenDates[key] (onMount 已 freeze)。
+   */
   function isOpen(date: string): boolean {
-    return !collapsed[date];
+    if (date in collapsed) return !collapsed[date];
+    return defaultOpenDates[date] ?? false;
   }
 
   function onGroupToggle(date: string, e: Event) {
@@ -331,7 +367,22 @@
   }
 
   onMount(() => {
-    loadCollapsedState();
+    // T7: freeze defaultOpenDates(在 onMount 后不再重算,切 session 也不会动)。
+    defaultOpenDates = computeDefaultOpenDates(bills);
+
+    // 尝试加载用户已保存的 state。
+    const saved = loadCollapsedState();
+    const userTouched = Object.keys(saved).length > 0;
+
+    if (userTouched) {
+      // 用户手动 toggle 过 → localStorage 优先
+      collapsed = { ...collapsed, ...saved };
+    } else {
+      // 从未手动折叠过 → 应用默认值 (only 今天展开, 其他折叠)
+      collapsed = { ...defaultOpenDates };
+      // 不写 localStorage,等用户真正 toggle 时再写。
+    }
+
     const onDocClick = (e: MouseEvent) => {
       const t = e.target as HTMLElement;
       if (t.closest('.bill-swipe-wrap')) return;
@@ -449,16 +500,17 @@
   .day-group {
     /* 反馈修 6 项目 3: day group 用 surface 背景,bill row 默认透明继承,
        共享同一背景色,消除原灰色边框的"两层卡片"视觉 */
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius, 8px);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-md, 8px);
     overflow: hidden;
-    background: var(--color-surface, #fff);
+    background: white;
   }
   .day-group details {
     width: 100%;
   }
 
-  /* === day header 排版 === */
+  /* === day header 排版 ===
+     注: day-header 的 sticky / backdrop-blur 会在 Commit 2 (T10) 加,先保持纯白底。 */
   .day-header {
     display: flex;
     flex-direction: column;
@@ -466,7 +518,7 @@
     cursor: pointer;
     list-style: none;
     padding: var(--space-2) var(--space-3);
-    background: var(--color-surface, #fff);
+    background: white;
     min-height: var(--touch-target, 44px);
     flex-wrap: wrap;
     position: relative;
@@ -475,7 +527,7 @@
     display: none;
   }
   .day-header:focus-visible {
-    outline: 2px solid var(--color-accent, #3b82f6);
+    outline: 2px solid var(--accent-500);
     outline-offset: -2px;
   }
   .day-toggle {
@@ -488,7 +540,7 @@
     align-items: center;
     justify-content: center;
     font-size: 18px;
-    color: var(--color-text-muted, #666);
+    color: var(--gray-500);
     line-height: 1;
     font-weight: 400;
   }
@@ -512,7 +564,7 @@
     font-size: var(--font-size-sm, 13px);
   }
   .day-header-tag {
-    color: var(--color-text-muted);
+    color: var(--gray-500);
     opacity: 0.85;
   }
   .day-date {
@@ -552,7 +604,7 @@
   .bill-swipe-wrap {
     position: relative;
     overflow: hidden;
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--gray-200);
   }
   .bill-swipe-wrap:last-child {
     border-bottom: none;
@@ -587,17 +639,17 @@
   }
   .bill-swipe-action-left {
     left: 0;
-    background: var(--color-accent, #3b82f6);
+    background: var(--accent-500);
   }
   .bill-swipe-action-left:hover {
-    background: var(--color-accent-hover, #2563eb);
+    background: var(--accent-700);
   }
   .bill-swipe-action-right {
     right: 0;
-    background: var(--color-error, #dc2626);
+    background: var(--error-500);
   }
   .bill-swipe-action-right:hover {
-    background: #b91c1c;
+    background: var(--error-700);
   }
 
   /* === 反馈修 6 项目 3: .bill-row 删独立 background,默认透明继承,
@@ -605,7 +657,7 @@
   .bill-row {
     position: relative;
     z-index: 2;
-    /* 删除 background: var(--color-surface, #fff) — 让 day-group 背景透出 */
+    /* 删除 background: white — 让 day-group 背景透出 */
     padding: var(--space-3) var(--space-4);
     /* 删除 border-bottom (已移到 .bill-swipe-wrap,避免双层) */
     transition: transform 250ms cubic-bezier(0.2, 0, 0, 1), background-color 200ms ease;
@@ -617,7 +669,7 @@
     transition: none;
   }
   .bill-row:focus-visible {
-    box-shadow: inset 2px 0 0 var(--color-accent, #3b82f6);
+    box-shadow: inset 2px 0 0 var(--accent-500);
   }
   /* 触摸设备无 hover 反馈 (避免 :hover 误触) */
   @media (hover: hover) {
@@ -645,7 +697,7 @@
     font-variant-numeric: tabular-nums;
     font-weight: 600;
     font-size: 1rem;
-    color: var(--color-text);
+    color: var(--gray-900);
     white-space: nowrap;
   }
 
@@ -665,7 +717,7 @@
   .your-share {
     flex: 0 0 auto;
     font-weight: 600;
-    color: var(--color-accent, #3b82f6);
+    color: var(--accent-500);
     font-variant-numeric: tabular-nums;
     font-size: var(--font-size-sm);
     white-space: nowrap;
