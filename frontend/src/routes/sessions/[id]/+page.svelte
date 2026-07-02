@@ -254,6 +254,7 @@
         memberIdToName={memberIdToName}
         currentUserMemberId={currentMemberId}
         onDelete={handleDeleteBill}
+        loading={loading}
       />
     </div>
 

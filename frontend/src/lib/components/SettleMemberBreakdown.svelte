@@ -22,6 +22,7 @@
   import { scale, fly, fade } from 'svelte/transition';
   import { getSettle } from '$api/settle';
   import { formatMoney, formatDate } from '$lib/utils/format';
+  import SkeletonBill from '$components/SkeletonBill.svelte';
   import type { MemberSettlement } from '$api/settle';
   import type { SessionDetail } from '$api/sessions';
 
@@ -124,7 +125,13 @@
 
 <div>
   {#if loading}
-    <p class="muted">正在加载个人视图…</p>
+    <div class="skeleton-section" aria-busy="true" aria-label="加载中">
+      <ul class="skeleton-list">
+        <li><SkeletonBill /></li>
+        <li><SkeletonBill /></li>
+        <li><SkeletonBill /></li>
+      </ul>
+    </div>
   {:else if error}
     <div class="error">{error}</div>
   {:else if members.length === 0}
@@ -601,4 +608,20 @@
   .shared-tag { color: var(--gray-500); }
   .bill-total { color: var(--gray-400); }
   .sep { color: var(--gray-400); }
+
+  /* === Sprint 3 T13: loading 骨架样式 === */
+  .skeleton-section {
+    padding: var(--space-3, 12px) 0;
+  }
+  .skeleton-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    background: white;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-md, 8px);
+  }
+  .skeleton-list > li:last-child :global(.skeleton-bill) {
+    border-bottom: none;
+  }
 </style>

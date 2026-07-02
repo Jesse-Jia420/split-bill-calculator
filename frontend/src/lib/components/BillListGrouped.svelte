@@ -19,12 +19,15 @@
   import { fly } from 'svelte/transition';
   import { formatMoney, formatDate } from '$lib/utils/format';
   import type { Bill } from '$api/bills';
+  import SkeletonBill from './SkeletonBill.svelte';
 
   export let bills: Bill[];
   export let sessionId: number;
   export let memberIdToName: Record<number, string> = {};
   export let currentUserMemberId: number | null = null;
   export let onDelete: ((billId: number) => void | Promise<void>) | null = null;
+  /** Sprint 3 T13: true 时显示 N 个 SkeletonBill 骨架 */
+  export let loading: boolean = false;
 
   type Group = {
     date: string;
@@ -398,7 +401,13 @@
 </script>
 
 <div class="bill-grouped">
-  {#if !bills || bills.length === 0}
+  {#if loading}
+    <ul class="skeleton-list" aria-busy="true" aria-label="加载中">
+      <li><SkeletonBill /></li>
+      <li><SkeletonBill /></li>
+      <li><SkeletonBill /></li>
+    </ul>
+  {:else if !bills || bills.length === 0}
     <p class="muted">
       还没有账单,<a href="/sessions/{sessionId}/bills/new">点"+ 新建账单"开始</a>。
     </p>
@@ -492,6 +501,17 @@
 </div>
 
 <style>
+  .skeleton-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    background: white;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-md, 8px);
+  }
+  .skeleton-list > li:last-child :global(.skeleton-bill) {
+    border-bottom: none;
+  }
   .day-list {
     display: flex;
     flex-direction: column;
