@@ -1,27 +1,27 @@
 <script lang="ts">
   /**
-   * v0.1.3 Sprint 2 Commit 3 (2026-07-02) — 个人视图成员明细。
+   * v0.1.3 Sprint 3 Commit 4 (2026-07-02) — 个人视图交互动画。
    *
-   * 本次 Commit 3 改动:
-   * - T9 Chip Redesign: filled bg pill style, fade gradient mask, me double ring
-   *   - Active: accent-500 bg + white text + shadow-sm
-   *   - Inactive: white bg + gray-200 border, hover accent border+text
-   *   - Pill shape (radius-full), gap space-3, padding space-3/space-4
-   *   - Numbers: formatMoney(no symbol) + tabular-nums + color by sign
-   *   - me badge removed (active=filled enough), me ring via class:me kept
-   *   - Fade gradient mask in member-tabs-wrapper (already present)
+   * 本次 Commit 4 改动:
+   * - T16 Cross-fade chip 切换: {#key selectedMember.member_id} 包整个 member-panel,
+   *   in:fade=150ms / out:fade=100ms,切换 chip 时 breakdown 平滑淡入淡出。
+   *   chip selector (member-tabs) 本身**不**在 keyed 块内,避免切 chip 时 chip 也 fade 掉。
+   * - T17 Count-up 数字动画: 新建 src/lib/utils/tween.ts(tweenNumber 工厂),
+   *   tweenPaid / tweenConsumed / tweenNet 全部走统一 600ms cubicOut preset。
+   *   hero-net 切换 member 时数字从 0 → 绝对值平滑过渡。
+   * - 沿用 inline tweened() -> tweenNumber() 重构,call site 更声明式。
    *
    * 沿用:
    * - T8 Hero Metric (Commit 2)
+   * - T9 Chip Redesign (Commit 3)
    * - T10 Sticky Section Header (Commit 2)
    * - v0.1.2 反馈修 6 项目 6/7
    */
   import { onMount, tick } from 'svelte';
-  import { tweened } from 'svelte/motion';
-  import { cubicOut } from 'svelte/easing';
   import { scale, fly, fade } from 'svelte/transition';
   import { getSettle } from '$api/settle';
   import { formatMoney, formatDate } from '$lib/utils/format';
+  import { tweenNumber } from '$lib/utils/tween';
   import SkeletonBill from '$components/SkeletonBill.svelte';
   import type { MemberSettlement } from '$api/settle';
   import type { SessionDetail } from '$api/sessions';
@@ -37,10 +37,10 @@
   let selectedMemberId: number | null = null;
   let chipRefs: Record<number, HTMLButtonElement | null> = {};
 
-  // === 项目 7: 数字 counter animation (tweened) ===
-  const tweenPaid = tweened(0, { duration: 600, easing: cubicOut });
-  const tweenConsumed = tweened(0, { duration: 600, easing: cubicOut });
-  const tweenNet = tweened(0, { duration: 600, easing: cubicOut });
+  // === T17 数字 counter animation (统一走 tweenNumber 工厂) ===
+  const tweenPaid = tweenNumber(0, 600);
+  const tweenConsumed = tweenNumber(0, 600);
+  const tweenNet = tweenNumber(0, 600);
   let prevSelectedMemberId: number | null = null;
   $: if (selectedMember) {
     tweenPaid.set(selectedMember.total_paid ?? 0);
@@ -176,7 +176,8 @@
           id="member-panel-{selectedMember.member_id}"
           role="tabpanel"
           aria-label="{selectedMember.display_name} 明细"
-          in:fade={{ duration: 220 }}
+          in:fade={{ duration: 150 }}
+          out:fade={{ duration: 100 }}
         >
           <h3 class="member-panel-title">
             <span class="panel-avatar" aria-hidden="true">{avatarLetter(selectedMember.display_name)}</span>
