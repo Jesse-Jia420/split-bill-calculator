@@ -346,6 +346,37 @@ def _ensure_personal_session(
     return personal
 
 
+def _backfill_bill_snapshots(db: OrmSession, session_id: int) -> None:
+    """Fill in NULL exchange_rate_snapshot rows for a session's bills.
+
+    v0.2.2 (T12): the seed inserts THB bills and (now) creates the
+    THB<->CNY rate, but seed order matters — we want to ensure the
+    bills end up with a snapshot regardless of which path ran first.
+    Safe to run after the migration's data backfill.
+    """
+    db.execute(
+        text(
+            """
+            UPDATE bills SET exchange_rate_snapshot = (
+                SELECT ser.rate FROM session_exchange_rates ser
+                WHERE ser.session_id = bills.session_id
+                  AND ser.from_currency = bills.currency
+                  AND ser.to_currency = (
+                      SELECT primary_currency FROM sessions s WHERE s.id = bills.session_id
+                  )
+                LIMIT 1
+            )
+            WHERE session_id = :sid
+              AND exchange_rate_snapshot IS NULL
+              AND currency <> (
+                  SELECT primary_currency FROM sessions s WHERE s.id = bills.session_id
+              )
+            """
+        ),
+        {"sid": session_id},
+    )
+
+
 def _seed_thailand_bills(
     db: OrmSession,
     session: BillSession,
@@ -417,6 +448,14 @@ def seed_dev_data(db: OrmSession | None = None) -> dict[str, Any]:
 
         # 3. Personal session (1 owner-member, no bills).
         personal = _ensure_personal_session(db, xinhua, now)
+
+        # 4. v0.2.2 (T12): re-apply the snapshot backfill now that the
+        #    rates exist, so newly seeded Thailand bills have a non-NULL
+        #    exchange_rate_snapshot (the migration's backfill runs at
+        #    alembic upgrade time, which is a separate step from the
+        #    runtime seed). Keep this idempotent — UPDATE just leaves
+        #    already-populated rows alone when the rate still matches.
+        _backfill_bill_snapshots(db, thailand.id)
 
         db.commit()
         return {
