@@ -84,15 +84,16 @@
           {@const toName = displayName(t.to_member_id)}
           <li class="transfer-li">
             <!--
-              v0.2.1 T06 (PRD §3.6.6): 每笔转账整行包 <a> 实现 click-through。
-              href 选用 query 参数 + anchor 的混合形式:
-                /sessions/{id}?transfer_from={from_id}&transfer_to={to_id}#bills-card
-              这样点击会落到 session bills 列表 (用户能看到是哪些账单 sum 到了
-              这笔转账), query 标注 involved pair 供后续页面 highlight 用。
+              v0.2.1 T06 (PRD §3.6.6) — 2026-07-03 12:40 PO 拍板 **砍掉**.
+              转账卡片保持静态展示 (无 click 行为). 理由:
+              (a) settle _greedy_pair 算法无 bill attribution, 1 transfer != 1 bill;
+              (b) query 参数跳转 session 页**未**实现 highlight/filter, click = reload 噪声;
+              (c) 用户极少反向追溯 transfer 明细 (信任 settle 数学).
+              v0.3 AI 大版本再考虑: 让 AI 解释 transfer ('Q 为啥欠 Jesse 2091.97').
             -->
-            <a
+            <div
               class="transfer-card"
-              href="/sessions/{session.id}?transfer_from={t.from_member_id}&transfer_to={t.to_member_id}#bills-card"
+              role="group"
               aria-label="转账 {fromName} → {toName} {fmt(t.amount)}"
             >
               <!-- 付款方 -->
@@ -112,7 +113,7 @@
                 <div class="avatar" aria-hidden="true">{avatarLetter(toName)}</div>
                 <span class="transfer-name">{toName}</span>
               </div>
-            </a>
+            </div>
           </li>
         {/each}
       </ul>
@@ -163,8 +164,6 @@
     gap: var(--space-3);
   }
   .transfer-li {
-    /* List item stays a flex container so margins from gap work; the
-       card itself is now the <a> for click semantics. */
     list-style: none;
   }
   .transfer-card {
@@ -176,22 +175,7 @@
     border-radius: var(--radius-lg);
     padding: var(--space-4);
     box-shadow: var(--shadow-sm);
-    text-decoration: none;
-    color: inherit;
-    /* v0.2.1 T06: ≥ 44px touch target — explicit min-height. */
-    min-height: var(--touch-target, 44px);
-    transition: background-color 150ms ease, transform 100ms ease, border-color 150ms ease;
-  }
-  /* Hover only on devices that can actually hover (avoids sticky-hovers on
-     touch devices after a tap). */
-  @media (hover: hover) and (pointer: fine) {
-    .transfer-card:hover {
-      background: var(--gray-100, #f3f4f6);
-      border-color: var(--accent-500, #3b82f6);
-    }
-  }
-  .transfer-card:active {
-    transform: scale(0.99);
+    /* v0.2.1 T06 砍掉 (2026-07-03) — 转账卡片静态展示, 无 click / hover / press */
   }
   /* `.transfer-li` items are spaced by gap on .transfers-list — no extra
      per-card margin needed. */
