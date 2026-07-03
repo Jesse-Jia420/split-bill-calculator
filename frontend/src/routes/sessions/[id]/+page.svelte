@@ -70,6 +70,16 @@
    * 字段集: 必须包含 POST /bills 接受的全部字段 (CreateBillRequest + use_calculator)。
    * 这里只缓存 deletable 的 bill 字段; description 是 immutable in edit but
    * 前端可以 POST 同一 description 作为 create (新 id)。
+   *
+   * v0.2.1 Sprint 2 fix (反模式 #51): 撤销按钮的 onclick 直接调用 undoDelete。
+   * 之前用 `window.__sbcBillUndo_<id>` 全局 handler 做中介, 导致 race:
+   *   - attachUndo 在 `await deleteBill` 之后才设置 window key,
+   *     但 undo-stack 模板在 undoQueue 更新后**立即**渲染, 用户早于 50ms
+   *     点撤销, 读到 undefined, 整个 click 静默失败。
+   *   - 即便 await 返回, 闭包经过 window 反射, Svelte 5 runes 模式下行为
+   *     不稳定 (闭包捕获的 $state 引用经 Proxy 后再 fire 可能丢失入口)。
+   * 修法: 撤销按钮 onclick 直接调用组件作用域里的 undoDelete, 同步可执行,
+   * 不依赖外部中介。新增 busy 状态防止 DELETE 与 POST 重建并发竞争。
    */
   interface DeletedBillSnapshot {
     rawBill: Bill;
@@ -78,7 +88,14 @@
     /** Description 是 v0.1.2 immutable, 但 POST /bills 仍接受, 所以这里缓存。 */
     description: string | null;
   }
-  let undoQueue = $state<Array<{ id: number; snapshot: DeletedBillSnapshot }>>([]);
+  let undoQueue = $state<Array<{
+    id: number;
+    snapshot: DeletedBillSnapshot;
+    /** 乐观删除进行中: 撤销按钮 disable, 防止与 DELETE 竞态。 */
+    deleting?: boolean;
+    /** 重建进行中: 防止用户连点多次触发多个 POST。 */
+    restoring?: boolean;
+  }>>([]);
   let nextUndoId = 1;
 
   // v0.1.4 round 2: 一旦用了 $state runes, 整个组件就进入 runes mode,
@@ -185,13 +202,15 @@
   /**
    * v0.2.1 T04 (PRD §3.6.4): 乐观删除 + 5s Toast 撤回。
    *
-   * 流程:
+   * 流程 (Sprint 2 修订):
    * 1) 立即从 bills 数组里 splice (UI 立刻响应)
-   * 2) 缓存 raw bill + participants, push 到 undoQueue
-   * 3) 调 DELETE /bills。如果失败, 把 bill 放回 bills 数组并报错。
-   * 4) 弹 Toast `已删除 <description> [撤销]`, 5s 自动消失。
-   * 5) 用户点撤销 → splice 缓存, POST /bills 重建 (新 id), 再 push 回 bills。
-   *    失败 → toast.error。
+   * 2) 缓存 raw bill + participants, push 到 undoQueue (deleting=true)
+   * 3) 弹 Toast `已删除 <description> [撤销]`, 5s 自动消失 (不阻塞 DELETE)。
+   * 4) 调 DELETE /bills。成功 → 标记 deleting=false (撤销按钮 enable)。
+   *    失败 → 把 bill 放回 bills 数组, 移除 undoEntry, 报 toast.error。
+   * 5) 用户点撤销 → 标记 restoring=true, POST /bills 重建 (新 id)。
+   *    成功 → push 回 bills, 移除 undoEntry, toast.success。
+   *    失败 → 撤销 restoring 标记, 让用户重试, toast.error。
    *
    * 队列 FIFO (后删的先撤 — User 期望「撤销最后一次删除」)。
    * 不使用 soft-delete, 不新加 BE endpoint。
@@ -213,27 +232,28 @@
         exclusive_amount: Number(p.exclusive_amount) || 0,
       })),
     };
-    const undoEntry = { id: nextUndoId++, snapshot };
+    const undoEntry = { id: nextUndoId++, snapshot, deleting: true };
 
     // 1) 乐观删除 — 立即从 UI 移除。
     bills = bills.filter((b) => b.id !== billId);
 
-    // 2) Push to undo queue (FIFO — 后删的先撤)。
+    // 2) Push to undo queue (FIFO — 后删的先撤)。deleting=true 期间撤销按钮
+    //    disabled, 防止与 DELETE 竞态 (用户早于 DELETE 完成点撤销会先 POST 重建,
+    //    然后 DELETE 又把新 bill 删了)。
     undoQueue = [...undoQueue, undoEntry];
+
+    // 3) Toast 立即弹出 (UX 优先 — 不等 DELETE 完成)。
+    const deleteLabel = snapshot.description
+      ? `已删除「${snapshot.description}」`
+      : '已删除账单';
+    toast.show(deleteLabel, 'info', 5000);
 
     try {
       await deleteBill(sessionId, billId);
-      // 3) Toast with undo button. Uses raw toast.show so we can add
-      //    an [action] callback (Undo → 重新 POST)。
-      const deleteLabel = snapshot.description
-        ? `已删除「${snapshot.description}」`
-        : '已删除账单';
-      toast.show(deleteLabel, 'info', 5000);
-      // Wire the action: a custom global hook (we add a custom toast helper
-      // via extending the toast store) — but the existing toast store doesn't
-      // support per-toast actions. We instead expose an undo function on
-      // window during the 5s window so the user can hit it.
-      attachUndo(undoEntry.id, () => undoDelete(undoEntry.id));
+      // DELETE 成功 — 解锁撤销按钮。
+      undoQueue = undoQueue.map((u) =>
+        u.id === undoEntry.id ? { ...u, deleting: false } : u
+      );
     } catch (e: any) {
       // 失败回滚 bills。
       bills = [...bills, rawBill].sort((a, b) => {
@@ -247,25 +267,17 @@
     }
   }
 
-  /**
-   * v0.2.1 T04 helper: 把 undo handler 临时挂在 window, 5s 后清理。
-   * 这样我们用现有的 toast 系统也能支持 [撤销] 按钮。
-   * 历史 toast 在 5s 后 dismiss, 全局 listener 一起移除。
-   */
-  function attachUndo(undoId: number, handler: () => void) {
-    const key = `__sbcBillUndo_${undoId}`;
-    (window as any)[key] = handler;
-    setTimeout(() => {
-      delete (window as any)[key];
-    }, 5500);
-  }
-
   async function undoDelete(undoId: number) {
     const entry = undoQueue.find((u) => u.id === undoId);
-    if (!entry) {
+    // 防双触发: deleting 中 (DELETE 没回来) 或 restoring 中 (POST 没回来)。
+    if (!entry || entry.deleting || entry.restoring) {
       toast.error('该账单已无法撤销');
       return;
     }
+    // 立即标记 restoring, 不移除 undoEntry (POST 失败时回退让用户重试)。
+    undoQueue = undoQueue.map((u) =>
+      u.id === undoId ? { ...u, restoring: true } : u
+    );
     const { snapshot } = entry;
     try {
       const recreated = await createBill(sessionId, {
@@ -292,16 +304,12 @@
         : '账单已恢复';
       toast.success(restoredLabel);
     } catch (e: any) {
+      // POST 失败 — 撤销 restoring 标记, 让用户重试。
+      undoQueue = undoQueue.map((u) =>
+        u.id === undoId ? { ...u, restoring: false } : u
+      );
       toast.error(e?.message ?? '恢复失败');
     }
-  }
-  // Expose undo helper via window so the manual UI (or any inspector)
-  // can also trigger it. Most users will hit the toast's undo button,
-  // which we wire via attachUndo + window event below.
-  function fireUndoFromToast(undoId: number) {
-    const key = `__sbcBillUndo_${undoId}`;
-    const handler = (window as any)[key];
-    if (typeof handler === 'function') handler();
   }
 
   // T14: copy invite link to clipboard (EmptyState CTA 用)
@@ -514,13 +522,14 @@
       <div class="undo-stack" aria-live="polite">
         {#each [...undoQueue].reverse() as entry (entry.id)}
           {@const label = entry.snapshot.description ?? '(无说明)'}
-          <div class="undo-toast">
+          <div class="undo-toast" class:busy={entry.deleting || entry.restoring}>
             <span class="undo-msg">已删除「{label}」</span>
             <button
               type="button"
               class="undo-btn"
-              onclick={() => fireUndoFromToast(entry.id)}
-            >撤销</button>
+              disabled={entry.deleting || entry.restoring}
+              onclick={() => undoDelete(entry.id)}
+            >{entry.restoring ? '恢复中…' : entry.deleting ? '删除中…' : '撤销'}</button>
           </div>
         {/each}
       </div>
@@ -991,6 +1000,18 @@
   }
   .undo-btn:active {
     transform: scale(0.97);
+  }
+  /* v0.2.1 Sprint 2 T04: 删除/恢复进行中 — 按钮 disable + 视觉灰化 */
+  .undo-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.7;
+    background: var(--gray-500, #6b7280);
+  }
+  .undo-btn:disabled:hover {
+    background: var(--gray-500, #6b7280);
+  }
+  .undo-toast.busy {
+    opacity: 0.85;
   }
 
   /* === utility classes (token-migrated) === */
