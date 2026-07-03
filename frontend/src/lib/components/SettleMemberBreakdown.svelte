@@ -29,10 +29,13 @@
   export let session: SessionDetail;
   /** 当前登录用户 user_id。用于默认选中自己。 */
   export let currentUserId: number | null = null;
+  /** v0.2.2 (T11): re-fetch when view mode flips. */
+  export let viewMode: 'primary' | 'split' = 'primary';
 
   let loading = true;
   let error: string | null = null;
   let members: MemberSettlement[] = [];
+  let loadedView: 'primary' | 'split' = viewMode;
 
   let selectedMemberId: number | null = null;
   let chipRefs: Record<number, HTMLButtonElement | null> = {};
@@ -100,11 +103,21 @@
   }
 
   onMount(async () => {
+    await loadSettle(viewMode);
+  });
+
+  // v0.2.2 (T11): when viewMode changes after mount, refetch.
+  $: if (!loading && loadedView !== viewMode) {
+    loadSettle(viewMode);
+  }
+
+  async function loadSettle(targetView: 'primary' | 'split') {
     loading = true;
     error = null;
     try {
-      const data = await getSettle(session.id);
+      const data = await getSettle(session.id, targetView);
       members = data.per_member ?? [];
+      loadedView = targetView;
       const me = members.find((m) => {
         const sm = session.members.find((sm) => sm.id === m.member_id);
         return sm && sm.user_id === currentUserId;
@@ -120,7 +133,7 @@
     } finally {
       loading = false;
     }
-  });
+  }
 </script>
 
 <div>
