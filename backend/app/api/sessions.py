@@ -1,4 +1,4 @@
-"""Sessions API — Sprint 1 T08 + v0.1.1 invite redesign.
+"""Sessions API — Sprint 1 T08 + v0.1.1 invite redesign + v0.2.2 multi-currency.
 
 Endpoints (mounted under /sessions; frontend calls them as
 /api/sessions — the dev proxy strips the /api prefix):
@@ -34,6 +34,21 @@ v0.1.1 changes (2026-06-30)
   the caller IS the owner (so the session page can show a copy/rotate
   shortcut inline). Non-owners still 200 but get no preview.
 
+v0.2.2 changes (2026-07-03)
+---------------------------
+- Session now declares its currency set (``currencies``: JSON list,
+  1–2 ISO 4217 codes) and ``primary_currency`` (must be one of those).
+- POST /sessions accepts ``currencies``, ``primary_currency`` and
+  ``exchange_rates`` (the latter is a list of {from, to, rate}
+  dicts; required when the session declares 2 currencies). The
+  first currency listed is the implicit default for new bills.
+- GET /sessions/{id} now echoes ``currencies`` + ``primary_currency``
+  + ``exchange_rates`` so the FE BillForm / Settle pages can render
+  without a second round-trip.
+- 422 on unsupported currency codes, on primary-must-be-in-currencies,
+  on > 2 currencies, and on dual-currency session missing
+  ``exchange_rates``.
+
 Datetime handling
 -----------------
 SQLite strips tzinfo on roundtrip for DateTime(timezone=True) columns,
@@ -49,10 +64,11 @@ from __future__ import annotations
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
-from typing import Annotated
+from decimal import Decimal, ROUND_HALF_UP
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Path, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -60,6 +76,7 @@ from app.core.auth import get_current_user
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.session_isolation import get_session_member
+from app.db.models.session_exchange_rates import SessionExchangeRate
 from app.db.models.session_members import SessionMember, SessionRole
 from app.db.models.sessions import Session as SessionModel
 from app.db.models.users import User
@@ -70,12 +87,155 @@ router = APIRouter(prefix="/sessions", tags=["sessions"])
 
 
 # ---------------------------------------------------------------------------
+# v0.2.2 multi-currency constants + helpers
+# ---------------------------------------------------------------------------
+
+# Whitelisted ISO 4217 codes (PRD §3.7). Anything outside this list is
+# 422 at the API boundary so we never silently accept an unsupported
+# currency and then fail later at settlement. The list is intentionally
+# small (10 codes covering common trip scenarios) and is owned by the
+# backend — the frontend mirrors it to render currency chips but
+# never trusts client-side validation alone.
+SUPPORTED_CURRENCIES: list[str] = [
+    "CNY",  # Chinese yuan (home currency for the test suite)
+    "USD",  # US dollar
+    "THB",  # Thai baht (the canonical PRD example)
+    "EUR",  # Euro
+    "JPY",  # Japanese yen
+    "GBP",  # British pound
+    "HKD",  # Hong Kong dollar
+    "SGD",  # Singapore dollar
+    "KRW",  # Korean won
+    "AUD",  # Australian dollar
+]
+
+# Default currency offered when the user clicks \"add second currency\"
+# on the /sessions/new form (PRD §3.7 UX). USD is chosen because most
+# of the existing test users travel internationally.
+DEFAULT_SECONDARY_CURRENCY = "USD"
+
+
+# ---------------------------------------------------------------------------
 # Schemas
 # ---------------------------------------------------------------------------
 
 
+class ExchangeRateIn(BaseModel):
+    """One per (from, to) ordered pair.
+
+    The pair is enforced unique by the DB (uq_rate_per_pair). The
+    inverse pair (to → from) is a separate row — see the rate-creation
+    loop in ``create_session`` which auto-inserts the reciprocal so the
+    user does not have to enter both directions manually.
+    """
+
+    from_currency: str = Field(..., min_length=1, max_length=8)
+    to_currency: str = Field(..., min_length=1, max_length=8)
+    rate: Decimal = Field(..., gt=Decimal("0.00000001"), description="Conversion rate (> 0).")
+
+    @field_validator("from_currency", "to_currency")
+    @classmethod
+    def _upper(cls, v: str) -> str:
+        v = v.strip().upper()
+        if not v:
+            raise ValueError("currency code must not be blank")
+        if v not in SUPPORTED_CURRENCIES:
+            raise ValueError(f"currency '{v}' is not in SUPPORTED_CURRENCIES")
+        return v
+
+    @field_validator("rate")
+    @classmethod
+    def _quantize_rate(cls, v: Decimal) -> Decimal:
+        # Accept any positive Decimal but normalise to 8dp (matches the
+        # Numeric(28, 8) column precision so the API round-trip is
+        # lossless).
+        try:
+            return v.quantize(Decimal("0.00000001"), rounding=ROUND_HALF_UP)
+        except Exception:
+            raise ValueError("rate must be a valid Decimal")
+
+
+class ExchangeRateOut(BaseModel):
+    id: int
+    session_id: int
+    from_currency: str
+    to_currency: str
+    rate: str  # Decimal-as-string per v0.2.2 wire format
+    snapshot_at: str
+    set_by: int | None
+
+
 class CreateSessionRequest(BaseModel):
+    """v0.2.2 (T08): multi-currency session create.
+
+    ``currencies`` defaults to ``[\"CNY\"]`` — single-currency sessions
+    are still allowed (and are 100% backward-compatible with the
+    v0.2.1 Pydantic schema). When ``len(currencies) == 2`` the caller
+    MUST supply at least one entry in ``exchange_rates`` describing
+    how the two currencies relate (PRD §3.7.5).
+    """
+
     name: str = Field(..., min_length=1, max_length=200)
+    currencies: list[str] = Field(default_factory=lambda: ["CNY"])
+    primary_currency: str = Field(default="CNY")
+    exchange_rates: list[ExchangeRateIn] = Field(default_factory=list)
+
+    @field_validator("currencies")
+    @classmethod
+    def _validate_currencies(cls, v: list[str]) -> list[str]:
+        if not v:
+            raise ValueError("currencies must not be empty")
+        if len(v) > 2:
+            raise ValueError("currencies must contain at most 2 entries")
+        seen: set[str] = set()
+        normalised: list[str] = []
+        for raw in v:
+            code = raw.strip().upper()
+            if code not in SUPPORTED_CURRENCIES:
+                raise ValueError(f"currency '{code}' is not in SUPPORTED_CURRENCIES")
+            if code in seen:
+                raise ValueError(f"duplicate currency '{code}'")
+            seen.add(code)
+            normalised.append(code)
+        if not normalised:
+            raise ValueError("currencies must not be empty")
+        return normalised
+
+    @field_validator("primary_currency")
+    @classmethod
+    def _validate_primary(cls, v: str) -> str:
+        code = v.strip().upper()
+        if code not in SUPPORTED_CURRENCIES:
+            raise ValueError(f"primary_currency '{code}' is not in SUPPORTED_CURRENCIES")
+        return code
+
+    @model_validator(mode="after")
+    def _cross_field(self) -> "CreateSessionRequest":
+        # primary_currency MUST be one of currencies.
+        if self.primary_currency not in self.currencies:
+            raise ValueError(
+                f"primary_currency '{self.primary_currency}' must be one of currencies {self.currencies}"
+            )
+        # Dual-currency sessions require at least one rate entry.
+        if len(self.currencies) == 2 and not self.exchange_rates:
+            raise ValueError(
+                "dual-currency session requires at least one exchange_rates entry"
+            )
+        # The supplied exchange_rates must reference currencies in our set.
+        for r in self.exchange_rates:
+            if r.from_currency not in self.currencies:
+                raise ValueError(
+                    f"exchange_rate from_currency '{r.from_currency}' must be in currencies"
+                )
+            if r.to_currency not in self.currencies:
+                raise ValueError(
+                    f"exchange_rate to_currency '{r.to_currency}' must be in currencies"
+                )
+            if r.from_currency == r.to_currency:
+                raise ValueError(
+                    f"exchange_rate from_currency == to_currency ({r.from_currency})"
+                )
+        return self
 
 
 class SessionSummary(BaseModel):
@@ -87,6 +247,11 @@ class SessionSummary(BaseModel):
     role: str
     member_count: int | None = None  # only populated for list responses
     created_at: str
+    # v0.2.2 (T08): per-session currency metadata echoed so list
+    # endpoints are sufficient for the FE to decide which chip to
+    # pre-select.
+    currencies: list[str] = []
+    primary_currency: str = "CNY"
 
 
 class SessionMemberOut(BaseModel):
@@ -113,6 +278,10 @@ class SessionDetail(BaseModel):
     # participants (NULL when the session has no bills yet). The frontend
     # uses this to prefill participants in BillForm's create mode.
     last_bill_participants: list[int] | None = None
+    # v0.2.2 (T08): full currency metadata for the FE BillForm / Settle.
+    currencies: list[str]
+    primary_currency: str
+    exchange_rates: list[ExchangeRateOut] = []
 
 
 class UpdateMemberRequest(BaseModel):
@@ -151,6 +320,27 @@ def _summary_dict(session: SessionModel, role: str, member_count: int | None) ->
         "role": role,
         "member_count": member_count,
         "created_at": _iso(session.created_at),
+        # v0.2.2 (T08): always echo the currency set + primary so the
+        # FE can render the right chip without a follow-up detail call.
+        "currencies": list(session.currencies or ["CNY"]),
+        "primary_currency": session.primary_currency or "CNY",
+    }
+
+
+def _exchange_rate_dict(rate: SessionExchangeRate) -> dict:
+    """Serialise a SessionExchangeRate row for the API response.
+
+    Decimal-as-string for the rate field (matches the v0.2.2 wire
+    contract used elsewhere — FE parseFloat()s it for display).
+    """
+    return {
+        "id": rate.id,
+        "session_id": rate.session_id,
+        "from_currency": rate.from_currency,
+        "to_currency": rate.to_currency,
+        "rate": str(rate.rate),
+        "snapshot_at": _iso(rate.snapshot_at),
+        "set_by": rate.set_by,
     }
 
 
@@ -195,9 +385,13 @@ async def create_session(
     GET /sessions/{id}/invite -- the summary response intentionally
     omits it so list payloads stay compact.
 
+    v0.2.2 (T08): also accepts ``currencies`` / ``primary_currency`` /
+    ``exchange_rates``. Single-currency callers (the legacy form) get
+    the same default behaviour as before -- a CNY-only session.
+
     201: session created.
     401: no/invalid cookie.
-    422: missing/empty/over-long name (pydantic).
+    422: invalid name / currencies / exchange_rates (pydantic).
     """
     name = payload.name.strip()
     if not name:
@@ -215,9 +409,45 @@ async def create_session(
         invite_token=invite_token,
         invite_expires_at=now + timedelta(days=settings.invite_ttl_days),
         invite_created_at=now,
+        # v0.2.2 (T08): persist the currency set + primary. For
+        # single-currency callers the validator defaults preserve the
+        # v0.2.1 behaviour (CNY-only session).
+        currencies=list(payload.currencies),
+        primary_currency=payload.primary_currency,
     )
     db.add(session)
     db.flush()  # populate session.id
+
+    # v0.2.2 (T08/T09): seed SessionExchangeRate rows for every rate
+    # the caller supplied. Each ``(from, to)`` pair ALSO gets the
+    # reciprocal ``(to, from)`` auto-inserted (1/rate) so the FE /
+    # settlement can look up either direction with one round-trip.
+    for r in payload.exchange_rates:
+        # user_id is recorded so future audits can show "Jesse set THB→CNY".
+        db.add(
+            SessionExchangeRate(
+                session_id=session.id,
+                from_currency=r.from_currency,
+                to_currency=r.to_currency,
+                rate=r.rate,
+                set_by=user.id,
+            )
+        )
+        # Reciprocal. If the caller already provided both directions
+        # explicitly, the UNIQUE(session_id, from, to) constraint will
+        # surface a 500 — but our spec mandates you provide ONE direction
+        # and we synthesise the other, so this branch is the normal path.
+        reciprocal = Decimal("1") / r.rate
+        reciprocal = reciprocal.quantize(Decimal("0.00000001"), rounding=ROUND_HALF_UP)
+        db.add(
+            SessionExchangeRate(
+                session_id=session.id,
+                from_currency=r.to_currency,
+                to_currency=r.from_currency,
+                rate=reciprocal,
+                set_by=user.id,
+            )
+        )
 
     # Owner is also a SessionMember (role='owner'). Their per-session
     # nickname defaults to their global default_name; they can PATCH
@@ -344,6 +574,16 @@ async def get_session(
 
     last_bill_participants = _compute_last_bill_participants(db, session.id)
 
+    # v0.2.2 (T08/T09): load every SessionExchangeRate row for this
+    # session so the FE settings page + BillForm can render without
+    # a second API call.
+    rates = (
+        db.query(SessionExchangeRate)
+        .filter(SessionExchangeRate.session_id == session.id)
+        .order_by(SessionExchangeRate.from_currency.asc(), SessionExchangeRate.to_currency.asc())
+        .all()
+    )
+
     payload: dict = {
         "id": session.id,
         "name": session.name,
@@ -363,6 +603,11 @@ async def get_session(
         "invite_token_preview": None,
         "invite_expires_at": None,
         "last_bill_participants": last_bill_participants,
+        # v0.2.2 (T08): full currency metadata for the FE BillForm /
+        # Settle / Settings pages.
+        "currencies": list(session.currencies or ["CNY"]),
+        "primary_currency": session.primary_currency or "CNY",
+        "exchange_rates": [_exchange_rate_dict(r) for r in rates],
     }
 
     # Owner-only invite preview. Non-owners still get 200 but with NULL
