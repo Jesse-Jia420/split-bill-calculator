@@ -1,14 +1,22 @@
 <script lang="ts">
   /**
-   * v0.1.4 (2026-07-02) — session 详情页 polish。
+   * v0.1.4 (2026-07-03) — session 详情页 polish round 2。
    *
-   * 本次 polish (v0.1.4):
-   * - 移除 members 折叠 toggle 按钮: 删掉 <button class="members-toggle">、
-   *   membersOpen state、membersStorageKey / loadMembersOpen / saveMembersOpen /
-   *   toggleMembers 5 个函数,以及对应 .members-toggle / .toggle-caret /
-   *   .toggle-label CSS。
-   * - members 列表 + 头像始终显示: 去掉 {#if membersOpen} 包裹,空成员时仍渲染
-   *   EmptyState,多人时直接渲染 <ul class="members-list">。
+   * 本次 polish (v0.1.4 round 2):
+   * - 改动 1 (PO 10:15 拍板加回): 重新加回 members 折叠 toggle 按钮
+   *   (PO 13:42 删过,现在又加回 — 迭代合理,直接做不质疑)。
+   *   展开态 = 完整 members 列表,折叠态 = 仅头像堆叠 (32px 圆 -8px 重叠)。
+   *   状态按 sessionId 持久化到 localStorage,默认展开。
+   * - 改动 2: FAB `+` 居中对齐 — display: grid + place-items: center +
+   *   padding-bottom: 2px (Inter font 里 `+` baseline 偏上, 视觉补偿 2px)。
+   * - 改动 3: 新建 src/routes/+error.svelte — 401 自动清 user state +
+   *   redirect /auth/login?returnTo=...; 其他 status 显示友好错误页。
+   * - 改动 4: Empty state 条件修复 — session.members.length <= 1 改为 === 0
+   *   (根因: owner 创建时自动加入, length 永远 >= 1, <= 1 让 owner 单独
+   *   session 误触发 Empty state)。
+   *
+   * 沿用 v0.1.4 (round 1):
+   * - bill 折叠动画 + share 独立行 + 成员列表简化
    *
    * 沿用 v0.1.3 Sprint 2 Commit 1:
    * - T6 千分位: 删除手写数字格式化,统一切到 $lib/utils/format.formatMoney。
@@ -36,25 +44,53 @@
   import { user } from '$stores/user';
   import { toast } from '$stores/toast';
 
-  let session: SessionDetail | null = null;
-  let bills: Bill[] = [];
-  let loading = true;
-  let error: string | null = null;
+  // v0.1.4 round 2: 一旦用了 $state runes, 整个组件就进入 runes mode,
+  // 原 Svelte 4 风格的 `$:` 不再允许, 全部改用 $derived;
+  // 同时所有可变的 `let` 也要加 $state, 否则不触发响应式更新。
+  let session = $state<SessionDetail | null>(null);
+  let bills = $state<Bill[]>([]);
+  let loading = $state(true);
+  let error = $state<string | null>(null);
 
-  let memberIdToName: Record<number, string> = {};
-  let memberIdToNet: Record<number, number> = {};
-  let currentMemberId: number | null = null;
+  let memberIdToName = $state<Record<number, string>>({});
+  let memberIdToNet = $state<Record<number, number>>({});
+  let currentMemberId = $state<number | null>(null);
 
-  $: sessionId = Number($page.params.id);
+  // v0.1.4 round 2: 一旦用了 $state runes, 整个组件就进入 runes mode,
+  // 原 Svelte 4 风格的 `$:` 不再允许, 全部改用 $derived。
+  let sessionId = $derived(Number($page.params.id));
 
-  $: currentMember = session
-    ? session.members.find((m) => m.user_id === $user?.user_id) ?? null
-    : null;
-  $: isOwner = currentMember?.role === 'owner';
+  let currentMember = $derived(
+    session
+      ? session.members.find((m) => m.user_id === $user?.user_id) ?? null
+      : null
+  );
+  let isOwner = $derived(currentMember?.role === 'owner');
 
-  // v0.1.4 polish: 移除 members 折叠 toggle,始终展示成员列表 + 头像。
-  // 删掉了 membersOpen state / membersStorageKey / loadMembersOpen /
-  // saveMembersOpen / toggleMembers 5 个 block,以及 localStorage 读写代码。
+  // v0.1.4 round 2 改动 1: 重新加回 members 折叠 toggle。
+  // 默认展开; 用户折叠后按 sessionId 持久化到 localStorage。
+  let membersOpen = $state(true);
+  const membersStorageKey = (sid: number) => `sbc.membersOpen.${sid}`;
+
+  onMount(async () => {
+    // 还原 localStorage 折叠偏好
+    try {
+      const raw = localStorage.getItem(membersStorageKey(sessionId));
+      if (raw !== null) membersOpen = raw === 'true';
+    } catch {
+      // ignore — SSR or storage disabled
+    }
+    await load();
+  });
+
+  function toggleMembers() {
+    membersOpen = !membersOpen;
+    try {
+      localStorage.setItem(membersStorageKey(sessionId), String(membersOpen));
+    } catch {
+      // ignore
+    }
+  }
 
   // 头像首字母大写 (跨语言 helper)
   function avatarLetter(name: string): string {
@@ -110,10 +146,6 @@
     }
   }
 
-  onMount(async () => {
-    await load();
-  });
-
   async function handleDeleteBill(billId: number) {
     if (!confirm('确认删除这笔账单?')) return;
     try {
@@ -126,7 +158,7 @@
   }
 
   // T14: copy invite link to clipboard (EmptyState CTA 用)
-  let copyingInvite = false;
+  let copyingInvite = $state(false);
   async function copyInviteLink() {
     if (!session) return;
     copyingInvite = true;
@@ -185,63 +217,93 @@
         </h3>
         <div class="members-actions">
           <InviteLinkButton sessionId={session.id} {isOwner} />
+          <!-- v0.1.4 round 2 改动 1: 重新加回折叠 toggle 按钮 (PO 10:15 拍板) -->
+          <button
+            type="button"
+            class="members-toggle"
+            onclick={toggleMembers}
+            aria-expanded={membersOpen}
+            aria-label={membersOpen ? '收起成员列表' : '展开成员列表'}
+          >
+            <span class="toggle-caret" class:open={membersOpen} aria-hidden="true">▾</span>
+            <span class="toggle-label">{membersOpen ? '收起' : '展开'}</span>
+          </button>
         </div>
       </header>
 
-      <!-- v0.1.4 polish: 去掉 {#if membersOpen} 包裹,members 列表始终渲染 (改动 4) -->
-      {#if session.members.length <= 1}
-        <EmptyState
-          icon="users"
-          title="还没有成员"
-          description="分享邀请链接,邀请朋友加入这个 session。"
-          ctaLabel={copyingInvite ? '已复制' : '复制邀请链接'}
-          onCtaClick={copyInviteLink}
-        />
+      <!-- v0.1.4 round 2 改动 1: 折叠态切换 -->
+      {#if membersOpen}
+        <!-- v0.1.4 round 2 改动 4: 条件从 <= 1 改为 === 0 (owner 自动加入 length >= 1) -->
+        {#if session.members.length === 0}
+          <EmptyState
+            icon="users"
+            title="还没有成员"
+            description="分享邀请链接,邀请朋友加入这个 session。"
+            ctaLabel={copyingInvite ? '已复制' : '复制邀请链接'}
+            onCtaClick={copyInviteLink}
+          />
+        {:else}
+          <!-- stagger mount: 每个 li delay i*30ms (cap 300ms) -->
+          <ul class="members-list">
+            {#each session.members as m, i (m.id)}
+              <li
+                class="member-item"
+                in:fly={{ y: 8, duration: 220, delay: Math.min(i * 30, 300) }}
+              >
+                <div class="member-avatar" aria-hidden="true">{avatarLetter(m.display_name)}</div>
+                <div class="member-info">
+                  <div class="member-name-row">
+                    <span class="member-name">{m.display_name}</span>
+                    {#if m.role === 'owner'}
+                      <span class="owner-badge">owner</span>
+                    {/if}
+                    {#if currentMember?.id === m.id}
+                      <span class="me-badge">me</span>
+                    {/if}
+                  </div>
+                  <div class="member-meta-row">
+                    <span
+                      class="member-net"
+                      class:pos={(memberIdToNet[m.id] ?? 0) > 0}
+                      class:neg={(memberIdToNet[m.id] ?? 0) < 0}
+                    >
+                      {memberIdToNet[m.id] !== undefined ? fmtNet(memberIdToNet[m.id]) : '—'}
+                    </span>
+                    {#if m.email}
+                      <span class="member-email muted">{m.email}</span>
+                    {/if}
+                  </div>
+                </div>
+                {#if isOwner && m.role !== 'owner'}
+                  <button
+                    type="button"
+                    class="member-remove"
+                    onclick={() => handleDeleteMemberClick(m)}
+                    aria-label="移除成员 {m.display_name}"
+                    title="owner-only: v0.2 待 BE 支持 removeMember"
+                    disabled
+                  >×</button>
+                {/if}
+              </li>
+            {/each}
+          </ul>
+        {/if}
       {:else}
-        <!-- stagger mount: 每个 li delay i*30ms (cap 300ms) -->
-        <ul class="members-list">
-          {#each session.members as m, i (m.id)}
-            <li
-              class="member-item"
-              in:fly={{ y: 8, duration: 220, delay: Math.min(i * 30, 300) }}
+        <!-- v0.1.4 round 2 改动 1: 折叠态 — 仅小头像堆叠 -->
+        <div class="members-avatars-collapsed">
+          {#each session.members as m (m.id)}
+            <div
+              class="avatar-mini"
+              title="{m.display_name}{m.email ? ' ' + m.email : ''}"
+              aria-label={m.display_name}
             >
-              <div class="member-avatar" aria-hidden="true">{avatarLetter(m.display_name)}</div>
-              <div class="member-info">
-                <div class="member-name-row">
-                  <span class="member-name">{m.display_name}</span>
-                  {#if m.role === 'owner'}
-                    <span class="owner-badge">owner</span>
-                  {/if}
-                  {#if currentMember?.id === m.id}
-                    <span class="me-badge">me</span>
-                  {/if}
-                </div>
-                <div class="member-meta-row">
-                  <span
-                    class="member-net"
-                    class:pos={(memberIdToNet[m.id] ?? 0) > 0}
-                    class:neg={(memberIdToNet[m.id] ?? 0) < 0}
-                  >
-                    {memberIdToNet[m.id] !== undefined ? fmtNet(memberIdToNet[m.id]) : '—'}
-                  </span>
-                  {#if m.email}
-                    <span class="member-email muted">{m.email}</span>
-                  {/if}
-                </div>
-              </div>
-              {#if isOwner && m.role !== 'owner'}
-                <button
-                  type="button"
-                  class="member-remove"
-                  on:click={() => handleDeleteMemberClick(m)}
-                  aria-label="移除成员 {m.display_name}"
-                  title="owner-only: v0.2 待 BE 支持 removeMember"
-                  disabled
-                >×</button>
-              {/if}
-            </li>
+              {avatarLetter(m.display_name)}
+            </div>
           {/each}
-        </ul>
+          {#if session.members.length === 0}
+            <span class="muted small">还没有成员</span>
+          {/if}
+        </div>
       {/if}
     </div>
 
@@ -340,8 +402,39 @@
     gap: var(--space-2);
   }
 
-  /* v0.1.4 polish: .members-toggle / .toggle-caret / .toggle-label CSS 已删除 —
-     头部收起按钮移除后,这些 class 不再使用。 */
+  /* v0.1.4 round 2 改动 1: 重新加回折叠 toggle 按钮 CSS */
+  .members-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: transparent;
+    border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: var(--font-size-sm, 13px);
+    color: var(--color-text-muted, #6b7280);
+    cursor: pointer;
+    transition: background-color 150ms ease, color 150ms ease;
+  }
+  .members-toggle:hover {
+    background: var(--color-bg, #f9fafb);
+    color: var(--color-text, #111827);
+  }
+  .toggle-caret {
+    display: inline-block;
+    transition: transform 200ms ease;
+    font-size: 10px;
+    line-height: 1;
+  }
+  .toggle-caret.open {
+    transform: rotate(180deg);
+  }
+  /* 移动端 ≤480px: 隐藏 toggle 文字, 只留 caret */
+  @media (max-width: 480px) {
+    .members-toggle .toggle-label {
+      display: none;
+    }
+  }
 
   /* === members list — grid 布局 === */
   .members-list {
@@ -467,6 +560,41 @@
     color: var(--error-500);
   }
 
+  /* v0.1.4 round 2 改动 1: 折叠态 — 小头像堆叠 (32px 圆 -8px 重叠) */
+  .members-avatars-collapsed {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0;
+    margin-top: var(--space-3);
+    padding: var(--space-2) 0;
+    min-height: 32px;
+  }
+  .avatar-mini {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--accent-500);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 13px;
+    margin-left: -8px;
+    border: 2px solid var(--color-bg, white);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+    user-select: none;
+  }
+  .avatar-mini:first-child {
+    margin-left: 0;
+  }
+  .members-avatars-collapsed .muted.small {
+    margin-left: var(--space-3);
+    font-size: var(--font-size-sm);
+  }
+
   /* === 移动端 ≤380px: avatar 32px, padding 紧凑 === */
   @media (max-width: 480px) {
     .members-card {
@@ -491,8 +619,6 @@
     .member-email {
       display: none; /* 移动端太挤,隐藏 */
     }
-    /* v0.1.4 polish: .members-toggle .toggle-label 移动端隐藏 CSS 已删除
-       (toggle 按钮整体不再渲染,这条规则失去意义) */
   }
 
   /* === bills section header === */
@@ -529,7 +655,11 @@
     }
   }
 
-  /* === FAB === */
+  /* === FAB ===
+     v0.1.4 round 2 改动 2: `+` 居中对齐修复。
+     原因: Inter font 里 `+` baseline 偏上 (mathematical center ≠ optical center),
+     用 grid + place-items: center 完美居中, 再 padding-bottom: 2px 视觉补偿,
+     让 `+` 在圆形按钮里看起来完全居中。 */
   .fab {
     position: fixed;
     right: 24px;
@@ -546,11 +676,11 @@
     z-index: 50;
     cursor: pointer;
     border: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    text-decoration: none;
+    display: grid;            /* 改 grid */
+    place-items: center;      /* 完美居中 */
     padding: 0;
+    padding-bottom: 2px;      /* 视觉补偿: + 在 Inter 里偏上, 下移 2px 视觉居中 */
+    text-decoration: none;
     transition: transform 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
   }
   .fab:hover {
@@ -591,5 +721,8 @@
   }
   .error {
     color: var(--error-500);
+  }
+  .small {
+    font-size: var(--font-size-sm);
   }
 </style>
