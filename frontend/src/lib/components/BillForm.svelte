@@ -2,7 +2,9 @@
   import { onMount } from 'svelte';
   import type { SessionDetail } from '$api/sessions';
   import type { Bill, ParseBillResult } from '$api/bills';
+  import { evaluateExpression } from '$api/calculator';
   import AiAssistInput from './AiAssistInput.svelte';
+  import AmountCalculatorInput from './AmountCalculatorInput.svelte';
 
   /**
    * v0.1.2 (PO 2026-07-01 fix #3): edit-page support.
@@ -28,6 +30,13 @@
     occurred_at: string;
     currency: string;
     participants: Array<{ member_id: number; is_exclusive: boolean; exclusive_amount: number }>;
+    // v0.2.1 T01: raw calculator expression echoed back to the BE.
+    // Empty string when the user typed no expression (in which case the
+    // BE keeps the supplied `amount` and stores NULL for amount_expression).
+    amount_expression: string;
+    // Whether the BE should re-evaluate `amount_expression` and overwrite
+    // `amount` (always true when the user typed into the calculator).
+    use_calculator: boolean;
   }) => Promise<void> | void) | null = null;
 
   /**
@@ -44,10 +53,23 @@
   /** v0.1.2 (fix #3): when mode === 'edit', prefill the form. */
   export let existingBill: Bill | null = null;
 
+  /**
+   * v0.2.1 T03 (PRD §3.6.3): when this prop > 0 the smart-date chips
+   * are suppressed (the session already has bills). When 0 — i.e. the
+   * first bill of the session — we render "今天 / 昨天 / 上周" quick
+   * chips above the date input. Only consulted in create mode.
+   */
+  export let existingBillsCount: number = 0;
+
   $: isEdit = mode === 'edit';
   $: canEditDescription = !isEdit;
 
-  let amount = '';
+  // v0.2.1 T01: the AmountCalculatorInput owns the amount field. ``amount`` is
+  // the currently-evaluated number (null when the expression is empty or
+  // invalid); ``amountExpression`` is the raw string the user typed (also
+  // written back to the API as ``amount_expression``).
+  let amount: number | null = null;
+  let amountExpression: string = '';
   let payerMemberId: number | null = null;
   let description = '';
   let occurredAt: string = new Date().toISOString().slice(0, 16); // datetime-local
@@ -62,13 +84,22 @@
   let formError: string | null = null;
   let descriptionPristine = true;
 
+  // v0.2.1 T02+T03: last-bill participants + smart date suggestions.
+  // These are read once on mount so the form can prefetch defaults before
+  // the user starts interacting.
+  let smartDateChips: Array<{ label: string; dateLocal: string }> = [];
+  let lastParticipantsApplied = false;
+
   // v0.1.2 (T19 + fix #3): apply the caller-supplied default payer once
   // the form mounts. In create mode we use defaultPayerMemberId; in edit
   // mode the existing bill's payer wins (if it's still a session member).
   onMount(() => {
     if (isEdit && existingBill) {
       // Prefill from existing bill.
-      amount = String(existingBill.amount);
+      amount = existingBill.amount;
+      amountExpression = existingBill.amount_expression
+        ? existingBill.amount_expression
+        : String(existingBill.amount);
       payerMemberId = existingBill.payer_id;
       // description: visible but not editable. Keep its current value
       // so the user can see what they're editing.
@@ -108,7 +139,62 @@
     ) {
       payerMemberId = defaultPayerMemberId;
     }
+
+    // v0.2.1 T02: default-勾选「最近一笔账单的参与者」(create mode only).
+    // PRD §3.6.2 — first visit (no prior bills) 走 v0.1.1 默认: 全员 included.
+    if (!isEdit && !lastParticipantsApplied) {
+      const lastSet = session.last_bill_participants;
+      // 前端 localStorage fallback: 网络错误 / 接口降级时仍能保留上次选择
+      try {
+        const lsKey = `sbc.lastParticipants.${session.id}`;
+        const lsRaw = localStorage.getItem(lsKey);
+        const lsSet = lsRaw ? JSON.parse(lsRaw) : null;
+        if (Array.isArray(lsSet) && lsSet.length > 0 && (!Array.isArray(lastSet) || lastSet.length === 0)) {
+          // Fallback 仅在 BE 没返回时用
+          applyParticipantsDefault(lsSet);
+        } else if (Array.isArray(lastSet) && lastSet.length > 0) {
+          applyParticipantsDefault(lastSet);
+          localStorage.setItem(lsKey, JSON.stringify(lastSet));
+        }
+      } catch {
+        // localStorage 可能被禁用 — 静默忽略
+      }
+      lastParticipantsApplied = true;
+    }
+
+    // v0.2.1 T03: 首笔 session (没有账单) 显示 3 个 chip 「今天 / 昨天 / 上周」。
+    // 非空时不显示 (避免不停呈现「今天」)。PRD §3.6.3。
+    if (existingBillsCount === 0 && !isEdit && session.members.length >= 1) {
+      const today = new Date();
+      const fmt = (d: Date) => {
+        const pad = (n: number) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T08:00`;
+      };
+      const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+      const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+      smartDateChips = [
+        { label: '今天', dateLocal: fmt(today) },
+        { label: '昨天', dateLocal: fmt(yesterday) },
+        { label: '上周', dateLocal: fmt(lastWeek) },
+      ];
+    }
   });
+
+  function applyParticipantsDefault(memberIds: number[]) {
+    const valid = new Set(memberIds);
+    for (const m of session.members) {
+      const st = participantState[m.id];
+      if (!st) continue;
+      st.included = valid.has(m.id);
+    }
+    participantState = { ...participantState };
+    // Persist for next time.
+    try {
+      localStorage.setItem(`sbc.lastParticipants.${session.id}`, JSON.stringify(memberIds));
+    } catch {
+      // ignore
+    }
+  }
 
   function toggleParticipant(memberId: number) {
     if (!participantState[memberId]) return;
@@ -131,7 +217,9 @@
 
   function applyAiResult(res: ParseBillResult) {
     if (res.amount && Number(res.amount) > 0) {
-      amount = String(res.amount);
+      // AI 辅助 — 用纯数字填入 expression, 计算器立刻得到金额
+      amount = Number(res.amount);
+      amountExpression = String(res.amount);
     }
     if (res.description) {
       description = res.description;
@@ -174,19 +262,22 @@
         exclusive_amount: excl
       });
     }
+    // v0.2.1 T01: send BOTH the expression and the evaluated amount.
+    // use_calculator flips on whenever the expression is non-empty
+    // (e.g. "350/5") so the BE re-evaluates and stores both.
+    // Edit-mode expressions are echoed back verbatim; the BE's regex
+    // reject any malformed expressions with 422 before storage.
+    const expr = amountExpression.trim();
+    const useCalc = expr.length > 0;
     return {
-      amount: Number(amount),
+      amount: amount ?? 0,
       payer_member_id: payerMemberId ?? 0,
-      // In edit mode we deliberately send the existing description back
-      // so the field is preserved if the backend decides to accept it,
-      // but UpdateBillRequest rejects unknown fields (Pydantic
-      // extra='forbid') -- which means the description never actually
-      // reaches the wire. We still send it for symmetry / future
-      // backends that relax the rule.
       description: description.trim() ? description.trim() : null,
       occurred_at: new Date(occurredAt).toISOString(),
       currency: currency || 'CNY',
-      participants
+      participants,
+      amount_expression: expr,
+      use_calculator: useCalc,
     };
   }
 
@@ -194,7 +285,7 @@
     e.preventDefault();
     formError = null;
     const p = buildPayload();
-    if (!Number.isFinite(p.amount) || p.amount <= 0) {
+    if (amount == null || !Number.isFinite(amount) || amount <= 0) {
       formError = '请填写金额(大于 0)';
       return;
     }
@@ -221,13 +312,38 @@
   <div class="row" style="gap: var(--space-3); flex-wrap: wrap;">
     <div style="flex: 2; min-width: 140px;">
       <label class="label" for="amount">金额</label>
-      <input id="amount" type="number" min="0" step="0.01" bind:value={amount} placeholder="0.00" />
+      <!-- v0.2.1 T01: AmountCalculatorInput replaces the bare number input.
+           Calculator preview lives inside the component; this row holds the
+           currency suffix only. -->
+      <AmountCalculatorInput
+        bind:value={amountExpression}
+        bind:evaluated={amount}
+        {currency}
+        disabled={submitting}
+        on:change={(e) => (amountExpression = e.detail)}
+        on:amountChange={(e) => (amount = e.detail)}
+      />
     </div>
     <div style="flex: 1; min-width: 100px;">
       <label class="label" for="currency">币种</label>
       <input id="currency" type="text" bind:value={currency} maxlength="8" />
     </div>
   </div>
+
+  {#if smartDateChips.length > 0 && !isEdit}
+    <div class="smart-dates" aria-label="快速日期">
+      <span class="muted hint">首笔 session — 快速选择日期:</span>
+      <div class="chips">
+        {#each smartDateChips as chip}
+          <button
+            type="button"
+            class="chip"
+            on:click={() => (occurredAt = chip.dateLocal)}
+          >{chip.label}</button>
+        {/each}
+      </div>
+    </div>
+  {/if}
 
   <div>
     <label class="label" for="payer">付款人</label>
@@ -327,6 +443,39 @@
 </form>
 
 <style>
+  .smart-dates {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    margin-top: calc(-1 * var(--space-2, 8px));
+  }
+  .smart-dates .chips {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+  .smart-dates .chip {
+    appearance: none;
+    background: var(--color-bg, #fff);
+    border: 1px solid var(--color-border, #e5e7eb);
+    color: var(--color-text, #111827);
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: var(--font-size-sm, 13px);
+    font-weight: 500;
+    min-height: 36px;
+    cursor: pointer;
+    transition: background-color 120ms ease, transform 80ms ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .smart-dates .chip:active {
+    background: var(--accent-500, #3b82f6);
+    color: #fff;
+    border-color: var(--accent-500, #3b82f6);
+    transform: scale(0.97);
+  }
+
   .ppts li {
     padding: var(--space-2) 0;
     display: flex;

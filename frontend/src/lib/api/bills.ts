@@ -19,6 +19,9 @@ export interface Bill {
   created_at: string;
   status: string;
   participants: BillParticipant[];
+  /** v0.2.1 T01 (PRD §3.6.1): raw calculator expression echoed from BE.
+   *  Null for bills recorded before v0.2.1 or with use_calculator=false. */
+  amount_expression: string | null;
 }
 
 export interface BillParticipantInput {
@@ -34,6 +37,12 @@ export interface CreateBillInput {
   occurred_at: string;
   currency?: string;
   participants: BillParticipantInput[];
+  /** v0.2.1 T01: raw calculator expression. Send empty string when the
+   *  user didn't use the calculator. */
+  amount_expression?: string;
+  /** v0.2.1 T01: when true, BE re-evaluates amount_expression and uses
+   *  the result for `amount`. Default false (legacy callers). */
+  use_calculator?: boolean;
 }
 
 export const listBills = (sessionId: number) => {
