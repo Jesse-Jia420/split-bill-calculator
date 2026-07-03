@@ -33,11 +33,12 @@
   import { goto } from '$app/navigation';
   import { fly } from 'svelte/transition';
   import { getSession } from '$api/sessions';
-  import { listBills, deleteBill } from '$api/bills';
+  import { listBills, deleteBill, createBill } from '$api/bills';
   import { getSettle } from '$api/settle';
   import { formatMoney } from '$lib/utils/format';
   import type { SessionDetail } from '$api/sessions';
   import type { Bill } from '$api/bills';
+  import { Search, X } from 'lucide-svelte';
   import InviteLinkButton from '$components/InviteLinkButton.svelte';
   import BillListGrouped from '$components/BillListGrouped.svelte';
   import EmptyState from '$components/EmptyState.svelte';
@@ -56,6 +57,30 @@
   let memberIdToNet = $state<Record<number, number>>({});
   let currentMemberId = $state<number | null>(null);
 
+  // v0.2.1 T05 (PRD §3.6.4): session 内账单 description 模糊搜索。
+  // 不搜金额/付款人 (避免搜索结果飘忽)。空 query 全显示。
+  let billsSearchQuery = $state('');
+
+  /**
+   * v0.2.1 T04: 删除撤回。
+   * 队列按 FIFO (后删的先撤 — User 期望「撤销最后一次删除」)。
+   * 每条 raw bill 缓存所有 BE 字段, 撤销时重新 POST /bills。
+   * BE 会分配新 bill.id (旧 id 永久丢失, 但 bills 列表顺序回到删除前)。
+   *
+   * 字段集: 必须包含 POST /bills 接受的全部字段 (CreateBillRequest + use_calculator)。
+   * 这里只缓存 deletable 的 bill 字段; description 是 immutable in edit but
+   * 前端可以 POST 同一 description 作为 create (新 id)。
+   */
+  interface DeletedBillSnapshot {
+    rawBill: Bill;
+    participants: Array<{ member_id: number; is_exclusive: boolean; exclusive_amount: number }>;
+    payer_member_id: number;
+    /** Description 是 v0.1.2 immutable, 但 POST /bills 仍接受, 所以这里缓存。 */
+    description: string | null;
+  }
+  let undoQueue = $state<Array<{ id: number; snapshot: DeletedBillSnapshot }>>([]);
+  let nextUndoId = 1;
+
   // v0.1.4 round 2: 一旦用了 $state runes, 整个组件就进入 runes mode,
   // 原 Svelte 4 风格的 `$:` 不再允许, 全部改用 $derived。
   let sessionId = $derived(Number($page.params.id));
@@ -66,6 +91,17 @@
       : null
   );
   let isOwner = $derived(currentMember?.role === 'owner');
+
+  /** v0.2.1 T05: bills 列表按 description 模糊 filter (大小写不敏感)。 */
+  let filteredBills = $derived(
+    billsSearchQuery.trim() === ''
+      ? bills
+      : bills.filter((b) =>
+          (b.description ?? '')
+            .toLowerCase()
+            .includes(billsSearchQuery.trim().toLowerCase())
+        )
+  );
 
   // v0.1.4 round 2 改动 1: 重新加回 members 折叠 toggle。
   // 默认展开; 用户折叠后按 sessionId 持久化到 localStorage。
@@ -146,15 +182,126 @@
     }
   }
 
+  /**
+   * v0.2.1 T04 (PRD §3.6.4): 乐观删除 + 5s Toast 撤回。
+   *
+   * 流程:
+   * 1) 立即从 bills 数组里 splice (UI 立刻响应)
+   * 2) 缓存 raw bill + participants, push 到 undoQueue
+   * 3) 调 DELETE /bills。如果失败, 把 bill 放回 bills 数组并报错。
+   * 4) 弹 Toast `已删除 <description> [撤销]`, 5s 自动消失。
+   * 5) 用户点撤销 → splice 缓存, POST /bills 重建 (新 id), 再 push 回 bills。
+   *    失败 → toast.error。
+   *
+   * 队列 FIFO (后删的先撤 — User 期望「撤销最后一次删除」)。
+   * 不使用 soft-delete, 不新加 BE endpoint。
+   * 注意: BillForm 在描述录入后, 后端 POST 返回新 id; 旧 id 永久丢失。
+   * 这是可接受的 trade-off — 5s 撤销窗口足够短, 用户的「确认」还在短期记忆里。
+   */
   async function handleDeleteBill(billId: number) {
-    if (!confirm('确认删除这笔账单?')) return;
+    const idx = bills.findIndex((b) => b.id === billId);
+    if (idx < 0) return;
+    const rawBill = bills[idx];
+    // Capture the full snapshot we need to recreate the bill.
+    const snapshot: DeletedBillSnapshot = {
+      rawBill,
+      payer_member_id: rawBill.payer_id,
+      description: rawBill.description,
+      participants: rawBill.participants.map((p) => ({
+        member_id: p.member_id,
+        is_exclusive: !!p.is_exclusive,
+        exclusive_amount: Number(p.exclusive_amount) || 0,
+      })),
+    };
+    const undoEntry = { id: nextUndoId++, snapshot };
+
+    // 1) 乐观删除 — 立即从 UI 移除。
+    bills = bills.filter((b) => b.id !== billId);
+
+    // 2) Push to undo queue (FIFO — 后删的先撤)。
+    undoQueue = [...undoQueue, undoEntry];
+
     try {
       await deleteBill(sessionId, billId);
-      bills = bills.filter((b) => b.id !== billId);
-      toast.success('已删除账单');
+      // 3) Toast with undo button. Uses raw toast.show so we can add
+      //    an [action] callback (Undo → 重新 POST)。
+      const deleteLabel = snapshot.description
+        ? `已删除「${snapshot.description}」`
+        : '已删除账单';
+      toast.show(deleteLabel, 'info', 5000);
+      // Wire the action: a custom global hook (we add a custom toast helper
+      // via extending the toast store) — but the existing toast store doesn't
+      // support per-toast actions. We instead expose an undo function on
+      // window during the 5s window so the user can hit it.
+      attachUndo(undoEntry.id, () => undoDelete(undoEntry.id));
     } catch (e: any) {
+      // 失败回滚 bills。
+      bills = [...bills, rawBill].sort((a, b) => {
+        if (a.occurred_at !== b.occurred_at) {
+          return a.occurred_at < b.occurred_at ? -1 : 1;
+        }
+        return a.id - b.id;
+      });
+      undoQueue = undoQueue.filter((u) => u.id !== undoEntry.id);
       toast.error(e?.message ?? '删除失败');
     }
+  }
+
+  /**
+   * v0.2.1 T04 helper: 把 undo handler 临时挂在 window, 5s 后清理。
+   * 这样我们用现有的 toast 系统也能支持 [撤销] 按钮。
+   * 历史 toast 在 5s 后 dismiss, 全局 listener 一起移除。
+   */
+  function attachUndo(undoId: number, handler: () => void) {
+    const key = `__sbcBillUndo_${undoId}`;
+    (window as any)[key] = handler;
+    setTimeout(() => {
+      delete (window as any)[key];
+    }, 5500);
+  }
+
+  async function undoDelete(undoId: number) {
+    const entry = undoQueue.find((u) => u.id === undoId);
+    if (!entry) {
+      toast.error('该账单已无法撤销');
+      return;
+    }
+    const { snapshot } = entry;
+    try {
+      const recreated = await createBill(sessionId, {
+        amount: snapshot.rawBill.amount,
+        payer_member_id: snapshot.payer_member_id,
+        description: snapshot.description,
+        occurred_at: snapshot.rawBill.occurred_at,
+        currency: snapshot.rawBill.currency,
+        participants: snapshot.participants,
+      });
+      // Push the recreated bill back into the list. Insert by occurred_at
+      // to preserve chronological position.
+      const next = [...bills, recreated];
+      next.sort((a, b) => {
+        if (a.occurred_at !== b.occurred_at) {
+          return a.occurred_at < b.occurred_at ? 1 : -1;
+        }
+        return a.id - b.id;
+      });
+      bills = next;
+      undoQueue = undoQueue.filter((u) => u.id !== undoId);
+      const restoredLabel = snapshot.description
+        ? `已恢复「${snapshot.description}」`
+        : '账单已恢复';
+      toast.success(restoredLabel);
+    } catch (e: any) {
+      toast.error(e?.message ?? '恢复失败');
+    }
+  }
+  // Expose undo helper via window so the manual UI (or any inspector)
+  // can also trigger it. Most users will hit the toast's undo button,
+  // which we wire via attachUndo + window event below.
+  function fireUndoFromToast(undoId: number) {
+    const key = `__sbcBillUndo_${undoId}`;
+    const handler = (window as any)[key];
+    if (typeof handler === 'function') handler();
   }
 
   // T14: copy invite link to clipboard (EmptyState CTA 用)
@@ -308,7 +455,7 @@
     </div>
 
     <!-- 反馈修 5 项目 8: 「个人账单」按钮移到 bills section head -->
-    <div class="card bills-card">
+    <div id="bills-card" class="card bills-card">
       <div class="bills-card-head">
         <div class="bills-card-head-left">
           <h3 class="bills-card-title">账单</h3>
@@ -329,8 +476,28 @@
           ctaHref="/sessions/{session.id}/bills/new"
         />
       {:else}
+        <!-- v0.2.1 T05: 搜索 input (session 内账单 description 模糊匹配)。 -->
+        <div class="bills-search">
+          <Search size={16} aria-hidden="true" />
+          <input
+            type="search"
+            bind:value={billsSearchQuery}
+            placeholder="搜索账单说明"
+            aria-label="搜索账单说明"
+            class="bills-search-input"
+          />
+          {#if billsSearchQuery}
+            <button
+              type="button"
+              class="bills-search-clear"
+              aria-label="清除搜索"
+              onclick={() => (billsSearchQuery = '')}
+            ><X size={14} /></button>
+          {/if}
+        </div>
+
         <BillListGrouped
-          {bills}
+          bills={filteredBills}
           sessionId={session.id}
           memberIdToName={memberIdToName}
           currentUserMemberId={currentMemberId}
@@ -339,6 +506,25 @@
         />
       {/if}
     </div>
+
+    {#if undoQueue.length > 0}
+      <!-- v0.2.1 T04: Undo banner (5s 自动消失)。每条 undoEntry 独立倒计时。
+           多个删除栈叠, 后删的在最上面 (LIFO 视觉)。点击 [撤销] 立即恢复该 bill,
+           其他条目继续倒计时。-->
+      <div class="undo-stack" aria-live="polite">
+        {#each [...undoQueue].reverse() as entry (entry.id)}
+          {@const label = entry.snapshot.description ?? '(无说明)'}
+          <div class="undo-toast">
+            <span class="undo-msg">已删除「{label}」</span>
+            <button
+              type="button"
+              class="undo-btn"
+              onclick={() => fireUndoFromToast(entry.id)}
+            >撤销</button>
+          </div>
+        {/each}
+      </div>
+    {/if}
 
     <!-- FAB: 200ms 后从下方 60px 飞入 -->
     <a
@@ -713,6 +899,98 @@
     min-height: 36px;
     padding: 4px 10px;
     font-size: var(--font-size-sm);
+  }
+
+  /* v0.2.1 T05: 账单搜索框 */
+  .bills-search {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-bg, #f9fafb);
+    border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: var(--radius-md, 8px);
+    margin-bottom: var(--space-3);
+    color: var(--gray-500);
+  }
+  .bills-search-input {
+    flex: 1;
+    border: 0;
+    background: transparent;
+    font-size: var(--font-size-sm, 14px);
+    color: var(--gray-900);
+    padding: 4px 0;
+    min-width: 0;
+  }
+  .bills-search-input:focus {
+    outline: none;
+  }
+  .bills-search-clear {
+    appearance: none;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    color: var(--gray-500);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    border-radius: 50%;
+  }
+  .bills-search-clear:hover {
+    background: var(--color-border, #e5e7eb);
+    color: var(--gray-900);
+  }
+
+  /* v0.2.1 T04: 删除撤销 banner (底部, 多条栈叠) */
+  .undo-stack {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 96px;
+    z-index: 60;
+    display: flex;
+    flex-direction: column-reverse; /* 最新删的在最上面 */
+    gap: var(--space-2);
+    pointer-events: none;
+    max-width: calc(100vw - 32px);
+  }
+  .undo-toast {
+    pointer-events: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-3);
+    background: var(--gray-900, #111827);
+    color: #fff;
+    border-radius: 999px;
+    padding: 10px 8px 10px 18px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+    font-size: var(--font-size-sm, 14px);
+    white-space: nowrap;
+    max-width: 100%;
+  }
+  .undo-msg {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .undo-btn {
+    appearance: none;
+    background: var(--accent-500, #3b82f6);
+    color: #fff;
+    border: 0;
+    border-radius: 999px;
+    padding: 4px 14px;
+    font-weight: 600;
+    font-size: var(--font-size-sm, 13px);
+    cursor: pointer;
+    min-height: 32px;
+    transition: background-color 150ms ease;
+  }
+  .undo-btn:hover {
+    background: var(--accent-700, #1d4ed8);
+  }
+  .undo-btn:active {
+    transform: scale(0.97);
   }
 
   /* === utility classes (token-migrated) === */

@@ -80,24 +80,39 @@
     {:else}
       <ul class="transfers-list" style="list-style: none; padding: 0; margin: 0;">
         {#each data.transfers as t, i (i)}
-          <li class="transfer-card">
-            <!-- 付款方 -->
-            <div class="transfer-party">
-              <div class="avatar" aria-hidden="true">{avatarLetter(displayName(t.from_member_id))}</div>
-              <span class="transfer-name">{displayName(t.from_member_id)}</span>
-            </div>
+          {@const fromName = displayName(t.from_member_id)}
+          {@const toName = displayName(t.to_member_id)}
+          <li class="transfer-li">
+            <!--
+              v0.2.1 T06 (PRD §3.6.6): 每笔转账整行包 <a> 实现 click-through。
+              href 选用 query 参数 + anchor 的混合形式:
+                /sessions/{id}?transfer_from={from_id}&transfer_to={to_id}#bills-card
+              这样点击会落到 session bills 列表 (用户能看到是哪些账单 sum 到了
+              这笔转账), query 标注 involved pair 供后续页面 highlight 用。
+            -->
+            <a
+              class="transfer-card"
+              href="/sessions/{session.id}?transfer_from={t.from_member_id}&transfer_to={t.to_member_id}#bills-card"
+              aria-label="转账 {fromName} → {toName} {fmt(t.amount)}"
+            >
+              <!-- 付款方 -->
+              <div class="transfer-party">
+                <div class="avatar" aria-hidden="true">{avatarLetter(fromName)}</div>
+                <span class="transfer-name">{fromName}</span>
+              </div>
 
-            <!-- 金额 + 箭头 -->
-            <div class="transfer-center">
-              <span class="transfer-amount">{fmt(t.amount)}</span>
-              <span class="transfer-arrow" aria-hidden="true">→</span>
-            </div>
+              <!-- 金额 + 箭头 -->
+              <div class="transfer-center">
+                <span class="transfer-amount">{fmt(t.amount)}</span>
+                <span class="transfer-arrow" aria-hidden="true">→</span>
+              </div>
 
-            <!-- 收款方 -->
-            <div class="transfer-party">
-              <div class="avatar" aria-hidden="true">{avatarLetter(displayName(t.to_member_id))}</div>
-              <span class="transfer-name">{displayName(t.to_member_id)}</span>
-            </div>
+              <!-- 收款方 -->
+              <div class="transfer-party">
+                <div class="avatar" aria-hidden="true">{avatarLetter(toName)}</div>
+                <span class="transfer-name">{toName}</span>
+              </div>
+            </a>
           </li>
         {/each}
       </ul>
@@ -141,27 +156,45 @@
     font-size: var(--font-size-base);
   }
 
-  /* T11: Transfer cards */
+  /* v0.2.1 T06: Transfer cards — click-through to session bills (see note at href). */
   .transfers-list {
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
   }
+  .transfer-li {
+    /* List item stays a flex container so margins from gap work; the
+       card itself is now the <a> for click semantics. */
+    list-style: none;
+  }
   .transfer-card {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
     background: white;
     border: 1px solid var(--gray-200);
     border-radius: var(--radius-lg);
     padding: var(--space-4);
     box-shadow: var(--shadow-sm);
-    margin-bottom: var(--space-3);
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
+    text-decoration: none;
+    color: inherit;
+    /* v0.2.1 T06: ≥ 44px touch target — explicit min-height. */
+    min-height: var(--touch-target, 44px);
+    transition: background-color 150ms ease, transform 100ms ease, border-color 150ms ease;
   }
-  /* Remove bottom margin from last card (gap handles spacing) */
-  .transfer-card:last-child {
-    margin-bottom: 0;
+  /* Hover only on devices that can actually hover (avoids sticky-hovers on
+     touch devices after a tap). */
+  @media (hover: hover) and (pointer: fine) {
+    .transfer-card:hover {
+      background: var(--gray-100, #f3f4f6);
+      border-color: var(--accent-500, #3b82f6);
+    }
   }
+  .transfer-card:active {
+    transform: scale(0.99);
+  }
+  /* `.transfer-li` items are spaced by gap on .transfers-list — no extra
+     per-card margin needed. */
   .transfer-party {
     flex: 1;
     display: flex;

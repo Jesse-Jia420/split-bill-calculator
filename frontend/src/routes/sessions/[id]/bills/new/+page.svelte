@@ -3,7 +3,7 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { getSession } from '$api/sessions';
-  import { createBill } from '$api/bills';
+  import { createBill, listBills } from '$api/bills';
   import type { SessionDetail } from '$api/sessions';
   import { loadUser } from '$stores/user';
   import BillForm from '$components/BillForm.svelte';
@@ -15,6 +15,11 @@
   // v0.1.2 (T19): pass this into BillForm so the payer dropdown
   // defaults to the caller's own SessionMember.id in this session.
   let defaultPayerMemberId: number | null = null;
+
+  // v0.2.1 T03 (smart-date chips): only show "今天 / 昨天 / 上周"
+  // when this session has zero bills yet. Hooked through the
+  // ``existingBillsCount`` prop below.
+  let existingBillsCount = 0;
 
   $: sessionId = Number($page.params.id);
 
@@ -29,6 +34,16 @@
       if (u && session) {
         const me = session.members.find((m) => m.user_id === u.user_id);
         if (me) defaultPayerMemberId = me.id;
+      }
+      // v0.2.1 T03: tally the bills to decide whether the smart-date
+      // chips appear. We tolerate the listBills call failing (e.g. the
+      // caller is brand-new without GET /sessions/{id}/bills access)
+      // by defaulting to "0 bills".
+      try {
+        const all = await listBills(sessionId);
+        existingBillsCount = all.length;
+      } catch {
+        existingBillsCount = 0;
       }
     } catch (e: any) {
       error = e?.message ?? '加载失败';
@@ -59,6 +74,7 @@
       <BillForm
         {session}
         {defaultPayerMemberId}
+        {existingBillsCount}
         onSubmit={handleSubmit}
       />
     </div>

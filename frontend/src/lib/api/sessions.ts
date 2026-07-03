@@ -27,6 +27,9 @@ export interface SessionDetail extends Omit<SessionSummary, 'role' | 'member_cou
   invite_token_preview?: string | null;
   /** v0.1.1: ISO 8601 invite expiration, also owner-only. */
   invite_expires_at?: string | null;
+  /** v0.2.1 T02 (PRD §3.6.2): SessionMember.ids of the most recent
+   *  bill's participants. Null when the session has no bills yet. */
+  last_bill_participants?: number[] | null;
 }
 
 export const createSession = (name: string) =>
