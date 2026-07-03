@@ -45,6 +45,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Annotated, Any
 
 import httpx
@@ -58,6 +59,7 @@ from app.core.session_isolation import get_session_member
 from app.db.models.bill_participants import BillParticipant
 from app.db.models.bills import Bill, BillStatus
 from app.db.models.session_members import SessionMember
+from app.services.calculator import AmountCalculator
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +95,17 @@ class CreateBillRequest(BaseModel):
     currency: str = Field(default="CNY", min_length=1, max_length=8)
     participants: list[ParticipantIn] = Field(..., min_length=1)
 
+    # v0.2.1 T01 (PRD §3.6.1): raw calculator expression echoed back. The
+    # server re-evaluates it via AmountCalculator and overwrites ``amount``
+    # with the quantised result; the original expression is stored alongside
+    # so the edit page can repopulate the calculator field verbatim.
+    amount_expression: str | None = Field(default=None, max_length=64)
+    # When True, ``amount_expression`` is evaluated and applied. When False
+    # (or unset), ``amount_expression`` is treated as informational only and
+    # ``amount`` is used as-is. Defaults to False for backward compatibility
+    # with v0.1.* callers that never sent an expression.
+    use_calculator: bool = Field(default=False)
+
     @field_validator("currency")
     @classmethod
     def _strip_currency(cls, v: str) -> str:
@@ -100,6 +113,22 @@ class CreateBillRequest(BaseModel):
         if not v:
             raise ValueError("currency must not be blank")
         return v.upper()
+
+    @field_validator("amount_expression")
+    @classmethod
+    def _check_amount_expression(cls, v: str | None) -> str | None:
+        if v is None or v.strip() == "":
+            return None
+        # Whitelist enforcement. Calculator may still raise ValueError on
+        # things like consecutive operators (covered by the evaluate call
+        # in the endpoint).
+        import re as _re
+        if _re.search(r"[^0-9+\-*/.\s]", v):
+            raise ValueError(
+                "amount_expression contains characters outside the whitelist "
+                r"[0-9+\-*/.\s]"
+            )
+        return v
 
 
 class UpdateBillRequest(BaseModel):
@@ -111,6 +140,12 @@ class UpdateBillRequest(BaseModel):
       with 422 by `extra='forbid'`.
     - `created_by` is still returned by the API (for UI display of who
       recorded the bill) but is **not** used as a permission gate.
+
+    v0.2.1 T01: ``amount_expression`` is an optional override of the
+    calculator expression. When present, the server re-evaluates it and
+    replaces the stored ``amount`` with the quantised result; when absent
+    the existing expression is preserved. Validation rejects malformed
+    expressions with 422 (Pydantic field_validator).
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -120,6 +155,20 @@ class UpdateBillRequest(BaseModel):
     occurred_at: datetime | None = None
     currency: str | None = Field(default=None, min_length=1, max_length=8)
     participants: list[ParticipantIn] | None = Field(default=None, min_length=1)
+    amount_expression: str | None = Field(default=None, max_length=64)
+
+    @field_validator("amount_expression")
+    @classmethod
+    def _check_amount_expression(cls, v: str | None) -> str | None:
+        if v is None or v.strip() == "":
+            return None
+        import re as _re
+        if _re.search(r"[^0-9+\-*/.\s]", v):
+            raise ValueError(
+                "amount_expression contains characters outside the whitelist "
+                r"[0-9+\-*/.\s]"
+            )
+        return v
 
     @field_validator("currency")
     @classmethod
@@ -151,6 +200,9 @@ class BillOut(BaseModel):
     created_at: str
     status: str
     participants: list[ParticipantOut]
+    # v0.2.1 T01: original calculator expression, or NULL for bills
+    # recorded before v0.2.1 (or with use_calculator=False).
+    amount_expression: str | None = None
 
 
 # T11 schemas --------------------------------------------------------------
@@ -242,6 +294,32 @@ def _validate_participants(
         seen.add(p.member_id)
 
 
+def _validate_calculator_expression(expression: str | None) -> Decimal | None:
+    """Validate + evaluate a calculator expression. Returns Decimal or None.
+
+    ``None`` input → ``None`` output (legacy callers that don't use the
+    calculator). Any failure mode → ``ValueError`` with a human-readable
+    reason that the endpoint turns into 422.
+    """
+    if expression is None or expression.strip() == "":
+        return None
+    try:
+        # ``evaluate`` re-checks the whitelist internally, but the
+        # pydantic validator already enforced it on entry so the only
+        # remaining failure mode is structural (operator order, division
+        # by zero, malformed literal).
+        result = AmountCalculator.evaluate(expression)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"error": "invalid_amount_expression", "reason": str(e)},
+        ) from e
+    # Decimal → float for the NUMERIC-less amount column. Float is OK
+    # here because the source value is already quantised to two decimal
+    # places by AmountCalculator (so no compounding error).
+    return result
+
+
 def _check_exclusive_total(amount: float, participants: list[ParticipantIn]) -> None:
     """Sum exclusive_amount must not exceed amount."""
     exclusive_total = sum(p.exclusive_amount for p in participants if p.is_exclusive)
@@ -278,6 +356,9 @@ def _bill_to_dict(bill: Bill, participants: list[BillParticipant]) -> dict:
         "created_by": bill.created_by,
         "created_at": _iso(bill.created_at),
         "status": bill.status,
+        # v0.2.1 T01: echo the raw expression so the edit page can
+        # repopulate the calculator field verbatim.
+        "amount_expression": bill.amount_expression,
         "participants": [
             {
                 "member_id": p.member_id,
@@ -503,17 +584,35 @@ async def create_bill(
     422: missing/over-long/invalid fields (pydantic).
     """
     _validate_participants(db, sm.session_id, payload.payer_member_id, payload.participants)
-    _check_exclusive_total(payload.amount, payload.participants)
+
+    # v0.2.1 T01: when use_calculator=True we treat amount_expression as
+    # the authoritative source and overwrite amount with the Decimal
+    # evaluation. Any failure → 422 inside _validate_calculator_expression.
+    effective_amount = float(payload.amount)
+    stored_expression: str | None = None
+    if payload.use_calculator:
+        evaluated = _validate_calculator_expression(payload.amount_expression)
+        if evaluated is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"error": "use_calculator is true but amount_expression is empty"},
+            )
+        effective_amount = float(evaluated)
+        stored_expression = payload.amount_expression
+
+    _check_exclusive_total(effective_amount, payload.participants)
 
     bill = Bill(
         session_id=sm.session_id,
         payer_id=payload.payer_member_id,
-        amount=payload.amount,
+        amount=effective_amount,
         currency=payload.currency,
         description=payload.description,
         occurred_at=payload.occurred_at,
         created_by=sm.user_id,
         status=BillStatus.DRAFT.value,
+        # v0.2.1 T01: store raw expression only when it came from the calculator.
+        amount_expression=stored_expression,
     )
     db.add(bill)
     try:
@@ -600,7 +699,17 @@ async def update_bill(
     # v0.1.2 (T17): removed creator check -- any session member can update.
 
     # Apply scalar updates first (any of these may be None).
-    if payload.amount is not None:
+    # v0.2.1 T01: when amount_expression arrives in a PATCH, it is the
+    # authoritative source for ``amount``. Otherwise we fall back to the
+    # existing ``amount`` field (legacy behaviour).
+    if payload.amount_expression is not None:
+        evaluated = _validate_calculator_expression(payload.amount_expression)
+        # If the user explicitly cleared the calculator (passed an empty
+        # string), evaluated is None and we keep the previous amount.
+        if evaluated is not None:
+            bill.amount = float(evaluated)
+            bill.amount_expression = payload.amount_expression
+    elif payload.amount is not None:
         bill.amount = payload.amount
     if payload.payer_member_id is not None:
         bill.payer_id = payload.payer_member_id
