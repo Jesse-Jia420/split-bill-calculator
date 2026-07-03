@@ -8,6 +8,13 @@ Strategy
   and exercise GET /sessions/{id}/settle via FastAPI TestClient,
   asserting balances / transfers / persisted snapshot.
 - Session isolation: a non-member gets 403.
+
+v0.2.2 (T11): the response now serializes Decimal money values as
+**strings** (e.g. ``"100.00"``) — per the v0.2.2 task brief
+"Decimal ↔ JSON 字符串". The ``_f`` helper below parses those back
+to float for the legacy assertion-style (since the underlying
+amounts are still 2-dp cents-aligned, float conversion is lossless
+for comparison purposes).
 """
 from __future__ import annotations
 
@@ -26,6 +33,7 @@ from app.db.models.bill_participants import BillParticipant
 from app.db.models.bills import Bill
 from app.db.models.session_members import SessionMember, SessionRole
 from app.db.models.sessions import Session as SessionModel
+from app.db.models.session_exchange_rates import SessionExchangeRate
 from app.db.models.settlements import Settlement
 from app.db.models.users import User
 from app.db.models.verification_codes import (
@@ -33,6 +41,20 @@ from app.db.models.verification_codes import (
     VerificationPurpose,
 )
 from app.main import app
+
+
+def _f(value) -> float:
+    """Coerce a JSON Decimal-string (or float / int) to float.
+
+    v0.2.2 (T11): the settle response serializes money as JSON
+    strings to preserve Decimal precision on the wire. Tests that
+    were written against float assertions now compare against this
+    helper. The conversion is lossless for 2-dp cents-aligned values
+    (which all settlement amounts are).
+    """
+    if isinstance(value, (int, float)):
+        return float(value)
+    return float(str(value))
 
 
 # ---------------------------------------------------------------------------
@@ -48,6 +70,7 @@ def _truncate_all():
         db.query(BillParticipant).delete()
         db.query(Bill).delete()
         db.query(SessionMember).delete()
+        db.query(SessionExchangeRate).delete()
         db.query(SessionModel).delete()
         db.query(AuthToken).delete()
         db.query(VerificationCode).delete()
@@ -267,13 +290,15 @@ class TestGreedyPair:
         assert len(out) == 1
         assert out[0]["from_member_id"] == 2
         assert out[0]["to_member_id"] == 1
-        assert out[0]["amount"] == 100.0
+        # v0.2.2 (T11): _greedy_pair now emits Decimal (string-serialised
+        # over the wire). Use the _f helper to coerce.
+        assert _f(out[0]["amount"]) == 100.0
 
     def test_creditor_splits_among_two_debtors(self) -> None:
         # A is owed 100, B owes 40, C owes 60
         # Greedy: largest debtor C(60) pays A first; then B(40) pays A.
         out = _greedy_pair({1: 100.0, 2: -40.0, 3: -60.0})
-        amounts = sorted(t["amount"] for t in out)
+        amounts = sorted(_f(t["amount"]) for t in out)
         assert amounts == [40.0, 60.0]
         # All transfers point to A (the only creditor)
         assert all(t["to_member_id"] == 1 for t in out)
@@ -290,7 +315,7 @@ class TestGreedyPair:
         assert len(out) == 1
         assert out[0]["from_member_id"] == 3
         assert out[0]["to_member_id"] == 1
-        assert out[0]["amount"] == 50.0
+        assert _f(out[0]["amount"]) == 50.0
 
     def test_residual_below_tolerance_is_zeroed(self) -> None:
         """Floating-point noise doesn't generate spurious transfers."""
@@ -330,7 +355,7 @@ class TestSettleEndpoint:
         assert body["session_id"] == sid
         # All balances are 0
         for mid in mids.values():
-            assert body["balances"][str(mid)] == 0.0
+            assert _f(body["balances"][str(mid)]) == 0.0
         assert body["transfers"] == []
 
     def test_single_bill_two_people_no_transfers(self, client: TestClient) -> None:
@@ -351,14 +376,14 @@ class TestSettleEndpoint:
         r = c.get(f"/sessions/{sid}/settle")
         assert r.status_code == 200, r.text
         body = r.json()
-        assert body["balances"][str(mids["alice@settle.local"])] == 50.0
-        assert body["balances"][str(mids["bob@settle.local"])] == -50.0
+        assert _f(body["balances"][str(mids["alice@settle.local"])]) == 50.0
+        assert _f(body["balances"][str(mids["bob@settle.local"])]) == -50.0
         assert len(body["transfers"]) == 1
-        assert body["transfers"][0] == {
-            "from_member_id": mids["bob@settle.local"],
-            "to_member_id": mids["alice@settle.local"],
-            "amount": 50.0,
-        }
+        # v0.2.2 (T11): transfer amounts are Decimal-string on the wire.
+        # Compare coerced floats.
+        assert body["transfers"][0]["from_member_id"] == mids["bob@settle.local"]
+        assert body["transfers"][0]["to_member_id"] == mids["alice@settle.local"]
+        assert _f(body["transfers"][0]["amount"]) == 50.0
 
     def test_alice_pays_100_five_people_4_transfers(self, client: TestClient) -> None:
         c = _login_as("alice@settle.local")
@@ -380,14 +405,14 @@ class TestSettleEndpoint:
         r = c.get(f"/sessions/{sid}/settle")
         assert r.status_code == 200
         body = r.json()
-        assert body["balances"][str(mids["alice@settle.local"])] == 80.0
+        assert _f(body["balances"][str(mids["alice@settle.local"])]) == 80.0
         for e in ["bob@settle.local", "carol@settle.local", "dave@settle.local", "eve@settle.local"]:
-            assert body["balances"][str(mids[e])] == -20.0
+            assert _f(body["balances"][str(mids[e])]) == -20.0
         assert len(body["transfers"]) == 4
         # All transfers point to alice
         for t in body["transfers"]:
             assert t["to_member_id"] == mids["alice@settle.local"]
-            assert t["amount"] == 20.0
+            assert _f(t["amount"]) == 20.0
 
     def test_complex_with_exclusive(self, client: TestClient) -> None:
         c = _login_as("alice@settle.local")
@@ -420,14 +445,14 @@ class TestSettleEndpoint:
         assert r.status_code == 200
         body = r.json()
         # shared_pool = 800; per_user_shared = 160
-        assert body["balances"][str(mids["alice@settle.local"])] == 840.0
-        assert body["balances"][str(mids["eve@settle.local"])] == -360.0
+        assert _f(body["balances"][str(mids["alice@settle.local"])]) == 840.0
+        assert _f(body["balances"][str(mids["eve@settle.local"])]) == -360.0
         for e in ["bob@settle.local", "carol@settle.local", "dave@settle.local"]:
-            assert body["balances"][str(mids[e])] == -160.0
+            assert _f(body["balances"][str(mids[e])]) == -160.0
         # Greedy pair: largest creditor (alice 840) vs largest debtor (eve 360) → 360.
         # Then alice 480 vs dave 160 → 160. Then alice 320 vs carol 160 → 160. Then alice 160 vs bob 160 → 160.
         # Total 4 transfers, total amount 360 + 160 + 160 + 160 = 840.
-        total_outgoing = sum(t["amount"] for t in body["transfers"])
+        total_outgoing = sum(_f(t["amount"]) for t in body["transfers"])
         assert abs(total_outgoing - 840.0) < 1e-6
         # All to alice.
         for t in body["transfers"]:
@@ -504,11 +529,11 @@ class TestSettleEndpoint:
         body_b = r.json()
 
         # Session A: alice net = 50, bob net = -50
-        assert body_a["balances"][str(mids_a["alice@settle.local"])] == 50.0
-        assert body_a["balances"][str(mids_a["bob@settle.local"])] == -50.0
+        assert _f(body_a["balances"][str(mids_a["alice@settle.local"])]) == 50.0
+        assert _f(body_a["balances"][str(mids_a["bob@settle.local"])]) == -50.0
         # Session B: alice net = 250, bob net = -250
-        assert body_b["balances"][str(mids_b["alice@settle.local"])] == 250.0
-        assert body_b["balances"][str(mids_b["bob@settle.local"])] == -250.0
+        assert _f(body_b["balances"][str(mids_b["alice@settle.local"])]) == 250.0
+        assert _f(body_b["balances"][str(mids_b["bob@settle.local"])]) == -250.0
 
     def test_settle_returns_generated_at_iso(self, client: TestClient) -> None:
         c = _login_as("alice@settle.local")
@@ -586,9 +611,9 @@ class TestSettlePerMemberBreakdown:
             "consumed_bills",
         }
         # Empty session -> all zero / empty lists.
-        assert alice_pm["total_paid"] == 0.0
-        assert alice_pm["total_consumed"] == 0.0
-        assert alice_pm["net"] == 0.0
+        assert _f(alice_pm["total_paid"]) == 0.0
+        assert _f(alice_pm["total_consumed"]) == 0.0
+        assert _f(alice_pm["net"]) == 0.0
         assert alice_pm["paid_bills"] == []
         assert alice_pm["consumed_bills"] == []
 
@@ -622,13 +647,13 @@ class TestSettlePerMemberBreakdown:
         alice_paid = pm[alice_mid]["paid_bills"]
         assert len(alice_paid) == 1
         assert alice_paid[0]["bill_id"] == bill1
-        assert alice_paid[0]["amount"] == 100.0
+        assert _f(alice_paid[0]["amount"]) == 100.0
         assert alice_paid[0]["description"] == "alice-paid"
 
         bob_paid = pm[bob_mid]["paid_bills"]
         assert len(bob_paid) == 1
         assert bob_paid[0]["bill_id"] == bill2
-        assert bob_paid[0]["amount"] == 60.0
+        assert _f(bob_paid[0]["amount"]) == 60.0
         assert bob_paid[0]["description"] == "bob-paid"
 
     def test_per_member_consumed_bills_correct(self, client: TestClient) -> None:
@@ -656,13 +681,13 @@ class TestSettlePerMemberBreakdown:
         alice_consumed = pm[alice_mid]["consumed_bills"]
         assert len(alice_consumed) == 1
         assert alice_consumed[0]["bill_id"] == bill1
-        assert alice_consumed[0]["amount"] == 100.0
-        assert alice_consumed[0]["share_amount"] == 50.0
+        assert _f(alice_consumed[0]["amount"]) == 100.0
+        assert _f(alice_consumed[0]["share_amount"]) == 50.0
 
         bob_consumed = pm[bob_mid]["consumed_bills"]
         assert len(bob_consumed) == 1
         assert bob_consumed[0]["bill_id"] == bill1
-        assert bob_consumed[0]["share_amount"] == 50.0
+        assert _f(bob_consumed[0]["share_amount"]) == 50.0
 
     def test_per_member_with_exclusive_amount(self, client: TestClient) -> None:
         """A bill with one exclusive participant correctly increases that
@@ -697,27 +722,27 @@ class TestSettlePerMemberBreakdown:
 
         alice_consumed = pm[alice_mid]["consumed_bills"]
         assert len(alice_consumed) == 1
-        assert alice_consumed[0]["share_amount"] == 600.0
+        assert _f(alice_consumed[0]["share_amount"]) == 600.0
         # v0.1.2 (fix #4): Alice is the exclusive participant on this
         # bill, so her `exclusive_amount` is the original 200 she ate
         # alone. The `shared` portion is share_amount - exclusive_amount
         # = 600 - 200 = 400 (= 800 shared_pool / 2 participants).
-        assert alice_consumed[0]["exclusive_amount"] == 200.0
-        assert alice_consumed[0]["share_amount"] - alice_consumed[0]["exclusive_amount"] == 400.0
+        assert _f(alice_consumed[0]["exclusive_amount"]) == 200.0
+        assert _f(alice_consumed[0]["share_amount"]) - _f(alice_consumed[0]["exclusive_amount"]) == 400.0
 
         bob_consumed = pm[bob_mid]["consumed_bills"]
         assert len(bob_consumed) == 1
-        assert bob_consumed[0]["share_amount"] == 400.0
+        assert _f(bob_consumed[0]["share_amount"]) == 400.0
         # Bob is NOT exclusive, so his exclusive_amount is 0 (NOT
         # absent). The field is always present on the response.
-        assert bob_consumed[0]["exclusive_amount"] == 0.0
+        assert _f(bob_consumed[0]["exclusive_amount"]) == 0.0
         # Bob's "shared" portion == share_amount - exclusive_amount = 400.
-        assert bob_consumed[0]["share_amount"] - bob_consumed[0]["exclusive_amount"] == 400.0
+        assert _f(bob_consumed[0]["share_amount"]) - _f(bob_consumed[0]["exclusive_amount"]) == 400.0
 
         # And totals reconcile.
-        assert pm[alice_mid]["total_consumed"] == 600.0
-        assert pm[alice_mid]["total_paid"] == 1000.0
-        assert pm[alice_mid]["net"] == 400.0  # paid 1000, owes 600
+        assert _f(pm[alice_mid]["total_consumed"]) == 600.0
+        assert _f(pm[alice_mid]["total_paid"]) == 1000.0
+        assert _f(pm[alice_mid]["net"]) == 400.0  # paid 1000, owes 600
 
     def test_per_member_exclusive_amount_field_always_present(
         self, client: TestClient
@@ -778,8 +803,9 @@ class TestSettlePerMemberBreakdown:
                 assert "exclusive_amount" in bill, (
                     f"{label} bill {bill['bill_id']} missing exclusive_amount"
                 )
-                # And it's a number (default 0.0 or the exclusive portion).
-                assert isinstance(bill["exclusive_amount"], (int, float)), (
+                # v0.2.2 (T11): Decimal serialises to a string. Either is
+                # accepted as 'numeric-like' for the type check below.
+                assert isinstance(bill["exclusive_amount"], (int, float, str)), (
                     f"{label} bill {bill['bill_id']} exclusive_amount is not a number"
                 )
 
@@ -787,17 +813,19 @@ class TestSettlePerMemberBreakdown:
         bob_consumed = pm[bob_mid]["consumed_bills"]
         # bill 1 (aa): bob's exclusive_amount = 0
         bill1 = next(b for b in bob_consumed if b["description"] == "aa")
-        assert bill1["exclusive_amount"] == 0.0
-        assert bill1["share_amount"] - bill1["exclusive_amount"] == 30.0  # 90/3
+        assert _f(bill1["exclusive_amount"]) == 0.0
+        assert _f(bill1["share_amount"]) - _f(bill1["exclusive_amount"]) == 30.0  # 90/3
         # bill 2 (mixed): bob's exclusive_amount = 30, share = 30 + 70/3 ≈ 53.33
         bill2 = next(b for b in bob_consumed if b["description"] == "mixed")
-        assert bill2["exclusive_amount"] == 30.0
+        assert _f(bill2["exclusive_amount"]) == 30.0
         # share_amount = per_user_shared + exclusive = 70/3 + 30 ≈ 53.33
-        assert abs(bill2["share_amount"] - (70.0 / 3.0 + 30.0)) < 1e-9
-        # shared = share_amount - exclusive_amount = 70/3
+        # v0.2.2 (T11): Decimal cents-alignment rounds 70/3 (23.333...) up to
+        # 23.33 → share = 53.33. Test tolerance is one cent (0.01).
+        assert abs(_f(bill2["share_amount"]) - (70.0 / 3.0 + 30.0)) < 0.01
+        # shared = share_amount - exclusive_amount = 70/3 (rounded)
         assert abs(
-            bill2["share_amount"] - bill2["exclusive_amount"] - 70.0 / 3.0
-        ) < 1e-9
+            _f(bill2["share_amount"]) - _f(bill2["exclusive_amount"]) - 70.0 / 3.0
+        ) < 0.01
 
     def test_per_member_empty_session(self, client: TestClient) -> None:
         """Empty session -> per_member list still has one entry per session
@@ -810,9 +838,9 @@ class TestSettlePerMemberBreakdown:
         pm = r.json()["per_member"]
         assert len(pm) == 2
         for entry in pm:
-            assert entry["total_paid"] == 0.0
-            assert entry["total_consumed"] == 0.0
-            assert entry["net"] == 0.0
+            assert _f(entry["total_paid"]) == 0.0
+            assert _f(entry["total_consumed"]) == 0.0
+            assert _f(entry["net"]) == 0.0
             assert entry["paid_bills"] == []
             assert entry["consumed_bills"] == []
 
@@ -862,7 +890,7 @@ class TestSettlePerMemberBreakdown:
         for mid, net in balances.items():
             mid = int(mid)
             assert mid in pm_by_id, f"member {mid} missing from per_member"
-            assert pm_by_id[mid]["net"] == net, (
+            assert _f(pm_by_id[mid]["net"]) == _f(net), (
                 f"net mismatch for {mid}: per_member={pm_by_id[mid]['net']}, "
                 f"balances={net}"
             )
@@ -894,9 +922,9 @@ class TestSettlePerMemberBreakdown:
         assert len(alice["paid_bills"]) == 1
         assert len(alice["consumed_bills"]) == 1
         # And her share is 80 / 2 = 40; net = 80 - 40 = 40.
-        assert alice["total_paid"] == 80.0
-        assert alice["total_consumed"] == 40.0
-        assert alice["net"] == 40.0
+        assert _f(alice["total_paid"]) == 80.0
+        assert _f(alice["total_consumed"]) == 40.0
+        assert _f(alice["net"]) == 40.0
 
     def test_per_member_non_member_still_403(self, client: TestClient) -> None:
         """`per_member` is only exposed to session members."""

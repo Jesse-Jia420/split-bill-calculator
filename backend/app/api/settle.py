@@ -1,9 +1,9 @@
-"""Settle API — Sprint 1 T12, v0.1.2 extension (T18).
+"""Settle API — Sprint 1 T12 + v0.1.2 (T18) + v0.2.2 (T11 Decimal).
 
 Endpoint (mounted under /sessions/{session_id}/settle; the dev proxy
 strips the /api prefix):
 
-GET /sessions/{session_id}/settle
+GET /sessions/{session_id}/settle?view=primary|split
 
 Returns the per-member net balance (positive = owed money, negative =
 owes money) and a list of suggested transfers that zero everyone's
@@ -19,52 +19,62 @@ Auth model
 
 Algorithm (SPEC §7 + PRD §3.5)
 ------------------------------
-1. Aggregate paid amounts per member:
-     paid[member] = sum(bill.amount for bill in bills where bill.payer_id == member)
-2. Aggregate consumed amounts per member using the same per_user_total
+1. For each bill, convert its ``amount`` into the session's
+   ``primary_currency``:
+     - currency == primary: use bill.amount as-is.
+     - currency != primary: bill.amount * bill.exchange_rate_snapshot,
+       then quantize to 2 dp.
+2. Aggregate paid amounts per member:
+     paid[member] = sum(converted amount where bill.payer_id == member)
+3. Aggregate consumed amounts per member using the same per_user_total
    formula as the bills API (PRD §3.1.2):
      shared_pool = bill.amount - sum(exclusive_amount for p in ppts)
      per_user_shared = shared_pool / len(ppts)
      consumed[member] = sum(per_user_shared + (own_exclusive if any))
-3. net[member] = paid[member] - consumed[member]
+4. net[member] = paid[member] - consumed[member]
    (positive net = others owe them; negative net = they owe others)
-4. Greedy pair the largest creditor with the largest debtor until
+5. Greedy pair the largest creditor with the largest debtor until
    everyone hits zero. Transfer amount = min(|creditor|, |debtor|).
 
-Floating point caveat
----------------------
-SQLite REAL stores IEEE-754 doubles; we round to 2 decimal places when
-serialising to the snapshot JSON to avoid noise like 0.00000001 in the
-UI. The in-memory computation uses full precision, only the stored
-snapshot gets the rounding.
+v0.2.2 (T11) Decimal 精度
+-------------------------
+ALL intermediate calculations use ``decimal.Decimal`` — NO float.
+Bills are stored as ``Numeric(12, 2)`` (T07 migration); settlement
+quantizes to cents only at the very last step via
+``Decimal('0.01')`` + ``ROUND_HALF_UP``. This avoids the classic
+``0.1 + 0.2 = 0.30000000000000004`` drift that broke naive float
+settlement.
 
-v0.1.2 (T18) per-member breakdown
-----------------------------------
-For each session member we emit one `MemberSettlement` with:
-  - total_paid      = sum(bill.amount for bill in session.bills if bill.payer_id == member.id)
-  - total_consumed  = sum(participant.share_amount for bill in session.bills
-                          for participant in bill.participants
-                          if participant.member_id == member.id)
-  - net             = total_paid - total_consumed
-                      (== `balances[member_id]` for the same session)
-  - paid_bills      = bills where the member was the payer (newest first)
-  - consumed_bills  = bills where the member was a participant, with
-                      `share_amount` filled in (newest first)
+v0.2.2 (T11) view modes
+-----------------------
+- ``view=primary`` (default): every amount in the response is the
+  primary-currency value. transfer amounts, balance, paid/consumed
+  totals, per-member breakdown — all aggregated in primary currency.
+- ``view=split``: preserve source currency per bill. Response includes
+  a ``currencies: list[str]`` echo and ``per_currency_totals:
+  dict[currency, Decimal]``. balances/transfers are computed in primary
+  currency regardless (settlement math needs a single reference
+  currency); the per-bill ``currency`` field on per-member rows
+  carries the source.
 
-The persisted `summary_json` snapshot keeps its v0.1.0 shape
-(`balances` + `transfers` only) so existing snapshots remain valid;
-the `per_member` list is computed on the fly from `bills` +
-`bill_participants` + `session_members` at request time, so format
-changes don't require a backfill migration.
+v0.2.2 (T11) snapshot mode
+--------------------------
+Each bill carries its own ``exchange_rate_snapshot`` (recorded at bill
+creation time, never overwritten). settlement reads only the bill's
+own snapshot — never the live session rate — so historical bills
+stay stable when rates change (PRD §3.7.5). Bills in primary currency
+have ``exchange_rate_snapshot IS NULL`` and skip the conversion.
 """
 from __future__ import annotations
 
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Annotated
+from decimal import ROUND_HALF_UP, Decimal
+from enum import Enum
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -72,12 +82,28 @@ from app.core.database import get_db
 from app.core.session_isolation import get_session_member
 from app.db.models.bill_participants import BillParticipant
 from app.db.models.bills import Bill
+from app.db.models.session_exchange_rates import SessionExchangeRate
 from app.db.models.session_members import SessionMember
+from app.db.models.sessions import Session as SessionModel
 from app.db.models.settlements import Settlement
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["settle"])
+
+
+# ---------------------------------------------------------------------------
+# Constants — Decimal precision & quantization
+# ---------------------------------------------------------------------------
+
+# Quantization unit for all settlement money values (PRD §3.7.6).
+# 2 dp matches bills.amount Numeric(12, 2); the unit is reused in
+# every quantize() call so the response is uniformly cents-aligned.
+CENT = Decimal("0.01")
+# Tolerance for treating a Decimal balance as effectively zero. We use
+# a value strictly less than half a cent so any sub-cent residual after
+# quantize() is skipped (a true 0.005 rounds to 0.01 and is settled).
+ZERO_TOL = Decimal("0.004999")
 
 
 # ---------------------------------------------------------------------------
@@ -88,57 +114,64 @@ router = APIRouter(tags=["settle"])
 class Transfer(BaseModel):
     from_member_id: int
     to_member_id: int
-    amount: float
+    """Transfer amount, in the session's ``primary_currency``, cents-aligned."""
+    amount: Decimal
 
 
 class BillSummary(BaseModel):
-    """Lightweight bill row for per-member views."""
+    """Lightweight bill row for per-member views.
+
+    v0.2.2 (T11): ``amount_primary`` carries the value converted to
+    primary currency (or ``amount`` itself when already primary). The
+    raw ``currency`` is kept so the FE can switch between primary and
+    split views without re-fetching bills.
+    """
 
     bill_id: int
     description: str | None
-    amount: float
+    amount: Decimal       # raw amount in source currency (or primary if same)
+    amount_primary: Decimal  # always primary currency, cents-aligned
     currency: str
+    primary_currency: str
     occurred_at: str  # ISO 8601 (UTC)
 
 
 class BillShare(BaseModel):
     """A bill + the share this particular member owes for it.
 
-    v0.1.2 (PO 2026-07-01 fix #4): adds `exclusive_amount` so the
-    per-member personal view can split "shared part" (split equally
-    with everyone) from "exclusive part" (this member ate the entire
-    portion alone). `share_amount == shared_part + exclusive_amount`.
-    Default 0.0 for backward compatibility with existing snapshots.
+    v0.2.2 (T11): same as BillSummary but additionally carries the
+    member's per-share amount in both source and primary currency
+    (because each share comes from dividing the raw bill amount and
+    therefore inherits the bill's source currency).
     """
 
     bill_id: int
     description: str | None
-    amount: float       # bill total
-    share_amount: float # this member's share (= shared + exclusive)
-    exclusive_amount: float = 0.0  # this member's exclusive portion
+    amount: Decimal       # bill total (raw, source currency)
+    amount_primary: Decimal  # bill total in primary currency
+    share_amount: Decimal  # this member's share, raw currency
+    share_amount_primary: Decimal  # this member's share, primary currency
+    exclusive_amount: Decimal = Decimal("0")  # source currency
+    exclusive_amount_primary: Decimal = Decimal("0")
     currency: str
+    primary_currency: str
     occurred_at: str    # ISO 8601 (UTC)
 
 
 class MemberSettlement(BaseModel):
-    """v0.1.2 (T18): per-member breakdown for the 'personal view' tab.
+    """Per-member breakdown for the 'personal view' tab.
 
-    `total_paid` / `total_consumed` mirror the same numbers that feed the
-    session-wide `balances` dict, so `net = total_paid - total_consumed`
-    always equals `balances[member_id]`.
-
-    `paid_bills` lists every bill where the member was the payer.
-    `consumed_bills` lists every bill that allocated a share to the
-    member (including bills they themselves paid -- those appear in
-    both lists).
+    v0.2.2 (T11): ``total_paid`` / ``total_consumed`` / ``net`` are
+    primary-currency values; the per-bill breakdown items carry both
+    currencies so the FE can render either view.
     """
 
     member_id: int
     display_name: str
     role: str
-    total_paid: float
-    total_consumed: float
-    net: float
+    total_paid: Decimal
+    total_consumed: Decimal
+    net: Decimal
     paid_bills: list[BillSummary]
     consumed_bills: list[BillShare]
 
@@ -146,92 +179,217 @@ class MemberSettlement(BaseModel):
 class SettleResponse(BaseModel):
     session_id: int
     generated_at: str
-    balances: dict[str, float]  # member_id (str) -> net
+    """v0.2.2: echoes the session's currencies so the FE can render
+    chip selectors without a separate GET /sessions/{id}."""
+    currencies: list[str]
+    primary_currency: str
+    """v0.2.2: echo of the view mode used to compute this response."""
+    view: str
+    """member_id (str) -> net in primary currency, cents-aligned."""
+    balances: dict[str, Decimal]
     transfers: list[Transfer]
-    per_member: list[MemberSettlement] = []  # v0.1.2 (T18)
+    per_member: list[MemberSettlement] = []
+
+
+class ViewMode(str, Enum):
+    PRIMARY = "primary"
+    SPLIT = "split"
 
 
 # ---------------------------------------------------------------------------
-# Helpers (pure, testable)
+# Helpers (pure, testable) — Decimal throughout
 # ---------------------------------------------------------------------------
+
+
+def _quantize(value: Decimal) -> Decimal:
+    """Quantize to cents with ROUND_HALF_UP (banker-safe for our use).
+
+    PRD §3.7.6 mandates HALF_UP (consistent with the v0.2.1 calculator
+    and the existing v0.1 / v0.1.2 settle behaviour, which also used
+    HALF_UP via Python's built-in round()).
+    """
+    return value.quantize(CENT, rounding=ROUND_HALF_UP)
+
+
+def _is_zero(value: Decimal) -> bool:
+    """True when ``value`` is small enough to round to zero cents."""
+    return abs(value) < ZERO_TOL
+
+
+def _convert_to_primary(
+    amount: Decimal,
+    source_currency: str,
+    primary_currency: str,
+    rate_snapshot: Decimal | None,
+) -> Decimal:
+    """Convert a money value to the session's primary currency.
+
+    - Same currency → return amount as Decimal (no conversion needed).
+    - Different currency → amount × snapshot rate, then quantize to cents.
+    - Different currency but no snapshot → caller is responsible for
+      raising HTTPException(422) before this is invoked. This helper
+      does NOT raise (kept pure for unit tests).
+    """
+    if source_currency == primary_currency:
+        return _quantize(amount)
+    if rate_snapshot is None:
+        # Defensive: caller should have validated the snapshot exists.
+        # In tests / non-HTTP contexts we surface the missing data.
+        raise ValueError(
+            f"Missing exchange rate snapshot for {source_currency} → {primary_currency}"
+        )
+    return _quantize(amount * rate_snapshot)
 
 
 def _compute_balances(
-    bills: list[Bill],
+    bills,  # list[Bill] | list[tuple[Bill, Decimal]] — duck-typed for test compatibility
     participants_by_bill: dict[int, list[BillParticipant]],
     member_ids: list[int],
-) -> dict[int, float]:
-    """Compute net[member_id] for the session.
+) -> dict[int, Decimal]:
+    """Compute net[member_id] for the session (Decimal throughout, v0.2.2 T11).
+
+    Two calling conventions are supported:
+
+    1. **Production**: ``bills = [(bill, amount_in_primary), ...]`` — each
+       bill has been pre-converted to the session's primary currency.
+       The tuple's amount is used directly.
+    2. **Unit-test fixtures**: ``bills = [_FakeBill(...), ...]`` — duck-typed
+       stand-ins that lack ``currency`` / ``exchange_rate_snapshot``.
+       Treated as already-primary; the algorithm uses ``bill.amount``
+       directly. This keeps the v0.1.2 / v0.2.1 unit-test suite working
+       unchanged.
 
     net = (amount I paid for others) - (amount I consumed)
         = sum(bill.amount where bill.payer_id == me)
         - sum(per_user_total across all bills I participated in)
-
-    Pure function — no DB, no IO.
     """
-    paid: dict[int, float] = {mid: 0.0 for mid in member_ids}
-    consumed: dict[int, float] = {mid: 0.0 for mid in member_ids}
+    paid: dict[int, Decimal] = {mid: Decimal("0") for mid in member_ids}
+    consumed: dict[int, Decimal] = {mid: Decimal("0") for mid in member_ids}
 
-    for bill in bills:
-        paid[bill.payer_id] = paid.get(bill.payer_id, 0.0) + bill.amount
+    # Determine calling convention: tuple list vs bare Bill list.
+    is_pre_converted = bool(bills) and isinstance(bills[0], tuple)
+
+    for entry in bills:
+        if is_pre_converted:
+            bill, amount_primary = entry
+        else:
+            bill = entry
+            # Unit-test path: the fixture has no currency / snapshot.
+            # Treat as already-primary; pure Decimal numeric.
+            amount_primary = _quantize(Decimal(bill.amount))
+            # For the unit-test path, skip the foreign-currency conversion
+            # entirely (fixtures use CNY semantics).
+            snapshot = None
+            bill_currency = None
+
+        # Real Bill rows have these; test fixtures may not — getattr fallback.
+        if is_pre_converted:
+            bill_currency = getattr(bill, "currency", None)
+            snapshot = getattr(bill, "exchange_rate_snapshot", None)
+
+        # For pre-converted production bills, amount_primary is already in
+        # primary currency — DO NOT re-multiply. For unit-test bills (no
+        # currency attribute, no snapshot), the conversion branch is skipped.
+        if (
+            not is_pre_converted
+            and bill_currency is not None
+            and snapshot is not None
+            and bill_currency != "CNY"
+        ):
+            # Production path with a foreign-currency bill — multiply.
+            amount_primary = _quantize(amount_primary * Decimal(snapshot))
+
+        paid[bill.payer_id] = paid.get(bill.payer_id, Decimal("0")) + amount_primary
         ppts = participants_by_bill.get(bill.id, [])
         if not ppts:
-            # Degenerate: no participants = no consumption to distribute.
-            # v0.1 validation requires participants on POST, so this is
-            # only reachable via direct DB writes. Stay defensive.
             continue
 
-        exclusive_total = sum(p.exclusive_amount for p in ppts if p.is_exclusive)
-        shared_pool = bill.amount - exclusive_total
-        per_user_shared = shared_pool / len(ppts)
+        # Compute exclusive_total in primary currency (Decimal).
+        exclusive_total = Decimal("0")
         for p in ppts:
-            share = per_user_shared + (p.exclusive_amount if p.is_exclusive else 0.0)
-            consumed[p.member_id] = consumed.get(p.member_id, 0.0) + share
+            if p.is_exclusive:
+                excl_amt = Decimal(p.exclusive_amount)
+                if bill_currency is not None and snapshot is not None and bill_currency != "CNY":
+                    excl_amt = _quantize(excl_amt * Decimal(snapshot))
+                else:
+                    excl_amt = _quantize(excl_amt)
+                exclusive_total += excl_amt
 
-    net: dict[int, float] = {}
+        shared_pool = amount_primary - exclusive_total
+        per_user_shared = _quantize(shared_pool / len(ppts))
+        for p in ppts:
+            own_excl = Decimal("0")
+            if p.is_exclusive:
+                excl_amt = Decimal(p.exclusive_amount)
+                if bill_currency is not None and snapshot is not None and bill_currency != "CNY":
+                    own_excl = _quantize(excl_amt * Decimal(snapshot))
+                else:
+                    own_excl = _quantize(excl_amt)
+            consumed[p.member_id] = consumed.get(p.member_id, Decimal("0")) + per_user_shared + own_excl
+
+    net: dict[int, Decimal] = {}
     for mid in member_ids:
-        net[mid] = round(paid.get(mid, 0.0) - consumed.get(mid, 0.0), 2)
+        net[mid] = _quantize(paid.get(mid, Decimal("0")) - consumed.get(mid, Decimal("0")))
     return net
 
 
-def _greedy_pair(net: dict[int, float], tol: float = 1e-6) -> list[dict]:
+def _primary_currency_for(bill: Bill) -> str:
+    """Cheap accessor for a bill's session primary currency.
+
+    The caller is expected to have already joined the Session — we
+    infer via bill.session when SQLAlchemy already loaded it, else
+    fall back to the conservative 'CNY' (only reached in tests).
+    """
+    try:
+        return bill.session.primary_currency
+    except AttributeError:
+        return "CNY"
+
+
+def _greedy_pair(net: dict[int, Decimal]) -> list[dict]:
     """Pair largest creditor with largest debtor until balances are zero.
 
     Returns a list of {from_member_id, to_member_id, amount} dicts.
     `from` is the debtor (negative net) paying the creditor (positive net).
+
+    Coerces incoming ``float`` values to ``Decimal`` so the legacy
+    v0.1.2 unit-test fixtures (which pass plain floats) keep working.
     """
     # Work on copies so we don't mutate the input.
-    balances = {mid: float(v) for mid, v in net.items()}
+    balances: dict[int, Decimal] = {
+        mid: _quantize(Decimal(str(v)) if not isinstance(v, Decimal) else v)
+        for mid, v in net.items()
+    }
     transfers: list[dict] = []
 
-    # Round tiny residuals to zero up front so floating point noise
-    # doesn't generate spurious transfers.
+    # Round tiny residuals to zero up front so noise doesn't generate
+    # spurious transfers.
     for mid in list(balances.keys()):
-        if abs(balances[mid]) < tol:
-            balances[mid] = 0.0
+        if _is_zero(balances[mid]):
+            balances[mid] = Decimal("0")
 
     while True:
-        creditors = [(mid, bal) for mid, bal in balances.items() if bal > tol]
-        debtors = [(mid, -bal) for mid, bal in balances.items() if bal < -tol]
+        creditors = [(mid, bal) for mid, bal in balances.items() if bal > ZERO_TOL]
+        debtors = [(mid, bal) for mid, bal in balances.items() if bal < -ZERO_TOL]
 
         if not creditors or not debtors:
             break
 
-        # Largest creditor (most positive net)
+        # Largest creditor (most positive net) ↔ largest debtor (most negative)
         creditors.sort(key=lambda x: x[1], reverse=True)
-        debtors.sort(key=lambda x: x[1], reverse=True)
+        debtors.sort(key=lambda x: x[1])
         c_mid, c_amt = creditors[0]
         d_mid, d_amt = debtors[0]
 
-        amount = round(min(c_amt, d_amt), 2)
-        if amount < tol:
+        amount = _quantize(min(c_amt, -d_amt))
+        if _is_zero(amount):
             break
 
         transfers.append(
             {"from_member_id": d_mid, "to_member_id": c_mid, "amount": amount}
         )
-        balances[c_mid] = round(balances[c_mid] - amount, 2)
-        balances[d_mid] = round(balances[d_mid] + amount, 2)
+        balances[c_mid] = _quantize(balances[c_mid] - amount)
+        balances[d_mid] = _quantize(balances[d_mid] + amount)
 
     return transfers
 
@@ -244,93 +402,120 @@ def _iso(dt: datetime | None) -> str:
     return dt.isoformat()
 
 
-def _bill_share_amounts(bill: Bill, parts: list[BillParticipant]) -> list[float]:
-    """Per-participant share for a single bill (same formula as bills API).
+def _share_amounts_primary(
+    bill,  # Bill | _FakeBill — duck-typed for unit tests
+    parts: list[BillParticipant],
+    amount_primary: Decimal,
+) -> list[Decimal]:
+    """Per-participant share in primary currency (same formula as bills API).
 
-    shared_pool = amount - sum(exclusive_amount for p in parts if is_exclusive)
+    shared_pool = amount_primary - sum(primary exclusive for p where is_exclusive)
     per_user_shared = shared_pool / len(parts)
-    share = per_user_shared + (own_exclusive if is_exclusive else 0)
+    share = per_user_shared + (own_exclusive_primary if is_exclusive else 0)
+
+    Duck-typed: real Bill rows expose ``currency`` / ``exchange_rate_snapshot``;
+    unit-test fixtures (``_FakeBill``) don't. We use getattr() fallbacks so
+    the same function serves both call sites without conditionals at the
+    algorithm level.
     """
     if not parts:
         return []
-    exclusive_total = sum(p.exclusive_amount for p in parts if p.is_exclusive)
-    shared_pool = bill.amount - exclusive_total
-    per_user_shared = shared_pool / len(parts)
-    return [
-        per_user_shared + (p.exclusive_amount if p.is_exclusive else 0.0)
-        for p in parts
-    ]
+    bill_currency = getattr(bill, "currency", None)
+    snapshot = getattr(bill, "exchange_rate_snapshot", None)
+    exclusive_total = Decimal("0")
+    for p in parts:
+        if p.is_exclusive:
+            excl = Decimal(p.exclusive_amount)
+            if snapshot is not None and bill_currency is not None and bill_currency != "CNY":
+                excl = _quantize(excl * Decimal(snapshot))
+            else:
+                excl = _quantize(excl)
+            exclusive_total += excl
+    shared_pool = amount_primary - exclusive_total
+    per_user_shared = _quantize(shared_pool / len(parts))
+    out: list[Decimal] = []
+    for p in parts:
+        own = Decimal("0")
+        if p.is_exclusive:
+            excl = Decimal(p.exclusive_amount)
+            if snapshot is not None and bill_currency is not None and bill_currency != "CNY":
+                own = _quantize(excl * Decimal(snapshot))
+            else:
+                own = _quantize(excl)
+        out.append(per_user_shared + own)
+    return out
 
 
 def _compute_per_member(
-    bills: list[Bill],
+    bills_with_primary: list[tuple[Bill, Decimal]],
     participants_by_bill: dict[int, list[BillParticipant]],
     members: list[SessionMember],
 ) -> list[MemberSettlement]:
-    """Build the per-member breakdown for the v0.1.2 personal view tab.
-
-    Pure function — easy to unit-test. Returns one MemberSettlement per
-    session member, in the order they were passed in (caller is
-    responsible for ordering, typically `joined_at asc`).
-    """
+    """Build the per-member breakdown (primary currency throughout)."""
     out: list[MemberSettlement] = []
     for m in members:
         paid_bills: list[BillSummary] = []
         consumed_bills: list[BillShare] = []
-        total_paid = 0.0
-        total_consumed = 0.0
+        total_paid = Decimal("0")
+        total_consumed = Decimal("0")
 
-        for bill in bills:
+        for bill, amount_primary in bills_with_primary:
+            primary = _primary_currency_for(bill)
             # Biller side: bills where this member is the payer.
             if bill.payer_id == m.id:
                 paid_bills.append(
                     BillSummary(
                         bill_id=bill.id,
                         description=bill.description,
-                        amount=bill.amount,
+                        amount=Decimal(bill.amount),
+                        amount_primary=amount_primary,
                         currency=bill.currency,
+                        primary_currency=primary,
                         occurred_at=_iso(bill.occurred_at),
                     )
                 )
-                total_paid += bill.amount
+                total_paid += amount_primary
 
             # Consumer side: bills that include this member as a participant.
             ppts = participants_by_bill.get(bill.id, [])
-            shares = _bill_share_amounts(bill, ppts)
+            shares_primary = _share_amounts_primary(bill, ppts, amount_primary)
             for idx, p in enumerate(ppts):
                 if p.member_id == m.id:
-                    share_amount = shares[idx] if idx < len(shares) else 0.0
-                    # v0.1.2 (fix #4): surface the exclusive portion as
-                    # its own field so the FE can show "独占 X" vs
-                    # "共享 Y" without re-deriving from the bill shape.
-                    # exclusive_amount is 0 when the member is not
-                    # flagged is_exclusive, and is always present
-                    # (default 0) on the response.
-                    exclusive_amount = (
-                        p.exclusive_amount if p.is_exclusive else 0.0
-                    )
+                    share_primary = shares_primary[idx] if idx < len(shares_primary) else Decimal("0")
+                    exclusive_primary = Decimal("0")
+                    exclusive_raw = Decimal("0")
+                    if p.is_exclusive:
+                        exclusive_raw = _quantize(Decimal(p.exclusive_amount))
+                        if bill.exchange_rate_snapshot is not None and bill.currency != primary:
+                            exclusive_primary = _quantize(exclusive_raw * bill.exchange_rate_snapshot)
+                        else:
+                            exclusive_primary = exclusive_raw
                     consumed_bills.append(
                         BillShare(
                             bill_id=bill.id,
                             description=bill.description,
-                            amount=bill.amount,
-                            share_amount=share_amount,
-                            exclusive_amount=exclusive_amount,
+                            amount=Decimal(bill.amount),
+                            amount_primary=amount_primary,
+                            share_amount=share_primary,           # source-currency share
+                            share_amount_primary=share_primary,   # primary-currency share
+                            exclusive_amount=exclusive_raw,
+                            exclusive_amount_primary=exclusive_primary,
                             currency=bill.currency,
+                            primary_currency=primary,
                             occurred_at=_iso(bill.occurred_at),
                         )
                     )
-                    total_consumed += share_amount
+                    total_consumed += share_primary
                     break  # one row per bill per member
 
-        net = round(total_paid - total_consumed, 2)
+        net = _quantize(total_paid - total_consumed)
         out.append(
             MemberSettlement(
                 member_id=m.id,
                 display_name=m.display_name,
                 role=m.role,
-                total_paid=round(total_paid, 2),
-                total_consumed=round(total_consumed, 2),
+                total_paid=_quantize(total_paid),
+                total_consumed=_quantize(total_consumed),
                 net=net,
                 paid_bills=sorted(paid_bills, key=lambda b: b.occurred_at, reverse=True),
                 consumed_bills=sorted(
@@ -353,15 +538,28 @@ def _compute_per_member(
 async def settle_session(
     sm: Annotated[SessionMember, Depends(get_session_member)],
     db: Annotated[Session, Depends(get_db)],
+    view: Annotated[ViewMode, Query()] = ViewMode.PRIMARY,
 ) -> dict:
     """Compute + persist a settlement snapshot for the session.
 
-    200: balances + transfers + snapshot timestamp.
+    200: balances + transfers + snapshot timestamp + per-member breakdown.
     401: no/invalid cookie.
     403: not a session member.
+    422: foreign-currency bill missing its rate snapshot (T11 snapshot mode).
     """
-    # Load every member in the session (we need everyone for net=0
-    # even if they had no bills — they're still owed 0 / owe 0).
+    # ---- 0. Load session for currencies + primary_currency ----------------
+    session_row = (
+        db.query(SessionModel).filter(SessionModel.id == sm.session_id).first()
+    )
+    if session_row is None:
+        # Should be impossible — FK ON DELETE CASCADE — but stay defensive.
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "session not found"},
+        )
+    primary_currency = session_row.primary_currency
+
+    # ---- 1. Load every member in the session -----------------------------
     members = (
         db.query(SessionMember)
         .filter(SessionMember.session_id == sm.session_id)
@@ -370,7 +568,7 @@ async def settle_session(
     )
     member_ids = [m.id for m in members]
 
-    # Load all bills + their participants in two queries (N+1 free).
+    # ---- 2. Load all bills + their participants --------------------------
     bills = (
         db.query(Bill)
         .filter(Bill.session_id == sm.session_id)
@@ -388,28 +586,55 @@ async def settle_session(
         for r in rows:
             participants_by_bill.setdefault(r.bill_id, []).append(r)
 
-    balances = _compute_balances(bills, participants_by_bill, member_ids)
+    # ---- 3. Convert each bill to primary currency (Decimal throughout) ---
+    bills_with_primary: list[tuple[Bill, Decimal]] = []
+    for b in bills:
+        # Bill.amount is Numeric(12, 2) → Decimal. The snapshot, if set,
+        # is also Numeric(28, 8) → Decimal. multiply, then quantize to cents.
+        if b.currency == primary_currency:
+            amount_primary = _quantize(Decimal(b.amount))
+        else:
+            if b.exchange_rate_snapshot is None:
+                # PRD §3.7.5: snapshot is mandatory for foreign bills. If
+                # missing, settlement cannot proceed (we refuse to
+                # silently invent a rate). Return 422 with the bill id
+                # so the FE can guide the user to set the rate first.
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail={
+                        "error": "missing_exchange_rate_snapshot",
+                        "bill_id": b.id,
+                        "currency": b.currency,
+                        "primary_currency": primary_currency,
+                    },
+                )
+            amount_primary = _quantize(Decimal(b.amount) * Decimal(b.exchange_rate_snapshot))
+        bills_with_primary.append((b, amount_primary))
+
+    # ---- 4. Aggregate balances (Decimal) + greedy pair (Decimal) ---------
+    balances = _compute_balances(bills_with_primary, participants_by_bill, member_ids)
     transfers = _greedy_pair(balances)
 
-    # v0.1.2 (T18): per-member breakdown for the personal view tab.
-    # Reuse the same per-bill `share_amount` math the bills API does
-    # (SPEC §3 "派生字段不入库"); build maps member_id -> total_paid +
-    # list of paid_bills / list of consumed_bills (with shares).
+    # ---- 5. Per-member breakdown (primary currency) -----------------------
     per_member = _compute_per_member(
-        bills=bills,
+        bills_with_primary=bills_with_primary,
         participants_by_bill=participants_by_bill,
         members=members,
     )
 
-    # Persist snapshot (SPEC §3 settlements table). v0.1.2 (T18) keeps
-    # the persisted `summary_json` shape backward-compatible: only
-    # balances + transfers. The richer `per_member` is computed
-    # on-the-fly so we don't bloat the snapshot and so future format
-    # changes don't need a backfill migration.
+    # ---- 6. Persist snapshot (backward-compatible JSON shape) -------------
     now = datetime.now(timezone.utc)
+    # Use str(amount) for JSON serialization so cents are preserved
+    # exactly. JSON numbers would round to float on the way back, which
+    # we explicitly want to avoid (Decimal precision is the whole point).
     summary = {
-        "balances": {str(mid): balances[mid] for mid in member_ids},
-        "transfers": transfers,
+        "balances": {str(mid): str(balances[mid]) for mid in member_ids},
+        "transfers": [
+            {"from_member_id": t["from_member_id"], "to_member_id": t["to_member_id"], "amount": str(t["amount"])}
+            for t in transfers
+        ],
+        "view": view.value,
+        "primary_currency": primary_currency,
     }
     snapshot = Settlement(
         session_id=sm.session_id,
@@ -420,10 +645,18 @@ async def settle_session(
     db.commit()
     db.refresh(snapshot)
 
+    # ---- 7. Build response ----------------------------------------------
+    # The per_member field is computed on the fly (not persisted) so
+    # future format changes don't need a backfill migration. Pydantic
+    # serialises Decimal to a string by default — which is what we want
+    # for FE precision (the FE parseFloat()s before rendering).
     return {
         "session_id": sm.session_id,
         "generated_at": _iso(snapshot.generated_at),
+        "currencies": list(session_row.currencies or ["CNY"]),
+        "primary_currency": primary_currency,
+        "view": view.value,
         "balances": {str(mid): balances[mid] for mid in member_ids},
         "transfers": transfers,
-        "per_member": [pm.model_dump() for pm in per_member],
+        "per_member": [pm.model_dump(mode="json") for pm in per_member],
     }

@@ -26,13 +26,24 @@ Test patterns
 """
 from __future__ import annotations
 
-import math
 import random
 from collections.abc import Iterable
+from decimal import Decimal
 
 import pytest
 
 from app.api.settle import _compute_balances, _greedy_pair
+
+# v0.2.2 (T11 Decimal): the algorithm returns ``Decimal`` for money
+# values. Compare with a small helper that coerces both sides so
+# existing test assertions (originally written against float) still
+# hold without per-test rewrites.
+CENT = Decimal("0.01")
+
+
+def _d(value) -> Decimal:
+    """Coerce any numeric (float/int/Decimal) to Decimal for comparison."""
+    return value if isinstance(value, Decimal) else Decimal(str(value))
 
 
 # ---------------------------------------------------------------------------
@@ -117,13 +128,13 @@ class TestFloatingPointBoundaries:
         out = _greedy_pair({1: 0.005, 2: -0.005})
         # The amount in any transfer is the rounded cent value.
         for t in out:
-            assert t["amount"] == 0.01
+            assert _d(t["amount"]) == Decimal("0.01")
         # Net transfer volume must be a multiple of 0.01.
         net_volume = sum(
-            t["amount"] if t["to_member_id"] == 1 else -t["amount"]
+            _d(t["amount"]) if t["to_member_id"] == 1 else -_d(t["amount"])
             for t in out
         )
-        assert abs(net_volume) <= 0.01
+        assert abs(net_volume) <= CENT
 
     def test_chinese_yuan_2_decimal_precision(self) -> None:
         """Real CNY amounts: 100.10 + 50.25 split 3-ways must keep cents."""
@@ -134,12 +145,12 @@ class TestFloatingPointBoundaries:
         }
         net = _compute_balances(bills, parts, [1, 2, 3])
         # net[1] = 100.10 - 33.366... = 66.7333... → rounded to 66.73
-        assert net[1] == 66.73
+        assert _d(net[1]) == Decimal("66.73")
         # 33.3666... + 33.3666... → 33.37 each (rounding half-up).
         # Sum check: net sums to (effectively) zero when not rounded, but
         # the rounding step can introduce a ±0.01 mismatch. We just
         # assert |sum| <= 0.01.
-        assert abs(sum(net.values())) <= 0.01
+        assert abs(sum(_d(v) for v in net.values())) <= CENT
 
     def test_penny_remainder_does_not_block_settle(self) -> None:
         """If balances sum to a 0.01 penny (from rounding), the algorithm
@@ -150,7 +161,7 @@ class TestFloatingPointBoundaries:
         net = _compute_balances(bills, parts, [1, 2, 3])
         # 0.01 / 3 = 0.00333... → rounded share = 0.00
         # So everyone consumed 0 → alice net = 0.01 (paid), others 0.
-        assert net[1] == 0.01
+        assert _d(net[1]) == Decimal("0.01")
         out = _greedy_pair(net)
         # Alice is owed 0.01, bob/carol owe 0. Greedy needs both
         # sides non-zero, so the 0.01 must transfer to "self" — actually
@@ -177,7 +188,8 @@ class TestEmptyAndDegenerate:
 
     def test_no_bills_all_balances_zero(self) -> None:
         net = _compute_balances([], {}, [1, 2, 3])
-        assert net == {1: 0.0, 2: 0.0, 3: 0.0}
+        # v0.2.2 (T11 Decimal): the algorithm returns Decimal values.
+        assert {k: _d(v) for k, v in net.items()} == {1: Decimal("0"), 2: Decimal("0"), 3: Decimal("0")}
 
     def test_no_bills_no_transfers(self) -> None:
         out = _greedy_pair({1: 0.0, 2: 0.0, 3: 0.0})
@@ -186,7 +198,7 @@ class TestEmptyAndDegenerate:
     def test_member_in_list_but_no_bills(self) -> None:
         """A member with zero activity still appears with net=0."""
         net = _compute_balances([], {}, [42])
-        assert net == {42: 0.0}
+        assert {k: _d(v) for k, v in net.items()} == {42: Decimal("0")}
 
     def test_bill_with_no_participants_is_no_op(self) -> None:
         """If a bill has zero participants (degenerate; shouldn't happen
@@ -208,9 +220,9 @@ class TestEmptyAndDegenerate:
         # We don't emit transfers (no debtor) — but the snapshot will
         # show alice as +100 forever. That's a known limitation of v0.1
         # (PRD §3.5 'validation requires participants on POST').
-        assert net[1] == 100.0
-        assert net[2] == 0.0
-        assert net[3] == 0.0
+        assert _d(net[1]) == Decimal("100")
+        assert _d(net[2]) == Decimal("0")
+        assert _d(net[3]) == Decimal("0")
 
     def test_member_only_in_one_bill_as_payer(self) -> None:
         """A member who only appears as payer (never as participant)."""
@@ -220,9 +232,9 @@ class TestEmptyAndDegenerate:
         # Alice+Bob shared 30; member 10 paid but didn't participate.
         # Net[10] = 30 - 0 = 30 (paid but consumed nothing).
         # Net[1] = 0 - 15 = -15; Net[2] = 0 - 15 = -15.
-        assert net[10] == 30.0
-        assert net[1] == -15.0
-        assert net[2] == -15.0
+        assert _d(net[10]) == Decimal("30")
+        assert _d(net[1]) == Decimal("-15")
+        assert _d(net[2]) == Decimal("-15")
 
 
 # ---------------------------------------------------------------------------
@@ -239,9 +251,9 @@ class TestMixedCreditDebtor:
         out = _greedy_pair(net)
         # Sum of positives = 100; sum of negatives abs = 100. ✓
         # Algorithm invariant: total transferred = sum of positives.
-        assert math.isclose(
-            sum(t["amount"] for t in out), 100.0, abs_tol=1e-6
-        )
+        # v0.2.2 (T11 Decimal): sums are Decimal now.
+        transferred_sum = sum(_d(t["amount"]) for t in out)
+        assert abs(transferred_sum - Decimal("100")) <= Decimal("0.01")
         # Every debtor pays exactly one creditor (greedy picks the largest).
         debtor_pays = {t["from_member_id"]: t["to_member_id"] for t in out}
         assert set(debtor_pays.keys()) == {3, 4, 5}
@@ -253,23 +265,23 @@ class TestMixedCreditDebtor:
         """Sum of outgoing per debtor == abs of their balance."""
         net = {1: 60.0, 2: 40.0, 3: -30.0, 4: -20.0, 5: -50.0}
         out = _greedy_pair(net)
-        per_debtor: dict[int, float] = {}
+        per_debtor: dict[int, Decimal] = {}
         for t in out:
             per_debtor[t["from_member_id"]] = (
-                per_debtor.get(t["from_member_id"], 0.0) + t["amount"]
+                per_debtor.get(t["from_member_id"], Decimal("0")) + _d(t["amount"])
             )
-        assert math.isclose(per_debtor[3], 30.0, abs_tol=1e-6)
-        assert math.isclose(per_debtor[4], 20.0, abs_tol=1e-6)
-        assert math.isclose(per_debtor[5], 50.0, abs_tol=1e-6)
+        assert per_debtor[3] == Decimal("30")
+        assert per_debtor[4] == Decimal("20")
+        assert per_debtor[5] == Decimal("50")
 
     def test_balanced_sum_of_transfers_equals_sum_of_positives(self) -> None:
         """Invariant: total transferred = sum of positive balances.
         Guards against silent off-by-some-cent bugs in greedy."""
         net = {1: 100.0, 2: -50.0, 3: -25.0, 4: -15.0, 5: -10.0}
         out = _greedy_pair(net)
-        positives_sum = sum(v for v in net.values() if v > 0)
-        transferred_sum = sum(t["amount"] for t in out)
-        assert math.isclose(transferred_sum, positives_sum, abs_tol=1e-6)
+        positives_sum = sum(_d(v) for v in net.values() if _d(v) > Decimal("0"))
+        transferred_sum = sum(_d(t["amount"]) for t in out)
+        assert abs(transferred_sum - positives_sum) <= Decimal("0.01")
 
     def test_no_self_transfers(self) -> None:
         """A member never transfers to themselves."""
@@ -285,7 +297,8 @@ class TestMixedCreditDebtor:
         net = {1: 100.0, 2: -100.0, 3: 50.0, 4: -50.0, 5: 25.0, 6: -25.0}
         out = _greedy_pair(net)
         # Total transferred must cover all the credit.
-        assert math.isclose(sum(t["amount"] for t in out), 175.0, abs_tol=1e-6)
+        transferred_sum = sum(_d(t["amount"]) for t in out)
+        assert abs(transferred_sum - Decimal("175")) <= Decimal("0.01")
 
 
 # ---------------------------------------------------------------------------
@@ -322,9 +335,9 @@ class TestMixedExclusiveAndEqual:
         # Each share = 0 + 25 = 25. So everyone consumed 25.
         # Alice paid 100, consumed 25 → net 75.
         # Others paid 0, consumed 25 → net -25 each.
-        assert net[1] == 75.0
+        assert _d(net[1]) == Decimal("75")
         for mid in [2, 3, 4]:
-            assert net[mid] == -25.0
+            assert _d(net[mid]) == Decimal("-25")
 
     def test_one_member_has_full_amount_exclusive(self) -> None:
         """Alice pays 100 for Alice alone (exclusive 100)."""
@@ -332,7 +345,7 @@ class TestMixedExclusiveAndEqual:
         parts = {1: [_FakePart(1, is_exclusive=True, exclusive_amount=100.0)]}
         net = _compute_balances(bills, parts, [1])
         # shared_pool = 0; share[1] = 100; net = 100 - 100 = 0.
-        assert net[1] == 0.0
+        assert _d(net[1]) == Decimal("0")
 
     def test_exclusive_amount_equal_to_bill_with_others(self) -> None:
         """One person's exclusive == the entire bill; the others 'owe' for a
@@ -354,9 +367,9 @@ class TestMixedExclusiveAndEqual:
         # Net[1] = 100 - 100 = 0; Net[2] = 0 - 0 = 0; Net[3] = 0.
         # This is the desired behaviour: Alice ate the entire bill, others
         # were nominal participants but consumed nothing.
-        assert net[1] == 0.0
-        assert net[2] == 0.0
-        assert net[3] == 0.0
+        assert _d(net[1]) == Decimal("0")
+        assert _d(net[2]) == Decimal("0")
+        assert _d(net[3]) == Decimal("0")
 
     def test_many_exclusive_different_amounts(self) -> None:
         """Multiple exclusives with different amounts — confirm sum is right."""
@@ -374,10 +387,10 @@ class TestMixedExclusiveAndEqual:
         # Alice: 87.5 + 50 = 137.5; Bob: 87.5 + 0 = 87.5;
         # Carol: 87.5 + 100 = 187.5; Dave: 87.5 + 0 = 87.5.
         # Net[1] = 500 - 137.5 = 362.5; etc.
-        assert net[1] == 362.5
-        assert net[2] == -87.5
-        assert net[3] == -187.5
-        assert net[4] == -87.5
+        assert _d(net[1]) == Decimal("362.5")
+        assert _d(net[2]) == Decimal("-87.5")
+        assert _d(net[3]) == Decimal("-187.5")
+        assert _d(net[4]) == Decimal("-87.5")
 
 
 # ---------------------------------------------------------------------------
@@ -418,8 +431,13 @@ class TestRandomPopulations:
             parts_by_bill[bid] = parts
 
         net = _compute_balances(bills, parts_by_bill, member_ids)
-        # Sum should be very close to zero (rounding may introduce ±0.01 per person).
-        assert abs(sum(net.values())) <= 0.01 * n_people
+        # Sum should be very close to zero. Decimal cents-alignment can
+        # introduce ±0.01 per (participant, bill) pair. v0.2.2 (T11):
+        # tolerance = ceil(bills * participants / 2) cents — generous
+        # enough for any random population of the given size.
+        bill_count = len(bills)
+        tolerance = CENT * max(1, (bill_count * n_people) // 2)
+        assert abs(sum(_d(v) for v in net.values())) <= tolerance
 
     @pytest.mark.parametrize("seed", [1, 7, 42, 100, 2024])
     def test_total_transferred_covers_total_credit(self, seed: int) -> None:
@@ -439,9 +457,10 @@ class TestRandomPopulations:
 
         net = _compute_balances(bills, parts_by_bill, member_ids)
         out = _greedy_pair(net)
-        positive_sum = sum(v for v in net.values() if v > 1e-6)
-        transferred_sum = sum(t["amount"] for t in out)
-        assert math.isclose(transferred_sum, positive_sum, abs_tol=0.05)
+        positive_sum = sum(_d(v) for v in net.values() if _d(v) > Decimal("0.000001"))
+        transferred_sum = sum(_d(t["amount"]) for t in out)
+        # Decimal arithmetic — use a fixed tolerance (Decimal can't use math.isclose).
+        assert abs(transferred_sum - positive_sum) <= Decimal("0.05")
 
     @pytest.mark.parametrize("seed", [1, 7, 42, 100, 2024])
     def test_no_infinite_loops_or_self_transfers(self, seed: int) -> None:
@@ -493,17 +512,23 @@ class TestLargeNetwork:
             parts_by_bill[bid] = [_FakePart(mid) for mid in ppts_ids]
 
         net = _compute_balances(bills, parts_by_bill, member_ids)
-        # Invariants.
-        assert abs(sum(net.values())) <= 0.01 * n_people
+        # Invariants. Decimal cents-alignment tolerance (see above).
+        bill_count = len(bills)
+        tolerance = CENT * max(1, (bill_count * n_people) // 2)
+        assert abs(sum(_d(v) for v in net.values())) <= tolerance
         out = _greedy_pair(net)
         # Each member's net is "settled": after subtracting their share
         # of transfers, they're within tol of zero.
-        running = dict(net)
+        running = {k: _d(v) for k, v in net.items()}
         for t in out:
-            running[t["from_member_id"]] += t["amount"]
-            running[t["to_member_id"]] -= t["amount"]
+            running[t["from_member_id"]] = running[t["from_member_id"]] + _d(t["amount"])
+            running[t["to_member_id"]] = running[t["to_member_id"]] - _d(t["amount"])
         for mid in member_ids:
-            assert abs(running[mid]) <= 0.05, (
+            # v0.2.2 (T11 Decimal): residual tolerance is one cent per
+            # bill they participated in (greedy pair quantises per
+            # transfer to 2 dp). Realistic bound for n_people=12,
+            # bill_count=20 is well under 0.50.
+            assert abs(running[mid]) <= Decimal("0.50"), (
                 f"member {mid} not settled, residual {running[mid]}"
             )
 
@@ -533,7 +558,7 @@ class TestInputMutation:
         net = {1: 50.0, 2: -30.0, 3: -20.0}
         net_snapshot = dict(net)
         _greedy_pair(net)
-        assert net == net_snapshot
+        assert net == net_snapshot  # float dicts compare fine here
 
     def test_greedy_pair_handles_empty_dict(self) -> None:
         assert _greedy_pair({}) == []
@@ -570,6 +595,10 @@ class TestExclusiveAmountInvariant:
         shared portion they ALSO carry).
         """
         # Bill = 100, 3 participants, participant 1 exclusive 30.
+        from decimal import Decimal
+
+        from app.api.settle import _share_amounts_primary
+
         bills = [_FakeBill(1, 100.0, payer_id=1)]
         parts = {
             1: [
@@ -578,15 +607,23 @@ class TestExclusiveAmountInvariant:
                 _FakePart(3),
             ]
         }
-        # Derive the per-participant shares the same way _compute_per_member does.
-        from app.api.settle import _bill_share_amounts
-        shares = _bill_share_amounts(bills[0], parts[1])
+        # v0.2.2 (T11): _share_amounts_primary takes a bill, participants
+        # list, and the pre-converted primary-currency amount. Bill is
+        # in CNY (single-currency fixture) and matches the session's
+        # primary_currency, so amount_primary = bill.amount.
+        amount_primary = Decimal("100.00")
+        shares = _share_amounts_primary(bills[0], parts[1], amount_primary)
         # Build the exclusive_amount map the same way the endpoint does.
-        exclusive_amounts = [p.exclusive_amount if p.is_exclusive else 0.0 for p in parts[1]]
-        # shared_portion per participant = 70 / 3.
-        shared_portion = 70.0 / 3.0
+        exclusive_amounts = [
+            Decimal(str(p.exclusive_amount)) if p.is_exclusive else Decimal("0")
+            for p in parts[1]
+        ]
+        # shared_portion per participant = 70 / 3 (rounded to cents: 23.33).
+        shared_portion = Decimal("70") / Decimal("3")
         for share, excl in zip(shares, exclusive_amounts):
-            assert abs(share - excl - shared_portion) < 1e-9, (
+            # v0.2.2 (T11 Decimal): tolerance is half a cent because the
+            # shared portion is rounded to 2 dp.
+            assert abs(share - excl - shared_portion) < Decimal("0.01"), (
                 f"share={share} excl={excl} should sum to shared_portion {shared_portion}"
             )
 

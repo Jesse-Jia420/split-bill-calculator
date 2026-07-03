@@ -65,6 +65,7 @@ from app.db.models.bill_participants import BillParticipant
 from app.db.models.bills import Bill
 from app.db.models.session_members import SessionMember, SessionRole
 from app.db.models.sessions import Session as SessionModel
+from app.db.models.session_exchange_rates import SessionExchangeRate
 from app.db.models.users import User
 from app.main import app
 
@@ -86,6 +87,7 @@ def _truncate_all():
         db.query(BillParticipant).delete()
         db.query(Bill).delete()
         db.query(SessionMember).delete()
+        db.query(SessionExchangeRate).delete()
         db.query(SessionModel).delete()
         db.query(AuthToken).delete()
         db.query(User).delete()
