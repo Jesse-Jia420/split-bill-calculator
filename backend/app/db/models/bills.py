@@ -30,6 +30,10 @@ class Bill(Base):
     amount: Mapped[float] = mapped_column(Float, nullable=False)
     currency: Mapped[str] = mapped_column(String(8), nullable=False, default="CNY", server_default="CNY")
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # v0.2.1 T01 (PRD §3.6.1): raw calculator expression echoed verbatim
+    # alongside the evaluated Decimal ``amount``. NULL for bills created
+    # before v0.2.1 (no backfill -- original expression is unrecoverable).
+    amount_expression: Mapped[str | None] = mapped_column(String(64), nullable=True)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_by: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True

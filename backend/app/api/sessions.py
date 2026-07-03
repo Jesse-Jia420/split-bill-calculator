@@ -109,6 +109,10 @@ class SessionDetail(BaseModel):
     # for inline display when the owner loads the page.
     invite_token_preview: str | None = None
     invite_expires_at: str | None = None
+    # v0.2.1 T02 (PRD §3.6.2): SessionMember.ids of the most recent bill's
+    # participants (NULL when the session has no bills yet). The frontend
+    # uses this to prefill participants in BillForm's create mode.
+    last_bill_participants: list[int] | None = None
 
 
 class UpdateMemberRequest(BaseModel):
@@ -273,6 +277,36 @@ async def list_sessions(
 # ---------------------------------------------------------------------------
 
 
+def _compute_last_bill_participants(
+    db: Session, session_id: int
+) -> list[int] | None:
+    """Find the most recent bill in the session and return its participant IDs.
+
+    Returns ``None`` if the session has no bills yet (frontend treats
+    that as "no history → fall back to default-all-included"). The "most
+    recent" bill is the one with the latest occurred_at; ties broken by
+    higher id (most recently created).
+    """
+    from app.db.models.bills import Bill
+    from app.db.models.bill_participants import BillParticipant
+
+    bill = (
+        db.query(Bill)
+        .filter(Bill.session_id == session_id)
+        .order_by(Bill.occurred_at.desc(), Bill.id.desc())
+        .first()
+    )
+    if bill is None:
+        return None
+    rows = (
+        db.query(BillParticipant.member_id)
+        .filter(BillParticipant.bill_id == bill.id)
+        .order_by(BillParticipant.member_id.asc())
+        .all()
+    )
+    return [mid for (mid,) in rows]
+
+
 @router.get("/{session_id}", response_model=SessionDetail)
 async def get_session(
     sm: Annotated[SessionMember, Depends(get_session_member)],
@@ -308,6 +342,8 @@ async def get_session(
         .all()
     )
 
+    last_bill_participants = _compute_last_bill_participants(db, session.id)
+
     payload: dict = {
         "id": session.id,
         "name": session.name,
@@ -326,6 +362,7 @@ async def get_session(
         "created_at": _iso(session.created_at),
         "invite_token_preview": None,
         "invite_expires_at": None,
+        "last_bill_participants": last_bill_participants,
     }
 
     # Owner-only invite preview. Non-owners still get 200 but with NULL
