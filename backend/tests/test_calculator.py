@@ -118,6 +118,11 @@ def test_calculator_no_float_drift() -> None:
 
 @pytest.fixture(autouse=True)
 def _truncate():
+    # v0.2.2 anti-pattern #53b: skip truncate when SBC_SKIP_TEST_TRUNCATE=1
+    import os as _os_skip_truncate
+    if _os_skip_truncate.environ.get("SBC_SKIP_TEST_TRUNCATE") == "1":
+        yield
+        return
     db = SessionLocal()
     try:
         from app.db.models.bill_participants import BillParticipant

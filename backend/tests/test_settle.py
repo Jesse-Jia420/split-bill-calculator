@@ -62,8 +62,14 @@ def _f(value) -> float:
 # ---------------------------------------------------------------------------
 
 
+# v0.2.2 anti-pattern #53b: skip truncate when SBC_SKIP_TEST_TRUNCATE=1
+# (Master runs pytest with this env var to verify without wiping production data).
 @pytest.fixture(autouse=True)
 def _truncate_all():
+    import os as _os
+    if _os.environ.get("SBC_SKIP_TEST_TRUNCATE") == "1":
+        yield
+        return
     db = SessionLocal()
     try:
         db.query(Settlement).delete()
