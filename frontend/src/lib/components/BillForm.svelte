@@ -215,6 +215,93 @@
     participantState = { ...participantState };
   }
 
+  // v0.2.3 T14 (PRD §3.9.2): the participants section was redesigned —
+  // each row is now a single tappable button that toggles `included`,
+  // and a chevron expands a sub-row containing the exclusive-amount
+  // number input. The data structure (`participantState`) and the
+  // submit-time payload (`buildPayload`) are unchanged.
+  //
+  // `subRowOpen` is purely UI state — it tracks which rows have their
+  // exclusive-amount sub-row expanded. It does NOT participate in
+  // `buildPayload`; the `exclusive` flag in `participantState` is what
+  // gets serialized, and the chevron toggle keeps that flag in sync
+  // with the visible sub-row.
+  let subRowOpen: Record<number, boolean> = {};
+
+  /** Count of currently-included members (header summary). */
+  $: includedCount = session.members.reduce(
+    (n, m) => n + (participantState[m.id]?.included ? 1 : 0),
+    0
+  );
+  /** True when every member is included (drives the 全选/清空 toggle label). */
+  $: allIncluded =
+    session.members.length > 0 &&
+    session.members.every((m) => participantState[m.id]?.included);
+
+  /** Toggle all members included/excluded at once. */
+  function toggleAllParticipants() {
+    const target = !allIncluded;
+    for (const m of session.members) {
+      const st = participantState[m.id];
+      if (st) st.included = target;
+    }
+    participantState = { ...participantState };
+  }
+
+  /**
+   * Toggle the sub-row for a single member. On open: mark the row
+   * `exclusive=true` so the number input is meaningful. On close via
+   * chevron: clear `exclusive` if the amount is zero/empty so the
+   * persisted bill doesn't carry a spurious `is_exclusive=true`.
+   */
+  function toggleSubRow(memberId: number) {
+    const st = participantState[memberId];
+    if (!st) return;
+    const wasOpen = !!subRowOpen[memberId];
+    subRowOpen[memberId] = !wasOpen;
+    subRowOpen = { ...subRowOpen };
+    if (!wasOpen) {
+      st.exclusive = true;
+      if (!st.amount || st.amount === '0') st.amount = '';
+      participantState = { ...participantState };
+    } else {
+      const n = Number(st.amount);
+      if (!st.amount || st.amount === '' || !Number.isFinite(n) || n <= 0) {
+        st.exclusive = false;
+        st.amount = '0';
+        participantState = { ...participantState };
+      }
+    }
+  }
+
+  /** Ensure sub-row is open while the number input is focused. */
+  function onSubRowFocus(memberId: number) {
+    if (!subRowOpen[memberId]) {
+      subRowOpen[memberId] = true;
+      subRowOpen = { ...subRowOpen };
+    }
+  }
+
+  /**
+   * Blur handler — collapse the sub-row (per spec "失去焦点时自动收起"),
+   * and clear the exclusive flag when the amount is zero/empty so the
+   * persisted `is_exclusive` matches what the user actually sees.
+   */
+  function onSubRowBlur(memberId: number) {
+    const st = participantState[memberId];
+    if (!st) return;
+    if (subRowOpen[memberId]) {
+      subRowOpen[memberId] = false;
+      subRowOpen = { ...subRowOpen };
+    }
+    const n = Number(st.amount);
+    if (!st.amount || st.amount === '' || !Number.isFinite(n) || n <= 0) {
+      st.exclusive = false;
+      st.amount = '0';
+      participantState = { ...participantState };
+    }
+  }
+
   function applyAiResult(res: ParseBillResult) {
     if (res.amount && Number(res.amount) > 0) {
       // AI 辅助 — 用纯数字填入 expression, 计算器立刻得到金额
@@ -397,7 +484,9 @@
 
   <div>
     <div class="row between">
-      <span class="label">参与者</span>
+      <span class="label">
+        参与者 ({includedCount}/{session.members.length} 已选)
+      </span>
       {#if !isEdit}
         <button type="button" class="ghost btn-sm" on:click={() => (showAi = !showAi)}>
           {showAi ? '收起 AI 辅助' : 'AI 辅助'}
@@ -410,40 +499,71 @@
       </div>
     {/if}
 
-    <ul class="ppts list" style="list-style: none; margin: 0; padding: 0;">
-      {#each session.members as m (m.id)}
-        {@const st = participantState[m.id]}
-        <li class="ppt-row">
-          <label class="ppt-check">
-            <input
-              type="checkbox"
-              checked={st?.included ?? false}
-              on:change={() => toggleParticipant(m.id)}
-            />
-            <span>{m.display_name}</span>
-          </label>
-          <label class="ppt-excl">
-            <input
-              type="checkbox"
-              checked={st?.exclusive ?? false}
-              disabled={!st?.included}
-              on:change={() => toggleExclusive(m.id)}
-            />
-            <span class="muted">独占</span>
-          </label>
-          {#if st?.exclusive}
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              bind:value={st.amount}
-              placeholder="独占金额"
-              style="max-width: 120px;"
-            />
-          {/if}
-        </li>
-      {/each}
-    </ul>
+    <!-- v0.2.3 T14 (PRD §3.9.2): single tap area per row + chevron-expandable sub-row.
+         Hide the whole section when the session has no members. -->
+    {#if session.members.length > 0}
+      <div class="row between ppts-toggle-row">
+        <span class="muted ppts-meta">{session.members.length} 名成员</span>
+        <button
+          type="button"
+          class="link-btn"
+          on:click={toggleAllParticipants}
+          data-testid="ppts-toggle-all"
+          aria-label={allIncluded ? '清空全部参与者' : '全选全部参与者'}
+        >{allIncluded ? '清空' : '全选'}</button>
+      </div>
+      <ul class="ppts list" style="list-style: none; margin: 0; padding: 0;" data-testid="ppts-list">
+        {#each session.members as m (m.id)}
+          {@const st = participantState[m.id]}
+          {@const isSubOpen = subRowOpen[m.id] ?? false}
+          <li class="ppt-row" class:sub-open={isSubOpen} data-testid={`ppts-li-${m.id}`}>
+            <!-- Main row: single button toggling `included`. -->
+            <button
+              type="button"
+              class="ppt-main"
+              on:click={() => toggleParticipant(m.id)}
+              data-testid={`ppts-row-${m.id}`}
+              aria-pressed={st?.included ?? false}
+            >
+              <span class="ppt-check-icon" aria-hidden="true">{st?.included ? '☑' : '☐'}</span>
+              <span class="ppt-name">{m.display_name}</span>
+              {#if st?.exclusive && Number(st.amount) > 0}
+                <span class="ppt-excl-badge muted">独占 ¥{Number(st.amount).toFixed(2)}</span>
+              {/if}
+            </button>
+            <!-- Chevron: always visible, expands/collapses the sub-row. -->
+            <button
+              type="button"
+              class="ppt-chevron"
+              on:click={() => toggleSubRow(m.id)}
+              aria-expanded={isSubOpen}
+              aria-label={isSubOpen ? `收起 ${m.display_name} 的独占金额` : `展开 ${m.display_name} 的独占金额`}
+              data-testid={`ppts-chevron-${m.id}`}
+            >
+              <span class="chevron-icon" class:rotated={isSubOpen} aria-hidden="true">›</span>
+            </button>
+            <!-- Sub-row: exclusive-amount number input (collapsed by default). -->
+            {#if isSubOpen}
+              <div class="ppt-sub-row" data-testid={`ppts-sub-${m.id}`}>
+                <label class="ppt-sub-label muted" for={`ppts-amount-${m.id}`}>独占金额：¥</label>
+                <input
+                  id={`ppts-amount-${m.id}`}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  class="ppt-sub-input"
+                  bind:value={st.amount}
+                  on:focus={() => onSubRowFocus(m.id)}
+                  on:blur={() => onSubRowBlur(m.id)}
+                  placeholder="0.00"
+                  data-testid={`ppts-amount-${m.id}`}
+                />
+              </div>
+            {/if}
+          </li>
+        {/each}
+      </ul>
+    {/if}
   </div>
 
   {#if formError}
@@ -493,31 +613,143 @@
     transform: scale(0.97);
   }
 
-  .ppts li {
-    padding: var(--space-2) 0;
+  /* v0.2.3 T14 (PRD §3.9.2): participants row layout.
+     Each row = single main button (checkbox icon + name + optional
+     exclusive-amount badge) + a chevron button. The chevron expands
+     an indented sub-row with the number input for the exclusive amount.
+     No two checkboxes share a row anymore. */
+  .ppts-toggle-row {
+    padding: 4px 2px 6px 2px;
+  }
+  .ppts-meta {
+    font-size: var(--font-size-sm, 13px);
+  }
+  .link-btn {
+    background: none;
+    border: none;
+    color: var(--accent-500, #3b82f6);
+    font-size: var(--font-size-sm, 13px);
+    font-weight: 500;
+    cursor: pointer;
+    padding: 6px 10px;
+    min-height: 32px;
+    border-radius: var(--radius-md, 8px);
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color 120ms ease;
+  }
+  .link-btn:active {
+    background: var(--gray-100, #f3f4f6);
+  }
+  .ppts li.ppt-row {
+    padding: 0;
     display: flex;
     align-items: center;
-    gap: var(--space-3);
+    gap: var(--space-2);
     flex-wrap: wrap;
   }
-  .ppt-check {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-    min-height: var(--touch-target);
-    flex: 1;
-  }
-  .ppt-excl {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-1);
-    min-height: var(--touch-target);
-  }
   .ppt-row {
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-border, #e5e7eb);
   }
   .ppt-row:last-child {
     border-bottom: none;
+  }
+  .ppt-main {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2, 8px);
+    min-height: var(--touch-target, 44px);
+    padding: 8px 10px;
+    margin: 0;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-md, 8px);
+    color: var(--color-text, #111827);
+    text-align: left;
+    cursor: pointer;
+    font-size: var(--font-size-base, 16px);
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color 120ms ease;
+  }
+  .ppt-main:active {
+    background: var(--gray-100, #f3f4f6);
+  }
+  .ppt-check-icon {
+    font-size: 20px;
+    line-height: 1;
+    flex: 0 0 24px;
+    text-align: center;
+    color: var(--accent-500, #3b82f6);
+  }
+  .ppt-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ppt-excl-badge {
+    font-size: 13px;
+    color: var(--gray-500, #6b7280);
+    margin-left: var(--space-1, 4px);
+    flex: 0 0 auto;
+  }
+  .ppt-chevron {
+    flex: 0 0 44px;
+    min-width: 44px;
+    min-height: var(--touch-target, 44px);
+    padding: 0;
+    margin: 0;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    border-radius: var(--radius-md, 8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color 120ms ease;
+  }
+  .ppt-chevron:active {
+    background: var(--gray-100, #f3f4f6);
+  }
+  .chevron-icon {
+    display: inline-block;
+    font-size: 22px;
+    line-height: 1;
+    color: var(--gray-500, #6b7280);
+    transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .chevron-icon.rotated {
+    transform: rotate(90deg);
+  }
+  .ppt-sub-row {
+    flex-basis: 100%;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2, 8px);
+    padding: 4px 12px 12px 36px;
+    color: var(--gray-500, #6b7280);
+    font-size: var(--font-size-sm, 13px);
+  }
+  .ppt-sub-label {
+    white-space: nowrap;
+  }
+  .ppt-sub-input {
+    max-width: 120px;
+    padding: 6px 8px;
+    border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: var(--radius-md, 8px);
+    font-size: var(--font-size-base, 16px);
+    font-variant-numeric: tabular-nums;
+    background: var(--color-bg, #fff);
+    color: var(--color-text, #111827);
+    min-height: var(--touch-target, 44px);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .chevron-icon {
+      transition-duration: 0ms;
+    }
   }
   .btn-sm {
     min-height: 36px;
