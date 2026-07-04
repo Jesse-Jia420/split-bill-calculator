@@ -136,12 +136,24 @@
     await load();
   });
 
-  function toggleMembers() {
+  /**
+   * v0.2.1 UI rev: header 整体 clickable.
+   * - handleMembersToggle: click 任意 header 区域切换 (InviteLinkButton 自己 stopPropagation)
+   * - handleMembersKeydown: keyboard accessibility (Enter/Space)
+   * 持久化逻辑不变 (localStorage sbc.membersOpen.{sessionId})
+   */
+  function handleMembersToggle() {
     membersOpen = !membersOpen;
     try {
       localStorage.setItem(membersStorageKey(sessionId), String(membersOpen));
     } catch {
       // ignore
+    }
+  }
+  function handleMembersKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleMembersToggle();
     }
   }
 
@@ -364,29 +376,42 @@
       </div>
     </div>
 
-    <!-- 反馈修 6 项目 2: members section 彻底重写 — grid 布局 -->
+    <!-- v0.2.1 UI rev (PO 2026-07-03 18:15 重设计): 整个 header clickable + 折叠态 avatar 预览 -->
     <div class="card members-card">
-      <header class="members-head">
+      <header
+        class="members-head"
+        class:collapsed={!membersOpen}
+        onclick={handleMembersToggle}
+        onkeydown={handleMembersKeydown}
+        role="button"
+        tabindex="0"
+        aria-expanded={membersOpen}
+        aria-label={membersOpen ? '收起成员列表' : '展开成员列表'}
+      >
         <h3 class="members-title">
           成员 <span class="muted members-count-inline">({session.members.length})</span>
         </h3>
+
+        <!-- 折叠态: 头部内嵌 avatar 预览 (替代独立 toggle button) -->
+        {#if !membersOpen && session.members.length > 0}
+          <div class="members-avatars-inline" aria-hidden="true">
+            {#each session.members.slice(0, 8) as m (m.id)}
+              <div class="avatar-mini" title={m.display_name}>
+                {avatarLetter(m.display_name)}
+              </div>
+            {/each}
+            {#if session.members.length > 8}
+              <span class="avatar-mini avatar-mini-overflow">+{session.members.length - 8}</span>
+            {/if}
+          </div>
+        {/if}
+
         <div class="members-actions">
           <InviteLinkButton sessionId={session.id} {isOwner} />
-          <!-- v0.1.4 round 2 改动 1: 重新加回折叠 toggle 按钮 (PO 10:15 拍板) -->
-          <button
-            type="button"
-            class="members-toggle"
-            onclick={toggleMembers}
-            aria-expanded={membersOpen}
-            aria-label={membersOpen ? '收起成员列表' : '展开成员列表'}
-          >
-            <span class="toggle-caret" class:open={membersOpen} aria-hidden="true">▾</span>
-            <span class="toggle-label">{membersOpen ? '收起' : '展开'}</span>
-          </button>
+          <span class="members-chevron" class:open={membersOpen} aria-hidden="true">▾</span>
         </div>
       </header>
 
-      <!-- v0.1.4 round 2 改动 1: 折叠态切换 -->
       {#if membersOpen}
         <!-- v0.1.4 round 2 改动 4: 条件从 <= 1 改为 === 0 (owner 自动加入 length >= 1) -->
         {#if session.members.length === 0}
@@ -398,7 +423,6 @@
             onCtaClick={copyInviteLink}
           />
         {:else}
-          <!-- stagger mount: 每个 li delay i*30ms (cap 300ms) -->
           <ul class="members-list">
             {#each session.members as m, i (m.id)}
               <li
@@ -433,7 +457,7 @@
                   <button
                     type="button"
                     class="member-remove"
-                    onclick={() => handleDeleteMemberClick(m)}
+                    onclick={(e) => { e.stopPropagation(); handleDeleteMemberClick(m); }}
                     aria-label="移除成员 {m.display_name}"
                     title="owner-only: v0.2 待 BE 支持 removeMember"
                     disabled
@@ -443,22 +467,6 @@
             {/each}
           </ul>
         {/if}
-      {:else}
-        <!-- v0.1.4 round 2 改动 1: 折叠态 — 仅小头像堆叠 -->
-        <div class="members-avatars-collapsed">
-          {#each session.members as m (m.id)}
-            <div
-              class="avatar-mini"
-              title="{m.display_name}{m.email ? ' ' + m.email : ''}"
-              aria-label={m.display_name}
-            >
-              {avatarLetter(m.display_name)}
-            </div>
-          {/each}
-          {#if session.members.length === 0}
-            <span class="muted small">还没有成员</span>
-          {/if}
-        </div>
       {/if}
     </div>
 
@@ -567,15 +575,31 @@
   .members-card {
     padding: var(--space-3) var(--space-4);
   }
+  /* v0.2.1 UI rev: 整个 header clickable + 折叠态 hover + chevron rotation */
   .members-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: var(--space-3);
     flex-wrap: wrap;
-    padding-bottom: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    margin: calc(var(--space-2) * -1) calc(var(--space-3) * -1);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 120ms ease;
   }
-  .members-head:has(+ .members-list) {
+  .members-head:hover {
+    background-color: var(--gray-50, #f9fafb);
+  }
+  .members-head:focus-visible {
+    outline: 2px solid var(--accent-500, #3b82f6);
+    outline-offset: 2px;
+  }
+  .members-head.collapsed {
+    border-bottom: none;
+  }
+  .members-head:not(.collapsed) {
     border-bottom: 1px solid var(--gray-200);
     margin-bottom: var(--space-2);
   }
@@ -597,39 +621,7 @@
     gap: var(--space-2);
   }
 
-  /* v0.1.4 round 2 改动 1: 重新加回折叠 toggle 按钮 CSS */
-  .members-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    background: transparent;
-    border: 1px solid var(--color-border, #e5e7eb);
-    border-radius: 999px;
-    padding: 4px 10px;
-    font-size: var(--font-size-sm, 13px);
-    color: var(--color-text-muted, #6b7280);
-    cursor: pointer;
-    transition: background-color 150ms ease, color 150ms ease;
-  }
-  .members-toggle:hover {
-    background: var(--color-bg, #f9fafb);
-    color: var(--color-text, #111827);
-  }
-  .toggle-caret {
-    display: inline-block;
-    transition: transform 200ms ease;
-    font-size: 10px;
-    line-height: 1;
-  }
-  .toggle-caret.open {
-    transform: rotate(180deg);
-  }
-  /* 移动端 ≤480px: 隐藏 toggle 文字, 只留 caret */
-  @media (max-width: 480px) {
-    .members-toggle .toggle-label {
-      display: none;
-    }
-  }
+  /* v0.2.1 UI rev: removed .members-toggle button — header itself is now clickable (see .members-head above) */
 
   /* === members list — grid 布局 === */
   .members-list {
@@ -785,9 +777,43 @@
   .avatar-mini:first-child {
     margin-left: 0;
   }
-  .members-avatars-collapsed .muted.small {
-    margin-left: var(--space-3);
-    font-size: var(--font-size-sm);
+  /* v0.2.1 UI rev: removed .members-avatars-collapsed .muted.small block */
+
+  /* v0.2.1 UI rev: 折叠态 header 内嵌 avatar 预览 (max 8 + overflow) */
+  .members-avatars-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    margin: 0 var(--space-2);
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .members-avatars-inline .avatar-mini {
+    width: 26px;
+    height: 26px;
+    font-size: 12px;
+  }
+  .avatar-mini-overflow {
+    background: var(--gray-300, #d1d5db) !important;
+    color: var(--gray-700, #374151) !important;
+  }
+  /* v0.2.1 UI rev: chevron icon (replaces .members-toggle button) */
+  .members-chevron {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    font-size: 16px;
+    color: var(--gray-500);
+    transition: transform 180ms ease;
+    transform: rotate(-90deg);
+    margin-left: var(--space-1);
+    flex: 0 0 auto;
+  }
+  .members-chevron.open {
+    transform: rotate(0deg);
   }
 
   /* === 移动端 ≤380px: avatar 32px, padding 紧凑 === */

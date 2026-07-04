@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * v0.1.2 反馈修 6 — 邀请按钮点击立即复制邀请链接 (PO 反馈)。
+   * v0.1.2 反馈修 6 + v0.2.1 UI rev — 邀请按钮 stopPropagation (避免触发 members header 折叠).
    *
    * 设计 (PO 反馈 2026-07-02 11:23):
    * - 点击「邀请」 → 立即复制 invite URL + 显示 Toast「已复制邀请链接」
@@ -111,7 +111,7 @@
     type="button"
     class="primary invite-btn"
     class:copied
-    on:click={handleInviteClick}
+    on:click={(e) => { e.stopPropagation(); handleInviteClick(); }}
     disabled={busy}
     title="复制邀请链接"
     aria-label="复制邀请链接"
