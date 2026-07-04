@@ -3,19 +3,26 @@
 v0.1.1 redesign (2026-06-30): each session now carries ONE fixed invite
 token (with 30-day TTL, rotatable by the owner) instead of a separate
 session_invites table with many per-link rows. See SPEC §3.4.2.
+
+v0.2.2 (2026-07-03): multi-currency support (PRD §3.7). Each session
+now declares its currency set (max 2) and a primary currency that
+settlement aggregates into. Existing sessions backfill to
+``currencies=["CNY"]`` / ``primary_currency="CNY"`` via the alembic
+migration (f3a2e3b592b8_v022_multi_currency).
 """
 from __future__ import annotations
 
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 
 if TYPE_CHECKING:
     from app.db.models.bills import Bill
+    from app.db.models.session_exchange_rates import SessionExchangeRate
     from app.db.models.session_members import SessionMember
     from app.db.models.settlements import Settlement
     from app.db.models.users import User
@@ -53,6 +60,22 @@ class Session(Base):  # noqa: F811 — intentional re-export as BillSession in m
     )
     # ------------------------------------------------------------------------
 
+    # ---- v0.2.2: multi-currency (PRD §3.7) ------------------------------
+    # ``currencies`` is a JSON array of 1 or 2 ISO 4217 currency codes
+    # (e.g. ``["CNY"]`` or ``["THB", "CNY"]``). The first element is
+    # implicitly the default; ``primary_currency`` is the settlement
+    # aggregation target and MUST be one of ``currencies``. Application
+    # layer enforces the 1-2 length and value-in-SUPPORTED_CURRENCIES
+    # constraints (Pydantic validator on SessionCreate). DB-level
+    # defaults are CNY-only for backfill.
+    currencies: Mapped[list[str]] = mapped_column(
+        JSON, nullable=False, default=lambda: ["CNY"], server_default='["CNY"]'
+    )
+    primary_currency: Mapped[str] = mapped_column(
+        String(8), nullable=False, default="CNY", server_default="CNY"
+    )
+    # ------------------------------------------------------------------------
+
     owner: Mapped["User"] = relationship(
         back_populates="owned_sessions", foreign_keys=[owner_user_id]
     )
@@ -63,5 +86,8 @@ class Session(Base):  # noqa: F811 — intentional re-export as BillSession in m
         back_populates="session", cascade="all, delete-orphan"
     )
     settlements: Mapped[list["Settlement"]] = relationship(
+        back_populates="session", cascade="all, delete-orphan"
+    )
+    exchange_rates: Mapped[list["SessionExchangeRate"]] = relationship(
         back_populates="session", cascade="all, delete-orphan"
     )

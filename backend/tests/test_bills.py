@@ -28,6 +28,7 @@ from app.db.models.bill_participants import BillParticipant
 from app.db.models.bills import Bill
 from app.db.models.session_members import SessionMember, SessionRole
 from app.db.models.sessions import Session as SessionModel
+from app.db.models.session_exchange_rates import SessionExchangeRate
 from app.db.models.users import User
 from app.db.models.verification_codes import (
     VerificationCode,
@@ -50,6 +51,7 @@ def _truncate_all():
         db.query(BillParticipant).delete()
         db.query(Bill).delete()
         db.query(SessionMember).delete()
+        db.query(SessionExchangeRate).delete()
         db.query(SessionModel).delete()
         db.query(AuthToken).delete()
         db.query(VerificationCode).delete()
@@ -259,13 +261,17 @@ class TestShareAmountDerivation:
             ParticipantIn(member_id=3, is_exclusive=True, exclusive_amount=80.0),
         ]
         out = _compute_share_amounts(500.0, parts)
-        # shared_pool = 500 - 130 = 370; per_user_shared = 370/3 ~= 123.33
-        # m1 = 123.33 + 50; m2 = 123.33; m3 = 123.33 + 80
-        assert abs(out[0] - (370 / 3 + 50)) < 1e-6
-        assert abs(out[1] - (370 / 3)) < 1e-6
-        assert abs(out[2] - (370 / 3 + 80)) < 1e-6
-        # Total consumed equals bill amount.
-        assert abs(sum(out) - 500.0) < 1e-6
+        # v0.2.2 (T07): the algorithm now quantises per-participant share
+        # to cents via Decimal + ROUND_HALF_UP. shared_pool = 500 - 130 = 370,
+        # per_user_shared = 370/3 → 123.333... rounds to 123.33.
+        # m1 = 123.33 + 50 = 173.33
+        # m2 = 123.33
+        # m3 = 123.33 + 80 = 203.33
+        assert out == [173.33, 123.33, 203.33], (
+            f"_compute_share_amounts should round to cents per participant; got {out}"
+        )
+        # Total consumed equals bill amount (rounding residual stays <= 0.03).
+        assert abs(sum(out) - 500.0) < 0.05
 
     def test_empty_returns_empty(self) -> None:
         from app.api.bills import _compute_share_amounts
@@ -464,16 +470,42 @@ class TestCreateBill:
             db.close()
 
     def test_create_bill_currency_normalised(self, client: TestClient) -> None:
+        """Lowercase "usd" should be normalised to "USD" on insert.
+
+        v0.2.2 (T10): the session must accept USD as a currency (the
+        default helper session is CNY-only). We mint a dual-currency
+        session explicitly so the "USD" bill is accepted.
+        """
+        from decimal import Decimal
         c, _ = _login_as("alice@bills.local")
-        sid, mids = _make_5_member_session()
+        # v0.2.2 (T10): create a CNY+USD session via the public API so
+        # the test exercises the same code path real users do.
+        resp = c.post(
+            "/sessions",
+            json={
+                "name": "USD test",
+                "currencies": ["CNY", "USD"],
+                "primary_currency": "CNY",
+                "exchange_rates": [
+                    {"from_currency": "USD", "to_currency": "CNY", "rate": "7.20"},
+                ],
+            },
+        )
+        assert resp.status_code == 201, resp.text
+        sid = resp.json()["id"]
+        # Look up any member id from the post-facto list endpoint.
+        mids_resp = c.get(f"/sessions/{sid}")
+        members = mids_resp.json()["members"]
+        alice_mid = members[0]["id"]
+
         body = _bill_payload(
-            payer_member_id=mids["alice@bills.local"],
-            member_ids=[mids["alice@bills.local"], mids["bob@bills.local"]],
+            payer_member_id=alice_mid,
+            member_ids=[alice_mid],
             amount=50.0,
             currency="usd",
         )
         r = c.post(f"/sessions/{sid}/bills", json=body)
-        assert r.status_code == 201
+        assert r.status_code == 201, r.text
         assert r.json()["currency"] == "USD"
 
 
@@ -591,14 +623,33 @@ class TestListBills:
 class TestUpdateBill:
     def test_owner_updates_amount(self, client: TestClient) -> None:
         c, _ = _login_as("alice@bills.local")
-        sid, mids = _make_5_member_session()
+        # v0.2.2 (T10): CNY-only default session rejects USD, so the
+        # PATCH now needs a session that supports USD. Reuse the
+        # helper to keep the test's intent (owner updates amount)
+        # obvious while honoring v0.2.2 currency constraints.
+        resp = c.post(
+            "/sessions",
+            json={
+                "name": "USD test update",
+                "currencies": ["CNY", "USD"],
+                "primary_currency": "CNY",
+                "exchange_rates": [
+                    {"from_currency": "USD", "to_currency": "CNY", "rate": "7.20"},
+                ],
+            },
+        )
+        assert resp.status_code == 201, resp.text
+        sid = resp.json()["id"]
+        members = c.get(f"/sessions/{sid}").json()["members"]
+        alice_mid = members[0]["id"]
+
         body = _bill_payload(
-            payer_member_id=mids["alice@bills.local"],
-            member_ids=[mids["alice@bills.local"], mids["bob@bills.local"]],
+            payer_member_id=alice_mid,
+            member_ids=[alice_mid],
             amount=100.0,
         )
         r = c.post(f"/sessions/{sid}/bills", json=body)
-        assert r.status_code == 201
+        assert r.status_code == 201, r.text
         bid = r.json()["id"]
 
         r = c.patch(f"/sessions/{sid}/bills/{bid}", json={"amount": 250.0, "currency": "USD"})
@@ -606,6 +657,8 @@ class TestUpdateBill:
         updated = r.json()
         assert updated["amount"] == 250.0
         assert updated["currency"] == "USD"
+        # v0.2.2 (T10): a fresh snapshot should be present (USD → CNY).
+        assert updated["exchange_rate_snapshot"] is not None
 
     def test_non_creator_can_update_returns_200(self, client: TestClient) -> None:
         # v0.1.2 (T17): any session member can update a bill -- the

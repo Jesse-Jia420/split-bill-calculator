@@ -32,6 +32,13 @@
   let memberIdToName: Record<number, string> = {};
   let memberIdToRole: Record<number, string> = {};
 
+  // v0.2.2 (T11): settle view mode. 'primary' = all in primary
+  // currency (default); 'split' = source currency per bill, primary
+  // only for the totals. Pushed down to the child components which
+  // re-fetch on the fly.
+  type ViewMode = 'primary' | 'split';
+  let viewMode: ViewMode = 'primary';
+
   type Tab = 'overview' | 'personal';
   let activeTab: Tab = 'overview';
 
@@ -89,14 +96,43 @@
       </button>
     </div>
 
+    <div class="view-switch" role="radiogroup" aria-label="结算视图">
+      <button
+        type="button"
+        role="radio"
+        class="view-switch-btn"
+        class:active={viewMode === 'primary'}
+        aria-checked={viewMode === 'primary'}
+        on:click={() => (viewMode = 'primary')}
+      >
+        主币种汇总 ({session.primary_currency})
+      </button>
+      <button
+        type="button"
+        role="radio"
+        class="view-switch-btn"
+        class:active={viewMode === 'split'}
+        aria-checked={viewMode === 'split'}
+        disabled={!session.currencies || session.currencies.length < 2}
+        title={
+          session.currencies && session.currencies.length < 2
+            ? '该 session 只有一种币种'
+            : ''
+        }
+        on:click={() => (viewMode = 'split')}
+      >
+        源币种分列
+      </button>
+    </div>
+
     <div class="card">
       {#if activeTab === 'overview'}
         <div in:slide={{ duration: 200 }}>
-          <SettleTransferPath {session} {memberIdToName} />
+          <SettleTransferPath {session} {memberIdToName} {viewMode} />
         </div>
       {:else}
         <div in:slide={{ duration: 200 }}>
-          <SettleMemberBreakdown {session} currentUserId={$user?.user_id ?? null} />
+          <SettleMemberBreakdown {session} currentUserId={$user?.user_id ?? null} {viewMode} />
         </div>
       {/if}
     </div>
@@ -111,6 +147,39 @@
     min-height: 36px;
     padding: 4px 12px;
     font-size: var(--font-size-sm, 14px);
+  }
+
+  /* v0.2.2 (T11): view-mode toggle above the tab bar */
+  .view-switch {
+    display: inline-flex;
+    gap: 0.25rem;
+    background: var(--gray-100, #f3f4f6);
+    border-radius: 999px;
+    padding: 0.25rem;
+    margin: var(--space-2) 0;
+  }
+  .view-switch-btn {
+    background: transparent;
+    border: none;
+    padding: 0.4rem 0.9rem;
+    border-radius: 999px;
+    font-size: 0.875rem;
+    cursor: pointer;
+    color: var(--gray-700, #374151);
+    font-weight: 500;
+    transition: background 0.15s ease;
+  }
+  .view-switch-btn:hover:not(:disabled) {
+    background: rgba(99, 102, 241, 0.08);
+  }
+  .view-switch-btn.active {
+    background: white;
+    color: var(--color-text);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  }
+  .view-switch-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .tab-bar {

@@ -325,8 +325,25 @@
       />
     </div>
     <div style="flex: 1; min-width: 100px;">
-      <label class="label" for="currency">币种</label>
-      <input id="currency" type="text" bind:value={currency} maxlength="8" />
+      <span class="label" id="currency-pills-label">币种</span>
+      <!-- v0.2.2 (T10): currency pill selector. The session may declare
+           1 or 2 allowed currencies; we render chips so the user can
+           pick one. For 1-currency sessions we still render a
+           non-interactive chip so the field never disappears entirely. -->
+      <div class="currency-pills" role="radiogroup" aria-labelledby="currency-pills-label">
+        {#each (session.currencies && session.currencies.length > 0 ? session.currencies : [currency]) as code (code)}
+          <button
+            type="button"
+            class="currency-pill"
+            class:active={currency === code}
+            class:disabled={session.currencies && session.currencies.length <= 1}
+            role="radio"
+            aria-checked={currency === code}
+            disabled={(session.currencies && session.currencies.length <= 1) || submitting}
+            on:click={() => (currency = code)}
+          >{code}</button>
+        {/each}
+      </div>
     </div>
   </div>
 
@@ -510,5 +527,38 @@
   .hint {
     font-size: var(--font-size-sm);
     margin-top: 4px;
+  }
+
+  /* v0.2.2 (T10): currency pill selector */
+  .currency-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 4px;
+  }
+  .currency-pill {
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-text);
+    cursor: pointer;
+    min-height: 32px;
+    transition: background 0.12s ease, border-color 0.12s ease;
+  }
+  .currency-pill:hover:not(.disabled):not(:disabled) {
+    border-color: rgba(99, 102, 241, 0.5);
+  }
+  .currency-pill.active {
+    background: #6366f1;
+    color: white;
+    border-color: #6366f1;
+  }
+  .currency-pill:disabled,
+  .currency-pill.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 </style>

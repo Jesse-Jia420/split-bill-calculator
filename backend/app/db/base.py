@@ -18,6 +18,7 @@ def _register_models() -> None:
         bill_comments,
         bill_participants,
         bills,
+        session_exchange_rates,
         session_members,
         sessions,
         users,

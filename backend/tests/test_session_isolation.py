@@ -451,7 +451,9 @@ class TestNoDataLeak:
         assert r.status_code == 200
         body = r.json()
         # S1 has 1 bill, 2 members → each net ~50 / -50.
-        total_abs = sum(abs(v) for v in body["balances"].values())
+        # v0.2.2 (T11): balances come back as Decimal-as-string. Parse them.
+        from decimal import Decimal as _D
+        total_abs = sum(abs(float(str(v))) for v in body["balances"].values())
         assert abs(total_abs - 100.0) < 1.0, (
             f"S1 settle total balances {total_abs} suggest S2 bill leaked in"
         )

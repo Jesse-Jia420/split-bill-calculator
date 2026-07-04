@@ -18,27 +18,40 @@
   export let session: SessionDetail;
   /** map SessionMember.id -> display_name for friendly output */
   export let memberIdToName: Record<number, string> = {};
+  /** v0.2.2 (T11): re-fetch when the user toggles primary/split. */
+  export let viewMode: 'primary' | 'split' = 'primary';
 
   let loading = true;
   let error: string | null = null;
   let data: SettleResponse | null = null;
+  // Track the current view so we don't show stale data after a toggle.
+  let loadedView: 'primary' | 'split' = viewMode;
 
   /** T6: 金额显示用 formatMoney (千分位)。 */
   function fmt(n: number): string {
     return formatMoney(n, { showSymbol: false });
   }
 
-  onMount(async () => {
+  // v0.2.2 (T11): refetch whenever viewMode flips so the primary / split
+  // representation stays in sync with what the user selected.
+  async function fetchSettle(targetView: 'primary' | 'split') {
     loading = true;
     error = null;
     try {
-      data = await getSettle(session.id);
+      data = await getSettle(session.id, targetView);
+      loadedView = targetView;
     } catch (e: any) {
       error = e?.message ?? 'failed to load settlement';
     } finally {
       loading = false;
     }
-  });
+  }
+
+  onMount(() => fetchSettle(viewMode));
+
+  $: if (!loading && loadedView !== viewMode) {
+    fetchSettle(viewMode);
+  }
 
   function displayName(memberId: number | string): string {
     const id = Number(memberId);
