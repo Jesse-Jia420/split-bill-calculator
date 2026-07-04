@@ -1,6 +1,38 @@
 
-> 版本：v0.2.1-dev | 状态：🚧 Sprint 1 + Sprint 2 (T04 fix) | 日期：2026-07-03
+> 版本：v0.2.2-dev | 状态：🚧 Sprint 2 多币种（已 ship） | 日期：2026-07-04
 > 配套 PRD：/obsidian/Jesse OB VPS/JesseClaw/code-project/split-bill-calculator/PRD.md
+
+---
+
+## v0.2.2 Sprint 2 多币种 (新增)
+
+### A. Schema
+- `sessions.currencies` JSON NOT NULL DEFAULT `["CNY"]`（1–2 个 ISO 4217 代码）
+- `sessions.primary_currency` VARCHAR(8) NOT NULL DEFAULT `CNY`（必须是 currencies 中一个）
+- 新表 `session_exchange_rates(session_id, from_currency, to_currency, rate, snapshot_at, set_by)` UNIQUE(session_id, from, to)，rate 是 Numeric(28, 8)
+- `bills.amount`: Float → Numeric(12, 2)
+- `bills.exchange_rate_snapshot` Numeric(28, 8) NULL（账单录入时拍快照）
+
+### B. 行为
+- POST /sessions 支持 `currencies / primary_currency / exchange_rates`，双币种 session 创建时 exchange_rates 必须至少 1 条
+- 双币种 session 每条目 exchange_rates 自动反向写 1/rate 行，所以前端不需要发两条
+- POST /bills 校验 `currency ∈ session.currencies`，422 `currency_not_in_session` 否则
+- 账单录入时 `currency == primary_currency` → snapshot NULL；其他 → snapshot 当前汇率
+- 调整汇率不影响已有账单（snapshot 模式）
+- GET /sessions/{id}/settle?view=primary|split：primary=主币种汇总，split=返回 per-bill 原币种 metadata（balances 仍主币种）
+- Double precision 浮点输入一律在 BE 内部转 Decimal(28, 8) 中间计算，.quantize(0.01, ROUND_HALF_UP) 输出，保证无 IEEE 754 drift
+
+### C. Decimal 序列化
+- Decimal 在 JSON 序列化为字符串（前端 parseFloat）
+- settle.balances / transfers.amount / bills.amount / bills.exchange_rate_snapshot 全部 Decimal-as-string
+
+### D. 迁移策略
+- 单次 alembic migration (`f3a2e3b592b8_v022_multi_currency`)，所有 op 用 `inspect().has_table/has_column` 幂等守卫
+- 数据回填：升级时把任何 `currency != primary_currency AND snapshot IS NULL` 的账单从 `session_exchange_rates` 反向查到 rate 写入 snapshot
+- Thailand 27 笔老数据迁移后 SUM(amount) 完全无损（15172.00 THB 不变）
+
+### E. CRUD API
+- POST/GET/PATCH/DELETE /sessions/{id}/exchange-rates（auto-pair reciprocal）
 
 ---
 

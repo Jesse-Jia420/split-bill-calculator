@@ -39,6 +39,28 @@ Body:    { "text": "<natural language expense description>" }
 422:     { "detail": { "error": "ai_unavailable" } } — no key / API error / malformed JSON
 The endpoint NEVER writes to the DB. The frontend fills the bill
 form with the response, lets the user confirm, then POSTs /bills.
+
+v0.2.2 (T07/T10) multi-currency
+--------------------------------
+Each session declares 1–2 active currencies in ``sessions.currencies``
+and a ``primary_currency`` for settlement. Bills record their own
+``currency`` (chosen from the session's allowed set) and snapshot the
+relevant exchange rate into ``bills.exchange_rate_snapshot`` so later
+rate changes never retroactively re-convert historical bills.
+
+POST /bills rules
+  * ``payload.currency`` MUST be in ``session.currencies`` (422 otherwise).
+  * When ``currency == session.primary_currency`` → ``exchange_rate_snapshot = NULL``.
+  * When ``currency != session.primary_currency`` → look up the rate from
+    ``session_exchange_rates`` (from=currency, to=primary_currency);
+    if missing → 422 ``missing_exchange_rate``. Otherwise snapshot it.
+
+PATCH /bills rules
+  * ``payload.currency`` (when supplied) gets the same currency-must-be-in-session
+    validation as POST. When the currency actually CHANGES, we refresh the
+    snapshot to the current rate for the new (currency → primary) pair.
+    When the currency is unchanged, we LEAVE the original snapshot
+    untouched (snapshot mode is one-way: once recorded, the rate stays).
 """
 from __future__ import annotations
 
@@ -58,6 +80,8 @@ from app.core.database import get_db
 from app.core.session_isolation import get_session_member
 from app.db.models.bill_participants import BillParticipant
 from app.db.models.bills import Bill, BillStatus
+from app.db.models.session_exchange_rates import SessionExchangeRate
+from app.db.models.sessions import Session as SessionModel
 from app.db.models.session_members import SessionMember
 from app.services.calculator import AmountCalculator
 
@@ -203,6 +227,9 @@ class BillOut(BaseModel):
     # v0.2.1 T01: original calculator expression, or NULL for bills
     # recorded before v0.2.1 (or with use_calculator=False).
     amount_expression: str | None = None
+    # v0.2.2 (T10): rate snapshot (NULL when bill.currency ==
+    # session.primary_currency). Decimal-as-string for lossless wire.
+    exchange_rate_snapshot: str | None = None
 
 
 # T11 schemas --------------------------------------------------------------
@@ -239,15 +266,32 @@ def _iso(dt: datetime | None) -> str:
 
 
 def _compute_share_amounts(amount: float, parts: list[ParticipantIn]) -> list[float]:
-    """Apply PRD §3.1.2 derivation. Pure function -- easy to unit-test."""
+    """Apply PRD §3.1.2 derivation. Pure function -- easy to unit-test.
+
+    v0.2.2 (T07/T11): ``amount`` may be Decimal at runtime (bills.amount
+    is Numeric(12, 2)). Float callers still work because Decimal coerces
+    transparently in arithmetic. The result is rounded to cents at the
+    end so the JSON output matches the BE's intended display precision.
+    """
+    from decimal import Decimal, ROUND_HALF_UP
+
     if not parts:
         return []
-    exclusive_total = sum(p.exclusive_amount for p in parts if p.is_exclusive)
-    shared_pool = amount - exclusive_total
+    # Coerce to Decimal for the intermediate math so we don't accumulate
+    # IEEE-754 noise across participants. Quantize only at the end.
+    amt = amount if isinstance(amount, Decimal) else Decimal(str(amount))
+    exclusive_total = Decimal("0")
+    for p in parts:
+        if p.is_exclusive:
+            exclusive_total += Decimal(str(p.exclusive_amount))
+    shared_pool = amt - exclusive_total
     per_user_shared = shared_pool / len(parts)
     out: list[float] = []
     for p in parts:
-        out.append(per_user_shared + (p.exclusive_amount if p.is_exclusive else 0.0))
+        own = Decimal(str(p.exclusive_amount)) if p.is_exclusive else Decimal("0")
+        share = per_user_shared + own
+        share_q = share.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        out.append(float(share_q))
     return out
 
 
@@ -320,10 +364,77 @@ def _validate_calculator_expression(expression: str | None) -> Decimal | None:
     return result
 
 
-def _check_exclusive_total(amount: float, participants: list[ParticipantIn]) -> None:
-    """Sum exclusive_amount must not exceed amount."""
-    exclusive_total = sum(p.exclusive_amount for p in participants if p.is_exclusive)
-    if exclusive_total > amount + 1e-9:
+def _resolve_exchange_rate_snapshot(
+    db: Session,
+    session_id: int,
+    bill_currency: str,
+) -> Decimal | None:
+    """Return the rate to apply when the bill is in ``bill_currency``.
+
+    Behaviour (PRD §3.7.5, T10):
+    - Look up the session so we can compare to ``primary_currency``.
+    - If ``bill_currency == primary_currency`` → return ``None``
+      (no conversion needed; settlement will use the amount directly).
+    - Otherwise look up the row in ``session_exchange_rates`` with
+      ``from_currency = bill_currency`` and ``to_currency = primary_currency``.
+      If no row exists, raise ``HTTPException(422)`` so the FE can prompt
+      the user to set the rate first.
+    - The returned ``Decimal`` is the exact value the bill will store in
+      ``exchange_rate_snapshot`` -- no quantisation happens here (the
+      stored precision is 8dp via the column type).
+
+    v0.2.2 (T10) — called by create_bill AND update_bill.
+    """
+    session_row = db.query(SessionModel).filter(SessionModel.id == session_id).first()
+    if session_row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "session not found"},
+        )
+
+    primary = session_row.primary_currency or "CNY"
+    if bill_currency == primary:
+        return None  # primary currency → no snapshot needed
+
+    rate_row = (
+        db.query(SessionExchangeRate)
+        .filter(
+            SessionExchangeRate.session_id == session_id,
+            SessionExchangeRate.from_currency == bill_currency,
+            SessionExchangeRate.to_currency == primary,
+        )
+        .first()
+    )
+    if rate_row is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "error": "missing_exchange_rate",
+                "currency": bill_currency,
+                "primary_currency": primary,
+                "hint": (
+                    "no rate is recorded for "
+                    f"{bill_currency} → {primary} on this session"
+                ),
+            },
+        )
+    return Decimal(rate_row.rate)
+
+
+def _check_exclusive_total(amount: float | Decimal, participants: list[ParticipantIn]) -> None:
+    """Sum exclusive_amount must not exceed amount.
+
+    v0.2.2 (T07): ``bill.amount`` is now ``Numeric(12, 2)`` → ``Decimal`` on
+    read. We coerce both sides to ``Decimal`` so the comparison works for
+    either caller. Tolerance ``1e-9`` keeps the legacy float-input callers
+    green while letting Decimal callers do exact comparisons.
+    """
+    amt = amount if isinstance(amount, Decimal) else Decimal(str(amount))
+    exclusive_total = Decimal("0")
+    for p in participants:
+        if p.is_exclusive:
+            exclusive_total += Decimal(str(p.exclusive_amount))
+    if exclusive_total > amt + Decimal("1e-9"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"error": "sum of exclusive_amount exceeds bill amount"},
@@ -335,6 +446,9 @@ def _bill_to_dict(bill: Bill, participants: list[BillParticipant]) -> dict:
 
     `share_amount` is computed here, NOT stored on the row (SPEC §3
     "派生字段不入库").
+
+    v0.2.2 (T10): ``exchange_rate_snapshot`` is Decimal-as-string when
+    present, NULL when the bill is in primary currency.
     """
     parts_in = [
         ParticipantIn(
@@ -359,6 +473,13 @@ def _bill_to_dict(bill: Bill, participants: list[BillParticipant]) -> dict:
         # v0.2.1 T01: echo the raw expression so the edit page can
         # repopulate the calculator field verbatim.
         "amount_expression": bill.amount_expression,
+        # v0.2.2 (T10): snapshot of the rate used at record-time so
+        # settlement can replay historical conversion.
+        "exchange_rate_snapshot": (
+            str(bill.exchange_rate_snapshot)
+            if bill.exchange_rate_snapshot is not None
+            else None
+        ),
         "participants": [
             {
                 "member_id": p.member_id,
@@ -585,6 +706,29 @@ async def create_bill(
     """
     _validate_participants(db, sm.session_id, payload.payer_member_id, payload.participants)
 
+    # v0.2.2 (T10): bill.currency must be in the session's allowed set,
+    # otherwise 422 (we never accept a currency the session can't
+    # settle). Capture the snapshot at the same time.
+    session_row = db.query(SessionModel).filter(SessionModel.id == sm.session_id).first()
+    if session_row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "session not found"},
+        )
+    allowed_currencies = list(session_row.currencies or ["CNY"])
+    if payload.currency not in allowed_currencies:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "error": "currency_not_in_session",
+                "currency": payload.currency,
+                "session_currencies": allowed_currencies,
+            },
+        )
+    rate_snapshot = _resolve_exchange_rate_snapshot(
+        db, sm.session_id, payload.currency
+    )
+
     # v0.2.1 T01: when use_calculator=True we treat amount_expression as
     # the authoritative source and overwrite amount with the Decimal
     # evaluation. Any failure → 422 inside _validate_calculator_expression.
@@ -613,6 +757,11 @@ async def create_bill(
         status=BillStatus.DRAFT.value,
         # v0.2.1 T01: store raw expression only when it came from the calculator.
         amount_expression=stored_expression,
+        # v0.2.2 (T10): snapshot of the rate used at record-time so
+        # settlement can replay historical conversion. NULL when the bill
+        # is already in the session's primary currency (no conversion
+        # needed).
+        exchange_rate_snapshot=rate_snapshot,
     )
     db.add(bill)
     try:
@@ -719,7 +868,34 @@ async def update_bill(
     if payload.occurred_at is not None:
         bill.occurred_at = payload.occurred_at
     if payload.currency is not None:
-        bill.currency = payload.currency
+        # v0.2.2 (T10): currency must be in the session's allowed set,
+        # and on a real change we refresh the snapshot too.
+        session_row = db.query(SessionModel).filter(SessionModel.id == sm.session_id).first()
+        if session_row is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "session not found"},
+            )
+        allowed_currencies = list(session_row.currencies or ["CNY"])
+        if payload.currency not in allowed_currencies:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "error": "currency_not_in_session",
+                    "currency": payload.currency,
+                    "session_currencies": allowed_currencies,
+                },
+            )
+        if payload.currency != bill.currency:
+            # Currency actually changed — refresh the snapshot from the
+            # current rates. If the user changes a primary-currency bill
+            # to a foreign currency without setting a rate first, we 422.
+            bill.currency = payload.currency
+            bill.exchange_rate_snapshot = _resolve_exchange_rate_snapshot(
+                db, sm.session_id, payload.currency
+            )
+        else:
+            bill.currency = payload.currency
 
     # If participants were sent, replace wholesale.
     if payload.participants is not None:

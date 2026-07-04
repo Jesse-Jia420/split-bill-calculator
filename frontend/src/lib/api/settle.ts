@@ -49,9 +49,28 @@ export interface SettleResponse {
   transfers: Transfer[];
   /** v0.1.2 (T18): per-member breakdown for the 'personal view' tab. */
   per_member: MemberSettlement[];
+  /** v0.2.2 (T08): the session's currency set, echoed here so the FE
+   *  can render currency chips without a second GET /sessions/{id}. */
+  currencies: string[];
+  /** v0.2.2 (T11): the session's primary currency. All balances and
+   *  transfers are denominated in this currency. */
+  primary_currency: string;
+  /** v0.2.2 (T11): 'primary' (default) or 'split'. */
+  view: string;
 }
 
-export const getSettle = (sessionId: number) => {
-  const url = '/sessions/' + sessionId + '/settle';
+/**
+ * v0.2.2 (T11): fetch the settle view.
+ * - `view='primary'` (default): balances + transfers + per-member
+ *   breakdown all aggregated into the session's primary currency.
+ * - `view='split'`: balances still in primary currency (settlement
+ *   maths needs one reference) but the response also echoes per-bill
+ *   source currencies on per-member breakdown rows.
+ */
+export const getSettle = (
+  sessionId: number,
+  view: 'primary' | 'split' = 'primary'
+) => {
+  const url = '/sessions/' + sessionId + '/settle?view=' + view;
   return apiFetch<SettleResponse>(url);
 };

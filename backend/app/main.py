@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.auth import router as auth_router
 from app.api.invites import router as invites_router
 from app.api.bills import router as bills_router
+from app.api.exchange_rates import router as exchange_rates_router
 from app.api.settle import router as settle_router
 from app.api.sessions import router as sessions_router
 from app.api.version import router as version_router
@@ -70,6 +71,7 @@ app.include_router(auth_router)
 app.include_router(sessions_router)
 app.include_router(invites_router)
 app.include_router(bills_router)
+app.include_router(exchange_rates_router)
 app.include_router(settle_router)
 app.include_router(version_router)
 

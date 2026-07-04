@@ -3,11 +3,15 @@ Base.metadata so Alembic autogenerate picks them up.
 
 v0.1.1: session_invites table is dropped (SessionInvite removed). The
 invite token now lives as columns on the Session model.
+
+v0.2.2: SessionExchangeRate added (PRD §3.7). Each session now has a
+``currencies`` JSON array and a ``primary_currency`` column.
 """
 from app.db.models.auth_tokens import AuthToken
 from app.db.models.bill_comments import BillComment
 from app.db.models.bill_participants import BillParticipant
 from app.db.models.bills import Bill
+from app.db.models.session_exchange_rates import SessionExchangeRate
 from app.db.models.session_members import SessionMember
 from app.db.models.sessions import Session as BillSession
 from app.db.models.settlements import Settlement
@@ -22,6 +26,7 @@ __all__ = [
     "Bill",
     "BillComment",
     "BillParticipant",
+    "SessionExchangeRate",
     "BillSession",
     "SessionMember",
     "Settlement",

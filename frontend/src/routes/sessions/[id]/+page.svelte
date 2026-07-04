@@ -370,7 +370,17 @@
     <div class="error">{error}</div>
   {:else if session}
     <div class="row between session-header" style="margin-bottom: var(--space-3); flex-wrap: wrap; gap: var(--space-2);">
-      <h2 style="margin: 0;">{session.name}</h2>
+      <h2 style="margin: 0;">
+        {session.name}
+        {#if session.currencies && session.currencies.length > 0}
+          <span
+            class="primary-currency-tag"
+            title={'币种: ' + session.currencies.join(', ') + ' / 主币种: ' + session.primary_currency}
+          >
+            主币种: {session.primary_currency}
+          </span>
+        {/if}
+      </h2>
       <div class="session-header-actions">
         <a class="btn ghost" href="/sessions/{session.id}/settle">查看结算</a>
       </div>
@@ -556,6 +566,17 @@
 
 <style>
   /* === header === */
+  .primary-currency-tag {
+    display: inline-block;
+    margin-left: 0.5rem;
+    padding: 0.125rem 0.5rem;
+    background: rgba(99, 102, 241, 0.1);
+    color: #4f46e5;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    vertical-align: middle;
+  }
   .session-header-actions {
     display: flex;
     gap: var(--space-2);

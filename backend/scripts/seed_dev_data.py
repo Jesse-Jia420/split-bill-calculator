@@ -35,6 +35,7 @@ import os
 import secrets
 import sys
 from datetime import datetime, timedelta, timezone
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any
 
@@ -44,11 +45,14 @@ BACKEND_ROOT = Path(__file__).resolve().parent.parent
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
+from sqlalchemy import text  # noqa: E402
+
 from sqlalchemy.orm import Session as OrmSession  # noqa: E402
 
 from app.core.database import SessionLocal  # noqa: E402
 from app.db.models.bill_participants import BillParticipant  # noqa: E402
 from app.db.models.bills import Bill  # noqa: E402
+from app.db.models.session_exchange_rates import SessionExchangeRate  # noqa: E402
 from app.db.models.session_members import SessionMember, SessionRole  # noqa: E402
 from app.db.models.sessions import Session as BillSession  # noqa: E402
 from app.db.models.users import User  # noqa: E402
@@ -157,7 +161,10 @@ def _ensure_thailand_session(
     """Find-or-create the Thailand session + its 5 members.
 
     Returns ``(session, members)``. If the session already exists we
-    fetch and return its current members without mutation.
+    fetch and return its current members without mutation. Also seeds
+    the v0.2.2 session_exchange_rates row(s) so the bills in this
+    session can settle without 422 — the Thailand trip's canonical
+    rate was 1 THB ≈ 0.2150 CNY at the time of recording.
     """
     session = (
         db.query(BillSession)
@@ -174,6 +181,11 @@ def _ensure_thailand_session(
             .order_by(SessionMember.id)
             .all()
         )
+        # v0.2.2 (T12): if there are no exchange rates yet for this
+        # session but there ARE THB bills, seed the canonical rate so
+        # the existing bills can be settled (the migration's data
+        # backfill only fires once during alembic upgrade).
+        _maybe_seed_thailand_rates(db, session, owner)
         return session, members
 
     session = BillSession(
@@ -208,7 +220,94 @@ def _ensure_thailand_session(
         db.add(sm)
         members.append(sm)
     db.flush()
+    _maybe_seed_thailand_rates(db, session, owner)
     return session, members
+
+
+# v0.2.2 (T12): the canonical THB<->CNY rate the test suite recorded
+# against. The migration's data backfill needs this row to be present
+# OR settle will 422 on historical bills.
+_THAILAND_THB_TO_CNY = Decimal("0.21500000")
+_THAILAND_CNY_TO_THB = (Decimal("1") / _THAILAND_THB_TO_CNY).quantize(
+    Decimal("0.00000001"), rounding=ROUND_HALF_UP
+)
+
+
+def _maybe_seed_thailand_rates(
+    db: OrmSession, session: BillSession, owner: User
+) -> None:
+    """Seed the THB<->CNY rates for the Thailand session (idempotent).
+
+    Only inserts when:
+    - the session has at least one bill in a currency other than the
+      primary (i.e. it actually needs rates), AND
+    - no rate row exists yet for either direction.
+
+    Safe to call from both the create and the find paths of
+    ``_ensure_thailand_session``. ``db.commit()`` is the caller's job
+    — we only ``db.flush()`` here.
+    """
+    from decimal import Decimal as _D
+    has_foreign_bills = (
+        db.query(Bill)
+        .filter(Bill.session_id == session.id, Bill.currency != "CNY")
+        .count()
+        > 0
+    )
+    if not has_foreign_bills:
+        return
+    existing = (
+        db.query(SessionExchangeRate)
+        .filter(SessionExchangeRate.session_id == session.id)
+        .count()
+    )
+    if existing > 0:
+        return
+    db.add(
+        SessionExchangeRate(
+            session_id=session.id,
+            from_currency="THB",
+            to_currency="CNY",
+            rate=_D("0.21500000"),
+            snapshot_at=datetime.now(timezone.utc),
+            set_by=owner.id,
+        )
+    )
+    db.add(
+        SessionExchangeRate(
+            session_id=session.id,
+            from_currency="CNY",
+            to_currency="THB",
+            rate=_THAILAND_CNY_TO_THB,
+            snapshot_at=datetime.now(timezone.utc),
+            set_by=owner.id,
+        )
+    )
+    db.flush()
+
+    # Backfill any NULL snapshots on existing THB bills in this
+    # session so settle doesn't 422.
+    db.execute(
+        text(
+            """
+            UPDATE bills SET exchange_rate_snapshot = (
+                SELECT ser.rate FROM session_exchange_rates ser
+                WHERE ser.session_id = bills.session_id
+                  AND ser.from_currency = bills.currency
+                  AND ser.to_currency = (
+                      SELECT primary_currency FROM sessions s WHERE s.id = bills.session_id
+                  )
+                LIMIT 1
+            )
+            WHERE session_id = :sid
+              AND exchange_rate_snapshot IS NULL
+              AND currency <> (
+                  SELECT primary_currency FROM sessions s WHERE s.id = bills.session_id
+              )
+            """
+        ),
+        {"sid": session.id},
+    )
 
 
 def _ensure_personal_session(
@@ -245,6 +344,37 @@ def _ensure_personal_session(
     db.add(sm)
     db.flush()
     return personal
+
+
+def _backfill_bill_snapshots(db: OrmSession, session_id: int) -> None:
+    """Fill in NULL exchange_rate_snapshot rows for a session's bills.
+
+    v0.2.2 (T12): the seed inserts THB bills and (now) creates the
+    THB<->CNY rate, but seed order matters — we want to ensure the
+    bills end up with a snapshot regardless of which path ran first.
+    Safe to run after the migration's data backfill.
+    """
+    db.execute(
+        text(
+            """
+            UPDATE bills SET exchange_rate_snapshot = (
+                SELECT ser.rate FROM session_exchange_rates ser
+                WHERE ser.session_id = bills.session_id
+                  AND ser.from_currency = bills.currency
+                  AND ser.to_currency = (
+                      SELECT primary_currency FROM sessions s WHERE s.id = bills.session_id
+                  )
+                LIMIT 1
+            )
+            WHERE session_id = :sid
+              AND exchange_rate_snapshot IS NULL
+              AND currency <> (
+                  SELECT primary_currency FROM sessions s WHERE s.id = bills.session_id
+              )
+            """
+        ),
+        {"sid": session_id},
+    )
 
 
 def _seed_thailand_bills(
@@ -318,6 +448,14 @@ def seed_dev_data(db: OrmSession | None = None) -> dict[str, Any]:
 
         # 3. Personal session (1 owner-member, no bills).
         personal = _ensure_personal_session(db, xinhua, now)
+
+        # 4. v0.2.2 (T12): re-apply the snapshot backfill now that the
+        #    rates exist, so newly seeded Thailand bills have a non-NULL
+        #    exchange_rate_snapshot (the migration's backfill runs at
+        #    alembic upgrade time, which is a separate step from the
+        #    runtime seed). Keep this idempotent — UPDATE just leaves
+        #    already-populated rows alone when the rate still matches.
+        _backfill_bill_snapshots(db, thailand.id)
 
         db.commit()
         return {
