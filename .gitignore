@@ -43,3 +43,6 @@ backend/_*.py
 backend/_*.xlsx
 backend/_*.json
 frontend/*.mjs
+
+# Auto-created by sbc_restore.sh for safety net before restore
+backend/data/sbc.db.pre-restore-*
