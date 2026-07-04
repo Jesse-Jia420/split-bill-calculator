@@ -531,16 +531,20 @@
                 <span class="ppt-excl-badge muted">独占 ¥{Number(st.amount).toFixed(2)}</span>
               {/if}
             </button>
-            <!-- Chevron: always visible, expands/collapses the sub-row. -->
+            <!-- v0.2.3 T14r2 (PRD §3.9.2b): explicit text button
+                 "独占金额 ▾ / ▴". The lone chevron `›` was visually
+                 ambiguous (PO 2026-07-04 12:30). Reuses .link-btn so it
+                 matches the 全选 / 清空 link in the section header. -->
             <button
               type="button"
-              class="ppt-chevron"
+              class="link-btn ppt-toggle"
               on:click={() => toggleSubRow(m.id)}
               aria-expanded={isSubOpen}
               aria-label={isSubOpen ? `收起 ${m.display_name} 的独占金额` : `展开 ${m.display_name} 的独占金额`}
               data-testid={`ppts-chevron-${m.id}`}
             >
-              <span class="chevron-icon" class:rotated={isSubOpen} aria-hidden="true">›</span>
+              <span class="ppt-toggle-label">独占金额</span>
+              <span class="ppt-toggle-caret" aria-hidden="true">{isSubOpen ? '▴' : '▾'}</span>
             </button>
             <!-- Sub-row: exclusive-amount number input (collapsed by default). -->
             {#if isSubOpen}
@@ -694,34 +698,37 @@
     margin-left: var(--space-1, 4px);
     flex: 0 0 auto;
   }
-  .ppt-chevron {
-    flex: 0 0 44px;
-    min-width: 44px;
-    min-height: var(--touch-target, 44px);
-    padding: 0;
-    margin: 0;
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    border-radius: var(--radius-md, 8px);
-    display: flex;
+  /* v0.2.3 T14r2 (PRD §3.9.2b): explicit text button instead of a
+     bare chevron. The pill reuses .link-btn styling (same accent
+     color, same hover), but bumps min-height to 44px so the tap
+     target stays ≥ 44px. */
+  .ppt-toggle {
+    flex: 0 0 auto;
+    display: inline-flex;
     align-items: center;
-    justify-content: center;
+    gap: 4px;
+    min-height: var(--touch-target, 44px);
+    padding: 6px 10px;
+    color: var(--gray-700, #374151);
+    font-size: var(--font-size-sm, 13px);
+    font-weight: 500;
+    border-radius: var(--radius-md, 8px);
     -webkit-tap-highlight-color: transparent;
-    transition: background-color 120ms ease;
+    transition: background-color 120ms ease, color 120ms ease;
   }
-  .ppt-chevron:active {
+  .ppt-toggle[aria-expanded='true'] {
+    color: var(--accent-700, #1d4ed8);
+  }
+  .ppt-toggle:active {
     background: var(--gray-100, #f3f4f6);
   }
-  .chevron-icon {
-    display: inline-block;
-    font-size: 22px;
+  .ppt-toggle-label {
     line-height: 1;
-    color: var(--gray-500, #6b7280);
-    transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
   }
-  .chevron-icon.rotated {
-    transform: rotate(90deg);
+  .ppt-toggle-caret {
+    font-size: 11px;
+    line-height: 1;
+    /* use a unicode glyph (▾ / ▴) — wider than `›`, no rotate needed */
   }
   .ppt-sub-row {
     flex-basis: 100%;
@@ -747,7 +754,7 @@
     min-height: var(--touch-target, 44px);
   }
   @media (prefers-reduced-motion: reduce) {
-    .chevron-icon {
+    .ppt-toggle {
       transition-duration: 0ms;
     }
   }
