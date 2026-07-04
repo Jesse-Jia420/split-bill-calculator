@@ -1,50 +1,41 @@
 <script lang="ts">
   /**
-   * v0.2.3 T13 — AmountCalculatorInput bottom sheet (PRD §3.9.1).
+   * v0.2.3 T13r2 — AmountCalculatorInput bottom sheet (PRD §3.9.1b).
    *
-   * The amount row is now a single read-only input (with a muted preview
-   * suffix). Tapping the row slides a full-width bottom sheet up over
-   * the page with the custom 4×5 keypad. The sheet can be dismissed
-   * by tapping the backdrop or the "完成" button.
+   * Round 2 fix: the amount row now lives **inside** the bottom sheet
+   * while open. When closed the row lives at its original form
+   * position. The sheet always carries a persistent amount row at the
+   * top + the 4×5 keypad below — i.e. it behaves like a system
+   * keyboard: 「the field you're editing + the keys you type on」.
    *
-   * Behavior contract (unchanged from v0.2.1 T01):
-   *  - props: `value`, `evaluated`, `currency?`, `disabled?`
-   *  - events: `change` (raw expression) + `amountChange` (evaluated | null)
-   *  - debounce 100ms preview evaluation
-   *  - child helpers `commit` / `pressChar` / `pressBackspace` /
-   *    `pressClear` / `pressEquals` preserved verbatim — only the
-   *    visual wrapping changes.
+   * Round 1 root cause: when the keypad was open the row stayed in the
+   * form, behind the `rgba(0,0,0,0.25)` backdrop. The backdrop covered
+   * the viewport, so the row was invisible.
    *
-   * Visual contract:
-   *  - Row is `min-height: 44px` (tappable on mobile).
-   *  - Sheet: fixed bottom, 4-col × 5-row keypad grid (1-2-3+/4-5-6−/7-8-9×/C-0-.-÷/= (3-col) + ⌫ (1-col)).
-   *  - Animation: 200ms `transform: translateY(100%) ↔ translateY(0)` with `cubic-bezier(0.16, 1, 0.3, 1)`.
-   *  - Backdrop: `rgba(0,0,0,0.25)` + `backdrop-filter: blur(2px)`, click to close.
+   * Round 2 behavior:
+   *  - value/evaluated are bound by the parent; two row copies share
+   *    the same state, no extra state needed.
+   *  - The form-position row is hidden via `class:hidden` when the
+   *    keypad is open. It becomes visible again on close.
+   *  - The sheet-top row is rendered only inside `{#if showKeypad}`.
+   *    It is read-only (like before) so the OS keyboard stays away.
+   *
+   * Props / events / debounce / helpers — unchanged from T13.
    */
   import { onMount, createEventDispatcher } from 'svelte';
   import { evaluateExpression } from '$api/calculator';
 
-  /** Raw expression (e.g. "350/5"). Drives the read-only input. */
   export let value: string = '';
-
-  /** Latest successfully-evaluated amount, or null if invalid. */
   export let evaluated: number | null = null;
-
-  /** Optional currency suffix (e.g. "CNY", "THB"). */
   export let currency: string = '';
-
-  /** Disable the keypad (still shows preview if value valid). */
   export let disabled: boolean = false;
 
   const dispatch = createEventDispatcher<{
-    change: string;       // raw expression
-    amountChange: number | null;  // evaluated or null
+    change: string;
+    amountChange: number | null;
   }>();
 
-  /** Debounce timer for evaluating on each input change. */
   let debounceId: ReturnType<typeof setTimeout> | null = null;
-
-  /** v0.2.3 T13: bottom-sheet visibility state. */
   let showKeypad: boolean = false;
 
   function openKeypad() {
@@ -56,11 +47,6 @@
     showKeypad = false;
   }
 
-  /**
-   * Push the current value back to the parent. Called by the parent
-   * component when a button is pressed (more reliable than relying on
-   * a synthetic input event).
-   */
   function commit(rawExpr: string) {
     value = rawExpr;
     dispatch('change', rawExpr);
@@ -78,29 +64,21 @@
     }, 100);
   }
 
-  /** Append a character; called by every keypad button. */
   function pressChar(ch: string) {
     if (disabled) return;
     commit(value + ch);
   }
 
-  /** Backspace the trailing character (or no-op if empty). */
   function pressBackspace() {
     if (disabled) return;
     commit(value.slice(0, -1));
   }
 
-  /** Clear the entire expression. */
   function pressClear() {
     if (disabled) return;
     commit('');
   }
 
-  /**
-   * Pressing ``=`` immediately re-runs the evaluator and surfaces the
-   * total; the user can keep editing afterwards (the field is not
-   * frozen). It's a UX convenience rather than a hard commit.
-   */
   function pressEquals() {
     if (disabled) return;
     if (debounceId) clearTimeout(debounceId);
@@ -111,14 +89,12 @@
     dispatch('amountChange', result);
   }
 
-  /** Insert the parsed number back into the field (used after ``=`` to chain). */
   function pressValue() {
     if (evaluated === null) return;
     const asExpr = Number(evaluated).toString();
     commit(asExpr);
   }
 
-  /** On-mount: initial evaluation if a value was passed in (edit mode). */
   onMount(() => {
     if (value.trim()) {
       const result = evaluateExpression(value.trim());
@@ -127,7 +103,6 @@
     }
   });
 
-  /** Display string for the preview. Empty when invalid / empty. */
   $: previewText = evaluated !== null
     ? `= ${evaluated.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     : (value.trim() === '' ? '' : '= 表达式错误');
@@ -136,12 +111,18 @@
 </script>
 
 <div class="amount-calc" class:disabled class:open={showKeypad}>
-  <!-- v0.2.3 T13: persistent amount row. Click anywhere on the row to open the keypad. -->
+  <!--
+    Form-position row. v0.2.3 T13r2: hidden while the keypad is open
+    so the form-shrunk row doesn't get covered by the backdrop.
+    Same value/evaluated state — it reappears when the keypad closes.
+  -->
   <div
     class="amount-row"
+    class:hidden-when-open={showKeypad}
     role="button"
     tabindex={disabled ? -1 : 0}
     aria-label="金额表达式, 点击打开键盘"
+    aria-hidden={showKeypad ? 'true' : undefined}
     data-testid="amount-calc-row"
     on:click={openKeypad}
     on:keydown={(e) => {
@@ -167,7 +148,6 @@
     </span>
   </div>
 
-  <!-- v0.2.3 T13: bottom sheet with custom keypad. Mounted only when open. -->
   {#if showKeypad}
     <div
       class="sheet-backdrop"
@@ -176,8 +156,16 @@
       aria-hidden="true"
     ></div>
     <div class="sheet" role="dialog" aria-label="计算器键盘" aria-modal="true">
-      <div class="sheet-header">
-        <span class="sheet-title muted">输入金额表达式</span>
+      <!--
+        Sheet-top amount row: pinned at the top of the sheet so the
+        user always sees what they're typing. Same value/evaluated
+        state as the form-position row.
+      -->
+      <div class="sheet-amount-row" data-testid="amount-calc-sheet-row">
+        <span class="sheet-amount-expr" aria-label="当前金额表达式">{value || '0'}</span>
+        <span class="sheet-amount-preview" class:error={previewIsError} aria-label="当前金额预览">
+          {previewText}{previewText && currency ? ` ${currency}` : ''}
+        </span>
         <button
           type="button"
           class="sheet-done"
@@ -186,9 +174,7 @@
           data-testid="amount-calc-done"
         >完成</button>
       </div>
-      <!-- 4×5 keypad. Row 1 = 1-2-3 / Row 2 = 4-5-6 / Row 3 = 7-8-9
-           Row 4 = clear-0-dot / Row 5 = = (3-col) + backspace (1-col).
-           Designed for thumb reach: operator cluster on the right column. -->
+      <!-- 4×5 keypad. -->
       <div class="keypad" aria-label="计算器键盘">
         <!-- Row 1 -->
         <button type="button" class="key num" on:click={() => pressChar('1')} disabled={disabled} aria-label="1">1</button>
@@ -239,8 +225,6 @@
     pointer-events: none;
   }
 
-  /* v0.2.3 T13: row is the persistent tap target (44px min-height).
-     Previously the keypad lived inline below the row. */
   .amount-row {
     display: flex;
     align-items: center;
@@ -251,6 +235,12 @@
     border-radius: var(--radius-md, 8px);
     transition: background-color 120ms ease;
     -webkit-tap-highlight-color: transparent;
+  }
+  .amount-row.hidden-when-open {
+    /* T13r2: hide the form-position row while the keypad sheet is open
+       so the backdrop doesn't cover it. The sheet carries the same
+       value at its top. */
+    display: none;
   }
   .amount-row:focus-visible {
     outline: 2px solid var(--accent-500, #3b82f6);
@@ -269,7 +259,6 @@
     border-radius: var(--radius-md, 8px);
     background: var(--color-bg, #fff);
     color: var(--color-text, #111827);
-    /* readonly — we own input via the custom keypad; OS keyboard stays hidden. */
     min-height: var(--touch-target, 44px);
     -webkit-user-select: none;
     user-select: none;
@@ -287,7 +276,7 @@
     color: var(--error-500, #ef4444);
   }
 
-  /* v0.2.3 T13: bottom sheet + backdrop */
+  /* v0.2.3 T13r2: sheet carries the same amount row at the top + keypad below. */
   .sheet-backdrop {
     position: fixed;
     inset: 0;
@@ -312,17 +301,42 @@
     gap: 12px;
     animation: sheetSlideUp 200ms cubic-bezier(0.16, 1, 0.3, 1);
   }
-  .sheet-header {
+  /* The persistent amount row at the top of the sheet. It carries the
+     same value/evaluated state as the form-side row, and stays visible
+     while the user types on the keypad below. */
+  .sheet-amount-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: var(--space-2, 8px);
+    gap: var(--space-3);
     min-height: var(--touch-target, 44px);
+    padding: 8px 10px;
+    border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: var(--radius-md, 8px);
+    background: var(--color-bg, #fff);
   }
-  .sheet-title {
+  .sheet-amount-expr {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-variant-numeric: tabular-nums;
+    font-size: var(--font-size-base, 16px);
+    color: var(--color-text, #111827);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sheet-amount-preview {
+    flex: 0 0 auto;
+    font-variant-numeric: tabular-nums;
+    color: var(--gray-500, #6b7280);
     font-size: var(--font-size-sm, 13px);
+    white-space: nowrap;
+    text-align: right;
+  }
+  .sheet-amount-preview.error {
+    color: var(--error-500, #ef4444);
   }
   .sheet-done {
+    flex: 0 0 auto;
     min-height: var(--touch-target, 44px);
     padding: 0 16px;
     border-radius: var(--radius-md, 8px);
@@ -344,13 +358,12 @@
     gap: var(--space-2, 8px);
   }
   .key {
-    /* ≥ 44px touch target per iOS HIG / MD3. */
     min-height: var(--touch-target, 44px);
     border: 1px solid var(--color-border, #e5e7eb);
     border-radius: var(--radius-md, 8px);
     background: var(--color-bg, #fff);
     color: var(--color-text, #111827);
-    font-size: 1.125rem; /* 18px — large enough for thumb readability */
+    font-size: 1.125rem;
     font-weight: 500;
     cursor: pointer;
     transition: background-color 120ms ease, transform 80ms ease;
@@ -395,7 +408,6 @@
     to { transform: translateY(0); }
   }
 
-  /* Respect users who prefer reduced motion. */
   @media (prefers-reduced-motion: reduce) {
     .sheet,
     .sheet-backdrop {
@@ -403,7 +415,6 @@
     }
   }
 
-  /* Compact on smaller phones (≤ 360px): tighten gap. */
   @media (max-width: 360px) {
     .keypad { gap: 6px; }
     .key { font-size: 1rem; min-height: 40px; }
