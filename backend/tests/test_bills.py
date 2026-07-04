@@ -42,8 +42,13 @@ from app.main import app
 # ---------------------------------------------------------------------------
 
 
+# v0.2.2 anti-pattern #53b: skip truncate when SBC_SKIP_TEST_TRUNCATE=1
 @pytest.fixture(autouse=True)
 def _truncate_all():
+    import os as _os
+    if _os.environ.get("SBC_SKIP_TEST_TRUNCATE") == "1":
+        yield
+        return
     """Reset all tables between tests."""
     db = SessionLocal()
     try:

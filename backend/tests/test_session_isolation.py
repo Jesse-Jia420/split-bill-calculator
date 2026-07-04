@@ -52,6 +52,14 @@ from app.main import app
 
 @pytest.fixture(autouse=True)
 def _truncate_all():
+
+    # v0.2.2 anti-pattern #53b: skip truncate when SBC_SKIP_TEST_TRUNCATE=1
+    import os as _os
+    if _os.environ.get("SBC_SKIP_TEST_TRUNCATE") == "1":
+        yield
+        return
+
+def _truncate_all():
     db = SessionLocal()
     try:
         from app.db.models.settlements import Settlement
