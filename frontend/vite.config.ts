@@ -34,8 +34,12 @@ export default defineConfig({
         target: "http://127.0.0.1:8449",
         changeOrigin: true,
         bypass: (req) => {
-          // /auth/login 是 SvelteKit 页面, 不能代理到后端
-          if (req.url === "/auth/login" || req.url === "/auth/login/") return req.url;
+          // /auth/login 是 SvelteKit 页面, 不能代理到后端。
+          // 注意 req.url 含 query string (e.g. /auth/login?returnTo=/sessions/4
+          // 由 401 自动重定向触发), 所以用 path-only 比较避免误把 query
+          // 形态的 login 页代理到后端 (uvicorn 找不到该路由返 404)。
+          const path = req.url.split("?")[0];
+          if (path === "/auth/login" || path === "/auth/login/") return req.url;
           // 其他 /auth/* (me / send-code / verify-code / logout) 继续代理
         }
       },

@@ -201,9 +201,11 @@
       const c = e?.code ?? '';
       if (c === 'not a session member' || e?.status === 403) {
         error = '你不是这个 session 的成员';
-      } else if (e?.status === 401) {
-        await goto('/auth/login');
       } else {
+        // 401 handled globally by client.ts (auto-redirect to /auth/login
+        // with returnTo=<current path>). The previous inline goto('/auth/login')
+        // here duplicated that redirect AND dropped the returnTo param;
+        // removing it lets client.ts own the single source of truth.
         error = e?.message ?? '加载失败';
       }
     } finally {
