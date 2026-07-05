@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { page } from '$app/stores';
   import { sendCode, verifyCode } from '$api/auth';
   import { loadUser } from '$stores/user';
 
@@ -11,13 +12,55 @@
   let error: string | null = null;
   let hint: string | null = null;
 
+  /**
+   * Safe returnTo (post-login redirect target).
+   *
+   * Read from `?returnTo=` on mount and **validated** to prevent
+   * open-redirect (a malicious link like `/auth/login?returnTo=//evil.com`
+   * would otherwise navigate the just-logged-in user off-site).
+   *
+   * Rules (see T16 401 redirect):
+   *   1. Must start with `/`            — relative paths only
+   *   2. Must NOT start with `//`        — `//evil.com` is a protocol-relative URL
+   *   3. Must NOT equal `/auth/login`   — would loop the login page
+   *
+   * Anything else → no returnTo; we fall back to `/sessions` after login.
+   */
+  let returnTo: string | null = null;
+  let expired = false;
+
   onMount(async () => {
+    // Read returnTo from URL (only on client; $page is reactive in svelte).
+    const raw = $page.url.searchParams.get('returnTo');
+    returnTo = sanitizeReturnTo(raw);
+
+    expired = $page.url.searchParams.get('expired') === '1';
+
+    // Test-mode pre-fill: ?email=foo&code=123456 lets e2e specs jump
+    // straight to the verify step without going through /auth/send-code
+    // (which would require a real SMTP roundtrip in CI).
+    const qpEmail = $page.url.searchParams.get('email');
+    const qpCode = $page.url.searchParams.get('code');
+    if (qpEmail) email = qpEmail;
+    if (qpCode && /^\d{6}$/.test(qpCode)) {
+      code = qpCode;
+      step = 'verify';
+    }
+
     const u = await loadUser();
     if (u) {
-      // Already logged in -- go to /sessions.
-      await goto('/sessions', { replaceState: true });
+      // Already logged in -- go to /sessions (or returnTo if valid).
+      await goto(returnTo ?? '/sessions', { replaceState: true });
     }
   });
+
+  function sanitizeReturnTo(raw: string | null): string | null {
+    if (!raw) return null;
+    if (!raw.startsWith('/')) return null;
+    if (raw.startsWith('//')) return null; // protocol-relative = open-redirect
+    if (raw === '/auth/login') return null; // avoid loop
+    return raw;
+  }
 
   async function handleSend() {
     if (busy) return;
@@ -59,7 +102,8 @@
     try {
       await verifyCode(email.trim(), trimmed);
       await loadUser();
-      await goto('/sessions');
+      // Navigate to safe returnTo (or default /sessions).
+      await goto(returnTo ?? '/sessions');
     } catch (e: any) {
       const c = e?.code ?? '';
       if (c === 'invalid or expired code') {
@@ -76,6 +120,12 @@
 <section class="login">
   <h2>登录</h2>
   <p class="muted">用邮箱收验证码即可登录,无需密码。</p>
+
+  {#if expired}
+    <p class="hint-expired" data-testid="login-expired-hint">
+      登录已过期,请重新登录。
+    </p>
+  {/if}
 
   <div class="stack">
     <div>
@@ -130,5 +180,10 @@
   .login {
     max-width: 400px;
     margin: var(--space-6) auto;
+  }
+  .hint-expired {
+    color: var(--color-text-muted, #6b7280);
+    font-size: 0.875rem;
+    margin: 0 0 var(--space-3);
   }
 </style>
