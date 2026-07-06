@@ -15,6 +15,7 @@
    * - v0.1.2 反馈修 5 (跨页面动画)。
    */
   import { page } from '$app/state';
+  import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
   import { slide } from 'svelte/transition';
   import { getSession } from '$api/sessions';
@@ -53,6 +54,11 @@
         memberIdToRole[m.id] = m.role;
       }
     } catch (e: any) {
+      // v0.3.1: 非成员 → 重定向到 join 页 claim nickname。
+      if (e?.code === 'not a session member' || e?.status === 403) {
+        await goto('/sessions/' + sessionId + '/join', { replaceState: true });
+        return;
+      }
       error = e?.message ?? '加载失败';
     } finally {
       loading = false;
