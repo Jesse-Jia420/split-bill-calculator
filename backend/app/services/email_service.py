@@ -51,6 +51,7 @@ class EmailService:
         self._smtp_password: str = settings.smtp_password
         self._from_addr: str = settings.smtp_from
         self._use_tls: bool = settings.smtp_use_tls
+        self._use_ssl: bool = settings.smtp_use_ssl
 
     async def send_verification_code(
         self,
@@ -138,7 +139,25 @@ class EmailService:
         return msg
 
     def _connect_and_send(self, msg: MIMEMultipart) -> None:
-        """Open an SMTP connection, authenticate, and send ``msg``."""
+        """Open an SMTP connection, authenticate, and send ``msg``.
+
+        Two connection modes are supported:
+        - **SMTP_SSL** (implicit TLS from connect): used when
+          ``smtp_use_ssl=True``. This is the port-465 pattern (e.g. Aliyun
+          DirectMail ``smtpdm.aliyun.com:465``).
+        - **SMTP + STARTTLS** (opportunistic TLS): legacy Gmail pattern
+          (smtp.gmail.com:587). Used when ``smtp_use_ssl=False`` and
+          ``smtp_use_tls=True``.
+        """
+        if self._use_ssl:
+            # Implicit SSL -- handshake happens at connect time. STARTTLS is
+            # not used (and would be a protocol error on a SSL-wrapped socket).
+            with smtplib.SMTP_SSL(
+                self._smtp_host, self._smtp_port, timeout=15
+            ) as client:
+                client.login(self._smtp_username, self._smtp_password)
+                client.send_message(msg)
+            return
         with smtplib.SMTP(self._smtp_host, self._smtp_port, timeout=15) as client:
             if self._use_tls:
                 client.starttls()

@@ -50,6 +50,11 @@ class Settings(BaseSettings):
     smtp_password: str = Field(default="<from-bw>")
     smtp_from: str = Field(default="jessejia1001@gmail.com")
     smtp_use_tls: bool = Field(default=True)
+    # smtp_use_ssl: implicit SSL from connect (port 465 pattern, e.g. Aliyun
+    # DirectMail). When True, smtp_use_tls (STARTTLS) is ignored and the
+    # SMTP_SSL class is used directly. Default False preserves the legacy
+    # Gmail SMTP+STARTTLS path.
+    smtp_use_ssl: bool = Field(default=False)
 
     # --- Verification code ---
     verification_code_ttl_minutes: int = Field(default=10)

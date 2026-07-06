@@ -301,9 +301,11 @@ GET /api/sessions/{id}/bills 响应 + PATCH/POST 响应均增加 amount_expressi
 ---
 
 
-## 8. 邮件服务（Gmail SMTP — T05 实现）
+## 8. 邮件服务（Aliyun DirectMail SMTP — T05 + 2026-07-06 迁移）
 
-- **SMTP**: Gmail SMTP (`smtp.gmail.com:587`, STARTTLS)
+- **SMTP**: Aliyun DirectMail (`smtpdm.aliyun.com:465`, implicit SSL via `smtplib.SMTP_SSL`)
+  - 发信地址: `verify@mail.jesdigi.com`（Aliyun DirectMail console 配置）
+  - 端口: VPS 屏蔽 25 → 选 465 (SSL); 80 (STARTTLS) 也可用但 465 更安全
 - **凭据**: `jessejia1001@gmail.com` + App Password（运行时从 `backend/.env` 读取，password **不**进 git、**不**进日志）
 - **验证码**: 6 位数字，由 `secrets.randbelow(10)` 生成（密码学安全，无偏置）
 - **TTL**: 默认 10 分钟（`settings.verification_code_ttl_minutes`）
@@ -317,7 +319,7 @@ class EmailService:
     def __init__(self, settings: Settings) -> None
     async def send_verification_code(self, to_email: str, code: str, ttl_minutes: int) -> None
     def _build_message(self, to_email: str, code: str, ttl_minutes: int) -> MIMEMultipart
-    def _connect_and_send(self, msg: MIMEMultipart) -> None  # starttls + login + send_message
+    def _connect_and_send(self, msg: MIMEMultipart) -> None  # if smtp_use_ssl: SMTP_SSL + login + send; else: SMTP + starttls + login + send
 ```
 
 特性：
@@ -378,6 +380,39 @@ cd /config/workspace/split-bill-calculator/backend
 
 ---
 ---
+
+---
+
+### 8.6 Aliyun DirectMail 迁移（2026-07-06，PO 拍板）
+
+**背景**：原 Gmail SMTP (`smtp.gmail.com:587` + App Password) 切换到阿里云 DirectMail，原因是 (1) 自有域名发信 (`verify@mail.jesdigi.com`); (2) 国内服务稳定性。
+
+**改动**：
+- `app/core/config.py`: 新增 `smtp_use_ssl: bool = Field(default=False)` 字段
+- `app/services/email_service.py`: `EmailService.__init__` 缓存 `_use_ssl`；`_connect_and_send` 新增 implicit SSL 分支
+  - `smtp_use_ssl=True` → `smtplib.SMTP_SSL(host, port, timeout=15)` 直接 SSL handshake，**不**做 STARTTLS
+  - `smtp_use_ssl=False` → 原路径 (SMTP + 可选 STARTTLS) 完全保留（向后兼容）
+- `backend/.env`: SMTP_HOST/PORT/USERNAME/FROM 改为 Aliyun 配置；新增 `SMTP_USE_SSL=true` + `SMTP_USE_TLS=false`
+
+**端口选择**（VPS 实测）：
+| 端口 | 协议 | 联通性 |
+|------|------|--------|
+| 25 | STARTTLS | ❌ VPS 屏蔽 |
+| 80 | STARTTLS | ✅ 可达 |
+| 465 | implicit SSL | ✅ 可达（**采用**）|
+
+**验证步骤**（Master 2026-07-06 13:35）：
+- `python3 -c 'smtplib.SMTP_SSL("smtpdm.aliyun.com", 465).noop()'` → 250 OK ✓
+- `POST /auth/send-code {email: "test-smtp-path@jessejia.click"}` → 500 + log `SMTP auth failed ... 535` ✓ (SSL 握手通过, auth 失败因密码是占位符)
+
+**未完成**（等 PO 拍板）：
+- [ ] PO 在阿里云 DirectMail console 设置 SMTP 密码（生效需 2 min）
+- [ ] Master 替换 `backend/.env` 中 `SMTP_PASSWORD=__PENDING_ALIYUN_SMTP_PASSWORD__`
+- [ ] 重启 BE + 真发一封到非 bypass email 验证
+
+**反模式**（新增）：
+- **#58**: 邮件迁移类配置变更**必**带端到端 SMTP 握手测试 (`SMTP_SSL(host, port).noop()`)，不依赖 "改完 .env 重启就 OK" 的假设
+- **#59**: 端口选择必**实测** VPS 网络可达性 — 25 被屏蔽不试就是赌博，80/465/587 选能联通 + 安全的
 
 ---
 
