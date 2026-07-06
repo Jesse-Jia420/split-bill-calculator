@@ -166,13 +166,7 @@
         <span class="sheet-amount-preview" class:error={previewIsError} aria-label="当前金额预览">
           {previewText}{previewText && currency ? ` ${currency}` : ''}
         </span>
-        <button
-          type="button"
-          class="sheet-done"
-          on:click={closeKeypad}
-          aria-label="完成, 收起键盘"
-          data-testid="amount-calc-done"
-        >完成</button>
+
       </div>
       <!-- 4×5 keypad. -->
       <div class="keypad" aria-label="计算器键盘">
@@ -200,13 +194,16 @@
         <button type="button" class="key num" on:click={() => pressChar('.')} disabled={disabled} aria-label="小数点">.</button>
         <button type="button" class="key op" on:click={() => pressChar('/')} disabled={disabled} aria-label="除">÷</button>
 
-        <!-- Row 5: equals (3-col) + backspace (1-col) -->
+        <!-- Row 5: equals (3-col) + backspace (1-col). 
+             v0.3.1 (PO Bug #3): `=` now does the "完成" action (close
+             keypad), per PO. The standalone 完成 button is removed. -->
         <button
           type="button"
           class="key eq"
-          on:click={pressEquals}
+          on:click={() => { pressEquals(); closeKeypad(); }}
           disabled={disabled}
-          aria-label="计算结果"
+          aria-label="完成, 收起键盘"
+          data-testid="amount-calc-eq-done"
         >=</button>
         <button type="button" class="key ctrl bs" on:click={pressBackspace} disabled={disabled} aria-label="退格">⌫</button>
       </div>

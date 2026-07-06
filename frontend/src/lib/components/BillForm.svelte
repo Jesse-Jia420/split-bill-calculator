@@ -74,6 +74,18 @@
   let description = '';
   let occurredAt: string = new Date().toISOString().slice(0, 16); // datetime-local
   let currency = 'CNY';
+
+  /** v0.3.1 (PO Bug #1): derive a display symbol from the currency code.
+   * Falls back to the currency code itself when no symbol is known
+   * (e.g. AUD, SGD) so we never show the wrong sign. */
+  function currencySymbol(code: string): string {
+    const map: Record<string, string> = {
+      CNY: '¥', USD: '$', EUR: '€', GBP: '£', JPY: '¥',
+      THB: '฿', KRW: '₩', HKD: 'HK$', TWD: 'NT$',
+    };
+    return map[code?.toUpperCase()] ?? code;
+  }
+
   // participant state, keyed by SessionMember.id
   let participantState: Record<number, { included: boolean; exclusive: boolean; amount: string }> = {};
   for (const m of session.members) {
@@ -527,43 +539,29 @@
             >
               <span class="ppt-check-icon" aria-hidden="true">{st?.included ? '☑' : '☐'}</span>
               <span class="ppt-name">{m.display_name}</span>
-              {#if st?.exclusive && Number(st.amount) > 0}
-                <span class="ppt-excl-badge muted">独占 ¥{Number(st.amount).toFixed(2)}</span>
-              {/if}
+
             </button>
-            <!-- v0.2.3 T14r2 (PRD §3.9.2b): explicit text button
-                 "独占金额 ▾ / ▴". The lone chevron `›` was visually
-                 ambiguous (PO 2026-07-04 12:30). Reuses .link-btn so it
-                 matches the 全选 / 清空 link in the section header. -->
-            <button
-              type="button"
-              class="link-btn ppt-toggle"
-              on:click={() => toggleSubRow(m.id)}
-              aria-expanded={isSubOpen}
-              aria-label={isSubOpen ? `收起 ${m.display_name} 的独占金额` : `展开 ${m.display_name} 的独占金额`}
-              data-testid={`ppts-chevron-${m.id}`}
-            >
-              <span class="ppt-toggle-label">独占金额</span>
-              <span class="ppt-toggle-caret" aria-hidden="true">{isSubOpen ? '▴' : '▾'}</span>
-            </button>
-            <!-- Sub-row: exclusive-amount number input (collapsed by default). -->
-            {#if isSubOpen}
-              <div class="ppt-sub-row" data-testid={`ppts-sub-${m.id}`}>
-                <label class="ppt-sub-label muted" for={`ppts-amount-${m.id}`}>独占金额：¥</label>
-                <input
-                  id={`ppts-amount-${m.id}`}
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  class="ppt-sub-input"
-                  bind:value={st.amount}
-                  on:focus={() => onSubRowFocus(m.id)}
-                  on:blur={() => onSubRowBlur(m.id)}
-                  placeholder="0.00"
-                  data-testid={`ppts-amount-${m.id}`}
-                />
-              </div>
-            {/if}
+            <!-- v0.3.1 (PO Bug #2): inline exclusive-amount input on the
+                 right of each participant row. Default '0'. When amount
+                 is 0 (or empty) the label + value are muted gray; when
+                 non-zero the whole row goes solid black. -->
+            <label class="ppt-excl" data-testid={`ppts-excl-${m.id}`}
+              class:muted={!st?.exclusive || Number(st.amount) === 0}>
+              <span class="ppt-excl-label">独占金额</span>
+              <span class="ppt-excl-sym">{currencySymbol(currency)}</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                class="ppt-excl-input"
+                bind:value={st.amount}
+                on:focus={() => onSubRowFocus(m.id)}
+                on:blur={() => onSubRowBlur(m.id)}
+                placeholder="0.00"
+                aria-label={`${m.display_name} 的独占金额`}
+                data-testid={`ppts-amount-${m.id}`}
+              />
+            </label>
           </li>
         {/each}
       </ul>
