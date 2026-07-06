@@ -259,6 +259,9 @@ class SessionSummary(BaseModel):
     """Single-session payload used in POST + GET /sessions responses."""
 
     id: int
+    # v0.3.1 (Bug & Issues #5): unguessable public code; prefer this over
+    # the integer id in invite URLs (e.g. /s/{session_code}).
+    session_code: str = ""
     name: str
     # v0.3 (PRD §3.10): nullable for anonymous session creation.
     owner_user_id: int | None
@@ -287,6 +290,8 @@ class SessionMemberOut(BaseModel):
 
 class SessionDetail(BaseModel):
     id: int
+    # v0.3.1 (Bug & Issues #5): unguessable public code.
+    session_code: str = ""
     name: str
     # v0.3 (PRD §3.10): nullable for anonymous session.
     owner_user_id: int | None
@@ -321,6 +326,18 @@ class UpdateMemberResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+
+# v0.3.1 (PO Bug #5): unguessable session code generator.
+# 10 chars from a 32-char alphabet (no 0/O/1/l/I confusion).
+_SESSION_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+
+def _generate_session_code() -> str:
+    """Return a 10-char URL-safe session code."""
+    import secrets as _secrets
+    return "".join(_secrets.choice(_SESSION_CODE_ALPHABET) for _ in range(10))
+
+
 def _iso(dt: datetime | None) -> str:
     """Serialise a (possibly naive) datetime as an ISO 8601 string.
 
@@ -350,6 +367,8 @@ def _summary_dict(
         "created_at": _iso(session.created_at),
         "currencies": list(session.currencies or ["CNY"]),
         "primary_currency": session.primary_currency or "CNY",
+        # v0.3.1 (Bug & Issues #5): unguessable public code.
+        "session_code": session.session_code or "",
     }
     # v0.3.1: only surface on create response.
     if created_member_ids is not None:
@@ -442,6 +461,7 @@ async def create_session(
         invite_created_at=now,
         currencies=list(payload.currencies),
         primary_currency=payload.primary_currency,
+        session_code=_generate_session_code(),
     )
     db.add(session)
     db.flush()  # populate session.id
