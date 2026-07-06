@@ -8,6 +8,9 @@ sit on top of the auth dependency (get_current_user) and provide:
   so endpoints can read role / display_name without a second
   query.
 
+* get_session_member_or_secret — v0.3 (PRD §3.10): supports both
+  logged-in user and X-Nickname-Secret header for anonymous access.
+
 * require_session_owner — extra check that the caller's role on the
   session is 'owner'. Used for owner-only actions (currently just
   revoking invites).
@@ -27,10 +30,10 @@ Design notes
 """
 from __future__ import annotations
 
-from fastapi import Depends, HTTPException, Path, status
+from fastapi import Depends, Header, HTTPException, Path, status
 from sqlalchemy.orm import Session
 
-from app.core.auth import get_current_user
+from app.core.auth import get_current_user, get_optional_user
 from app.core.database import get_db
 from app.db.models.session_members import SessionMember, SessionRole
 from app.db.models.users import User
@@ -58,6 +61,44 @@ def get_session_member(
             detail={"error": "not a session member"},
         )
     return sm
+
+
+def get_session_member_or_secret(
+    session_id: int = Path(..., description="Session ID from URL"),
+    user: User | None = Depends(get_optional_user),
+    nickname_secret: str | None = Header(default=None, alias="X-Nickname-Secret"),
+    db: Session = Depends(get_db),
+) -> SessionMember:
+    """v0.3 (PRD §3.10): Resolve session membership via user OR nickname_secret.
+
+    - Logged-in user with (user_id, session_id) binding → return SessionMember.
+    - X-Nickname-Secret header matching a claimed anonymous row → return SessionMember.
+    - Otherwise 403.
+    """
+    # Try user binding first.
+    if user is not None:
+        sm: SessionMember | None = (
+            db.query(SessionMember)
+            .filter_by(session_id=session_id, user_id=user.id)
+            .first()
+        )
+        if sm is not None:
+            return sm
+
+    # Try nickname_secret header.
+    if nickname_secret:
+        sm = (
+            db.query(SessionMember)
+            .filter_by(session_id=session_id, nickname_secret=nickname_secret)
+            .first()
+        )
+        if sm is not None:
+            return sm
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail={"error": "not a session member"},
+    )
 
 
 def require_session_owner(

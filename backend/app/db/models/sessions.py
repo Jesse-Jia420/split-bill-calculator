@@ -13,7 +13,7 @@ migration (f3a2e3b592b8_v022_multi_currency).
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -33,8 +33,9 @@ class Session(Base):  # noqa: F811 — intentional re-export as BillSession in m
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
-    owner_user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    # v0.3 (PRD §3.10): nullable for anonymous session creation.
+    owner_user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -76,8 +77,12 @@ class Session(Base):  # noqa: F811 — intentional re-export as BillSession in m
     )
     # ------------------------------------------------------------------------
 
-    owner: Mapped["User"] = relationship(
-        back_populates="owned_sessions", foreign_keys=[owner_user_id]
+    # v0.3: owner can be NULL (anonymous session). Relationship uses
+    # lazy='select' to handle NULL FK gracefully.
+    owner: Mapped[Optional["User"]] = relationship(
+        back_populates="owned_sessions",
+        foreign_keys=[owner_user_id],
+        lazy="select",
     )
     members: Mapped[list["SessionMember"]] = relationship(
         back_populates="session", cascade="all, delete-orphan"

@@ -26,13 +26,9 @@
   let error: string | null = null;
   let loading = true;
 
+  // v0.3 (PRD §3.10): anonymous session creation is allowed.
+  // The creator must join via the join-claim flow after creation.
   onMount(async () => {
-    const u = await loadUser();
-    if (!u) {
-      // Not logged in -- bounce to login, then come back here.
-      await goto('/auth/login?next=/sessions/new', { replaceState: true });
-      return;
-    }
     loading = false;
   });
 
@@ -82,10 +78,19 @@
     try {
       const created = await createSession(input);
       await loadSessions();
-      await goto('/sessions/' + created.id);
+      // v0.3 (PRD §3.10): creator must join via join-claim flow.
+      // For logged-in users, they're already a member; redirect to session.
+      // For anonymous creators, redirect to join page so they can claim a nickname.
+      if (created.member_count && created.member_count > 0) {
+        await goto('/sessions/' + created.id);
+      } else {
+        await goto('/sessions/' + created.id + '/join');
+      }
     } catch (e: any) {
       const c = e?.code ?? '';
       if (c === 'not authenticated') {
+        // This shouldn't happen in v0.3 (anonymous creation allowed),
+        // but keep it for safety.
         await goto('/auth/login?next=/sessions/new', { replaceState: true });
         return;
       }

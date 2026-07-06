@@ -1,6 +1,42 @@
 
-> 版本：v0.2.3-dev | 状态：🚧 Sprint 3 Round 3 (T16 ship) | 日期：2026-07-05
+> 版本：v0.3-dev | 状态：🚧 Sprint 3 Round 4 (T17/T18 anon join) | 日期：2026-07-06
 > 配套 PRD：/obsidian/Jesse OB VPS/JesseClaw/code-project/split-bill-calculator/PRD.md
+
+---
+
+## v0.3 Sprint 3 匿名加入 (anonymous participation)
+
+### A. Schema 变更
+- `sessions.owner_user_id`: Integer → Integer NULL（匿名创建时为 NULL）
+- `session_members.nickname_secret`: VARCHAR(64) NULL（anonymous 身份凭证）
+- `session_members.is_anon`: BOOLEAN NOT NULL DEFAULT false（是否为匿名成员）
+- `session_members.claimed_at`: DateTime NULL（认领时间）
+- `session_members.user_id`: Integer → Integer NULL（允许匿名成员无 user 绑定）
+
+### B. 行为
+- **匿名 session 创建**：POST /sessions/ 不再要求登录，未登录时 `owner_user_id=NULL`
+- **join-claim 端点**：POST /sessions/{id}/join-claim 支持 4 种 action：
+  - `action=add` + anonymous：INSERT 新 row，生成 `nickname_secret`
+  - `action=claim` + anonymous：UPDATE unclaimed slot（`nickname_secret IS NULL`），生成新 secret
+  - `action=add` + logged-in：INSERT 新 row，绑定 `user_id`
+  - `action=claim` + logged-in：UPDATE slot 绑定 `user_id`
+- **auto-match**：GET /sessions/{id} 支持：
+  - 已登录用户：查 `(user_id, session_id)` 绑定 → 直接返回 session
+  - Anonymous：读取 `X-Nickname-Secret` header → 查 `nickname_secret` → 返回 session
+  - 成功认证时返回 `X-SBC-Member-ID` response header（FE 用此派生 currentMember）
+- **localStorage 凭证**：`sbc.actingAs.{sessionId}` = `nickname_secret`（HEX 64 字节）
+- **join 页**：/sessions/{id}/join — 显示已认领/未认领 slot，anonymous 可认领或新增 nickname
+- **无需转正**：anonymous 认领 nickname 后，登录绑定 user_id，自然在 dashboard 看到 session
+
+### C. API 端点
+- `POST /sessions/`：allow_anonymous=True，未登录创建 → `owner_user_id=NULL`
+- `POST /sessions/{id}/join-claim`：4-action join/claim logic
+- `GET /sessions/{id}`：支持 `X-Nickname-Secret` header，返回 `X-SBC-Member-ID` header
+
+### D. 前端路由
+- `/sessions/new`：匿名可见，创建后 redirect 到 `/sessions/{id}/join`
+- `/sessions/{id}/join`：join/claim 页，4 选项（anonymous 2 + logged-in 2）
+- `/sessions/{id]`：`getSessionWithSecret()` 静默认证，失败 redirect 到 join 页
 
 ---
 
