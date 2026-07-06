@@ -18,15 +18,15 @@
    * - 500 (FE 运行时错误)
    * - 401 (token 过期, FE 401 后通过 SvelteKit error() 抛)
    */
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
   import { clearUser } from '$stores/user';
 
   let redirected = false;
 
-  $: status = $page.status;
-  $: errorMessage = $page.error?.message ?? '未知错误';
+  $: status = page.status;
+  $: errorMessage = page.error?.message ?? '未知错误';
 
   onMount(async () => {
     if (status === 401 && !redirected) {

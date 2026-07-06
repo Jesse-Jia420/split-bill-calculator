@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { getInvite, acceptInvite } from '$api/invites';
   import { loadUser } from '$stores/user';
   import { loadSessions } from '$stores/sessions';
@@ -14,7 +14,7 @@
   let displayName = '';
   let busy = false;
 
-  $: token = $page.params.token ?? '';
+  $: token = page.params.token ?? '';
 
   onMount(async () => {
     if (!token) {

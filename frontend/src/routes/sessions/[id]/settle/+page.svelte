@@ -14,7 +14,7 @@
    * - v0.1.2 反馈修 6 项目 4 (返回按钮纯文本,无 ← Unicode arrow)。
    * - v0.1.2 反馈修 5 (跨页面动画)。
    */
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { onMount } from 'svelte';
   import { slide } from 'svelte/transition';
   import { getSession } from '$api/sessions';
@@ -27,7 +27,7 @@
   let loading = true;
   let error: string | null = null;
 
-  $: sessionId = Number($page.params.id);
+  $: sessionId = Number(page.params.id);
 
   let memberIdToName: Record<number, string> = {};
   let memberIdToRole: Record<number, string> = {};
@@ -43,7 +43,7 @@
   let activeTab: Tab = 'overview';
 
   onMount(async () => {
-    if ($page.url.hash === '#personal') {
+    if (page.url.hash === '#personal') {
       activeTab = 'personal';
     }
     try {

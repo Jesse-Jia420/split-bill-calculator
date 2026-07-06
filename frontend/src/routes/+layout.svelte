@@ -15,14 +15,14 @@
   import { fade } from 'svelte/transition';
   import { loadUser } from '$stores/user';
   import { goto } from '$app/navigation';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
 
   // Best-effort user load on every page mount.
   onMount(async () => {
     const u = await loadUser();
     // Redirect "/" to "/sessions" when logged in (per spec §1.5).
     // 忽略 Svelte type 抱怨 pathname union 检查,运行时仍然可能为空字符串
-    const path = $page.url.pathname;
+    const path = page.url.pathname;
     if (u && (path === '/' || path === '')) {
       await goto('/sessions', { replaceState: true });
     }
@@ -32,7 +32,7 @@
 <NavBar />
 <Toast />
 <main class="page">
-  {#key $page.url.pathname}
+  {#key page.url.pathname}
     <!-- 反馈修 6 项目 7: 全局页面切换 fade 200ms in / 100ms out (略明显于之前的 150ms) -->
     <div in:fade={{ duration: 200 }} out:fade={{ duration: 100 }}>
       <slot />

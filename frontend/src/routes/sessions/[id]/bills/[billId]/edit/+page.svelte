@@ -10,7 +10,7 @@
    * navigates back to the session detail page on success.
    */
   import { onMount } from 'svelte';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import { getSession } from '$api/sessions';
   import { getBill, updateBill } from '$api/bills';
@@ -24,8 +24,8 @@
   let loading = true;
   let error: string | null = null;
 
-  $: sessionId = Number($page.params.id);
-  $: billId = Number($page.params.billId);
+  $: sessionId = Number(page.params.id);
+  $: billId = Number(page.params.billId);
 
   onMount(async () => {
     try {
