@@ -95,6 +95,29 @@ export const getSession = (id: number) => {
  * Returns { session, actingAsMemberId } where actingAsMemberId is null
  * if no secret is stored or the secret is invalid (member not found).
  */
+export const getSessionByCode = async (code: string): Promise<SessionDetail> => {
+  const headers: Record<string, string> = {};
+  if (typeof window !== "undefined") {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith("sbc.actingAs.")) {
+        const v = localStorage.getItem(k);
+        if (v) headers["X-Nickname-Secret"] = v;
+      }
+    }
+  }
+  const r = await fetch("/api/sessions/by-code/" + encodeURIComponent(code), {
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...headers },
+  });
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    throw new Error(body?.detail?.error ?? `HTTP ${r.status}`);
+  }
+  return r.json();
+};
+
+
 export async function getSessionWithSecret(
   id: number
 ): Promise<{ session: SessionDetail; actingAsMemberId: number | null }> {
