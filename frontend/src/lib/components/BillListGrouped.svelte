@@ -40,9 +40,15 @@
   type Group = {
     date: string;
     bills: Bill[];
-    total: number;
-    currency: string;
-    perCapita: number;
+    /** v0.3.1: per-currency totals (multi-currency aware). */
+    currencyTotals: { ccy: string; amount: number }[];
+    /** v0.3.1: formatted display string. Single-currency: "810.00 CNY";
+     *  multi-currency: "810.00 CNY + 3,000.00 THB". */
+    totalDisplay: string;
+    /** v0.3.1: single currency code if all bills share one, else null. */
+    singleCurrency: string | null;
+    /** v0.3.1: per-currency per-capita (sum of b.amount/n grouped by currency). */
+    perCapitaBreakdown: { ccy: string; amount: number }[];
   };
 
   /**
@@ -86,13 +92,26 @@
     return `${get('year')}-${get('month')}-${get('day')}`;
   }
 
-  function computePerCapita(groupBills: Bill[]): number {
-    let sum = 0;
+  /**
+   * v0.3.1: per-currency per-capita. Sums (b.amount / n) grouped by currency
+   * so a multi-currency day's per-capita is shown as e.g. "136 CNY + 1000 THB"
+   * (not a naive cross-currency sum).
+   */
+  function computePerCapitaBreakdown(groupBills: Bill[]): { ccy: string; amount: number }[] {
+    const byCcy = new Map<string, number>();
     for (const b of groupBills) {
       const n = b.participants?.length ?? 0;
-      if (n > 0) sum += b.amount / n;
+      if (n > 0) {
+        byCcy.set(b.currency, (byCcy.get(b.currency) ?? 0) + b.amount / n);
+      }
     }
-    return sum;
+    return [...byCcy.entries()].map(([ccy, amount]) => ({ ccy, amount }));
+  }
+
+  function fmtBreakdown(parts: { ccy: string; amount: number }[]): string {
+    return parts
+      .map(p => fmtAmount(p.amount) + ' ' + p.ccy)
+      .join(' + ');
   }
 
   function buildGroups(billList: Bill[]): Group[] {
@@ -111,14 +130,23 @@
         if (ta !== tb) return ta - tb;
         return a.id - b.id;
       });
-      const total = sorted.reduce((acc, b) => acc + b.amount, 0);
-      const currency = sorted[0]?.currency ?? '';
+      // v0.3.1: per-currency aggregation (was naive sum across currencies).
+      const byCcy = new Map<string, number>();
+      for (const b of sorted) {
+        byCcy.set(b.currency, (byCcy.get(b.currency) ?? 0) + b.amount);
+      }
+      const currencyTotals = [...byCcy.entries()]
+        .map(([ccy, amount]) => ({ ccy, amount }))
+        .sort((a, b) => a.ccy.localeCompare(b.ccy));
+      const perCapitaBreakdown = computePerCapitaBreakdown(sorted)
+        .sort((a, b) => a.ccy.localeCompare(b.ccy));
       out.push({
         date,
         bills: sorted,
-        total,
-        currency,
-        perCapita: computePerCapita(sorted),
+        currencyTotals,
+        totalDisplay: fmtBreakdown(currencyTotals),
+        singleCurrency: currencyTotals.length === 1 ? currencyTotals[0].ccy : null,
+        perCapitaBreakdown,
       });
     }
     out.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
@@ -428,12 +456,12 @@
               <span class="day-toggle" aria-hidden="true">{isOpen(g.date) ? '−' : '+'}</span>
               <div class="day-header-main">
                 <span class="day-date">{g.date}</span>
-                <span class="day-total">
-                  {fmtAmount(g.total)}<span class="unit">{g.currency}</span>
+                <span class="day-total" data-testid="day-total">
+                  {g.totalDisplay}
                 </span>
               </div>
               <div class="day-header-sub">
-                <span class="muted">人均 {fmtAmount(g.perCapita)}{g.currency}</span>
+                <span class="muted">人均 {fmtBreakdown(g.perCapitaBreakdown)}</span>
                 <span class="muted">总笔数 {g.bills.length}</span>
                 <span class="muted day-header-tag">(合计)</span>
               </div>
