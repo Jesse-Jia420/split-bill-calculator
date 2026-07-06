@@ -12,6 +12,8 @@
   import { toast } from '$stores/toast';
 
   export let sessionId: number;
+  /** v0.3.1: unguessable public code from sessions.session_code. */
+  export let sessionCode: string = '';
   /** True if the caller is the session owner (保留 prop,后续 v0.2 rotate 功能回归使用)。 */
   export const isOwner: boolean = false;
 
@@ -22,13 +24,17 @@
   /** v0.3.1: copy the SESSION URL (not the invite URL).
    * Per PO 16:55, the "invite link" that gets copied should just be the
    * session page URL — the invite token is internal and not surfaced. */
-  $: sessionUrl =
-    typeof window !== 'undefined' ? window.location.origin + '/sessions/' + sessionId : '';
+  $: inviteUrl =
+    typeof window !== 'undefined'
+      ? sessionCode
+        ? window.location.origin + '/s/' + sessionCode
+        : window.location.origin + '/sessions/' + sessionId
+      : '';
 
   /** v0.3.1: copy SESSION URL directly (no lazy load needed — no
    *  API call, no expiry display). Just copy `${origin}/sessions/${id}`. */
   async function handleInviteClick() {
-    const url = sessionUrl;
+    const url = inviteUrl;
     if (!url) return;
 
     let ok = false;

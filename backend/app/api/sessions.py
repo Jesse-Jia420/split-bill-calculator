@@ -602,6 +602,22 @@ def _compute_last_bill_participants(
     return [mid for (mid,) in rows]
 
 
+@router.get("/by-code/{session_code}", response_model=SessionDetail)
+async def get_session_by_code(
+    session_code: str,
+    sm: Annotated[SessionMember, Depends(get_session_member_or_secret)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    """v0.3.1 (Bug & Issues #5): lookup a session by its public code.
+    Same membership check as GET /sessions/{id}."""
+    session = db.execute(
+        select(SessionModel).where(SessionModel.session_code == session_code)
+    ).scalar_one_or_none()
+    if session is None:
+        raise HTTPException(status_code=404, detail={"error": "session not found"})
+    return _detail_dict(session, sm)
+
+
 @router.get("/{session_id}", response_model=SessionDetail)
 async def get_session(
     response: Response,

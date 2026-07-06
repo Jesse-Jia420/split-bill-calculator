@@ -140,6 +140,16 @@ THAILAND_AUX_USERS: list[tuple[str, str]] = [
 # --------------------------------------------------------------------------- #
 
 
+
+def _generate_session_code() -> str:
+    """v0.3.1 (Bug & Issues #5): unguessable 10-char session code.
+    Same alphabet + length as backend/app/api/sessions.py."""
+    import secrets as _secrets
+    _ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    return "".join(_secrets.choice(_ALPHABET) for _ in range(10))
+
+
+
 def _ensure_user(db: OrmSession, email: str, default_name: str) -> User:
     """Idempotently create / fetch a user row."""
     user = db.query(User).filter_by(email=email).first()
@@ -194,6 +204,7 @@ def _ensure_thailand_session(
         invite_token="thailand-test-2026-07-01-xinhua",
         invite_expires_at=now + timedelta(days=30),
         invite_created_at=now,
+        session_code=_generate_session_code(),
     )
     db.add(session)
     db.flush()
@@ -329,6 +340,7 @@ def _ensure_personal_session(
         name=PERSONAL_SESSION_NAME,
         owner_user_id=owner.id,
         invite_token=secrets.token_urlsafe(32),
+        session_code=_generate_session_code(),
         invite_expires_at=now + timedelta(days=30),
         invite_created_at=now,
     )
