@@ -16,7 +16,7 @@
    */
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { getSession, joinClaim, type SessionDetail, type SessionMember } from '$api/sessions';
   import { getInvite, type InvitePublicView } from '$api/invites';
   import { loadUser } from '$stores/user';
@@ -35,8 +35,8 @@
   let selectedSlotId: number | null = $state(null);
   let busy = $state(false);
 
-  let sessionId = $derived(Number($page.params.id) || 0);
-  let inviteToken = $derived($page.url.searchParams.get('token'));
+  let sessionId = $derived(Number(page.params.id) || 0);
+  let inviteToken = $derived(page.url.searchParams.get('token'));
 
   onMount(async () => {
     const sid = sessionId;
