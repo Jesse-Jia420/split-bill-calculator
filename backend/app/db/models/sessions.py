@@ -61,6 +61,15 @@ class Session(Base):  # noqa: F811 — intentional re-export as BillSession in m
     )
     # ------------------------------------------------------------------------
 
+    # ---- v0.3.1: public-facing unguessable session code (Bug & Issues #5).
+    # 10-char URL-safe alphabet (no 0/O/1/l/I confusion); ~10^15 space.
+    # Exposed in the SessionDetail response so the FE can build invite
+    # links like /s/{code} instead of leaking the integer id in URLs.
+    session_code: Mapped[str] = mapped_column(
+        String(12), unique=True, nullable=False, index=True
+    )
+    # ------------------------------------------------------------------------
+
     # ---- v0.2.2: multi-currency (PRD §3.7) ------------------------------
     # ``currencies`` is a JSON array of 1 or 2 ISO 4217 currency codes
     # (e.g. ``["CNY"]`` or ``["THB", "CNY"]``). The first element is
