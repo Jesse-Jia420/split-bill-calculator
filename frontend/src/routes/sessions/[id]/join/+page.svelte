@@ -149,9 +149,12 @@
     }
   }
 
-  function _storeActingAs(memberId: number, secret: string) {
-    if (typeof window !== 'undefined' && secret) {
-      localStorage.setItem(LS_PREFIX + memberId, secret);
+  function _storeActingAs(_memberId: number, secret: string) {
+    // v0.3.1: store under sessionId (not memberId) so session page /
+    // settle / listBills (which all read 'sbc.actingAs.' + sessionId)
+    // can find the secret. memberId-keyed was a v0.3.0 typo.
+    if (typeof window !== 'undefined' && sessionId && secret) {
+      localStorage.setItem(LS_PREFIX + sessionId, secret);
     }
   }
 
