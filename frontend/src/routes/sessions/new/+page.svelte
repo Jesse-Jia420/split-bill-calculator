@@ -72,7 +72,7 @@
         }
         const claimData = (await claimRes.json()) as { session_member_id: number; nickname_secret: string | null };
         if (claimData.nickname_secret && typeof window !== "undefined") {
-          localStorage.setItem(LS_PREFIX + claimData.session_member_id, claimData.nickname_secret);
+          localStorage.setItem(LS_PREFIX + sid, claimData.nickname_secret);
         }
       }
       await goto("/sessions/" + sid, { replaceState: true });

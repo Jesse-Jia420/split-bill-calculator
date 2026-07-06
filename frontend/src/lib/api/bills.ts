@@ -47,7 +47,25 @@ export interface CreateBillInput {
 
 export const listBills = (sessionId: number) => {
   const url = "/sessions/" + sessionId + "/bills";
-  return apiFetch<Bill[]>(url);
+  // v0.3.1: send X-Nickname-Secret for anonymous access.
+  const headers: Record<string, string> = {};
+  if (typeof window !== "undefined") {
+    const secret = localStorage.getItem("sbc.actingAs." + sessionId);
+    if (secret) headers["X-Nickname-Secret"] = secret;
+  }
+  return fetch("/api" + url, {
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...headers },
+  }).then(async (r) => {
+    if (!r.ok) {
+      const body = await r.json().catch(() => ({}));
+      const err: any = new Error(body?.detail?.error ?? `HTTP ${r.status}`);
+      err.status = r.status;
+      err.code = body?.detail?.error ?? `http_${r.status}`;
+      throw err;
+    }
+    return r.json() as Promise<Bill[]>;
+  });
 };
 
 /**

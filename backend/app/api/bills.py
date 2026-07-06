@@ -77,7 +77,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.session_isolation import get_session_member
+from app.core.session_isolation import get_session_member, get_session_member_or_secret
 from app.db.models.bill_participants import BillParticipant
 from app.db.models.bills import Bill, BillStatus
 from app.db.models.session_exchange_rates import SessionExchangeRate
@@ -220,7 +220,7 @@ class BillOut(BaseModel):
     currency: str
     description: str | None
     occurred_at: str
-    created_by: int
+    created_by: int | None  # v0.3.1: NULL for anonymous bill creators
     created_at: str
     status: str
     participants: list[ParticipantOut]
@@ -652,7 +652,7 @@ async def parse_bill(
 
 @router.get("/sessions/{session_id}/bills", response_model=list[BillOut])
 async def list_bills(
-    sm: Annotated[SessionMember, Depends(get_session_member)],
+    sm: Annotated[SessionMember, Depends(get_session_member_or_secret)],
     db: Annotated[Session, Depends(get_db)],
 ) -> list[dict]:
     """Return every bill in the session, newest first.
@@ -691,12 +691,13 @@ async def list_bills(
 )
 async def create_bill(
     payload: CreateBillRequest,
-    sm: Annotated[SessionMember, Depends(get_session_member)],
+    sm: Annotated[SessionMember, Depends(get_session_member_or_secret)],
     db: Annotated[Session, Depends(get_db)],
 ) -> dict:
     """Create a bill in the session.
 
     Any session member may create (SPEC §5: 'session 内任何成员可加').
+    v0.3.1: anonymous members can create via X-Nickname-Secret header.
 
     201: bill persisted with computed share_amounts returned.
     400: invalid participant / amount / exclusive total.
