@@ -210,7 +210,10 @@
     } catch (e: any) {
       const c = e?.code ?? '';
       if (c === 'not a session member' || e?.status === 403) {
-        error = '你不是这个 session 的成员';
+        // v0.3.1: 非成员应该去 join 页 claim nickname, 不显示错误。
+        // 之前显示 '你不是这个 session 的成员' 死路, 用户没法 claim。
+        await goto('/sessions/' + sessionId + '/join', { replaceState: true });
+        return;
       } else {
         // 401 handled globally by client.ts (auto-redirect to /auth/login
         // with returnTo=<current path>). The previous inline goto('/auth/login')
