@@ -314,8 +314,13 @@ test.describe("v0.3.1 fix: invite button copies session URL", () => {
       navigator.clipboard.readText()
     );
     console.log("clipboard:", clipboardText);
-    expect(clipboardText).toMatch(new RegExp(`/sessions/${sid}$`));
-    // ASSERT: NOT the invite URL format
+    // v0.3.1 (Bug & Issues #5): invite button now copies /s/{session_code}
+    // (unguessable 10-char code) instead of /sessions/{id} (predictable int).
+    // Accept either format for backward-compat (e.g., when session_code is missing).
+    expect(clipboardText).toMatch(
+      new RegExp(`(/sessions/${sid}$|/s/[A-Z2-9]{10}$)`)
+    );
+    // ASSERT: NOT the old invite URL format
     expect(clipboardText).not.toMatch(/\/invites\//);
     await screenshotOn(page, "08-invite-after-click");
   });
