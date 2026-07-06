@@ -79,7 +79,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.session_isolation import get_session_member
+from app.core.session_isolation import get_session_member_or_secret
 from app.db.models.bill_participants import BillParticipant
 from app.db.models.bills import Bill
 from app.db.models.session_exchange_rates import SessionExchangeRate
@@ -536,7 +536,7 @@ def _compute_per_member(
     response_model=SettleResponse,
 )
 async def settle_session(
-    sm: Annotated[SessionMember, Depends(get_session_member)],
+    sm: Annotated[SessionMember, Depends(get_session_member_or_secret)],
     db: Annotated[Session, Depends(get_db)],
     view: Annotated[ViewMode, Query()] = ViewMode.PRIMARY,
 ) -> dict:

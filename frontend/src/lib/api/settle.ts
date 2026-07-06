@@ -1,4 +1,3 @@
-import { apiFetch } from './client';
 
 export interface Transfer {
   from_member_id: number;
@@ -72,5 +71,23 @@ export const getSettle = (
   view: 'primary' | 'split' = 'primary'
 ) => {
   const url = '/sessions/' + sessionId + '/settle?view=' + view;
-  return apiFetch<SettleResponse>(url);
+  // v0.3.1: send X-Nickname-Secret for anonymous access.
+  const headers: Record<string, string> = {};
+  if (typeof window !== 'undefined') {
+    const secret = localStorage.getItem('sbc.actingAs.' + sessionId);
+    if (secret) headers['X-Nickname-Secret'] = secret;
+  }
+  return fetch('/api' + url, {
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...headers },
+  }).then(async (r) => {
+    if (!r.ok) {
+      const body = await r.json().catch(() => ({}));
+      const err: any = new Error(body?.detail?.error ?? `HTTP ${r.status}`);
+      err.status = r.status;
+      err.code = body?.detail?.error ?? `http_${r.status}`;
+      throw err;
+    }
+    return r.json() as Promise<SettleResponse>;
+  });
 };

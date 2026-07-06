@@ -759,6 +759,8 @@ async def get_session(
 
     payload: dict = {
         "id": session.id,
+        # v0.3.1 (Bug & Issues #5): public 10-char session_code for unguessable URLs.
+        "session_code": session.session_code or "",
         "name": session.name,
         "owner_user_id": session.owner_user_id,
         "members": [_member_dict(sm_row, u) for sm_row, u in members],

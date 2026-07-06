@@ -18,13 +18,14 @@
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
   import { slide } from 'svelte/transition';
-  import { getSession } from '$api/sessions';
+  import { getSessionWithSecret } from '$api/sessions';
   import type { SessionDetail } from '$api/sessions';
   import SettleTransferPath from '$components/SettleTransferPath.svelte';
   import SettleMemberBreakdown from '$components/SettleMemberBreakdown.svelte';
   import { user } from '$stores/user';
 
   let session: SessionDetail | null = null;
+  let currentMember: { id: number } | null = null;
   let loading = true;
   let error: string | null = null;
 
@@ -48,7 +49,9 @@
       activeTab = 'personal';
     }
     try {
-      session = await getSession(sessionId);
+      const result = await getSessionWithSecret(sessionId);
+      session = result.session;
+      currentMember = { id: result.actingAsMemberId ?? 0 };
       for (const m of session.members) {
         memberIdToName[m.id] = m.display_name;
         memberIdToRole[m.id] = m.role;
