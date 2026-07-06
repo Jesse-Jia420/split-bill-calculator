@@ -1,77 +1,275 @@
 <script lang="ts">
+  /**
+   * v0.3.1 (Sprint 4 T19) — Redesigned landing page.
+   *
+   * Design: Mobile-first immersive landing.
+   * - Full-page Unsplash background image
+   * - Dark semi-transparent overlay
+   * - Centered tagline + 2 CTA buttons
+   * - Anonymous: "直接开始使用" (creates anon session) + "登录"
+   * - Logged-in users are redirected to /sessions by +layout.svelte
+   *
+   * The "直接开始使用" button creates an anonymous session with
+   * a single placeholder nickname slot, then navigates to the join
+   * page so the user can claim it and enter the session.
+   */
+  import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { user } from '$stores/user';
   import { FRONTEND_VERSION } from '$lib/version';
-  import type { PageData } from './$types';
 
-  export let data: PageData;
+  // Background image: travel / friends sharing good times
+  const BG_URL =
+    'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=1280&q=75';
+
+  const TAGLINE = '轻松分摊，一起记账';
+  const SUB = '旅行、合租、聚餐 — 随时随地，AA 不再烦恼';
+
+  let busy = false;
+  let error: string | null = null;
+
+  onMount(() => {
+    // If user is already logged in, +layout.svelte will redirect to /sessions.
+    // We don't need to do anything here.
+  });
+
+  async function handleStartUsing() {
+    if (busy) return;
+    error = null;
+    busy = true;
+    try {
+      // Anonymous session: create a session with 1 placeholder nickname.
+      // The creator will claim it on the join page.
+      const res = await fetch('/api/sessions', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: '我的账本',
+          member_nicknames: ['我'],
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.detail?.error ?? `HTTP ${res.status}`);
+      }
+      const data = await res.json() as {
+        id: number;
+        created_member_ids: number[];
+      };
+      // Navigate to join page so the creator can claim their slot.
+      await goto('/sessions/' + data.id + '/join', { replaceState: true });
+    } catch (e: any) {
+      error = e?.message ?? '创建失败，请重试';
+      busy = false;
+    }
+  }
 </script>
 
-<section class="home">
-  <div class="version-bar">
-    <span>FE: <strong>{FRONTEND_VERSION}</strong></span>
-    <span>BE: <strong>{data.backendVersion}</strong></span>
-  </div>
+<svelte:head>
+  <title>Split Bill — 轻松分摊</title>
+</svelte:head>
 
-  <div class="hero">
-    <h1>Split Bill</h1>
-    <p class="lead">多用户 + 多 session 的简洁记账工具</p>
-    <div class="cta">
-      <a class="btn primary" href="/auth/login">开始使用</a>
-      <a class="btn" href="/sessions">我的 sessions</a>
+<!-- Full-page background container -->
+<div class="bg-wrapper">
+  <img class="bg-img" src={BG_URL} alt="friends" />
+
+  <div class="overlay">
+    <!-- Centered content -->
+    <div class="hero">
+      <div class="brand-row">
+        <span class="brand-icon">💰</span>
+        <span class="brand-name">Split Bill</span>
+      </div>
+
+      <h1 class="tagline">{TAGLINE}</h1>
+      <p class="sub">{SUB}</p>
+
+      {#if error}
+        <div class="error-banner">{error}</div>
+      {/if}
+
+      <div class="actions">
+        <button
+          class="btn-primary"
+          onclick={handleStartUsing}
+          disabled={busy}
+        >
+          {busy ? '创建中…' : '直接开始使用'}
+        </button>
+
+        {#if !$user}
+          <a href="/auth/login" class="btn-ghost">
+            登录
+          </a>
+        {/if}
+      </div>
+
+      <p class="hint">
+        {#if $user}
+          已登录为 {$user.default_name}
+        {:else}
+          无需注册，直接使用
+        {/if}
+      </p>
     </div>
   </div>
-
-  <ul class="features">
-    <li>邮箱 + 验证码登录,无需密码</li>
-    <li>每个 session 一个记账本,邀请链接永久有效</li>
-    <li>AI 辅助:用一句话描述消费,自动填表单</li>
-    <li>自动结算 + 转账路径,谁付谁一目了然</li>
-  </ul>
-</section>
+</div>
 
 <style>
-  .home {
-    padding-top: var(--space-5);
+  /* Full-page background wrapper */
+  .bg-wrapper {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
   }
-  .version-bar {
-    font-size: 0.75rem;
-    color: var(--color-text-muted);
-    margin-bottom: var(--space-3);
+
+  .bg-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+  }
+
+  /* Dark overlay for text readability */
+  .overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
     display: flex;
-    gap: var(--space-3);
-    font-family: monospace;
+    align-items: center;
+    justify-content: center;
   }
-  .version-bar strong {
-    color: var(--color-text);
-  }
+
   .hero {
     text-align: center;
-    margin-bottom: var(--space-6);
+    padding: 2rem 1.5rem;
+    max-width: 400px;
+    width: 100%;
+    animation: fadeUp 0.6s ease-out both;
   }
-  .hero h1 {
-    font-size: 2rem;
-    margin-bottom: var(--space-2);
+
+  @keyframes fadeUp {
+    from {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
-  .lead {
-    color: var(--color-text-muted);
-    margin-bottom: var(--space-5);
-  }
-  .cta {
+
+  .brand-row {
     display: flex;
-    gap: var(--space-3);
+    align-items: center;
     justify-content: center;
-    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
   }
-  .features {
-    list-style: none;
-    padding: 0;
-    margin: 0;
+
+  .brand-icon {
+    font-size: 2rem;
+    line-height: 1;
   }
-  .features li {
-    padding: var(--space-3) 0;
-    border-bottom: 1px solid var(--color-border);
-    color: var(--color-text);
+
+  .brand-name {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 0.02em;
   }
-  .features li:last-child {
-    border-bottom: none;
+
+  .tagline {
+    font-size: 2.25rem;
+    font-weight: 700;
+    color: #fff;
+    margin: 0 0 0.75rem;
+    line-height: 1.15;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+
+  .sub {
+    font-size: 1rem;
+    color: rgba(255, 255, 255, 0.82);
+    margin: 0 0 2rem;
+    line-height: 1.5;
+  }
+
+  .error-banner {
+    background: rgba(244, 63, 94, 0.9);
+    color: #fff;
+    border-radius: 0.5rem;
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
+    margin-bottom: 1rem;
+  }
+
+  .actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: stretch;
+  }
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 52px;
+    padding: 0 1.5rem;
+    background: #3b82f6;
+    border: none;
+    border-radius: 9999px;
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    text-decoration: none;
+    letter-spacing: 0.01em;
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background: #2563eb;
+  }
+
+  .btn-primary:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
+    padding: 0 1.5rem;
+    background: rgba(255, 255, 255, 0.15);
+    border: 1.5px solid rgba(255, 255, 255, 0.5);
+    border-radius: 9999px;
+    color: #fff;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    text-decoration: none;
+  }
+
+  .btn-ghost:hover {
+    background: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.75);
+    text-decoration: none;
+    color: #fff;
+  }
+
+  .hint {
+    margin-top: 1.25rem;
+    font-size: 0.8125rem;
+    color: rgba(255, 255, 255, 0.55);
   }
 </style>

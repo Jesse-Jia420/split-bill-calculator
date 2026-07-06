@@ -180,6 +180,22 @@ class CreateSessionRequest(BaseModel):
     currencies: list[str] = Field(default_factory=lambda: ["CNY"])
     primary_currency: str = Field(default="CNY")
     exchange_rates: list[ExchangeRateIn] = Field(default_factory=list)
+    # v0.3.1: optional initial member nicknames. Max 20 x 50 chars.
+    member_nicknames: list[str] = Field(default_factory=list)
+
+    @field_validator("member_nicknames")
+    @classmethod
+    def _validate_member_nicknames(cls, v):
+        if len(v) > 20: raise ValueError("max 20 nicknames")
+        seen = set(); out = []
+        for raw in v:
+            name = (raw or "").strip()
+            if not name: continue
+            if len(name) > 50: raise ValueError(f"nickname must be <= 50 chars")
+            key = name.casefold()
+            if key in seen: continue
+            seen.add(key); out.append(name)
+        return out
 
     @field_validator("currencies")
     @classmethod
@@ -254,6 +270,8 @@ class SessionSummary(BaseModel):
     # pre-select.
     currencies: list[str] = []
     primary_currency: str = "CNY"
+    # v0.3.1: only on POST /sessions response when member_nicknames supplied.
+    created_member_ids: list[int] = Field(default_factory=list)
 
 
 class SessionMemberOut(BaseModel):
@@ -317,19 +335,26 @@ def _iso(dt: datetime | None) -> str:
     return dt.isoformat()
 
 
-def _summary_dict(session: SessionModel, role: str, member_count: int | None) -> dict:
-    return {
+def _summary_dict(
+    session: SessionModel,
+    role: str,
+    member_count: int | None,
+    created_member_ids: list[int] | None = None,
+) -> dict:
+    out: dict = {
         "id": session.id,
         "name": session.name,
         "owner_user_id": session.owner_user_id,
         "role": role,
         "member_count": member_count,
         "created_at": _iso(session.created_at),
-        # v0.2.2 (T08): always echo the currency set + primary so the
-        # FE can render the right chip without a follow-up detail call.
         "currencies": list(session.currencies or ["CNY"]),
         "primary_currency": session.primary_currency or "CNY",
     }
+    # v0.3.1: only surface on create response.
+    if created_member_ids is not None:
+        out["created_member_ids"] = list(created_member_ids)
+    return out
 
 
 def _exchange_rate_dict(rate: SessionExchangeRate) -> dict:
@@ -457,13 +482,31 @@ async def create_session(
         )
         db.add(sm)
 
+    # v0.3.1: bulk-create unclaimed anonymous member rows for nicknames.
+    created_member_ids = []
+    for nickname in payload.member_nicknames:
+        sm = SessionMember(
+            session_id=session.id,
+            user_id=None,
+            display_name=nickname,
+            role=SessionRole.MEMBER.value,
+            nickname_secret=None,
+            is_anon=True,
+            claimed_at=None,
+        )
+        db.add(sm)
+        db.flush()
+        created_member_ids.append(sm.id)
+
     db.commit()
     db.refresh(session)
 
+    total_members = (1 if user is not None else 0) + len(payload.member_nicknames)
     return _summary_dict(
         session,
         role=SessionRole.OWNER.value if user else "owner",
-        member_count=1 if user else 0,
+        member_count=total_members,
+        created_member_ids=created_member_ids,
     )
 
 

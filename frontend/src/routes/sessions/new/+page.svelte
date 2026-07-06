@@ -1,257 +1,200 @@
 <script lang="ts">
-  import { goto } from '$app/navigation';
-  import { createSession, type CreateSessionInput } from '$api/sessions';
-  import { loadSessions } from '$stores/sessions';
-  import { loadUser } from '$stores/user';
-  import { onMount } from 'svelte';
+  import { onMount } from "svelte";
+  import { goto } from "$app/navigation";
+  import { user } from "$stores/user";
+  import { loadUser } from "$stores/user";
 
-  // v0.2.2 (T08): mirror of backend SUPPORTED_CURRENCIES (sessions.py).
-  // Kept in sync manually — BE is the source of truth and will 422 if
-  // a non-whitelisted code is sent.
-  const SUPPORTED_CURRENCIES: string[] = [
-    'CNY', 'USD', 'THB', 'EUR', 'JPY', 'GBP', 'HKD', 'SGD', 'KRW', 'AUD'
-  ];
-  const DEFAULT_SECONDARY = 'USD';
-
-  let name = '';
-  // v0.2.2 multi-currency form state.
-  let currencies: string[] = ['CNY'];
-  let primary_currency = 'CNY';
-  // One rate row per (from -> to) ordered pair; when currencies == 2
-  // we render exactly one input. The reciprocal is auto-computed by
-  // the BE so the FE doesn't need to send it.
-  let rate = '';
-
+  let step = 1;
+  let sessionName = "";
+  let memberCount = 2;
+  let nicknames: string[] = ["", ""];
   let busy = false;
   let error: string | null = null;
   let loading = true;
+  const LS_PREFIX = "sbc.actingAs.";
 
-  // v0.3 (PRD §3.10): anonymous session creation is allowed.
-  // The creator must join via the join-claim flow after creation.
   onMount(async () => {
+    await loadUser();
     loading = false;
   });
 
-  function addCurrency(code: string = DEFAULT_SECONDARY) {
-    if (currencies.length >= 2) return;
-    if (SUPPORTED_CURRENCIES.indexOf(code) < 0) return;
-    if (currencies.indexOf(code) >= 0) return;
-    currencies = [...currencies, code];
-    primary_currency = code; // newly added -> default primary
+  $: nameValid = sessionName.trim().length > 0;
+
+  $: {
+    const target = memberCount;
+    while (nicknames.length < target) nicknames.push("");
+    while (nicknames.length > target) nicknames.pop();
   }
 
-  function removeCurrency(code: string) {
-    if (currencies.length <= 1) return;
-    const next = currencies.filter(c => c !== code);
-    currencies = next;
-    // If we just removed the primary, fall back to the remaining one.
-    if (primary_currency === code) {
-      primary_currency = next[0];
-    }
-    rate = '';
+  $: nicknamesValid = nicknames.every((n) => n.trim().length > 0);
+
+  function adjustCount(delta: number) {
+    const next = memberCount + delta;
+    if (next >= 2 && next <= 20) memberCount = next;
+  }
+
+  function goNext() {
+    if (step === 1 && nameValid) step = 2;
+    else if (step === 2) step = 3;
   }
 
   async function handleCreate() {
-    if (busy) return;
+    if (busy || !nicknamesValid) return;
     error = null;
-    const trimmed = name.trim();
-    if (!trimmed) {
-      error = '请输入 session 名字';
-      return;
-    }
-    const input: CreateSessionInput = { name: trimmed };
-    if (currencies.length === 2) {
-      const from = currencies[0];
-      const to = currencies[1];
-      const rateNum = Number(rate);
-      if (!rate || isNaN(rateNum) || rateNum <= 0) {
-        error = '请填写大于 0 的汇率';
-        return;
-      }
-      input.currencies = currencies;
-      input.primary_currency = primary_currency;
-      input.exchange_rates = [
-        { from_currency: from, to_currency: to, rate: rate }
-      ];
-    }
     busy = true;
     try {
-      const created = await createSession(input);
-      await loadSessions();
-      // v0.3 (PRD §3.10): creator must join via join-claim flow.
-      // For logged-in users, they're already a member; redirect to session.
-      // For anonymous creators, redirect to join page so they can claim a nickname.
-      if (created.member_count && created.member_count > 0) {
-        await goto('/sessions/' + created.id);
-      } else {
-        await goto('/sessions/' + created.id + '/join');
+      const createRes = await fetch("/api/sessions", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: sessionName.trim(),
+          member_nicknames: nicknames.map((n) => n.trim()),
+        }),
+      });
+      if (!createRes.ok) {
+        const body = await createRes.json().catch(() => ({}));
+        throw new Error(body?.detail?.error ?? "HTTP " + createRes.status);
       }
+      const data = (await createRes.json()) as { id: number; created_member_ids: number[] };
+      const sid = data.id;
+      const memberIds = data.created_member_ids ?? [];
+      if ($user === null && memberIds.length > 0) {
+        const claimRes = await fetch("/api/sessions/" + sid + "/join-claim", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "claim", session_member_id: memberIds[0] }),
+        });
+        if (!claimRes.ok) {
+          const body = await claimRes.json().catch(() => ({}));
+          throw new Error(body?.detail?.error ?? "认领失败，请重试");
+        }
+        const claimData = (await claimRes.json()) as { session_member_id: number; nickname_secret: string | null };
+        if (claimData.nickname_secret && typeof window !== "undefined") {
+          localStorage.setItem(LS_PREFIX + claimData.session_member_id, claimData.nickname_secret);
+        }
+      }
+      await goto("/sessions/" + sid, { replaceState: true });
     } catch (e: any) {
-      const c = e?.code ?? '';
-      if (c === 'not authenticated') {
-        // This shouldn't happen in v0.3 (anonymous creation allowed),
-        // but keep it for safety.
-        await goto('/auth/login?next=/sessions/new', { replaceState: true });
-        return;
-      }
-      error = e?.message ?? '创建失败';
-    } finally {
+      error = e?.message ?? "创建失败，请重试";
       busy = false;
     }
   }
 </script>
 
-<section>
-  <h2>新建 session</h2>
-  <p class="muted">session = 一个记账本, 可以是旅行 / 合租 / 聚餐...</p>
+<svelte:head>
+  <title>新建 session</title>
+</svelte:head>
 
-  {#if loading}
-    <p>正在检查登录状态...</p>
-  {:else}
-    <div class="stack" style="max-width: 480px;">
-      <div>
-        <label class="label" for="name">名字</label>
-        <input id="name" type="text" bind:value={name} placeholder="例: 2026 曼谷之旅" maxlength="200" />
-      </div>
-
-      <div class="currency-section">
-        <span class="label" id="currency-label">币种</span>
-        <div class="currency-chips" role="group" aria-labelledby="currency-label">
-          {#each currencies as code (code)}
-            <span class="currency-chip">
-              {code}
-              {#if currencies.length > 1}
-                <button
-                  type="button"
-                  class="remove-currency"
-                  aria-label={'移除 ' + code}
-                  on:click={() => removeCurrency(code)}
-                >×</button>
-              {/if}
-            </span>
-          {/each}
-          {#if currencies.length < 2}
-            <select
-              class="add-currency-select"
-              on:change={(e) => {
-                const target = e.target as HTMLSelectElement;
-                const code = target.value;
-                if (code) {
-                  addCurrency(code);
-                  target.value = '';
-                }
-              }}
-            >
-              <option value="">+ 添加第二种币种</option>
-              {#each SUPPORTED_CURRENCIES.filter(c => currencies.indexOf(c) < 0) as code}
-                <option value={code}>{code}</option>
-              {/each}
-            </select>
-          {/if}
-        </div>
-      </div>
-
-      {#if currencies.length === 2}
-        <div class="rate-section">
-          <label class="label" for="primary">主币种 (结算汇总)</label>
-          <div class="currency-chips" role="radiogroup" aria-label="主币种">
-            {#each currencies as code (code)}
-              <button
-                type="button"
-                class="currency-chip"
-                class:active={primary_currency === code}
-                role="radio"
-                aria-checked={primary_currency === code}
-                on:click={() => (primary_currency = code)}
-              >
-                {code}
-              </button>
-            {/each}
-          </div>
-
-          <label class="label" for="rate">
-            1 {currencies[0]} = ? {currencies[1]}
-          </label>
-          <input
-            id="rate"
-            type="number"
-            step="0.00000001"
-            min="0"
-            bind:value={rate}
-            placeholder="0.2150"
-            required
-          />
-          <p class="muted hint">
-            双向汇率由系统自动换算 (1 / 上方数值).
-          </p>
-        </div>
-      {/if}
-
-      <button class="primary" on:click={handleCreate} disabled={busy}>
-        {busy ? '创建中...' : '创建'}
-      </button>
-      {#if error}
-        <div class="error">{error}</div>
-      {/if}
+{#if loading}
+  <div class="loading-screen">
+    <p class="muted">加载中…</p>
+  </div>
+{:else}
+  <div class="wizard">
+    <div class="progress">
+      <span class="dot" class:active={step >= 1} class:done={step > 1} />
+      <span class="dot" class:active={step >= 2} class:done={step > 2} />
+      <span class="dot" class:active={step >= 3} />
     </div>
-  {/if}
-</section>
+    <p class="step-label">
+      {#if step === 1}第一步{/if}{#if step === 2}第二步{/if}{#if step === 3}第三步{/if}
+    </p>
+    {#if error}
+      <div class="error-banner">{error}</div>
+    {/if}
+    {#if step === 1}
+      <div class="step-panel">
+        <h2 class="step-title">给你的账本起个名字</h2>
+        <p class="step-hint">比如：曼谷之旅 2026 / 毕业聚餐 / 合租记账</p>
+        <div class="field">
+          <input id="session-name" type="text" bind:value={sessionName}
+            placeholder="比如：曼谷之旅 2026" maxlength="200"
+            onkeydown={(e) => e.key === "Enter" && nameValid && goNext()}
+            autofocus />
+        </div>
+        <button class="btn-next" onclick={goNext} disabled={!nameValid}>下一步</button>
+      </div>
+    {/if}
+    {#if step === 2}
+      <div class="step-panel">
+        <h2 class="step-title">一共有多少人？</h2>
+        <p class="step-hint">包括你自己，至少 2 人</p>
+        <div class="count-row">
+          <button class="count-btn" onclick={() => adjustCount(-1)} disabled={memberCount <= 2} aria-label="减少一人">-</button>
+          <span class="count-display">{memberCount}</span>
+          <button class="count-btn" onclick={() => adjustCount(1)} disabled={memberCount >= 20} aria-label="增加一人">+</button>
+        </div>
+        <p class="count-hint">{memberCount} 人</p>
+        <div class="step-nav">
+          <button class="btn-back" onclick={() => (step = 1)}>上一步</button>
+          <button class="btn-next" onclick={goNext}>下一步</button>
+        </div>
+      </div>
+    {/if}
+    {#if step === 3}
+      <div class="step-panel">
+        <h2 class="step-title">每个人叫什么名字？</h2>
+        <p class="step-hint">第一个是你的名字，其余是你的同伴</p>
+        <div class="nickname-list">
+          {#each nicknames as nick, i (i)}
+            <div class="nickname-row">
+              <span class="nick-label">{i === 0 ? "你" : "同伴 " + i}</span>
+              <input type="text" bind:value={nicknames[i]}
+                placeholder={i === 0 ? "你的名字" : "同伴 " + i + " 的名字"}
+                maxlength="50"
+                onkeydown={(e) => e.key === "Enter" && i === nicknames.length - 1 && nicknamesValid && !busy && handleCreate()} />
+            </div>
+          {/each}
+        </div>
+        <div class="step-nav">
+          <button class="btn-back" onclick={() => (step = 2)}>上一步</button>
+          <button class="btn-confirm" onclick={handleCreate} disabled={!nicknamesValid || busy}>
+            {busy ? "创建中…" : "确认创建"}
+          </button>
+        </div>
+      </div>
+    {/if}
+  </div>
+{/if}
 
 <style>
-  .currency-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    align-items: center;
-  }
-  .currency-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    background: rgba(99, 102, 241, 0.08);
-    border: 1px solid rgba(99, 102, 241, 0.3);
-    border-radius: 999px;
-    padding: 0.25rem 0.75rem;
-    font-weight: 500;
-    font-size: 0.875rem;
-    color: #4f46e5;
-    cursor: default;
-  }
-  button.currency-chip {
-    cursor: pointer;
-    background: rgba(99, 102, 241, 0.04);
-    border-color: rgba(99, 102, 241, 0.2);
-  }
-  button.currency-chip.active {
-    background: #6366f1;
-    color: white;
-    border-color: #6366f1;
-  }
-  .remove-currency {
-    background: transparent;
-    border: none;
-    color: inherit;
-    cursor: pointer;
-    font-size: 1rem;
-    padding: 0 0.25rem;
-    line-height: 1;
-  }
-  .add-currency-select {
-    background: transparent;
-    border: 1px dashed rgba(99, 102, 241, 0.4);
-    border-radius: 999px;
-    padding: 0.25rem 0.75rem;
-    color: #6366f1;
-    cursor: pointer;
-    font-size: 0.875rem;
-  }
-  .rate-section,
-  .currency-section {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-  .hint {
-    font-size: 0.75rem;
-  }
+  .loading-screen { display: flex; align-items: center; justify-content: center; min-height: 50vh; }
+  .wizard { max-width: 480px; margin: 0 auto; padding: 1.5rem 1rem; }
+  .progress { display: flex; justify-content: center; gap: 0.5rem; margin-bottom: 1.25rem; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #e5e5e5; transition: background 0.3s, transform 0.3s; }
+  .dot.active { background: #3b82f6; }
+  .dot.done { background: #93c5fd; transform: scale(0.85); }
+  .step-label { text-align: center; font-size: 0.8125rem; color: #737373; margin-bottom: 1.5rem; text-transform: uppercase; letter-spacing: 0.08em; }
+  .step-panel { animation: slideIn 0.3s ease-out both; }
+  @keyframes slideIn { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: translateX(0); } }
+  .step-title { font-size: 1.5rem; font-weight: 700; color: #171717; margin: 0 0 0.375rem; line-height: 1.2; }
+  .step-hint { font-size: 0.9rem; color: #737373; margin: 0 0 1.75rem; }
+  .field { margin-bottom: 1.5rem; }
+  input[type="text"] { width: 100%; padding: 0.875rem 1rem; border: 2px solid #e5e5e5; border-radius: 0.75rem; font-size: 1rem; background: #fff; transition: border-color 0.15s; box-sizing: border-box; }
+  input[type="text"]:focus { outline: none; border-color: #3b82f6; }
+  input[type="text"]::placeholder { color: #a3a3a3; }
+  .btn-next, .btn-confirm { display: inline-flex; align-items: center; justify-content: center; width: 100%; min-height: 52px; padding: 0 1.5rem; background: #3b82f6; border: none; border-radius: 9999px; color: #fff; font-size: 1rem; font-weight: 600; cursor: pointer; transition: background 0.15s, transform 0.1s; letter-spacing: 0.01em; }
+  .btn-next:hover:not(:disabled), .btn-confirm:hover:not(:disabled) { background: #2563eb; }
+  .btn-next:active:not(:disabled), .btn-confirm:active:not(:disabled) { transform: scale(0.98); }
+  .btn-next:disabled, .btn-confirm:disabled { opacity: 0.5; cursor: not-allowed; }
+  .step-nav { display: flex; gap: 0.75rem; margin-top: 1.5rem; }
+  .step-nav .btn-next, .step-nav .btn-confirm { flex: 1; }
+  .btn-back { display: inline-flex; align-items: center; justify-content: center; min-height: 52px; padding: 0 1.25rem; background: #fff; border: 2px solid #e5e5e5; border-radius: 9999px; color: #525252; font-size: 1rem; font-weight: 500; cursor: pointer; transition: border-color 0.15s, color 0.15s; }
+  .btn-back:hover { border-color: #a3a3a3; color: #262626; }
+  .count-row { display: flex; align-items: center; justify-content: center; gap: 2rem; margin-bottom: 0.75rem; }
+  .count-btn { width: 56px; height: 56px; border-radius: 50%; border: 2px solid #e5e5e5; background: #fff; color: #262626; font-size: 1.5rem; font-weight: 600; cursor: pointer; transition: border-color 0.15s, background 0.15s; display: flex; align-items: center; justify-content: center; }
+  .count-btn:hover:not(:disabled) { border-color: #3b82f6; background: #eff6ff; color: #3b82f6; }
+  .count-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .count-display { font-size: 3rem; font-weight: 700; color: #171717; min-width: 3rem; text-align: center; line-height: 1; }
+  .count-hint { text-align: center; font-size: 0.9rem; color: #737373; margin: 0; }
+  .nickname-list { display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 0.5rem; }
+  .nickname-row { display: flex; align-items: center; gap: 0.75rem; }
+  .nick-label { min-width: 52px; font-size: 0.875rem; font-weight: 600; color: #525252; }
+  .nickname-row input { flex: 1; padding: 0.75rem 1rem; border: 2px solid #e5e5e5; border-radius: 0.75rem; font-size: 1rem; background: #fff; transition: border-color 0.15s; box-sizing: border-box; }
+  .nickname-row input:focus { outline: none; border-color: #3b82f6; }
+  .nickname-row input::placeholder { color: #a3a3a3; }
+  .error-banner { background: #fff1f2; border: 1px solid #fecdd3; color: #be123c; border-radius: 0.5rem; padding: 0.625rem 1rem; font-size: 0.875rem; margin-bottom: 1rem; }
+  .muted { color: #737373; }
 </style>
