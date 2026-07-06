@@ -68,9 +68,9 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Request, Response, status
 from pydantic import BaseModel, Field, field_validator, model_validator
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user, get_optional_user
@@ -605,17 +605,91 @@ def _compute_last_bill_participants(
 @router.get("/by-code/{session_code}", response_model=SessionDetail)
 async def get_session_by_code(
     session_code: str,
-    sm: Annotated[SessionMember, Depends(get_session_member_or_secret)],
+    request: Request,
+    user: Annotated[User | None, Depends(get_optional_user)],
     db: Annotated[Session, Depends(get_db)],
+    response: Response,
 ) -> dict:
     """v0.3.1 (Bug & Issues #5): lookup a session by its public code.
-    Same membership check as GET /sessions/{id}."""
+
+    Builds the SessionDetail payload inline (rather than calling the
+    shared _detail_dict helper) because the existing helper has subtle
+    dependencies on the get_session_member_or_secret dep signature
+    that don't apply here.
+    """
     session = db.execute(
         select(SessionModel).where(SessionModel.session_code == session_code)
     ).scalar_one_or_none()
     if session is None:
         raise HTTPException(status_code=404, detail={"error": "session not found"})
-    return _detail_dict(session, sm)
+
+    from app.db.models.session_members import SessionMember as SessionMemberModel
+    from app.db.models.users import User as UserModel
+    sm = None
+    if user is not None:
+        sm = db.execute(
+            select(SessionMemberModel).where(
+                SessionMemberModel.session_id == session.id,
+                SessionMemberModel.user_id == user.id,
+            )
+        ).scalar_one_or_none()
+    if sm is None:
+        secret = request.headers.get("X-Nickname-Secret")
+        if secret:
+            sm = db.execute(
+                select(SessionMemberModel).where(
+                    SessionMemberModel.session_id == session.id,
+                    SessionMemberModel.nickname_secret == secret,
+                )
+            ).scalar_one_or_none()
+    if sm is None:
+        raise HTTPException(
+            status_code=403,
+            detail={"error": "not a session member", "session_id": session.id},
+        )
+
+    members = db.execute(
+        select(SessionMemberModel, UserModel)
+        .outerjoin(UserModel, UserModel.id == SessionMemberModel.user_id)
+        .where(SessionMemberModel.session_id == session.id)
+        .order_by(SessionMemberModel.joined_at.asc())
+    ).all()
+    last_bill_participants = _compute_last_bill_participants(db, session.id)
+    rates = db.execute(
+        select(SessionExchangeRate)
+        .where(SessionExchangeRate.session_id == session.id)
+        .order_by(SessionExchangeRate.from_currency.asc(), SessionExchangeRate.to_currency.asc())
+    ).scalars().all()
+
+    payload: dict = {
+        "id": session.id,
+        "session_code": session.session_code or "",
+        "name": session.name,
+        "owner_user_id": session.owner_user_id,
+        "members": [
+            {
+                "id": sm_row.id,
+                "user_id": sm_row.user_id,
+                "email": u.email if u else None,
+                "display_name": sm_row.display_name,
+                "role": sm_row.role,
+                "joined_at": _iso(sm_row.joined_at),
+            }
+            for sm_row, u in members
+        ],
+        "created_at": _iso(session.created_at),
+        "invite_token_preview": None,
+        "invite_expires_at": None,
+        "last_bill_participants": last_bill_participants,
+        "currencies": list(session.currencies or ["CNY"]),
+        "primary_currency": session.primary_currency or "CNY",
+        "exchange_rates": [_exchange_rate_dict(r) for r in rates],
+    }
+    if sm.role == SessionRole.OWNER.value:
+        payload["invite_token_preview"] = session.invite_token
+        payload["invite_expires_at"] = _iso(session.invite_expires_at)
+    response.headers["X-SBC-Member-ID"] = str(sm.id)
+    return payload
 
 
 @router.get("/{session_id}", response_model=SessionDetail)
