@@ -15,9 +15,9 @@
   /** True if the caller is the session owner (保留 prop,后续 v0.2 rotate 功能回归使用)。 */
   export const isOwner: boolean = false;
 
-  let busy = false;
-  let error: string | null = null;
   let copied = false;
+  let error: string | null = null;
+  let resetTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** v0.3.1: copy the SESSION URL (not the invite URL).
    * Per PO 16:55, the "invite link" that gets copied should just be the
@@ -28,13 +28,10 @@
   /** v0.3.1: copy SESSION URL directly (no lazy load needed — no
    *  API call, no expiry display). Just copy `${origin}/sessions/${id}`. */
   async function handleInviteClick() {
-    if (busy) return;
     const url = sessionUrl;
     if (!url) return;
-    busy = true;
 
     let ok = false;
-    // 1) 尝试现代 Clipboard API (需 HTTPS / 用户手势)
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(url);
@@ -43,9 +40,8 @@
     } catch {
       ok = false;
     }
-
-    // 2) Fallback: 隐藏 input + execCommand('copy')
     if (!ok) {
+      // Fallback: 隐藏 input + execCommand('copy')
       try {
         const ta = document.createElement('textarea');
         ta.value = url;
@@ -68,9 +64,14 @@
       toast.info('复制失败,请手动选中链接');
     }
 
-    // 按钮文字短时反馈
+    // v0.3.1 (PO Bug #4): show "已复制" for 10s then reset to "邀请".
+    // Only 2 states: 邀请 / 已复制. No busy / loading state.
     copied = true;
-    setTimeout(() => (copied = false), 1200);
+    if (resetTimer) clearTimeout(resetTimer);
+    resetTimer = setTimeout(() => {
+      copied = false;
+      resetTimer = null;
+    }, 10000);
   }
 
 
@@ -83,13 +84,13 @@
     class="primary invite-btn"
     class:copied
     on:click={(e) => { e.stopPropagation(); handleInviteClick(); }}
-    disabled={busy}
     title="复制邀请链接"
     aria-label="复制邀请链接"
+    data-testid="invite-btn"
   >
     <span class="btn-content">
       <span class="btn-icon" aria-hidden="true">{copied ? '✓' : '📨'}</span>
-      <span class="btn-label">{busy ? '加载中…' : copied ? '已复制' : '邀请'}</span>
+      <span class="btn-label">{copied ? '已复制' : '邀请'}</span>
     </span>
   </button>
 
