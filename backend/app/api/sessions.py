@@ -3,18 +3,19 @@
 Endpoints (mounted under /sessions; frontend calls them as
 /api/sessions — the dev proxy strips the /api prefix):
 
-POST   /sessions                      Create a session + add caller as owner
+POST   /sessions                      Create a session (anon or logged-in)
 GET    /sessions                      List sessions the caller belongs to
 GET    /sessions/{id}                 Session detail + member list
 PATCH  /sessions/{id}/members/{mid}   Update caller's own display_name
+POST   /sessions/{id}/join-claim      v0.3: anonymous claim or user bind
 
 Auth model
 ----------
-- POST + GET require a logged-in user (cookie).
-- GET /{id} requires the caller to be a session member (403 otherwise).
-- PATCH /{id}/members/{mid} requires membership AND mid == caller.
-  In v0.1 only the *self* row is editable; renaming teammates is
-  out of scope and lands in v0.2 with the broader role matrix.
+- POST /sessions: allow anonymous (no auth required).
+- GET /sessions: requires logged-in user.
+- GET /{id}: requires membership (user binding OR nickname_secret header).
+- PATCH /{id}/members/{mid}: requires membership AND mid == caller.
+- POST /{id}/join-claim: allow anonymous; user binding uses logged-in user.
 
 Response shape notes
 --------------------
@@ -67,15 +68,15 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Path, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Response, status
 from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.core.auth import get_current_user
+from app.core.auth import get_current_user, get_optional_user
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.session_isolation import get_session_member
+from app.core.session_isolation import get_session_member, get_session_member_or_secret
 from app.db.models.session_exchange_rates import SessionExchangeRate
 from app.db.models.session_members import SessionMember, SessionRole
 from app.db.models.sessions import Session as SessionModel
@@ -243,7 +244,8 @@ class SessionSummary(BaseModel):
 
     id: int
     name: str
-    owner_user_id: int
+    # v0.3 (PRD §3.10): nullable for anonymous session creation.
+    owner_user_id: int | None
     role: str
     member_count: int | None = None  # only populated for list responses
     created_at: str
@@ -256,8 +258,10 @@ class SessionSummary(BaseModel):
 
 class SessionMemberOut(BaseModel):
     id: int
-    user_id: int
-    email: str
+    # v0.3 (PRD §3.10): nullable for anonymous members.
+    user_id: int | None
+    # v0.3: email is None for anonymous members (no user account).
+    email: str | None
     display_name: str
     role: str
     joined_at: str
@@ -266,7 +270,8 @@ class SessionMemberOut(BaseModel):
 class SessionDetail(BaseModel):
     id: int
     name: str
-    owner_user_id: int
+    # v0.3 (PRD §3.10): nullable for anonymous session.
+    owner_user_id: int | None
     members: list[SessionMemberOut]
     created_at: str
     # v0.1.1: owner-only token preview. Frontend prefers the dedicated
@@ -375,22 +380,22 @@ def _classify_invite_status(session: SessionModel) -> str:
 )
 async def create_session(
     payload: CreateSessionRequest,
-    user: Annotated[User, Depends(get_current_user)],
+    user: Annotated[User | None, Depends(get_optional_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> dict:
-    """Create a new session and make the caller the owner member.
+    """Create a new session.
 
-    v0.1.1: also mints the per-session fixed invite token (30-day TTL
-    by default). The token is returned indirectly via
-    GET /sessions/{id}/invite -- the summary response intentionally
-    omits it so list payloads stay compact.
+    v0.3 (PRD §3.10): supports anonymous session creation.
+    - Logged-in user: owner_user_id = user.id, owner added as SessionMember.
+    - Anonymous user: owner_user_id = NULL, no SessionMember row added.
+      The creator must join via the join-claim flow to add themselves.
 
-    v0.2.2 (T08): also accepts ``currencies`` / ``primary_currency`` /
-    ``exchange_rates``. Single-currency callers (the legacy form) get
-    the same default behaviour as before -- a CNY-only session.
+    v0.1.1: also mints the per-session fixed invite token (30-day TTL).
+
+    v0.2.2 (T08): accepts ``currencies`` / ``primary_currency`` /
+    ``exchange_rates``.
 
     201: session created.
-    401: no/invalid cookie.
     422: invalid name / currencies / exchange_rates (pydantic).
     """
     name = payload.name.strip()
@@ -403,40 +408,32 @@ async def create_session(
     now = datetime.now(timezone.utc)
     invite_token = secrets.token_urlsafe(32)
 
+    # v0.3: owner_user_id is nullable. Anonymous creator → NULL.
     session = SessionModel(
         name=name,
-        owner_user_id=user.id,
+        owner_user_id=user.id if user else None,
         invite_token=invite_token,
         invite_expires_at=now + timedelta(days=settings.invite_ttl_days),
         invite_created_at=now,
-        # v0.2.2 (T08): persist the currency set + primary. For
-        # single-currency callers the validator defaults preserve the
-        # v0.2.1 behaviour (CNY-only session).
         currencies=list(payload.currencies),
         primary_currency=payload.primary_currency,
     )
     db.add(session)
     db.flush()  # populate session.id
 
-    # v0.2.2 (T08/T09): seed SessionExchangeRate rows for every rate
-    # the caller supplied. Each ``(from, to)`` pair ALSO gets the
-    # reciprocal ``(to, from)`` auto-inserted (1/rate) so the FE /
-    # settlement can look up either direction with one round-trip.
+    # v0.2.2 (T08/T09): seed SessionExchangeRate rows.
+    # set_by is the user_id if logged in, else NULL (anonymous creation).
+    owner_id = user.id if user else None
     for r in payload.exchange_rates:
-        # user_id is recorded so future audits can show "Jesse set THB→CNY".
         db.add(
             SessionExchangeRate(
                 session_id=session.id,
                 from_currency=r.from_currency,
                 to_currency=r.to_currency,
                 rate=r.rate,
-                set_by=user.id,
+                set_by=owner_id,
             )
         )
-        # Reciprocal. If the caller already provided both directions
-        # explicitly, the UNIQUE(session_id, from, to) constraint will
-        # surface a 500 — but our spec mandates you provide ONE direction
-        # and we synthesise the other, so this branch is the normal path.
         reciprocal = Decimal("1") / r.rate
         reciprocal = reciprocal.quantize(Decimal("0.00000001"), rounding=ROUND_HALF_UP)
         db.add(
@@ -445,24 +442,29 @@ async def create_session(
                 from_currency=r.to_currency,
                 to_currency=r.from_currency,
                 rate=reciprocal,
-                set_by=user.id,
+                set_by=owner_id,
             )
         )
 
-    # Owner is also a SessionMember (role='owner'). Their per-session
-    # nickname defaults to their global default_name; they can PATCH
-    # it later via PATCH /sessions/{id}/members/{mid}.
-    sm = SessionMember(
-        session_id=session.id,
-        user_id=user.id,
-        display_name=user.default_name,
-        role=SessionRole.OWNER.value,
-    )
-    db.add(sm)
+    # v0.3: If logged in, the owner is also added as SessionMember.
+    # Anonymous creators must join via the join-claim flow.
+    if user is not None:
+        sm = SessionMember(
+            session_id=session.id,
+            user_id=user.id,
+            display_name=user.default_name,
+            role=SessionRole.OWNER.value,
+        )
+        db.add(sm)
+
     db.commit()
     db.refresh(session)
 
-    return _summary_dict(session, role=SessionRole.OWNER.value, member_count=1)
+    return _summary_dict(
+        session,
+        role=SessionRole.OWNER.value if user else "owner",
+        member_count=1 if user else 0,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -539,13 +541,19 @@ def _compute_last_bill_participants(
 
 @router.get("/{session_id}", response_model=SessionDetail)
 async def get_session(
-    sm: Annotated[SessionMember, Depends(get_session_member)],
+    response: Response,
+    sm: Annotated[SessionMember, Depends(get_session_member_or_secret)],
     db: Annotated[Session, Depends(get_db)],
 ) -> dict:
     """Session detail + member list.
 
+    v0.3 (PRD §3.10): supports anonymous access via X-Nickname-Secret header.
+    Auto-match: if caller has a valid (user_id, session_id) binding or a
+    matching nickname_secret, they get the session detail directly.
+    Otherwise 403 (caller is redirected to join page by the FE).
+
     200: detail payload.
-    401: no/invalid cookie.
+    401: no/invalid cookie AND no X-Nickname-Secret.
     403: caller is not a member of the session.
     404: session does not exist (only reached if the membership row
          points to a now-deleted session — see session_isolation for the
@@ -564,9 +572,11 @@ async def get_session(
             detail={"error": "session not found"},
         )
 
+    # v0.3 (PRD §3.10): use LEFT JOIN so anonymous members (user_id=NULL)
+    # are included. Anonymous members have no user row, so u.email is None.
     members = (
         db.query(SessionMember, User)
-        .join(User, User.id == SessionMember.user_id)
+        .outerjoin(User, User.id == SessionMember.user_id)
         .filter(SessionMember.session_id == session.id)
         .order_by(SessionMember.joined_at.asc())
         .all()
@@ -584,21 +594,22 @@ async def get_session(
         .all()
     )
 
+    def _member_dict(sm_row: SessionMember, u: User | None) -> dict:
+        return {
+            "id": sm_row.id,
+            "user_id": sm_row.user_id,  # None for anonymous
+            "email": u.email if u else None,
+            "display_name": sm_row.display_name,
+            "role": sm_row.role,
+            "joined_at": _iso(sm_row.joined_at),
+        }
+
     payload: dict = {
         "id": session.id,
         "name": session.name,
         "owner_user_id": session.owner_user_id,
-        "members": [
-            {
-                "id": sm_row.id,
-                "user_id": u.id,
-                "email": u.email,
-                "display_name": sm_row.display_name,
-                "role": sm_row.role,
-                "joined_at": _iso(sm_row.joined_at),
-            }
-            for sm_row, u in members
-        ],
+        "members": [_member_dict(sm_row, u) for sm_row, u in members],
+
         "created_at": _iso(session.created_at),
         "invite_token_preview": None,
         "invite_expires_at": None,
@@ -615,6 +626,11 @@ async def get_session(
     if sm.role == SessionRole.OWNER.value:
         payload["invite_token_preview"] = session.invite_token
         payload["invite_expires_at"] = _iso(session.invite_expires_at)
+
+    # v0.3 (PRD §3.10): tell the FE which member-row belongs to the
+    # anonymous caller (for currentMember derivation).
+    # sm.id is the SessionMember row PK from get_session_member_or_secret.
+    response.headers["X-SBC-Member-ID"] = str(sm.id)
 
     return payload
 
@@ -664,3 +680,187 @@ async def update_member_display_name(
     db.commit()
     db.refresh(sm)
     return {"user_id": sm.user_id, "display_name": sm.display_name}
+
+
+# ---------------------------------------------------------------------------
+# POST /sessions/{id}/join-claim   (v0.3 anon participation)
+# ---------------------------------------------------------------------------
+
+
+class JoinClaimRequest(BaseModel):
+    """v0.3 (PRD §3.10): Request body for POST /sessions/{id}/join-claim.
+
+    ``action``: "claim" = take an existing unclaimed nickname slot;
+                "add" = create a new nickname row.
+    ``session_member_id``: required for "claim" (the slot to take).
+    ``display_name``: required for "add" (the new nickname).
+    ``nickname_secret``: the caller's current secret (for anonymous re-entry
+                         when already claimed; used for validation).
+    """
+
+    action: str = Field(..., pattern="^(claim|add)$")
+    session_member_id: int | None = None
+    display_name: str | None = None
+    nickname_secret: str | None = None
+
+    @model_validator(mode="after")
+    def _validate(self) -> "JoinClaimRequest":
+        if self.action == "claim" and self.session_member_id is None:
+            raise ValueError("session_member_id is required for action=claim")
+        if self.action == "add":
+            if not self.display_name or not self.display_name.strip():
+                raise ValueError("display_name is required for action=add")
+        return self
+
+
+class JoinClaimResponse(BaseModel):
+    session_member_id: int
+    display_name: str
+    nickname_secret: str | None = None
+    role: str
+    joined_at: str
+    is_anon: bool
+
+
+@router.post(
+    "/{session_id}/join-claim",
+    response_model=JoinClaimResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def join_claim_session(
+    payload: JoinClaimRequest,
+    user: Annotated[User | None, Depends(get_optional_user)],
+    db: Annotated[Session, Depends(get_db)],
+    session_id: int = Path(..., description="Session ID"),
+) -> dict:
+    """v0.3 (PRD §3.10): Claim an existing nickname slot or add a new one.
+
+    Anonymous callers (no cookie):
+    - action=claim: UPDATE existing unclaimed row (nickname_secret=NULL)
+      SET nickname_secret=<new_hex>, claimed_at=NOW(), is_anon=true.
+      Returns the new secret for localStorage. 409 if already claimed.
+    - action=add: INSERT new anonymous row with nickname_secret=<new_hex>,
+      is_anon=true, claimed_at=NOW().
+
+    Logged-in callers:
+    - action=claim: UPDATE row SET user_id=current_user.id, is_anon=false.
+      (Does NOT change nickname_secret or claimed_at.)
+    - action=add: INSERT new row with user_id=current_user.id, is_anon=false.
+
+    200: success.
+    400: invalid payload (missing fields, blank display_name).
+    403: session doesn't exist or caller can't join.
+    404: session not found.
+    409: conflict — the nickname slot was already claimed by another anon.
+    """
+    # Verify session exists.
+    session = db.query(SessionModel).filter_by(id=session_id).first()
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "session not found"},
+        )
+
+    now = datetime.now(timezone.utc)
+
+    if payload.action == "claim":
+        assert payload.session_member_id is not None
+        sm = (
+            db.query(SessionMember)
+            .filter_by(id=payload.session_member_id, session_id=session_id)
+            .first()
+        )
+        if sm is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "member not found in this session"},
+            )
+
+        if user is not None:
+            # Logged-in: bind user_id to this nickname slot.
+            sm.user_id = user.id
+            sm.is_anon = False
+            db.commit()
+            db.refresh(sm)
+            return {
+                "session_member_id": sm.id,
+                "display_name": sm.display_name,
+                "nickname_secret": None,
+                "role": sm.role,
+                "joined_at": _iso(sm.joined_at),
+                "is_anon": sm.is_anon,
+            }
+        else:
+            # Anonymous: claim the slot.
+            if sm.nickname_secret is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={"error": "nickname already claimed by another user"},
+                )
+            new_secret = secrets.token_hex(32)
+            sm.nickname_secret = new_secret
+            sm.claimed_at = now
+            sm.is_anon = True
+            db.commit()
+            db.refresh(sm)
+            return {
+                "session_member_id": sm.id,
+                "display_name": sm.display_name,
+                "nickname_secret": new_secret,
+                "role": sm.role,
+                "joined_at": _iso(sm.joined_at),
+                "is_anon": sm.is_anon,
+            }
+
+    else:  # action == "add"
+        display_name = payload.display_name.strip()
+        if not display_name:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"error": "display_name must not be blank"},
+            )
+
+        if user is not None:
+            # Logged-in: create user-bound member row.
+            sm = SessionMember(
+                session_id=session_id,
+                user_id=user.id,
+                display_name=display_name,
+                role=SessionRole.MEMBER.value,
+                is_anon=False,
+                claimed_at=now,
+            )
+            db.add(sm)
+            db.commit()
+            db.refresh(sm)
+            return {
+                "session_member_id": sm.id,
+                "display_name": sm.display_name,
+                "nickname_secret": None,
+                "role": sm.role,
+                "joined_at": _iso(sm.joined_at),
+                "is_anon": sm.is_anon,
+            }
+        else:
+            # Anonymous: create anon member row with new secret.
+            new_secret = secrets.token_hex(32)
+            sm = SessionMember(
+                session_id=session_id,
+                user_id=None,
+                display_name=display_name,
+                role=SessionRole.MEMBER.value,
+                nickname_secret=new_secret,
+                is_anon=True,
+                claimed_at=now,
+            )
+            db.add(sm)
+            db.commit()
+            db.refresh(sm)
+            return {
+                "session_member_id": sm.id,
+                "display_name": sm.display_name,
+                "nickname_secret": new_secret,
+                "role": sm.role,
+                "joined_at": _iso(sm.joined_at),
+                "is_anon": sm.is_anon,
+            }

@@ -52,11 +52,12 @@ export class ApiError extends Error {
  */
 export async function apiFetch<T = unknown>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  extraHeaders?: Record<string, string>
 ): Promise<T> {
   const res = await fetch(`/api` + path, {
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...(options.headers ?? {}) },
+    headers: { 'Content-Type': 'application/json', ...(options.headers ?? {}), ...(extraHeaders ?? {}) },
     ...options
   });
 

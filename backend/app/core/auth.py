@@ -79,6 +79,36 @@ def get_current_user(
     return user
 
 
+def get_optional_user(
+    request: Request,
+    db: Session = Depends(get_db),
+    sbc_session: str | None = Cookie(default=None),
+) -> User | None:
+    """FastAPI dependency that returns the logged-in user or None (no 401).
+
+    Use this for endpoints that support both anonymous and authenticated callers.
+    """
+    if not sbc_session:
+        return None
+
+    token_hash = hash_token(sbc_session)
+    auth = db.query(AuthToken).filter_by(token_hash=token_hash).first()
+    if auth is None:
+        return None
+
+    now = datetime.now(timezone.utc)
+    expires_at = auth.expires_at
+    if expires_at is not None and expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+    if expires_at is not None and expires_at < now:
+        return None
+
+    user: User = auth.user
+    request.state.user = user
+    return user
+
+
 # Cookie name is centralised in settings; this re-export lets call sites
 # from app.core.auth import COOKIE_NAME if they need it without importing
 # settings directly.

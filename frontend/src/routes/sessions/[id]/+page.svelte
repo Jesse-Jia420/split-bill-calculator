@@ -32,7 +32,7 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { fly } from 'svelte/transition';
-  import { getSession } from '$api/sessions';
+  import { getSessionWithSecret } from '$api/sessions';
   import { listBills, deleteBill, createBill } from '$api/bills';
   import { getSettle } from '$api/settle';
   import { formatMoney } from '$lib/utils/format';
@@ -56,6 +56,8 @@
   let memberIdToName = $state<Record<number, string>>({});
   let memberIdToNet = $state<Record<number, number>>({});
   let currentMemberId = $state<number | null>(null);
+  // v0.3 (PRD §3.10): anonymous acting-as member ID (from X-SBC-Member-ID header).
+  let actingAsMemberId = $state<number | null>(null);
 
   // v0.2.1 T05 (PRD §3.6.4): session 内账单 description 模糊搜索。
   // 不搜金额/付款人 (避免搜索结果飘忽)。空 query 全显示。
@@ -104,7 +106,13 @@
 
   let currentMember = $derived(
     session
-      ? session.members.find((m) => m.user_id === $user?.user_id) ?? null
+      ? session.members.find((m) => {
+          if ($user?.user_id !== undefined) {
+            return m.user_id === $user?.user_id;
+          }
+          // Anonymous: match by acting-as member ID
+          return actingAsMemberId !== null && m.id === actingAsMemberId;
+        }) ?? null
       : null
   );
   let isOwner = $derived(currentMember?.role === 'owner');
@@ -179,7 +187,9 @@
     loading = true;
     error = null;
     try {
-      session = await getSession(sessionId);
+      const result = await getSessionWithSecret(sessionId);
+      session = result.session;
+      actingAsMemberId = result.actingAsMemberId;
       for (const m of session.members) {
         memberIdToName[m.id] = m.display_name;
       }
