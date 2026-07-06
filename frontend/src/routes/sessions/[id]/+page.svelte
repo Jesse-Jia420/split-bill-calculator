@@ -29,7 +29,7 @@
    * - BillListGrouped 在 T7 中已支持「默认最新一天展开」智能逻辑
    */
   import { onMount } from 'svelte';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import { fly } from 'svelte/transition';
   import { getSessionWithSecret } from '$api/sessions';
@@ -102,7 +102,7 @@
 
   // v0.1.4 round 2: 一旦用了 $state runes, 整个组件就进入 runes mode,
   // 原 Svelte 4 风格的 `$:` 不再允许, 全部改用 $derived。
-  let sessionId = $derived(Number($page.params.id));
+  let sessionId = $derived(Number(page.params.id));
 
   let currentMember = $derived(
     session

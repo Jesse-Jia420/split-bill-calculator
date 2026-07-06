@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { sendCode, verifyCode } from '$api/auth';
   import { loadUser } from '$stores/user';
 
@@ -31,16 +31,16 @@
 
   onMount(async () => {
     // Read returnTo from URL (only on client; $page is reactive in svelte).
-    const raw = $page.url.searchParams.get('returnTo');
+    const raw = page.url.searchParams.get('returnTo');
     returnTo = sanitizeReturnTo(raw);
 
-    expired = $page.url.searchParams.get('expired') === '1';
+    expired = page.url.searchParams.get('expired') === '1';
 
     // Test-mode pre-fill: ?email=foo&code=123456 lets e2e specs jump
     // straight to the verify step without going through /auth/send-code
     // (which would require a real SMTP roundtrip in CI).
-    const qpEmail = $page.url.searchParams.get('email');
-    const qpCode = $page.url.searchParams.get('code');
+    const qpEmail = page.url.searchParams.get('email');
+    const qpCode = page.url.searchParams.get('code');
     if (qpEmail) email = qpEmail;
     if (qpCode && /^\d{6}$/.test(qpCode)) {
       code = qpCode;

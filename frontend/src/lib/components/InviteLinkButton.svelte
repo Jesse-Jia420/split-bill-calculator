@@ -9,46 +9,29 @@
    * - 失败兜底: 选中 input + execCommand('copy')
    * - 第一次点击 lazy load invite,后续点击只复制
    */
-  import { onMount } from 'svelte';
-  import { getSessionInvite } from '$api/invites';
-  import type { SessionInvite } from '$api/invites';
   import { toast } from '$stores/toast';
 
   export let sessionId: number;
   /** True if the caller is the session owner (保留 prop,后续 v0.2 rotate 功能回归使用)。 */
   export const isOwner: boolean = false;
 
-  let invite: SessionInvite | null = null;
   let busy = false;
   let error: string | null = null;
   let copied = false;
 
-  /** Full shareable URL (origin + client-relative path). */
-  $: inviteUrl = invite
-    ? (typeof window !== 'undefined' ? window.location.origin : '') + invite.url
-    : '';
+  /** v0.3.1: copy the SESSION URL (not the invite URL).
+   * Per PO 16:55, the "invite link" that gets copied should just be the
+   * session page URL — the invite token is internal and not surfaced. */
+  $: sessionUrl =
+    typeof window !== 'undefined' ? window.location.origin + '/sessions/' + sessionId : '';
 
-  async function ensureLoaded(): Promise<string | null> {
-    if (invite && inviteUrl) return inviteUrl;
-    if (busy) return null;
-    busy = true;
-    error = null;
-    try {
-      invite = await getSessionInvite(sessionId);
-      return inviteUrl;
-    } catch (e: any) {
-      error = e?.message ?? '加载邀请链接失败';
-      toast.error(error ?? '加载邀请链接失败');
-      return null;
-    } finally {
-      busy = false;
-    }
-  }
-
-  /** 主交互:点击立即复制 invite URL 到剪贴板 + 显示 toast。 */
+  /** v0.3.1: copy SESSION URL directly (no lazy load needed — no
+   *  API call, no expiry display). Just copy `${origin}/sessions/${id}`. */
   async function handleInviteClick() {
-    const url = await ensureLoaded();
+    if (busy) return;
+    const url = sessionUrl;
     if (!url) return;
+    busy = true;
 
     let ok = false;
     // 1) 尝试现代 Clipboard API (需 HTTPS / 用户手势)
@@ -90,19 +73,7 @@
     setTimeout(() => (copied = false), 1200);
   }
 
-  /** Compact countdown, e.g. "X 天 Y 小时后过期" */
-  function remaining(expiresAtIso: string): string {
-    const now = Date.now();
-    const exp = new Date(expiresAtIso).getTime();
-    const ms = exp - now;
-    if (ms <= 0) return '已过期';
-    const days = Math.floor(ms / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((ms % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    if (days > 0) return `${days} 天 ${hours} 小时后过期`;
-    if (hours > 0) return `${hours} 小时后过期`;
-    const minutes = Math.floor(ms / (1000 * 60));
-    return `${minutes} 分钟后过期`;
-  }
+
 </script>
 
 <div class="invite-row">
@@ -121,10 +92,6 @@
       <span class="btn-label">{busy ? '加载中…' : copied ? '已复制' : '邀请'}</span>
     </span>
   </button>
-
-  {#if invite}
-    <span class="muted hint">{remaining(invite.expires_at)}</span>
-  {/if}
 
   {#if error}
     <div class="error">{error}</div>

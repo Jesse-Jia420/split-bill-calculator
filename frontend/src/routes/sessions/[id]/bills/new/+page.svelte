@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import { getSession } from '$api/sessions';
   import { createBill, listBills } from '$api/bills';
@@ -21,7 +21,7 @@
   // ``existingBillsCount`` prop below.
   let existingBillsCount = 0;
 
-  $: sessionId = Number($page.params.id);
+  $: sessionId = Number(page.params.id);
 
   onMount(async () => {
     try {
