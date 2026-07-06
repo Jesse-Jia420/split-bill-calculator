@@ -34,6 +34,11 @@
   });
 
   async function handleStartUsing() {
+    // v0.3.1 (PO 16:59): 已登录用户直接进 dashboard, 不创建新 session。
+    if ($user) {
+      await goto('/sessions', { replaceState: true });
+      return;
+    }
     if (busy) return;
     error = null;
     busy = true;
@@ -95,7 +100,7 @@
           onclick={handleStartUsing}
           disabled={busy}
         >
-          {busy ? '创建中…' : '直接开始使用'}
+          {busy ? '创建中…' : ($user ? '进入我的session' : '直接开始使用')}
         </button>
 
         {#if !$user}
