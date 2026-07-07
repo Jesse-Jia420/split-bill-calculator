@@ -100,6 +100,18 @@ test.beforeEach(() => {
 
 // ---------------------------------------------------------------------------
 // Scenario A — Logged in, server-side token destroyed mid-session.
+//
+// v0.3.1 update (TEST-008 fix): previously the test navigated to
+// /sessions/4 expecting the BE to return 401. After the v0.3.1
+// BUG-V031-A fix, GET /api/sessions/{id} accepts the X-Nickname-Secret
+// anon header and returns 403 ("not a session member") for users
+// without the cookie. The 403 redirect logic takes the user to
+// /sessions/{id}/join (per BUG-V031-A) instead of /auth/login.
+//
+// To trigger the 401 → /auth/login redirect, the FE layout must call an
+// endpoint that REQUIRES cookie auth (no secret fallback). GET
+// /api/sessions (the list endpoint) does exactly that — anon users get
+// 401, which apiFetch catches and redirects to /auth/login?returnTo=.
 // ---------------------------------------------------------------------------
 test("A: 401 on protected page redirects to /auth/login with returnTo", async ({
   browser,
@@ -109,35 +121,26 @@ test("A: 401 on protected page redirects to /auth/login with returnTo", async ({
   const owner = ensureUserAndToken(OWNER);
   await loginAs(page, owner);
 
-  // Land on a "protected" page that will issue an apiFetch to a real
-  // backend endpoint (the /sessions/4 detail page calls /sessions/4 on
-  // mount). We don't need session 4 to exist — a 404 won't redirect,
-  // we only care about the 401 behavior, which we trigger next.
+  // Sanity: land on the list page while logged in.
   await page.goto("/sessions");
   await expect(page.locator("text=我的 sessions").first()).toBeVisible({
     timeout: 10000,
   });
-
-  // Step 1 — confirm we ARE logged in (sanity check before we kill auth).
   await expect(page.locator("text=登录").first()).not.toBeVisible();
 
-  // Step 2 — nuke the session cookie from the browser context.
-  // (Equivalent to "user cleared cookies" or "auth token expired".)
+  // Nuke the session cookie (simulates expired token / cleared cookies).
   await ctx.clearCookies();
 
-  // Step 3 — now navigate to a page whose mount-time apiFetch will hit
-  // a protected endpoint and get 401. /sessions/4 doesn't need to
-  // exist as a session — we just need *some* 401-triggering apiFetch.
-  // Going to /sessions is enough: the layout's onMount → loadUser →
-  // /auth/me → 401 → apiFetch must redirect to /auth/login.
-  await page.goto("/sessions/4", { waitUntil: "domcontentloaded" });
+  // Navigate to a page whose mount-time apiFetch hits an endpoint that
+  // returns 401 for unauthenticated users. /sessions (the list page)
+  // calls /api/sessions → 401 → apiFetch redirects to /auth/login.
+  await page.goto("/sessions", { waitUntil: "domcontentloaded" });
 
-  // Step 4 — expect redirect to /auth/login?returnTo=/sessions/4.
   await page.waitForURL(/\/auth\/login\?returnTo=/, { timeout: 10000 });
   const url = new URL(page.url());
   expect(url.pathname).toBe("/auth/login");
   const ret = url.searchParams.get("returnTo");
-  expect(ret).toBe("/sessions/4");
+  expect(ret).toBe("/sessions");
 
   // Sanity: the login page itself rendered.
   await expect(page.locator("h2", { hasText: "登录" })).toBeVisible();
@@ -147,7 +150,7 @@ test("A: 401 on protected page redirects to /auth/login with returnTo", async ({
     fullPage: true,
   });
   screenshotLog.push(
-    "### Scenario A\n401 on protected page → /auth/login?returnTo=/sessions/4\n\n"
+    "### Scenario A\n401 on /api/sessions → /auth/login?returnTo=/sessions\n\n"
   );
 });
 
