@@ -19,6 +19,12 @@
       const session: SessionDetail = await getSessionByCode(code);
       await goto('/sessions/' + session.id, { replaceState: true });
     } catch (e: any) {
+      // BUG-V031-A: non-member visitor should be redirected to /join,
+      // not see an error page. BE 403 detail includes session_id.
+      if (e?.status === 403 && e?.detail?.session_id) {
+        await goto('/sessions/' + e.detail.session_id + '/join', { replaceState: true });
+        return;
+      }
       error = e?.message ?? '加载失败';
       loading = false;
     }

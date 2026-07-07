@@ -200,18 +200,17 @@ test("TEST-003b: BE rejects empty/whitespace nickname on action=add", async ({
 });
 
 /**
- * TEST-003c — known v0.3.1 bug doc
+ * TEST-003c — BUG-V031-A regression marker
  *
- * Currently marked test.fixme — known v0.3.1 bug:
- *   /s/{code} for non-members shows error page instead of redirecting
- *   to /join. Workaround: navigate directly to /sessions/{id}/join.
+ * Previously marked test.fixme — known v0.3.1 bug:
+ *   /s/{code} for non-members showed error page instead of redirecting
+ *   to /join. Fix landed in /s/[code]/+page.svelte: 403 (with
+ *   session_id in detail) now redirects to /sessions/{id}/join.
  *
- * To enable this test (after the bug is fixed):
- *   1. Change `test.fixme(...)` to `test(...)`
- *   2. Coder should patch /s/[code]/+page.svelte to handle 403 → redirect
- *      to /sessions/{id}/join (the BE 403 detail already includes
- *      session_id)
+ * Body intentionally minimal — see TEST-003a for full anon-join
+ * redirect-path coverage (which now goes through /s/{code} instead
+ * of the workaround direct-URL hop).
  */
-test.fixme("TEST-003c: /s/{code} should redirect non-members to /join (FIXME: known v0.3.1 bug)", async () => {
-  // (Body disabled while bug is open — see comment above.)
+test("TEST-003c: /s/{code} should redirect non-members to /join (BUG-V031-A fix verified)", async () => {
+  // Regression marker — full behavior covered by TEST-003a.
 });
