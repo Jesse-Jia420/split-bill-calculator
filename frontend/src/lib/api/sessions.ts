@@ -81,9 +81,22 @@ export const createSession = (input: CreateSessionInput | string) => {
 export const listSessions = () =>
   apiFetch<SessionSummary[]>('/sessions');
 
-export const getSession = (id: number) => {
-  const url = '/sessions/' + id;
-  return apiFetch<SessionDetail>(url);
+/** v0.3.1 (BUG-LANDING-2 / STORY-ANON-RECORDS-BILL): also read the
+ *  per-session anon actingAs secret from localStorage and forward it
+ *  as X-Nickname-Secret. Without this, anon wizard creators who click
+ *  "新建账单" → /sessions/{id}/bills/new would get a 403 "not a session
+ *  member" from the BE on onMount, breaking the whole bill flow.
+ *
+ *  Uses apiFetch (not raw fetch) so its 401/403 redirect + ApiError
+ *  shape are preserved — same pattern as getSessionByCode.
+ */
+export const getSession = async (id: number): Promise<SessionDetail> => {
+  const extraHeaders: Record<string, string> = {};
+  if (typeof window !== "undefined") {
+    const secret = localStorage.getItem("sbc.actingAs." + id);
+    if (secret) extraHeaders["X-Nickname-Secret"] = secret;
+  }
+  return apiFetch<SessionDetail>('/sessions/' + id, { headers: extraHeaders });
 };
 
 /** v0.3 (PRD §3.10): session detail with acting-as member ID.
