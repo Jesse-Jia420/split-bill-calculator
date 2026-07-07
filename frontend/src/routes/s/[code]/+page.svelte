@@ -20,9 +20,12 @@
       await goto('/sessions/' + session.id, { replaceState: true });
     } catch (e: any) {
       // BUG-V031-A: non-member visitor should be redirected to /join,
-      // not see an error page. BE 403 detail includes session_id.
-      if (e?.status === 403 && e?.detail?.session_id) {
-        await goto('/sessions/' + e.detail.session_id + '/join', { replaceState: true });
+      // not see an error page. BE 403 detail includes session_id; the
+      // apiFetch ApiError wraps the BE's `detail` field under
+      // `e.detail.detail.session_id`.
+      const sidFromDetail = e?.detail?.detail?.session_id ?? e?.detail?.session_id;
+      if (e?.status === 403 && sidFromDetail) {
+        await goto('/sessions/' + sidFromDetail + '/join', { replaceState: true });
         return;
       }
       error = e?.message ?? '加载失败';
