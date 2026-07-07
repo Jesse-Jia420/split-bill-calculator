@@ -166,10 +166,18 @@ class UpdateBillRequest(BaseModel):
       recorded the bill) but is **not** used as a permission gate.
 
     v0.2.1 T01: ``amount_expression`` is an optional override of the
-    calculator expression. When present, the server re-evaluates it and
-    replaces the stored ``amount`` with the quantised result; when absent
-    the existing expression is preserved. Validation rejects malformed
-    expressions with 422 (Pydantic field_validator).
+    calculator expression. When ``use_calculator=True``, the server
+    re-evaluates the expression and replaces the stored ``amount`` with
+    the quantised result; when ``use_calculator=False`` (or the field is
+    absent) the expression is echoed back verbatim and ``amount`` is
+    taken as-is. Validation rejects malformed expressions with 422
+    (Pydantic field_validator).
+
+    v0.3.1 (TEST-006 bug fix): ``use_calculator`` is now part of
+    UpdateBillRequest. Previously, BillForm's `buildPayload` always sent
+    `use_calculator` (truthy whenever amount_expression was non-empty),
+    and PATCH silently 422'd the whole body because `extra='forbid'`.
+    Now the FE flag flows through Pydantic unchanged.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -180,6 +188,7 @@ class UpdateBillRequest(BaseModel):
     currency: str | None = Field(default=None, min_length=1, max_length=8)
     participants: list[ParticipantIn] | None = Field(default=None, min_length=1)
     amount_expression: str | None = Field(default=None, max_length=64)
+    use_calculator: bool | None = Field(default=None)
 
     @field_validator("amount_expression")
     @classmethod
@@ -849,13 +858,16 @@ async def update_bill(
     # v0.1.2 (T17): removed creator check -- any session member can update.
 
     # Apply scalar updates first (any of these may be None).
-    # v0.2.1 T01: when amount_expression arrives in a PATCH, it is the
-    # authoritative source for ``amount``. Otherwise we fall back to the
-    # existing ``amount`` field (legacy behaviour).
-    if payload.amount_expression is not None:
+    # v0.2.1 T01 + v0.3.1 (TEST-006 fix): when amount_expression arrives
+    # in a PATCH AND use_calculator is truthy, the expression is the
+    # authoritative source for ``amount``. Without use_calculator the
+    # expression is informational only (mirrors CreateBillRequest
+    # semantics) and we fall back to the explicit ``amount`` field.
+    if (
+        payload.amount_expression is not None
+        and payload.use_calculator is True
+    ):
         evaluated = _validate_calculator_expression(payload.amount_expression)
-        # If the user explicitly cleared the calculator (passed an empty
-        # string), evaluated is None and we keep the previous amount.
         if evaluated is not None:
             bill.amount = float(evaluated)
             bill.amount_expression = payload.amount_expression
