@@ -6,12 +6,12 @@
    * - Full-page Unsplash background image
    * - Dark semi-transparent overlay
    * - Centered tagline + 2 CTA buttons
-   * - Anonymous: "直接开始使用" (creates anon session) + "登录"
+   * - Anonymous: "直接开始使用" → /sessions/new (wizard) + "登录"
    * - Logged-in users are redirected to /sessions by +layout.svelte
    *
-   * The "直接开始使用" button creates an anonymous session with
-   * a single placeholder nickname slot, then navigates to the join
-   * page so the user can claim it and enter the session.
+   * The "直接开始使用" button sends both anonymous and logged-in users
+   * to the same 2-step wizard (/sessions/new). Logged-in users skip
+   * the wizard and go straight to /sessions from there.
    */
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
@@ -34,38 +34,21 @@
   });
 
   async function handleStartUsing() {
-    // v0.3.1 (PO 16:59): 已登录用户直接进 dashboard, 不创建新 session。
-    if ($user) {
-      await goto('/sessions', { replaceState: true });
-      return;
-    }
     if (busy) return;
     error = null;
     busy = true;
     try {
-      // Anonymous session: create a session with 1 placeholder nickname.
-      // The creator will claim it on the join page.
-      const res = await fetch('/api/sessions', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: '我的账本',
-          member_nicknames: ['我'],
-        }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body?.detail?.error ?? `HTTP ${res.status}`);
+      // Logged-in users go straight to the dashboard, not the wizard.
+      // (v0.3.1: keep existing behavior for $user branch — unchanged.)
+      if ($user) {
+        await goto('/sessions', { replaceState: true });
+        return;
       }
-      const data = await res.json() as {
-        id: number;
-        created_member_ids: number[];
-      };
-      // Navigate to join page so the creator can claim their slot.
-      await goto('/sessions/' + data.id + '/join', { replaceState: true });
+      // Anonymous users land on the wizard to name the book + list
+      // their group, then the wizard creates the session.
+      await goto('/sessions/new', { replaceState: true });
     } catch (e: any) {
-      error = e?.message ?? '创建失败，请重试';
+      error = e?.message ?? '跳转失败，请重试';
       busy = false;
     }
   }
