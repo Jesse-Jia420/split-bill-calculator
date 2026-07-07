@@ -499,7 +499,18 @@
 
   <div>
     <label class="label" for="occurredAt">发生时间</label>
-    <input id="occurredAt" type="datetime-local" bind:value={occurredAt} />
+    <!-- v0.3.2 (Bug 3 — 2026-07-07): 右上空白 box。
+         iOS Safari / mobile Chrome 上 <input type="datetime-local"> 不渲染
+         ::-webkit-calendar-picker-indicator 但仍给 picker icon 留出固定宽度。
+         在 360-390px viewport 下, 该空白正好搭在屏幕右边 → 看起来像一个
+         "empty white box overlapping the right edge"。
+         修法: 包一层 .datetime-row (relative), 隐藏原生 indicator,
+         用 .datetime-icon 显示一个真正的 📅 emoji (pointer-events: none)。
+         Tap / focus 输入框仍能正常唤起 native picker (iOS wheel / Chrome modal). -->
+    <div class="datetime-row">
+      <input id="occurredAt" type="datetime-local" bind:value={occurredAt} />
+      <span class="datetime-icon" aria-hidden="true">📅</span>
+    </div>
   </div>
 
   <div>
@@ -822,5 +833,46 @@
   .currency-pill.disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  /* v0.3.2 (Bug 3 — 2026-07-07): datetime-local 上 ::-webkit-calendar-picker-indicator
+     在 iOS Safari / mobile Chrome 上不渲染但仍占位, 在 ~360-390px viewport
+     形成"右上空白 box"。修法 = 隐藏原生 indicator + 用 .datetime-icon 占位。 */
+  .datetime-row {
+    position: relative;
+    display: block;
+  }
+  .datetime-row input[type="datetime-local"] {
+    width: 100%;
+    /* 给右侧 .datetime-icon 留位置 — 即使原生 indicator 偷偷出现也压住 */
+    padding-right: 40px;
+    /* iOS / mobile 上不要显示原生 picker indicator (空 box 根因) */
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  /* 隐藏原生 picker indicator 但保留点击区 — display:none 会让 iOS wheel 不再唤起 */
+  .datetime-row input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    opacity: 0;
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 40px;
+    height: 100%;
+    cursor: pointer;
+  }
+  .datetime-row input[type="datetime-local"]::-webkit-inner-spin-button,
+  .datetime-row input[type="datetime-local"]::-webkit-clear-button {
+    display: none;
+    -webkit-appearance: none;
+  }
+  .datetime-icon {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    font-size: 18px;
+    line-height: 1;
+    opacity: 0.55;
   }
 </style>
