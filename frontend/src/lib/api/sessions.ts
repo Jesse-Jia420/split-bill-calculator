@@ -205,3 +205,37 @@ export const joinClaim = (
     body: JSON.stringify(input)
   });
 };
+
+/** v0.3.1 (BUG-LANDING-1): public, no-auth session preview.
+ *
+ * Returns the minimum session metadata + member list needed by
+ * /join and / landing flows for anonymous visitors. Used as a
+ * fallback on /join when getSession() 403s (no X-Nickname-Secret
+ * + no logged-in user), so anon creators can see the owner
+ * placeholder "我" slot immediately after the wizard creates
+ * the session. The corresponding BE endpoint is
+ * `GET /api/sessions/{id}/preview` (added by BUG-LANDING-2).
+ */
+export interface SessionPreviewMember {
+  id: number;
+  display_name: string;
+  role: string;
+  user_id: number | null;
+  is_anon: boolean;
+  claimed_at: string | null;
+}
+
+export interface SessionPreview {
+  id: number;
+  name: string;
+  currencies: string[];
+  primary_currency: string;
+  session_code: string;
+  invite_token: string;
+  invite_url: string;
+  members: SessionPreviewMember[];
+}
+
+export function getSessionPreview(id: number): Promise<SessionPreview> {
+  return apiFetch<SessionPreview>(`/sessions/${id}/preview`);
+}

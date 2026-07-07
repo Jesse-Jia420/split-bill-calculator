@@ -17,7 +17,15 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
-  import { getSession, joinClaim, type SessionDetail, type SessionMember } from '$api/sessions';
+  import {
+    getSession,
+    getSessionPreview,
+    joinClaim,
+    type SessionDetail,
+    type SessionMember,
+    type SessionPreview,
+    type SessionPreviewMember
+  } from '$api/sessions';
   import { getInvite, type InvitePublicView } from '$api/invites';
   import { loadUser } from '$stores/user';
 
@@ -27,8 +35,23 @@
   let loading = $state(true);
   let error: string | null = null;
   let session: SessionDetail | null = $state(null);
+  // v0.3.1 (BUG-LANDING-1): public, no-auth session preview. Populated
+  // when getSession() 403s (anon flow) so /join can still render
+  // session name + member slots (including the owner placeholder "我"
+  // that the wizard creates).
+  let preview: SessionPreview | null = $state(null);
   let invite: InvitePublicView | null = $state(null);
   let user: { user_id: number; email: string; default_name: string } | null = $state(null);
+
+  /** Combined member list — prefers full session detail, falls back to
+   * public preview. Used by the slots derivations below. */
+  type AnyMember = SessionMember | SessionPreviewMember;
+  function _combinedMembers(): AnyMember[] {
+    const fromDetail: SessionMember[] = session?.members ?? [];
+    const fromPreview: SessionPreviewMember[] = preview?.members ?? [];
+    return (fromDetail.length > 0 ? fromDetail : fromPreview) as AnyMember[];
+  }
+  let members = $derived(_combinedMembers());
 
   // Join form state
   let newNickname = $state('');
@@ -78,7 +101,21 @@
       }
     }
 
-    // Step 3: load session info
+    // Step 3: load public session preview (BUG-LANDING-1)
+    // This is reached only when neither actingAs nor logged-in flow
+    // produced a session (anon creator who clicked "直接开始使用" on
+    // landing). getSession() 403s for anon, so we fall back to the
+    // public /preview endpoint to render the session name + member
+    // slots (including the owner placeholder "我"). If this also
+    // fails (e.g. invalid id) the page just shows the "新增我的昵称"
+    // form without a session name.
+    try {
+      preview = await getSessionPreview(sessionId);
+    } catch {
+      // Preview not available — ignore; invite + add-nickname form still work
+    }
+
+    // Step 4: load session info
     // If we have the invite token, use the public invite endpoint
     if (inviteToken) {
       try {
@@ -161,7 +198,7 @@
   // Derive the list of available (unclaimed / unbound) nickname slots.
   // For anonymous users: show slots with nickname_secret=NULL (unclaimed).
   // For logged-in users: show all slots (they can bind any).
-  let availableSlots = $derived((session?.members ?? []).filter((m: SessionMember) => {
+  let availableSlots = $derived(members.filter((m: AnyMember) => {
     if (user) {
       // Logged-in users see all slots (any can be bound)
       return true;
@@ -171,7 +208,7 @@
   }));
 
   // Slots that are already claimed/bound (for display only)
-  let takenSlots = $derived((session?.members ?? []).filter((m: SessionMember) => {
+  let takenSlots = $derived(members.filter((m: AnyMember) => {
     if (user) return false; // Don't grey out for logged-in
     return m.user_id !== null;
   }));
@@ -193,6 +230,10 @@
     {:else if session}
       <p class="muted">
         Session: <strong>{session.name}</strong>
+      </p>
+    {:else if preview}
+      <p class="muted">
+        Session: <strong>{preview.name}</strong>
       </p>
     {/if}
 
@@ -265,8 +306,8 @@
               {#each takenSlots as slot (slot.id)}
                 <span class="slot-btn disabled">
                   {slot.display_name}
-                  {#if slot.email}
-                    <span class="muted">（已被 {slot.email} 绑定）</span>
+                  {#if (slot as SessionMember).email}
+                    <span class="muted">（已被 {(slot as SessionMember).email} 绑定）</span>
                   {/if}
                 </span>
               {/each}
