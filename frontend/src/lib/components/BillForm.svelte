@@ -368,16 +368,24 @@
     // reject any malformed expressions with 422 before storage.
     const expr = amountExpression.trim();
     const useCalc = expr.length > 0;
-    return {
+    // v0.3.1 (TEST-006 fix): in edit mode, strip `description` from the
+    // payload. The BE's UpdateBillRequest has `extra='forbid'` AND no
+    // `description` field — sending `description=null` (even null) was
+    // rejected with 422 by Pydantic. The description is immutable (PO
+    // T17) so we never need to send it again on PATCH.
+    const payload: any = {
       amount: amount ?? 0,
       payer_member_id: payerMemberId ?? 0,
-      description: description.trim() ? description.trim() : null,
       occurred_at: new Date(occurredAt).toISOString(),
       currency: currency || 'CNY',
       participants,
       amount_expression: expr,
       use_calculator: useCalc,
     };
+    if (!isEdit) {
+      payload.description = description.trim() ? description.trim() : null;
+    }
+    return payload;
   }
 
   async function handleSubmit(e: Event) {
