@@ -537,7 +537,10 @@
           {@const st = participantState[m.id]}
           {@const isSubOpen = subRowOpen[m.id] ?? false}
           <li class="ppt-row" class:sub-open={isSubOpen} data-testid={`ppts-li-${m.id}`}>
-            <!-- Main row: single button toggling `included`. -->
+            <!-- v0.3.2 (Bug 4 — 2026-07-07): 还原 PRD §3.9.2 设计的 chevron toggle + sub-row。
+                 之前 (v0.3.1 PO Bug #2) 改成 inline input, 但 user 无法 toggle `exclusive=true`,
+                 `toggleSubRow` 函数和 CSS 已就位但 template 没渲染 → 用户填金额也不存。
+                 修法: 恢复 chevron button + 折叠 sub-row (沿用 v0.2.3 T14r2 spec). -->
             <button
               type="button"
               class="ppt-main"
@@ -547,29 +550,38 @@
             >
               <span class="ppt-check-icon" aria-hidden="true">{st?.included ? '☑' : '☐'}</span>
               <span class="ppt-name">{m.display_name}</span>
-
+              {#if st?.exclusive && Number(st.amount) > 0}
+                <span class="ppt-excl-badge">{currencySymbol(currency)}{st.amount}</span>
+              {/if}
             </button>
-            <!-- v0.3.1 (PO Bug #2): inline exclusive-amount input on the
-                 right of each participant row. Default '0'. When amount
-                 is 0 (or empty) the label + value are muted gray; when
-                 non-zero the whole row goes solid black. -->
-            <label class="ppt-excl" data-testid={`ppts-excl-${m.id}`}
-              class:muted={!st?.exclusive || Number(st.amount) === 0}>
-              <span class="ppt-excl-label">独占金额</span>
-              <span class="ppt-excl-sym">{currencySymbol(currency)}</span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                class="ppt-excl-input"
-                bind:value={st.amount}
-                on:focus={() => onSubRowFocus(m.id)}
-                on:blur={() => onSubRowBlur(m.id)}
-                placeholder="0.00"
-                aria-label={`${m.display_name} 的独占金额`}
-                data-testid={`ppts-amount-${m.id}`}
-              />
-            </label>
+            <button
+              type="button"
+              class="ppt-toggle"
+              on:click={() => toggleSubRow(m.id)}
+              aria-expanded={isSubOpen}
+              aria-label={`${m.display_name} 的独占金额设置`}
+              data-testid={`ppts-toggle-${m.id}`}
+            >
+              <span class="ppt-toggle-label">独占金额</span>
+              <span class="ppt-toggle-caret" aria-hidden="true">{isSubOpen ? '▴' : '▾'}</span>
+            </button>
+            {#if isSubOpen}
+              <div class="ppt-sub-row" data-testid={`ppts-sub-${m.id}`}>
+                <span class="ppt-sub-sym">{currencySymbol(currency)}</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  class="ppt-sub-input"
+                  bind:value={st.amount}
+                  on:focus={() => onSubRowFocus(m.id)}
+                  on:blur={() => onSubRowBlur(m.id)}
+                  placeholder="0.00"
+                  aria-label={`${m.display_name} 的独占金额`}
+                  data-testid={`ppts-amount-${m.id}`}
+                />
+              </div>
+            {/if}
           </li>
         {/each}
       </ul>
@@ -744,6 +756,11 @@
     padding: 4px 12px 12px 36px;
     color: var(--gray-500, #6b7280);
     font-size: var(--font-size-sm, 13px);
+  }
+  .ppt-sub-sym {
+    color: var(--gray-500, #6b7280);
+    font-size: var(--font-size-base, 16px);
+    font-variant-numeric: tabular-nums;
   }
   .ppt-sub-label {
     white-space: nowrap;

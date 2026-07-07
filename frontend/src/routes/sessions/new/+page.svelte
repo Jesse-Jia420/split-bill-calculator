@@ -4,15 +4,17 @@
   import { user, loadUser } from "$stores/user";
 
   // v0.3.1 (Sprint 5 T7 — 2026-07-07): Wizard UX overhaul.
-  // - 2 steps total (was 3). Step 2 combines count + nickname inputs.
-  // - Min member count = 1 (just yourself allowed; was 2).
-  // - Sticky bottom button so thumb can always reach it on mobile.
-  // - 文案: 名字 → 昵称; "X 人 · 后续可增加".
+  // v0.3.2 (Bug 1+5 — 2026-07-07):
+  //   - Logged-in: first nickname input 变只读显示 user.default_name,
+  //     payload 跳过 index 0 (修法 A — Jesse 拍板).
+  //   - 加 step 3 币种选择 (CNY default).
+  //   - 1-20 人 range, sticky bottom + 文案 (沿用 v0.3.1).
 
   let step = 1;
   let sessionName = "";
   let memberCount = 2;
   let nicknames: string[] = ["", ""];
+  let currency: string = "CNY";
   let busy = false;
   let error: string | null = null;
   let loading = true;
@@ -26,13 +28,6 @@
   $: nameValid = sessionName.trim().length > 0;
 
   // Resize nicknames to track memberCount.
-  // Why not a pure `$:` assignment? If the reactive block reads `nicknames`
-  // (to preserve existing entries) AND writes to it, Svelte 4 will fire the
-  // block again next tick — risking a render loop. Keep resizeNicknames as
-  // a plain function called from `$: resizeNicknames(memberCount)` so the
-  // only dependency tracked is `memberCount`. Inside, we read nicknames[i]
-  // by reference and reassign to a fresh array (in-place .push/.pop don't
-  // trigger Svelte's reactivity by themselves).
   $: resizeNicknames(memberCount);
 
   function resizeNicknames(target: number) {
@@ -44,7 +39,16 @@
     nicknames = next;
   }
 
-  $: nicknamesValid = nicknames.every((n) => n.trim().length > 0);
+  // v0.3.2 (Bug 1): for logged-in user, the first nickname slot is
+  // reserved for them (display_name comes from user.default_name on BE).
+  // So we skip validating index 0 — only validate 同伴 nicknames (i >= 1).
+  $: nicknamesValid = nicknames.every((n, i) => {
+    if (i === 0 && $user) return true; // 第一格被 user.default_name 占,无需填写
+    return n.trim().length > 0;
+  });
+
+  // v0.3.2 (Bug 1): 真实"账本人数" = 同伴数 + 1 (包含你自己).
+  $: actualMemberCount = $user ? memberCount + 1 : memberCount;
 
   function adjustCount(delta: number) {
     const next = memberCount + delta;
@@ -54,6 +58,7 @@
 
   function goNext() {
     if (step === 1 && nameValid) step = 2;
+    else if (step === 2 && nicknamesValid) step = 3;
   }
 
   async function handleCreate() {
@@ -61,13 +66,21 @@
     error = null;
     busy = true;
     try {
+      // v0.3.2 (Bug 1): logged-in 时只传同伴昵称 (index 1+),
+      // BE 用 user.default_name 填充 owner SessionMember.
+      const memberNicknames = $user
+        ? nicknames.slice(1).map((n) => n.trim())
+        : nicknames.map((n) => n.trim());
+
       const createRes = await fetch("/api/sessions", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: sessionName.trim(),
-          member_nicknames: nicknames.map((n) => n.trim()),
+          member_nicknames: memberNicknames,
+          currencies: [currency],
+          primary_currency: currency,
         }),
       });
       if (!createRes.ok) {
@@ -102,7 +115,7 @@
 
   function onNickEnter(i: number, e: KeyboardEvent) {
     if (e.key === "Enter" && i === nicknames.length - 1 && nicknamesValid && !busy) {
-      handleCreate();
+      goNext();
     }
   }
 </script>
@@ -120,9 +133,10 @@
     <div class="progress">
       <span class="dot" class:active={step >= 1} class:done={step > 1} />
       <span class="dot" class:active={step >= 2} class:done={step > 2} />
+      <span class="dot" class:active={step >= 3} class:done={step > 3} />
     </div>
     <p class="step-label">
-      {#if step === 1}第一步{/if}{#if step === 2}第二步{/if}
+      {#if step === 1}第一步{/if}{#if step === 2}第二步{/if}{#if step === 3}第三步{/if}
     </p>
     {#if error}
       <div class="error-banner">{error}</div>
@@ -152,17 +166,55 @@
             <span class="count-display">{memberCount}</span>
             <button class="count-btn" onclick={() => adjustCount(1)} disabled={memberCount >= 20} aria-label="增加一人">+</button>
           </div>
-          <p class="count-hint">{memberCount} 人 · 后续可增加</p>
+          <!-- v0.3.2 (Bug 1): 显示"账本人数 = 同伴数 + 1 (包含你自己)" 让用户更清楚 -->
+          <p class="count-hint">
+            {#if $user}
+              {actualMemberCount} 人 (包含你自己) · 后续可增加
+            {:else}
+              {memberCount} 人 · 后续可增加
+            {/if}
+          </p>
 
           <div class="nickname-list">
             {#each nicknames as nick, i (i)}
               <div class="nickname-row">
-                <span class="nick-label">{i === 0 ? "你" : "同伴 " + i}</span>
-                <input type="text" bind:value={nicknames[i]}
-                  placeholder={i === 0 ? "你的昵称" : "同伴 " + i + " 的昵称"}
-                  maxlength="50"
-                  onkeydown={(e) => onNickEnter(i, e)} />
+                <!-- v0.3.2 (Bug 1): logged-in 时 index 0 是 "你 (已用此名)" 只读 -->
+                {#if i === 0 && $user}
+                  <span class="nick-label nick-label-locked">你</span>
+                  <input
+                    type="text"
+                    value={$user.default_name}
+                    disabled
+                    aria-label="你的昵称(已用登录账号默认名)"
+                    data-testid="nickname-self"
+                  />
+                {:else}
+                  <span class="nick-label">{i === 0 ? "你" : "同伴 " + i}</span>
+                  <input type="text" bind:value={nicknames[i]}
+                    placeholder={i === 0 ? "你的昵称" : "同伴 " + i + " 的昵称"}
+                    maxlength="50"
+                    onkeydown={(e) => onNickEnter(i, e)} />
+                {/if}
               </div>
+            {/each}
+          </div>
+        </div>
+      {/if}
+
+      {#if step === 3}
+        <div class="step-panel">
+          <h2 class="step-title">使用什么币种?</h2>
+          <p class="step-hint">默认 CNY，后续可在 session 设置里加币种</p>
+          <div class="currency-pills" role="radiogroup" aria-label="选择币种">
+            {#each ["CNY"] as ccy (ccy)}
+              <button
+                type="button"
+                class="currency-pill"
+                class:active={currency === ccy}
+                onclick={() => (currency = ccy)}
+                aria-pressed={currency === ccy}
+                data-testid={`currency-pill-${ccy}`}
+              >{ccy}</button>
             {/each}
           </div>
         </div>
@@ -176,7 +228,11 @@
       {/if}
       {#if step === 2}
         <button class="btn-back" onclick={() => (step = 1)}>上一步</button>
-        <button class="btn-confirm" onclick={handleCreate} disabled={!nicknamesValid || busy}>
+        <button class="btn-next" onclick={goNext} disabled={!nicknamesValid}>下一步</button>
+      {/if}
+      {#if step === 3}
+        <button class="btn-back" onclick={() => (step = 2)}>上一步</button>
+        <button class="btn-confirm" onclick={handleCreate} disabled={!currency || busy}>
           {busy ? "创建中…" : "确认创建"}
         </button>
       {/if}
@@ -218,6 +274,13 @@
   input[type="text"] { width: 100%; padding: 0.875rem 1rem; border: 2px solid #e5e5e5; border-radius: 0.75rem; font-size: 1rem; background: #fff; transition: border-color 0.15s; box-sizing: border-box; }
   input[type="text"]:focus { outline: none; border-color: #3b82f6; }
   input[type="text"]::placeholder { color: #a3a3a3; }
+  /* v0.3.2 (Bug 1): disabled 第一格 — 视觉告诉用户"已用此名" */
+  input[type="text"]:disabled {
+    background: #f5f5f5;
+    color: #737373;
+    cursor: not-allowed;
+    border-color: #e5e5e5;
+  }
 
   .btn-next, .btn-confirm { display: inline-flex; align-items: center; justify-content: center; width: 100%; min-height: 52px; padding: 0 1.5rem; background: #3b82f6; border: none; border-radius: 9999px; color: #fff; font-size: 1rem; font-weight: 600; cursor: pointer; transition: background 0.15s, transform 0.1s; letter-spacing: 0.01em; }
   .btn-next:hover:not(:disabled), .btn-confirm:hover:not(:disabled) { background: #2563eb; }
@@ -239,7 +302,8 @@
   }
 
   /* In the sticky footer: confirm takes remaining width, back stays compact */
-  .step-nav-bottom .btn-confirm { flex: 1; }
+  .step-nav-bottom .btn-confirm,
+  .step-nav-bottom .btn-next { flex: 1; }
   .step-nav-bottom .btn-back { flex: 0 0 auto; }
 
   .btn-back { display: inline-flex; align-items: center; justify-content: center; min-height: 52px; padding: 0 1.25rem; background: #fff; border: 2px solid #e5e5e5; border-radius: 9999px; color: #525252; font-size: 1rem; font-weight: 500; cursor: pointer; transition: border-color 0.15s, color 0.15s; }
@@ -255,9 +319,39 @@
   .nickname-list { display: flex; flex-direction: column; gap: 0.75rem; }
   .nickname-row { display: flex; align-items: center; gap: 0.75rem; }
   .nick-label { min-width: 52px; font-size: 0.875rem; font-weight: 600; color: #525252; }
+  .nick-label-locked { color: #3b82f6; }
   .nickname-row input { flex: 1; padding: 0.75rem 1rem; border: 2px solid #e5e5e5; border-radius: 0.75rem; font-size: 1rem; background: #fff; transition: border-color 0.15s; box-sizing: border-box; }
   .nickname-row input:focus { outline: none; border-color: #3b82f6; }
   .nickname-row input::placeholder { color: #a3a3a3; }
+
+  /* v0.3.2 (Bug 5): 币种选择 pill — 跟 BillForm 风格一致 */
+  .currency-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+  }
+  .currency-pill {
+    background: transparent;
+    border: 1px solid #e5e7eb;
+    border-radius: 999px;
+    padding: 0.5rem 1rem;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: #171717;
+    cursor: pointer;
+    min-height: 44px;
+    transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .currency-pill:hover:not(:disabled) {
+    border-color: rgba(99, 102, 241, 0.5);
+  }
+  .currency-pill.active {
+    background: #3b82f6;
+    color: white;
+    border-color: #3b82f6;
+  }
 
   .error-banner { background: #fff1f2; border: 1px solid #fecdd3; color: #be123c; border-radius: 0.5rem; padding: 0.625rem 1rem; font-size: 0.875rem; margin-bottom: 1rem; }
   .muted { color: #737373; }
