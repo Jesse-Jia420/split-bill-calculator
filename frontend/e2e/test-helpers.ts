@@ -26,9 +26,11 @@ import crypto from "node:crypto";
 import { execSync } from "node:child_process";
 import path from "node:path";
 
-const SQLITE_PATH =
+const SQconst SQLITE_PATH =
   process.env.SBC_SQLITE_PATH ??
-  "/config/workspace/split-bill-calculator/backend/data/sbc.db";
+  process.env.SBC_TEST_SQLITE_PATH ??
+  // 反 #110: 默认指向 /tmp/sbc-test.db 而不是 prod DB
+  "/tmp/sbc-test.db";
 
 export function hashToken(raw: string): string {
   return crypto.createHash("sha256").update(raw).digest("hex");
