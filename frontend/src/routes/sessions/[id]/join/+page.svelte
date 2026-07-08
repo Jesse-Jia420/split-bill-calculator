@@ -216,15 +216,12 @@
   }));
 
   // Slots that are already claimed/bound (for display only)
-  // 重要 (PO 17:03 fix): takenSlots **只**看 user_id !== null (logged-in bound).
-  // - user_id !== null: logged-in bound — anon user 走 "登录找回" 流程
-  // - user_id === null BUT claimed (anon-claimed): anon creator 自己 claim 的槽,
-  //   别的 anon user **不可能**找回 (那槽**不**是 logged-in user 绑的). 不该走"登录".
-  //   这种槽**不**该显示在 "已被认领的昵称" 区块 (因为**不**该让 anon 触发任何动作).
-  //   实际上 anon creator 自己 claim 后的槽对别的 anon 是 "不可用", BE 409 拒绝重 claim.
+  // 重要 (PO 16:39 fix): takenSlots 看 user_id OR claimed_at (claimed_at = joined_at 在 preview mapping 后)
+  // - user_id !== null: logged-in bound
+  // - claimed_at 有值 (joined_at !== ''): anon-claimed (creator 走 join-claim 后)
   let takenSlots = $derived((session?.members ?? []).filter((m: SessionMember) => {
     if (user) return false; // Don't grey out for logged-in
-    return m.user_id !== null;
+    return m.user_id !== null || (m.joined_at && m.joined_at !== '');
   }));
 </script>
 
