@@ -122,19 +122,11 @@
   // §3.11 收尾 (PO 11:38 拍板): 详情页 header 显示 owner info.
   // 位置: 详情页顶部 (在 banner 之外, 在 session 标题之后).
   // 登录态 + owner: nickname + email + 退出登录 button.
-  // 登录态 + 非 owner member: nickname (从 currentMember) — email/退出**不**显.
-  // 未登录态: 不显 (已有 ClaimLoginCta "🔐 登录以保存" 按钮).
-  // 反模式 #120: 不脑补, 不 disable, 不"用现有 banner 代替".
-  let ownerMember = $derived(
-    session?.members.find((m) => m.role === 'owner') ?? null
-  );
-  let ownerNickname = $derived(
-    currentMember?.display_name ?? ownerMember?.display_name ?? $user?.default_name ?? ''
-  );
-  let ownerEmail = $derived($user?.email ?? ownerMember?.email ?? '');
-  let ownerHeaderVisible = $derived(
-    $user !== null && currentMember !== null
-  );
+  // PO 13:10 修正: 详情页 header **只** 1 按钮, 动态切文字. nickname + email
+  // 在 member list 每行 (Bug 3 fix c979518) 显示, 不在 header 重复.
+  // 撤 Z 任务 (1329aa5) 加的 ownerNickname / ownerEmail / ownerHeaderVisible
+  // 3 个 derived 块, 以及 owner-info DOM 块. 保留 handleOwnerHeaderLogout
+  // 给新 "退出登录" button 用.
   // 防止双点击 — 用独立状态避免跟 page-level busy 冲突.
   let ownerHeaderLoggingOut = $state(false);
 
@@ -455,38 +447,29 @@
         {/if}
       </h2>
 
-      <!-- §3.11 收尾 (PO 11:38 拍板): 详情页 header 登录态 owner info.
-           位置: 详情页顶部 main 内的第一个 block (在 session 标题之后, 查看结算/登录以保存 按钮之前).
-           登录态 + owner: nickname + email + 退出登录 button.
-           登录态 + 非 owner member: nickname (从 currentMember) — email/退出**不**显.
-           未登录态: 不显 (已有 ClaimLoginCta "🔐 登录以保存" 按钮).
-           反模式 #120: 不脑补, 不 disable, 不"用现有 banner 代替" (banner 已有 Jesse/退出).
-           PO 拍板接受与 banner 内容**部分**重复, 但**位置不同** (详情页 header 独立). -->
-      {#if ownerHeaderVisible}
-        <div class="owner-info" aria-label="当前登录信息">
-          {#if isOwner}
-            <span class="owner-nickname" title="昵称">{ownerNickname}</span>
-            {#if ownerEmail}
-              <span class="owner-email muted" title="邮箱">{ownerEmail}</span>
-            {/if}
-            <button
-              type="button"
-              class="owner-logout-btn"
-              onclick={handleOwnerHeaderLogout}
-              disabled={ownerHeaderLoggingOut}
-              aria-label="退出登录"
-            >{ownerHeaderLoggingOut ? '退出中…' : '退出登录'}</button>
-          {:else}
-            <span class="owner-nickname muted" title="你在这 session 里的昵称">{ownerNickname}</span>
-          {/if}
-        </div>
-      {/if}
+      <!-- §3.11 收尾 (PO 13:10 修正): 详情页 header **只** 1 按钮, 动态切文字.
+           3 个状态共用同一个 button slot:
+             - 未登录 (无 owner claim) → "登录以保存" (ClaimLoginCta, 走 §3.11 claim flow)
+             - 已登录 + owner → "退出登录" (走 apiLogout → /)
+             - 已登录 + non-owner → 不显 (banner 已有)
+           nickname + email 在 member list 每行显示 (Bug 3 fix c979518), 不**重**复在 header.
+           反 #121: Master 必自决, 不问 PO. -->
+
 
       <div class="session-header-actions">
-        <!-- v0.3.x (PRD §3.11.3): 「登录以保存」详情页 CTA. 仅未登录用户可见.
-             已有登录 user 的 NavBar 显示「退出」,此 slot 自然隐藏. -->
+        <!-- PO 13:10: header **只** 1 按钮, 动态切文字. 3 状态共用一个 slot.
+             nickname + email 在 member list 每行 (Bug 3 fix c979518), 不**重**复.
+             非 owner 登录态不显 (banner 已有退出). -->
         {#if !$user}
           <ClaimLoginCta sessionId={session.id} ownerUserId={session.owner_user_id} />
+        {:else if isOwner}
+          <button
+            type="button"
+            class="btn"
+            onclick={handleOwnerHeaderLogout}
+            disabled={ownerHeaderLoggingOut}
+            aria-label="退出登录"
+          >{ownerHeaderLoggingOut ? '退出中…' : '退出登录'}</button>
         {/if}
         <a class="btn ghost" href="/sessions/{session.id}/settle">查看结算</a>
       </div>
