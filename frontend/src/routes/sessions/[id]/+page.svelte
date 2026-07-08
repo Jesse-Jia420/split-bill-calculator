@@ -44,7 +44,7 @@
   // v0.3.x (PRD §3.11.3): 「登录以保存」详情页 CTA 组件 + claimSession API helper.
   import ClaimLoginCta from '$components/ClaimLoginCta.svelte';
   import { getSessionWithSecret, claimSession } from '$api/sessions';
-  import { user } from '$stores/user';
+  import { user, logout as apiLogout } from '$stores/user';
   import { toast } from '$stores/toast';
 
   // v0.1.4 round 2: 一旦用了 $state runes, 整个组件就进入 runes mode,
@@ -118,6 +118,37 @@
       : null
   );
   let isOwner = $derived(currentMember?.role === 'owner');
+
+  // §3.11 收尾 (PO 11:38 拍板): 详情页 header 显示 owner info.
+  // 位置: 详情页顶部 (在 banner 之外, 在 session 标题之后).
+  // 登录态 + owner: nickname + email + 退出登录 button.
+  // 登录态 + 非 owner member: nickname (从 currentMember) — email/退出**不**显.
+  // 未登录态: 不显 (已有 ClaimLoginCta "🔐 登录以保存" 按钮).
+  // 反模式 #120: 不脑补, 不 disable, 不"用现有 banner 代替".
+  let ownerMember = $derived(
+    session?.members.find((m) => m.role === 'owner') ?? null
+  );
+  let ownerNickname = $derived(
+    currentMember?.display_name ?? ownerMember?.display_name ?? $user?.default_name ?? ''
+  );
+  let ownerEmail = $derived($user?.email ?? ownerMember?.email ?? '');
+  let ownerHeaderVisible = $derived(
+    $user !== null && currentMember !== null
+  );
+  // 防止双点击 — 用独立状态避免跟 page-level busy 冲突.
+  let ownerHeaderLoggingOut = $state(false);
+
+  async function handleOwnerHeaderLogout() {
+    if (ownerHeaderLoggingOut) return;
+    ownerHeaderLoggingOut = true;
+    try {
+      await apiLogout();
+    } catch {
+      // ignore — cookie clearing is the goal regardless
+    }
+    ownerHeaderLoggingOut = false;
+    await goto('/');
+  }
 
   /** v0.2.1 T05: bills 列表按 description 模糊 filter (大小写不敏感)。 */
   let filteredBills = $derived(
@@ -423,6 +454,34 @@
           </span>
         {/if}
       </h2>
+
+      <!-- §3.11 收尾 (PO 11:38 拍板): 详情页 header 登录态 owner info.
+           位置: 详情页顶部 main 内的第一个 block (在 session 标题之后, 查看结算/登录以保存 按钮之前).
+           登录态 + owner: nickname + email + 退出登录 button.
+           登录态 + 非 owner member: nickname (从 currentMember) — email/退出**不**显.
+           未登录态: 不显 (已有 ClaimLoginCta "🔐 登录以保存" 按钮).
+           反模式 #120: 不脑补, 不 disable, 不"用现有 banner 代替" (banner 已有 Jesse/退出).
+           PO 拍板接受与 banner 内容**部分**重复, 但**位置不同** (详情页 header 独立). -->
+      {#if ownerHeaderVisible}
+        <div class="owner-info" aria-label="当前登录信息">
+          {#if isOwner}
+            <span class="owner-nickname" title="昵称">{ownerNickname}</span>
+            {#if ownerEmail}
+              <span class="owner-email muted" title="邮箱">{ownerEmail}</span>
+            {/if}
+            <button
+              type="button"
+              class="owner-logout-btn"
+              onclick={handleOwnerHeaderLogout}
+              disabled={ownerHeaderLoggingOut}
+              aria-label="退出登录"
+            >{ownerHeaderLoggingOut ? '退出中…' : '退出登录'}</button>
+          {:else}
+            <span class="owner-nickname muted" title="你在这 session 里的昵称">{ownerNickname}</span>
+          {/if}
+        </div>
+      {/if}
+
       <div class="session-header-actions">
         <!-- v0.3.x (PRD §3.11.3): 「登录以保存」详情页 CTA. 仅未登录用户可见.
              已有登录 user 的 NavBar 显示「退出」,此 slot 自然隐藏. -->
@@ -628,6 +687,42 @@
     display: flex;
     gap: var(--space-2);
     flex-wrap: wrap;
+  }
+
+  /* §3.11 收尾: 详情页 header owner info 样式 */
+  .owner-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    font-size: 0.875rem;
+  }
+  .owner-nickname {
+    font-weight: 600;
+    color: var(--color-text, #171717);
+  }
+  .owner-email {
+    font-size: 0.8125rem;
+  }
+  .owner-logout-btn {
+    min-height: 32px;
+    padding: 0 var(--space-3);
+    border-radius: 9999px;
+    border: 1px solid var(--color-border, #e5e5e5);
+    background: var(--color-surface, #fff);
+    color: var(--color-text, #525252);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+  }
+  .owner-logout-btn:hover:not(:disabled) {
+    border-color: var(--color-accent, #3b82f6);
+    color: var(--color-accent, #3b82f6);
+  }
+  .owner-logout-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
   }
   @media (max-width: 600px) {
     .session-header-actions {
