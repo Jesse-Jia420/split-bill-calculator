@@ -17,7 +17,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
-  import { getSession, getSessionPreview, joinClaim, type SessionDetail, type SessionMember, type SessionPreview } from '$api/sessions';
+  import { getSession, joinClaim, type SessionDetail, type SessionMember } from '$api/sessions';
   import { getInvite, type InvitePublicView } from '$api/invites';
   import { loadUser } from '$stores/user';
 
@@ -89,27 +89,33 @@
     }
 
     // Bug 2 fix (PO 12:45): anon users访问 /join 时, /api/sessions/{id} 401 (无 secret/cookie).
-    // 用 public /preview endpoint 仍然能拿 session 名 + members (含 user_id 信息).
+    // 用 public /preview endpoint (BE 新加) 仍然能拿 session 名 + members (含 user_id 信息).
     // 这样 anon user 看到 "已被认领的昵称" 列表 + "登录找回" button, 能找回自己绑定的 session.
     if (!session) {
       try {
-        const p = await getSessionPreview(sid);
-        // 把 preview.members (含 user_id) 临时映射成 SessionMember 兼容 shape
-        // 这样 takenSlots/availableSlots derived 仍可工作.
-        session = {
-          id: p.id,
-          name: p.name,
-          members: p.members.map((m) => ({
-            id: m.id,
-            user_id: m.user_id,
-            email: m.user_id ? null : null,  // preview 不暴露 email (隐私), null 即可
-            display_name: m.display_name,
-            role: m.role,
-            joined_at: m.claimed_at ?? '',
-          })) as SessionMember[],
-        } as SessionDetail;
+        const res = await fetch('/api/sessions/' + sid + '/preview', {
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        if (res.ok) {
+          const p = await res.json();
+          // 把 preview.members 映射成 SessionMember 兼容 shape (join page 现有 derived 可工作).
+          session = {
+            id: p.id,
+            name: p.name,
+            members: p.members.map((m) => ({
+              id: m.id,
+              user_id: m.user_id,
+              email: null,  // preview 不暴露 email (隐私)
+              display_name: m.display_name,
+              role: m.role,
+              joined_at: m.claimed_at ?? '',
+            })) as SessionMember[],
+          } as SessionDetail;
+        }
+        // 404 / 5xx → join page 仍可用 "新增昵称" 流程 (现状行为)
       } catch {
-        // /preview 也失败 (真不可访问) — join page 仍可用 "新增昵称" 流程
+        // 网络错误 — 同上
       }
     }
 
