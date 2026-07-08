@@ -51,7 +51,7 @@ async function screenshotOn(page: Page, name: string) {
 }
 
 test.describe("v0.3.1 landing + anon-join", () => {
-  test("anon: landing → 直接开始使用 → join page (no 无效的 session)", async ({
+  test("anon: landing → 直接开始使用 → wizard 3-step → session detail (no join page)", async ({
     page,
   }) => {
     await page.goto("/");
@@ -67,14 +67,40 @@ test.describe("v0.3.1 landing + anon-join", () => {
     // ACT: click "直接开始使用"
     await page.locator("button.btn-primary").click();
 
-    // ASSERT: lands on /sessions/{id}/join (NOT an error)
-    await page.waitForURL(/\/sessions\/\d+\/join$/, { timeout: 5000 });
-    await expect(page.locator("h2")).toHaveText(/加入 session/);
+    // ASSERT: lands on /sessions/new (wizard step 1)
+    await page.waitForURL(/\/sessions\/new$/, { timeout: 5000 });
+    await expect(page.locator("h2")).toHaveText(/给你的账本起个名字/);
+    await screenshotOn(page, "02-wizard-step1");
+
+    // Wizard step 1: name the session
+    await page.locator("#session-name").fill("Anon landing test");
+    await page.locator('button:has-text("下一步")').click();
+
+    // Wizard step 2: member count + nicknames (3-step wizard)
+    await expect(page.locator("h2")).toHaveText(/一共有多少个昵称/);
+    const inputs = await page.locator('input[type="text"]').all();
+    await inputs[0].fill("我");
+    await inputs[1].fill("同伴 A");
+    await screenshotOn(page, "03-wizard-step2");
+    await page.locator('button:has-text("下一步")').click();
+
+    // Wizard step 3: currency (pill buttons)
+    await expect(page.locator("h2")).toHaveText(/使用什么币种/);
+    await expect(page.locator('[data-testid="currency-pill-CNY"]')).toBeVisible();
+    await screenshotOn(page, "04-wizard-step3");
+    await page.locator('button:has-text("确认创建")').click();
+
+    // ASSERT: lands on /sessions/{id} (session detail, already a member)
+    await page.waitForURL(/\/sessions\/\d+$/, { timeout: 10000 });
+    await screenshotOn(page, "05-session-detail");
+
+    // Should see session name in h2 (NOT join page) — use .first() because
+    // wizard step h2 elements may still be in DOM briefly during navigation
+    await expect(page.locator("h2").first()).toContainText("Anon landing test");
 
     // ASSERT: NO "无效的 session" error
     await expect(page.locator(".error")).toHaveCount(0);
     await expect(page.locator("text=无效的 session")).toHaveCount(0);
-    await screenshotOn(page, "02-join-anon");
   });
 
   test("logged-in: 进入我的session logic (via direct goto)", async ({ page }) => {
