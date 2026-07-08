@@ -6,12 +6,19 @@
 
   let step = 1;
   let sessionName = "";
-  let memberCount = 2;
-  let nicknames: string[] = ["", ""];
+  let memberCount = 1;
+  let nicknames: string[] = [""];
   let busy = false;
   let error: string | null = null;
   let loading = true;
   const LS_PREFIX = "sbc.actingAs.";
+
+  // §3.11.10: currency state (step 4, logged-in only)
+  let currencyMode: "single" | "dual" = "single";
+  let primaryCurrency = "CNY";
+  let secondaryCurrency = "";
+
+  $: showCurrencyStep = $user !== null;
 
   onMount(async () => {
     await loadUser();
@@ -28,21 +35,40 @@
 
   $: nicknamesValid = nicknames.every((n) => n.trim().length > 0);
 
+  $: currencyValid =
+    primaryCurrency.length > 0 &&
+    (currencyMode === "single" || secondaryCurrency.length > 0);
+
   function adjustCount(delta: number) {
     const next = memberCount + delta;
-    if (next >= 2 && next <= 20) memberCount = next;
+    if (next >= 1 && next <= 20) memberCount = next;
   }
 
   function goNext() {
-    if (step === 1 && nameValid) step = 2;
-    else if (step === 2) step = 3;
+    if (step === 1 && nameValid) {
+      step = 2;
+    } else if (step === 2) {
+      if (showCurrencyStep) {
+        step = 3; // reserved blank step
+      } else {
+        // 未登录态: step 2 → 直接 submit
+        handleCreate();
+      }
+    } else if (step === 3 && showCurrencyStep) {
+      step = 4;
+    }
   }
 
   async function handleCreate() {
     if (busy || !nicknamesValid) return;
+    if (showCurrencyStep && !currencyValid) return;
     error = null;
     busy = true;
     try {
+      const currencies = currencyMode === "single"
+        ? [primaryCurrency]
+        : [primaryCurrency, secondaryCurrency];
+
       const createRes = await fetch("/api/sessions", {
         method: "POST",
         credentials: "include",
@@ -50,6 +76,8 @@
         body: JSON.stringify({
           name: sessionName.trim(),
           member_nicknames: nicknames.map((n) => n.trim()),
+          currencies,
+          primary_currency: primaryCurrency,
         }),
       });
       if (!createRes.ok) {
@@ -96,14 +124,19 @@
     <div class="progress">
       <span class="dot" class:active={step >= 1} class:done={step > 1} />
       <span class="dot" class:active={step >= 2} class:done={step > 2} />
-      <span class="dot" class:active={step >= 3} />
+      <span class="dot" class:active={step >= 3 && showCurrencyStep} class:done={step > 3 && showCurrencyStep} />
+      <span class="dot" class:active={step >= 4} class:done={step > 4} />
     </div>
     <p class="step-label">
-      {#if step === 1}第一步{/if}{#if step === 2}第二步{/if}{#if step === 3}第三步{/if}
+      {#if step === 1}第一步{/if}
+      {#if step === 2}第二步{/if}
+      {#if step === 3 && showCurrencyStep}第三步{/if}
+      {#if step === 4}第{showCurrencyStep ? '四' : '三'}步{/if}
     </p>
     {#if error}
       <div class="error-banner">{error}</div>
     {/if}
+
     {#if step === 1}
       <div class="step-panel">
         <h2 class="step-title">给你的账本起个名字</h2>
@@ -117,41 +150,101 @@
         <button class="btn-next" onclick={goNext} disabled={!nameValid}>下一步</button>
       </div>
     {/if}
+
     {#if step === 2}
       <div class="step-panel">
         <h2 class="step-title">一共有多少人？</h2>
-        <p class="step-hint">包括你自己，至少 2 人</p>
+        <p class="step-hint">包括你自己，最少 1 人</p>
         <div class="count-row">
-          <button class="count-btn" onclick={() => adjustCount(-1)} disabled={memberCount <= 2} aria-label="减少一人">-</button>
+          <button class="count-btn" onclick={() => adjustCount(-1)} disabled={memberCount <= 1} aria-label="减少一人">-</button>
           <span class="count-display">{memberCount}</span>
           <button class="count-btn" onclick={() => adjustCount(1)} disabled={memberCount >= 20} aria-label="增加一人">+</button>
         </div>
         <p class="count-hint">{memberCount} 人</p>
-        <div class="step-nav">
-          <button class="btn-back" onclick={() => (step = 1)}>上一步</button>
-          <button class="btn-next" onclick={goNext}>下一步</button>
-        </div>
-      </div>
-    {/if}
-    {#if step === 3}
-      <div class="step-panel">
-        <h2 class="step-title">每个人叫什么名字？</h2>
-        <p class="step-hint">第一个是你的名字，其余是你的同伴</p>
-        <div class="nickname-list">
+        <div class="nickname-list" style="margin-top: 1.5rem;">
           {#each nicknames as nick, i (i)}
             <div class="nickname-row">
               <span class="nick-label">{i === 0 ? "你" : "同伴 " + i}</span>
               <input type="text" bind:value={nicknames[i]}
                 placeholder={i === 0 ? "你的名字" : "同伴 " + i + " 的名字"}
                 maxlength="50"
-                onkeydown={(e) => e.key === "Enter" && i === nicknames.length - 1 && nicknamesValid && !busy && handleCreate()} />
+                onkeydown={(e) => e.key === "Enter" && i === nicknames.length - 1 && nicknamesValid && goNext()} />
             </div>
           {/each}
         </div>
         <div class="step-nav">
+          <button class="btn-back" onclick={() => (step = 1)}>上一步</button>
+          <button class="btn-next" onclick={goNext} disabled={!nicknamesValid}>
+            {showCurrencyStep ? '下一步' : '确认创建'}
+          </button>
+        </div>
+      </div>
+    {/if}
+
+    {#if step === 3 && showCurrencyStep}
+      <!-- §3.11.10: reserved blank step for logged-in flow -->
+      <div class="step-panel">
+        <div style="text-align:center; padding: 3rem 0;">
+          <p class="step-hint">准备选择币种…</p>
+        </div>
+        <div class="step-nav">
           <button class="btn-back" onclick={() => (step = 2)}>上一步</button>
-          <button class="btn-confirm" onclick={handleCreate} disabled={!nicknamesValid || busy}>
-            {busy ? "创建中…" : "确认创建"}
+          <button class="btn-next" onclick={goNext}>下一步</button>
+        </div>
+      </div>
+    {/if}
+
+    {#if step === 4}
+      <div class="step-panel">
+        <h2 class="step-title">使用什么币种？</h2>
+        <p class="step-hint">选择单币种或双币种结算</p>
+
+        <!-- 模式切换：单币 vs 双币 -->
+        <div class="currency-mode-row" role="radiogroup" aria-label="币种模式">
+          <button type="button" class="mode-pill" class:active={currencyMode === 'single'}
+            onclick={() => { currencyMode = 'single'; secondaryCurrency = ''; }}>
+            单一币种
+          </button>
+          <button type="button" class="mode-pill" class:active={currencyMode === 'dual'}
+            onclick={() => currencyMode = 'dual'}>
+            双币种
+          </button>
+        </div>
+
+        <!-- 主币种（必选） -->
+        <div class="currency-section">
+          <label class="currency-label">主币种（必选）</label>
+          <div class="currency-pills">
+            {#each ["CNY", "USD", "EUR", "GBP", "JPY", "THB"] as ccy}
+              <button type="button" class="currency-pill" class:active={primaryCurrency === ccy}
+                onclick={() => { primaryCurrency = ccy; if (currencyMode === 'single') secondaryCurrency = ''; }}>
+                {ccy}
+              </button>
+            {/each}
+          </div>
+        </div>
+
+        <!-- 副币种（双币时必选） -->
+        {#if currencyMode === 'dual'}
+          <div class="currency-section">
+            <label class="currency-label">副币种（必选）</label>
+            <div class="currency-pills">
+              {#each ["CNY", "USD", "EUR", "GBP", "JPY", "THB"] as ccy}
+                {#if ccy !== primaryCurrency}
+                  <button type="button" class="currency-pill" class:active={secondaryCurrency === ccy}
+                    onclick={() => secondaryCurrency = ccy}>
+                    {ccy}
+                  </button>
+                {/if}
+              {/each}
+            </div>
+          </div>
+        {/if}
+
+        <div class="step-nav" style="margin-top: 1.75rem;">
+          <button class="btn-back" onclick={() => (step = 3)}>上一步</button>
+          <button class="btn-confirm" onclick={handleCreate} disabled={!currencyValid || busy}>
+            {busy ? '创建中…' : '确认创建'}
           </button>
         </div>
       </div>
@@ -197,4 +290,16 @@
   .nickname-row input::placeholder { color: #a3a3a3; }
   .error-banner { background: #fff1f2; border: 1px solid #fecdd3; color: #be123c; border-radius: 0.5rem; padding: 0.625rem 1rem; font-size: 0.875rem; margin-bottom: 1rem; }
   .muted { color: #737373; }
+
+  /* §3.11.10: currency step styles */
+  .currency-mode-row { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
+  .mode-pill { flex: 1; padding: 0.625rem 1rem; border: 2px solid #e5e5e5; border-radius: 9999px; background: #fff; color: #525252; font-size: 0.9rem; font-weight: 500; cursor: pointer; transition: border-color 0.15s, background 0.15s, color 0.15s; }
+  .mode-pill:hover { border-color: #3b82f6; color: #3b82f6; }
+  .mode-pill.active { border-color: #3b82f6; background: #eff6ff; color: #3b82f6; font-weight: 600; }
+  .currency-section { margin-bottom: 1.25rem; }
+  .currency-label { display: block; font-size: 0.8125rem; font-weight: 600; color: #525252; margin-bottom: 0.625rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  .currency-pills { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .currency-pill { padding: 0.5rem 1rem; border: 2px solid #e5e5e5; border-radius: 9999px; background: #fff; color: #525252; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: border-color 0.15s, background 0.15s, color 0.15s; }
+  .currency-pill:hover { border-color: #3b82f6; color: #3b82f6; }
+  .currency-pill.active { border-color: #3b82f6; background: #3b82f6; color: #fff; font-weight: 600; }
 </style>
