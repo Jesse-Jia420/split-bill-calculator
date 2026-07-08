@@ -198,15 +198,21 @@
   }
 
   // Derive the list of available (unclaimed / unbound) nickname slots.
-  // For anonymous users: show slots with nickname_secret=NULL (unclaimed).
+  // For anonymous users: show slots with NO claim yet (user_id=null AND claimed_at=null).
+  // 重要 (PO 16:39): anon creator 走 /join-claim 后, member.user_id 仍 null 但
+  // nickname_secret + claimed_at 已设. 这种 "anon-claimed" 槽**不**应该 anon 重 claim (BE 409).
+  // 看 claimed_at 区分: NULL = 真 unclaimed; 已有值 = 已 claim (无论 anon 还是 logged-in).
   // For logged-in users: show all slots (they can bind any).
   let availableSlots = $derived((session?.members ?? []).filter((m: SessionMember) => {
     if (user) {
       // Logged-in users see all slots (any can be bound)
       return true;
     }
-    // Anonymous users only see unclaimed slots
-    return m.user_id === null;
+    // Anonymous users only see truly unclaimed slots (no secret, no claim time).
+    // 注意: preview API 把 m.claimed_at 映射成 m.joined_at (BE /preview 返 _iso(m.claimed_at)).
+    // 真 unclaimed: claimed_at === null 字符串 ('') 来自 mapping 时的 `?? ''`.
+    // 实际看 preview response: claimed_at 是 ISO string 或 null.
+    return m.user_id === null && (!m.joined_at || m.joined_at === '');
   }));
 
   // Slots that are already claimed/bound (for display only)
