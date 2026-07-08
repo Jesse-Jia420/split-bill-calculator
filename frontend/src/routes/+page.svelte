@@ -34,40 +34,14 @@
   });
 
   async function handleStartUsing() {
-    // v0.3.1 (PO 16:59): 已登录用户直接进 dashboard, 不创建新 session。
+    // v0.3.x (PO 10:39 拍板, 推翻 v0.3.1 PO 16:59):
+    //   landing "直接开始使用" -> /sessions/new (Wizard 3 步) -- anon 创建 session
+    //   标准入口. v0.3.1 quick-start 1-member + 跳 join 路径作废.
     if ($user) {
       await goto('/sessions', { replaceState: true });
       return;
     }
-    if (busy) return;
-    error = null;
-    busy = true;
-    try {
-      // Anonymous session: create a session with 1 placeholder nickname.
-      // The creator will claim it on the join page.
-      const res = await fetch('/api/sessions', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: '我的账本',
-          member_nicknames: ['我'],
-        }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body?.detail?.error ?? `HTTP ${res.status}`);
-      }
-      const data = await res.json() as {
-        id: number;
-        created_member_ids: number[];
-      };
-      // Navigate to join page so the creator can claim their slot.
-      await goto('/sessions/' + data.id + '/join', { replaceState: true });
-    } catch (e: any) {
-      error = e?.message ?? '创建失败，请重试';
-      busy = false;
-    }
+    await goto('/sessions/new', { replaceState: true });
   }
 </script>
 
