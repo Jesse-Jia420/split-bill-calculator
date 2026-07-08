@@ -33,8 +33,13 @@
 
   $: {
     const target = memberCount;
-    while (nicknames.length < target) nicknames.push("");
-    while (nicknames.length > target) nicknames.pop();
+    if (nicknames.length < target) {
+      // Bug fix (反 #1 教训: pre-existing Svelte 5 legacy `$:` + push 不触发响应性):
+      // 用赋值 (而非 mutation) 让 Svelte 重新分配数组引用, 模板 each 块重渲.
+      nicknames = [...nicknames, ...Array(target - nicknames.length).fill("")];
+    } else if (nicknames.length > target) {
+      nicknames = nicknames.slice(0, target);
+    }
   }
 
   $: nicknamesValid = nicknames.every((n) => n.trim().length > 0);
