@@ -17,7 +17,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
-  import { getSession, joinClaim, type SessionDetail, type SessionMember } from '$api/sessions';
+  import { getSession, getSessionPreview, joinClaim, type SessionDetail, type SessionMember, type SessionPreview } from '$api/sessions';
   import { getInvite, type InvitePublicView } from '$api/invites';
   import { loadUser } from '$stores/user';
 
@@ -85,6 +85,31 @@
         invite = await getInvite(inviteToken);
       } catch {
         // Token invalid — ignore, we'll still show the join form
+      }
+    }
+
+    // Bug 2 fix (PO 12:45): anon users访问 /join 时, /api/sessions/{id} 401 (无 secret/cookie).
+    // 用 public /preview endpoint 仍然能拿 session 名 + members (含 user_id 信息).
+    // 这样 anon user 看到 "已被认领的昵称" 列表 + "登录找回" button, 能找回自己绑定的 session.
+    if (!session) {
+      try {
+        const p = await getSessionPreview(sid);
+        // 把 preview.members (含 user_id) 临时映射成 SessionMember 兼容 shape
+        // 这样 takenSlots/availableSlots derived 仍可工作.
+        session = {
+          id: p.id,
+          name: p.name,
+          members: p.members.map((m) => ({
+            id: m.id,
+            user_id: m.user_id,
+            email: m.user_id ? null : null,  // preview 不暴露 email (隐私), null 即可
+            display_name: m.display_name,
+            role: m.role,
+            joined_at: m.claimed_at ?? '',
+          })) as SessionMember[],
+        } as SessionDetail;
+      } catch {
+        // /preview 也失败 (真不可访问) — join page 仍可用 "新增昵称" 流程
       }
     }
 
@@ -259,6 +284,8 @@
         {/if}
 
         {#if takenSlots.length > 0}
+          <!-- Bug 2 fix (PO 12:45): anon user 看到已被认领的昵称列表,
+               如果其中某个是他 (e.g. 不同 device 访问), 提示 "登录找回". -->
           <div>
             <p class="label muted">已被认领的昵称</p>
             <div class="slot-list">
@@ -271,6 +298,9 @@
                 </span>
               {/each}
             </div>
+            <p class="muted small" style="margin-top: 0.75rem;">
+              如果这其中有你的昵称，请先 <a href="/auth/login?returnTo=/sessions/{sessionId}/join">登录</a> 找回。
+            </p>
           </div>
         {/if}
 
