@@ -123,7 +123,7 @@ async function createAnonSessionAsCreator(
   );
   await page.reload();
   await page.waitForLoadState("networkidle");
-  return { sid };
+  return { sid, secret: claimBody.nickname_secret };
 }
 
 /**
@@ -170,10 +170,11 @@ test("case 2 (PRD §3.11.5): 点 CTA → 登录 → 跳回 → claim 200 + owner
 }) => {
   const ctx = await browser.newContext({ ignoreHTTPSErrors: true });
   const page = await ctx.newPage();
-  const { sid } = await createAnonSessionAsCreator(page, "T5 claim flow", [
-    "Jesse",
-    "Ju",
-  ]);
+  const { sid, secret: ctaSecret } = await createAnonSessionAsCreator(
+    page,
+    "T5 claim flow",
+    ["Jesse", "Ju"]
+  );
 
   // 走 CTA 真 click, 验 URL 携带 encode 后的完整 returnTo.
   await page.getByTestId("claim-login-cta").click();
@@ -204,9 +205,15 @@ test("case 2 (PRD §3.11.5): 点 CTA → 登录 → 跳回 → claim 200 + owner
   const sbcCookie = cookies.find((c) => c.name === "sbc_session");
   expect(sbcCookie).toBeTruthy();
   const sessionRes = await page.request.get(`${BASE}/api/sessions/${sid}`, {
-    headers: { Cookie: `sbc_session=${sbcCookie!.value}` },
+    headers: {
+      Cookie: `sbc_session=${sbcCookie!.value}`,
+      // (反 #101) BE 需要 X-Nickname-Secret 才能返 200 + SessionDetail.
+      // creator 在 createAnonSessionAsCreator 已经拿 secret, 这里直接传.
+      "X-Nickname-Secret": ctaSecret,
+    },
   });
   const sessionData = await sessionRes.json();
+  expect(sessionRes.status()).toBe(200);
   expect(sessionData.owner_user_id).not.toBeNull();
   expect(sessionData.owner_email).toBe("claim.owner@jessejia.local");
 
