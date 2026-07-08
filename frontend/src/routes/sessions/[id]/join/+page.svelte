@@ -318,7 +318,7 @@
         <hr />
 
         <div>
-          <p class="label">新增我的昵称</p>
+          <p class="label">新建一个角色（昵称）</p>
           <div class="row gap">
             <input
               type="text"

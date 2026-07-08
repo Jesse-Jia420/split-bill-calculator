@@ -190,3 +190,114 @@ test("JOURNEY (anon, no secret): /invites/{token} → /join → claim slot → /
   await ownerCtx.close();
   await anonCtx.close();
 });
+
+// ---------------------------------------------------------------------------
+// Test B — Anon walks /invites/{token} → /join → 新建一个角色（昵称）
+//          (covers the "new role" path, distinct from the "claim existing
+//          placeholder" path tested above)
+// ---------------------------------------------------------------------------
+test("JOURNEY (anon, new role): /invites/{token} → /join → 新建一个角色 → /sessions/{id}", async ({
+  browser,
+}) => {
+  // ===== 第 1 幕: Setup — owner creates session with placeholders =====
+  const owner = ensureUserAndToken("invite-anon-new.owner@jessejia.local");
+  const ownerCtx: BrowserContext = await browser.newContext({
+    ignoreHTTPSErrors: true,
+  });
+  await loginAs(ownerCtx, owner.raw_token);
+  const ownerPage: Page = await ownerCtx.newPage();
+
+  const createRes = await ownerPage.request.post(`${BASE}/api/sessions`, {
+    data: {
+      name: "新建角色 测试 session",
+      currencies: ["CNY"],
+      primary_currency: "CNY",
+      member_nicknames: ["Existing-A", "Existing-B"],
+    },
+  });
+  expect(createRes.status()).toBe(201);
+  const created = await createRes.json();
+  const sid = created.id;
+
+  const inviteRes = await ownerPage.request.get(
+    `${BASE}/api/sessions/${sid}/invite`
+  );
+  const token = (await inviteRes.json()).token;
+  expect(token).toBeTruthy();
+
+  await ownerCtx.close();
+
+  // ===== 第 2 幕: Anon (fresh mobile context) visits /invites/{token} =====
+  const anonCtx: BrowserContext = await browser.newContext({
+    ...MOBILE_CONTEXT_OPTS,
+    ignoreHTTPSErrors: true,
+  });
+  const page: Page = await anonCtx.newPage();
+
+  await page.goto(`${BASE}/`);
+  await page.evaluate(() => localStorage.clear());
+  await page.context().clearCookies();
+
+  await page.goto(`${BASE}/invites/${token}`);
+  await page.waitForLoadState("networkidle");
+
+  // FE 4-case dispatch — anon no secret → /join
+  await page.waitForURL(new RegExp(`/sessions/${sid}/join$`), { timeout: 10000 });
+  await page.screenshot({ path: SHOT(10, "anon-newrole-on-join"), fullPage: true });
+
+  // ===== 第 3 幕: Verify the "新建一个角色" label is visible =====
+  // The /join page's anon section now uses "新建一个角色（昵称）" so
+  // anons can see at a glance that they can also create a new role
+  // (not just claim an existing placeholder).
+  await expect(
+    page.locator("text=新建一个角色（昵称）"),
+    "anon /join must show the clearer '新建一个角色（昵称）' label"
+  ).toBeVisible({ timeout: 5000 });
+  await expect(
+    page.locator('input[placeholder="你想叫什么名字？"]'),
+    "anon /join must still render the new-nickname input"
+  ).toBeVisible();
+
+  // ===== 第 4 幕: Anon types a new nickname + clicks 加入 (does NOT claim) =====
+  const NEW_ROLE = "Brand-New-Role";
+  await page.locator('input[placeholder="你想叫什么名字？"]').fill(NEW_ROLE);
+  await page.locator('button:has-text("加入")').click();
+
+  // ===== 第 5 幕: Redirect to /sessions/{id} + secret stored =====
+  await page.waitForURL(new RegExp(`/sessions/${sid}$`), { timeout: 10000 });
+  await page.waitForLoadState("networkidle");
+  await page.screenshot({ path: SHOT(11, "anon-newrole-after-add"), fullPage: true });
+
+  const secret = await page.evaluate(
+    (id) => localStorage.getItem(`sbc.actingAs.${id}`),
+    sid
+  );
+  expect(secret, "sbc.actingAs.{sid} should be set after add").toBeTruthy();
+
+  // ===== 第 6 幕: BE state — the new role exists in the members list =====
+  const verifyRes = await page.request.get(`${BASE}/api/sessions/${sid}`, {
+    headers: { "X-Nickname-Secret": secret! },
+  });
+  expect(verifyRes.status()).toBe(200);
+  const detail = await verifyRes.json();
+
+  // 4 members: owner + Existing-A + Existing-B + Brand-New-Role
+  expect(detail.members.length).toBe(4);
+
+  const newRoleMember = detail.members.find(
+    (m: any) => m.display_name === NEW_ROLE
+  );
+  expect(newRoleMember, "the new role must be in the members list").toBeTruthy();
+  expect(newRoleMember.role).toBe("member");
+  expect(newRoleMember.user_id, "anon add is unclaimed (user_id=null)").toBeNull();
+  expect(newRoleMember.email).toBeNull();
+
+  // Original placeholders must still be unclaimed (we did NOT touch them)
+  for (const name of ["Existing-A", "Existing-B"]) {
+    const m = detail.members.find((x: any) => x.display_name === name);
+    expect(m, `${name} should still exist`).toBeTruthy();
+    expect(m.user_id, `${name} should still be unclaimed`).toBeNull();
+  }
+
+  await anonCtx.close();
+});

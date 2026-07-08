@@ -226,10 +226,15 @@ test("TEST-007b: single-currency session disables split toggle", async ({
   await page.waitForLoadState("networkidle");
   await page.locator("#session-name").fill(SESSION_NAME + " single");
   await page.locator('button:has-text("下一步")').click();
-  await page.locator('button:has-text("下一步")').click();
+  // Step 2: fill nicknames (for logged-in: inputs[0]=owner disabled, inputs[1+]=placeholders)
+  await page.waitForLoadState("networkidle");
+  await expect(page.locator("h2")).toHaveText(/一共有多少个昵称/);
   const inputs = await page.locator('input[type="text"]').all();
-  await inputs[0].fill("Solo A");
-  await inputs[1].fill("Solo B");
+  await inputs[1].fill("Solo B"); // inputs[0] is disabled owner for logged-in
+  await page.locator('button:has-text("下一步")').click();
+  // Step 3: currency → confirm
+  await page.waitForLoadState("networkidle");
+  await expect(page.locator("h2")).toHaveText(/使用什么币种/);
   await page.locator('button:has-text("确认创建")').click();
   await page.waitForURL(/\/sessions\/\d+/);
   const sid = Number(page.url().match(/\/sessions\/(\d+)/)![1]);
