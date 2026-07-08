@@ -205,3 +205,28 @@ export const joinClaim = (
     body: JSON.stringify(input)
   });
 };
+
+/** v0.3.x (PRD §3.11) — Owner email claim.
+ *
+ * Sole entry point called from the session detail page onMount when
+ * the URL carries `?claim=1`. BE atomically sets owner_user_id +
+ * owner_email on the sessions row and returns the full SessionDetail
+ * so the FE can drop the response into its existing session state and
+ * re-render without the "🔐 登录以保存" CTA.
+ *
+ * Errors (caught by apiFetch + ApiError):
+ *   - 401: no auth cookie -- should be unreachable here because the
+ *     CTA flow only fires after /auth/login → /auth/verify-code sets
+ *     sbc_session. If it happens, client.ts auto-redirects to login.
+ *   - 404: session does not exist.
+ *   - 409: session already claimed (owner_user_id set) -- the user
+ *     raced with another claimant. UI should toast and reload.
+ */
+export const claimSession = (
+  sessionId: number
+): Promise<SessionDetail> => {
+  const url = '/sessions/' + sessionId + '/claim';
+  return apiFetch<SessionDetail>(url, {
+    method: 'POST'
+  });
+};
