@@ -208,11 +208,8 @@
     {/if}
 
     {#if step === 3 && showCurrencyStep}
-      <!-- PO 14:01: 撤 reserved blank "准备选择币种" step. step 3 直接是币种选择 (原 step 4 内容). -->
+      <!-- PO 14:01: 撤 reserved blank "准备选择币种" step. step 3 直接是币种选择. -->
       <div class="step-panel">
-
-    {#if step === 3}
-      <div class="step-panel">  {/* fallback: if legacy step=4 still set (shouldn't happen after b98f6a1), keep showing currency */}
         <h2 class="step-title">使用什么币种？</h2>
         <p class="step-hint">选择单币种或双币种结算</p>
 
