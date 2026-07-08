@@ -216,9 +216,12 @@
   }));
 
   // Slots that are already claimed/bound (for display only)
+  // 重要 (PO 16:39 fix): takenSlots 看 user_id OR claimed_at (claimed_at = joined_at 在 preview mapping 后)
+  // - user_id !== null: logged-in bound
+  // - claimed_at 有值 (joined_at !== ''): anon-claimed (creator 走 join-claim 后)
   let takenSlots = $derived((session?.members ?? []).filter((m: SessionMember) => {
     if (user) return false; // Don't grey out for logged-in
-    return m.user_id !== null;
+    return m.user_id !== null || (m.joined_at && m.joined_at !== '');
   }));
 </script>
 
