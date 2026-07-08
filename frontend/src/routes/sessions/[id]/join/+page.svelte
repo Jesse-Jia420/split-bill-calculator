@@ -160,6 +160,14 @@
     }
   }
 
+  // Bug fix (PO 16:06 报 "未登录状态，选择已有昵称无法跳转 session"):
+  // anon user 点 taken slot → 走登录找回流程. returnTo 直接到 /sessions/{id}
+  // (而**不** /sessions/{id}/join — 登录后**已** member → onMount 重定向 detail).
+  // 之前是 <span disabled> **不**可点.
+  async function handleClaimTaken(_slot: SessionMember) {
+    await goto('/auth/login?returnTo=/sessions/' + sessionId, { replaceState: true });
+  }
+
   async function handleAdd() {
     if (busy) return;
     const nickname = newNickname.trim();
@@ -290,22 +298,31 @@
         {/if}
 
         {#if takenSlots.length > 0}
-          <!-- Bug 2 fix (PO 12:45): anon user 看到已被认领的昵称列表,
-               如果其中某个是他 (e.g. 不同 device 访问), 提示 "登录找回". -->
+          <!-- Bug fix (PO 16:06 报 "未登录状态，选择已有昵称无法跳转 session"):
+               anon user 看到已被认领的昵称列表, 点 slot 应该走 "登录找回" 流程
+               (登录后 redirect 到 /sessions/{id} → onMount 检测已 member → 重进 session).
+               改成可点击 button (之前是 <span disabled>).
+               returnTo 用 /sessions/{id} 而**不** /sessions/{id}/join — 直接到 detail,
+               避免登录后又卡在 join page. -->
           <div>
             <p class="label muted">已被认领的昵称</p>
             <div class="slot-list">
               {#each takenSlots as slot (slot.id)}
-                <span class="slot-btn disabled">
+                <button
+                  type="button"
+                  class="slot-btn slot-btn-claimable"
+                  onclick={() => handleClaimTaken(slot)}
+                  title="点此登录后找回这个昵称"
+                >
                   {slot.display_name}
                   {#if slot.email}
                     <span class="muted">（已被 {slot.email} 绑定）</span>
                   {/if}
-                </span>
+                </button>
               {/each}
             </div>
             <p class="muted small" style="margin-top: 0.75rem;">
-              如果这其中有你的昵称，请先 <a href="/auth/login?returnTo=/sessions/{sessionId}/join">登录</a> 找回。
+              如果这其中有你的昵称，<strong>点击该昵称</strong> 或 <a href="/auth/login?returnTo=/sessions/{sessionId}">点此登录</a> 找回。
             </p>
           </div>
         {/if}
@@ -364,6 +381,17 @@
     border-color: rgba(0, 0, 0, 0.1);
     color: var(--color-text-muted);
     cursor: default;
+  }
+  /* PO 16:06 fix: taken slot 改成可点击 button 走登录找回流程. */
+  .slot-btn-claimable {
+    background: rgba(99, 102, 241, 0.06);
+    border-color: rgba(99, 102, 241, 0.4);
+    color: #4f46e5;
+    cursor: pointer;
+  }
+  .slot-btn-claimable:hover {
+    background: rgba(99, 102, 241, 0.14);
+    border-color: rgba(99, 102, 241, 0.6);
   }
   .gap {
     gap: 0.5rem;
