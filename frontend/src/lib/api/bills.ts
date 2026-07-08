@@ -45,27 +45,30 @@ export interface CreateBillInput {
   use_calculator?: boolean;
 }
 
-export const listBills = (sessionId: number) => {
-  const url = "/sessions/" + sessionId + "/bills";
-  // v0.3.1: send X-Nickname-Secret for anonymous access.
-  const headers: Record<string, string> = {};
+/**
+ * Build headers that include the anonymous session-member secret, if one
+ * is stored in localStorage for this session. Anon users (the wizard flow
+ * and `?nickname=` join flow) only have their identity proved via this
+ * header — the BE's `require_session_member` dependency reads it.
+ *
+ * Centralized here so every session-scoped bill endpoint stays in sync.
+ * Prior to v0.3.x this was open-coded in each function and `createBill`
+ * was missing it, causing 403 "not a session member" on real iPhone UAT.
+ */
+function anonHeaders(sessionId: number): Record<string, string> {
+  const h: Record<string, string> = {};
   if (typeof window !== "undefined") {
     const secret = localStorage.getItem("sbc.actingAs." + sessionId);
-    if (secret) headers["X-Nickname-Secret"] = secret;
+    if (secret) h["X-Nickname-Secret"] = secret;
   }
-  return fetch("/api" + url, {
-    credentials: "include",
-    headers: { "Content-Type": "application/json", ...headers },
-  }).then(async (r) => {
-    if (!r.ok) {
-      const body = await r.json().catch(() => ({}));
-      const err: any = new Error(body?.detail?.error ?? `HTTP ${r.status}`);
-      err.status = r.status;
-      err.code = body?.detail?.error ?? `http_${r.status}`;
-      throw err;
-    }
-    return r.json() as Promise<Bill[]>;
-  });
+  return h;
+}
+
+export const listBills = (sessionId: number) => {
+  const url = "/sessions/" + sessionId + "/bills";
+  // Routed through apiFetch so 401/403 redirect logic kicks in
+  // consistently (raw fetch bypassed it before).
+  return apiFetch<Bill[]>(url, { headers: anonHeaders(sessionId) });
 };
 
 /**
@@ -94,7 +97,8 @@ export const createBill = (sessionId: number, body: CreateBillInput) => {
   const url = "/sessions/" + sessionId + "/bills";
   return apiFetch<Bill>(url, {
     method: "POST",
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
+    headers: anonHeaders(sessionId),
   });
 };
 
@@ -106,13 +110,17 @@ export const updateBill = (
   const url = "/sessions/" + sessionId + "/bills/" + billId;
   return apiFetch<Bill>(url, {
     method: "PATCH",
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
+    headers: anonHeaders(sessionId),
   });
 };
 
 export const deleteBill = (sessionId: number, billId: number) => {
   const url = "/sessions/" + sessionId + "/bills/" + billId;
-  return apiFetch<void>(url, { method: "DELETE" });
+  return apiFetch<void>(url, {
+    method: "DELETE",
+    headers: anonHeaders(sessionId),
+  });
 };
 
 export interface ParseBillResult {
@@ -126,6 +134,7 @@ export const parseBill = (sessionId: number, text: string) => {
   const url = "/sessions/" + sessionId + "/bills/parse";
   return apiFetch<ParseBillResult>(url, {
     method: "POST",
-    body: JSON.stringify({ text })
+    body: JSON.stringify({ text }),
+    headers: anonHeaders(sessionId),
   });
 };
