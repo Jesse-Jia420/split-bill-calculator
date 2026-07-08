@@ -32,7 +32,6 @@
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import { fly } from 'svelte/transition';
-  import { getSessionWithSecret } from '$api/sessions';
   import { listBills, deleteBill, createBill } from '$api/bills';
   import { getSettle } from '$api/settle';
   import { formatMoney } from '$lib/utils/format';
@@ -42,6 +41,9 @@
   import InviteLinkButton from '$components/InviteLinkButton.svelte';
   import BillListGrouped from '$components/BillListGrouped.svelte';
   import EmptyState from '$components/EmptyState.svelte';
+  // v0.3.x (PRD §3.11.3): 「登录以保存」详情页 CTA 组件 + claimSession API helper.
+  import ClaimLoginCta from '$components/ClaimLoginCta.svelte';
+  import { getSessionWithSecret, claimSession } from '$api/sessions';
   import { user } from '$stores/user';
   import { toast } from '$stores/toast';
 
@@ -141,6 +143,31 @@
     } catch {
       // ignore — SSR or storage disabled
     }
+
+    // v0.3.x (PRD §3.11.5) — T4 onMount claim detection.
+    // 链路: 用户点「🔐 登录以保存」→ /auth/login?returnTo=...&claim=1
+    //       → verify-code 成功 → 跳回 /sessions/{id}?claim=1
+    //       → 详情页 onMount 检测 → 调 POST /api/sessions/{id}/claim
+    //       → 返 200 + SessionDetail → 重渲染 + 清 query。
+    // 401 (cookie 失效) 由 client.ts 自动跳登录;
+    // 409 (已被别人 claim) 走 toast 提示并 reload session。
+    if (page.url.searchParams.get('claim') === '1') {
+      try {
+        const updated: SessionDetail = await claimSession(sessionId);
+        session = updated;
+        // 清掉 ?claim=1,避免用户分享带此 query 的链接或刷新时再触发一次。
+        window.history.replaceState({}, '', '/sessions/' + sessionId);
+        // 继续 load() 加载 bills/settle (claim 返的只有 SessionDetail)。
+      } catch (e: any) {
+        // 409 -> 已 claim (被别人抢先); 401 由 client.ts 处理; 其它按错误 toast.
+        if (e?.status === 409) {
+          toast.error('这个 session 已被其他人认领');
+        } else if (e?.status !== 401) {
+          toast.error(e?.message ?? '认领失败');
+        }
+      }
+    }
+
     await load();
   });
 
@@ -397,6 +424,11 @@
         {/if}
       </h2>
       <div class="session-header-actions">
+        <!-- v0.3.x (PRD §3.11.3): 「登录以保存」详情页 CTA. 仅未登录用户可见.
+             已有登录 user 的 NavBar 显示「退出」,此 slot 自然隐藏. -->
+        {#if !$user}
+          <ClaimLoginCta sessionId={session.id} ownerUserId={session.owner_user_id} />
+        {/if}
         <a class="btn ghost" href="/sessions/{session.id}/settle">查看结算</a>
       </div>
     </div>
