@@ -95,9 +95,6 @@ export const getBill = async (sessionId: number, billId: number): Promise<Bill> 
 
 export const createBill = (sessionId: number, body: CreateBillInput) => {
   const url = "/sessions/" + sessionId + "/bills";
-  // v0.3.2 (PRD §3.12): 3rd arg `apiFetch.extraHeaders` carries
-  // X-Nickname-Secret so anon dd can POST without a cookie (BE uses
-  // get_session_member_or_secret).
   return apiFetch<Bill>(url, {
     method: "POST",
     body: JSON.stringify(body),
@@ -111,7 +108,6 @@ export const updateBill = (
   body: Partial<CreateBillInput>
 ) => {
   const url = "/sessions/" + sessionId + "/bills/" + billId;
-  // v0.3.2: PATCH now anonymous-capable (BE upgraded to or_secret).
   return apiFetch<Bill>(url, {
     method: "PATCH",
     body: JSON.stringify(body),
@@ -136,7 +132,6 @@ export interface ParseBillResult {
 
 export const parseBill = (sessionId: number, text: string) => {
   const url = "/sessions/" + sessionId + "/bills/parse";
-  // v0.3.2: AI parse now anonymous-capable (BE upgraded to or_secret).
   return apiFetch<ParseBillResult>(url, {
     method: "POST",
     body: JSON.stringify({ text }),
