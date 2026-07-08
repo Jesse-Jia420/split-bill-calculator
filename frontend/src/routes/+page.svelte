@@ -29,8 +29,16 @@
   let error: string | null = null;
 
   onMount(() => {
-    // If user is already logged in, +layout.svelte will redirect to /sessions.
-    // We don't need to do anything here.
+    // Landing is a full-viewport immersive page (BG image + 2 CTAs).
+    // Lock body scroll + disable touch-action so iOS Safari doesn't
+    // bounce / rubber-band when the user swipes at the edges. Restored
+    // on unmount so /sessions/* pages scroll normally.
+    document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.touchAction = '';
+    };
   });
 
   async function handleStartUsing() {
