@@ -1,32 +1,39 @@
 <script lang="ts">
   /**
-   * §3.11.11 (PO 2026-07-08 17:41 拍板) — 单屏 wizard join page.
+   * v0.3 (PRD §3.10) — session join / claim page.
    *
    * URL: /sessions/{id}/join[?token=xxx]
    *
-   * 单屏 wizard UI (PRD §3.11.11 决策 2 + 4):
-   * - 上半屏: 所有已认领昵称 as buttons (全部 members, 不 filter)
-   * - 下半屏: 新建昵称 input + 按钮
-   * - 不区分老/新用户 (同 UI)
-   * - 不做 wizard 步进 (单步)
-   * - 不做 "登录找回" CTA
+   * User flow:
+   * 1. Logged-in user with (user_id, session_id) binding → auto-redirect to session.
+   * 2. Anonymous user with valid actingAs secret in localStorage → verify + redirect.
+   * 3. Anonymous user with ?token=xxx → show session name + join options.
+   * 4. Unknown user → show join options (no session name shown without token).
    *
-   * Edge cases:
-   * - 点错昵称 → BE 接受 (错进 session) → 退出重选
-   * - 7 天外 session → BE 410 → 显示 "session 已回收"
-   * - 新用户点选已有 (不认得) → BE 接受 → 退出重选
+   * 4-action matrix (join-claim endpoint):
+   *   Anonymous:  claim existing unclaimed slot | add new nickname
+   *   Logged-in: bind existing slot (user_id) | add new nickname (user_id)
    */
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
-  import { getSession, joinClaim, type SessionDetail } from '$api/sessions';
+  import {
+    getSession,
+    getSessionPreview,
+    joinClaim,
+    type SessionDetail,
+    type SessionMember,
+    type SessionPreview,
+    type SessionPreviewMember
+  } from '$api/sessions';
   import { getInvite, type InvitePublicView } from '$api/invites';
   import { loadUser } from '$stores/user';
 
+  // localStorage key prefix for anonymous acting-as
   const LS_PREFIX = 'sbc.actingAs.';
 
   let loading = $state(true);
-  let error: string | null = $state(null);
+  let error: string | null = null;
   let session: SessionDetail | null = $state(null);
   // v0.3.1 (BUG-LANDING-1): public, no-auth session preview. Populated
   // when getSession() 403s (anon flow) so /join can still render
@@ -34,8 +41,21 @@
   // that the wizard creates).
   let preview: SessionPreview | null = $state(null);
   let invite: InvitePublicView | null = $state(null);
-  let reclaimed = $state(false);   // 7 天外 410
+  let user: { user_id: number; email: string; default_name: string } | null = $state(null);
+
+  /** Combined member list — prefers full session detail, falls back to
+   * public preview. Used by the slots derivations below. */
+  type AnyMember = SessionMember | SessionPreviewMember;
+  function _combinedMembers(): AnyMember[] {
+    const fromDetail: SessionMember[] = session?.members ?? [];
+    const fromPreview: SessionPreviewMember[] = preview?.members ?? [];
+    return (fromDetail.length > 0 ? fromDetail : fromPreview) as AnyMember[];
+  }
+  let members = $derived(_combinedMembers());
+
+  // Join form state
   let newNickname = $state('');
+  let selectedSlotId: number | null = $state(null);
   let busy = $state(false);
 
   let sessionId = $derived(Number(page.params.id) || 0);
@@ -49,87 +69,59 @@
       return;
     }
 
-    // 尝试 localStorage acting-as secret → 验证后直接进 session
+    user = await loadUser();
+
+    // Step 1: try to find an acting-as entry for this session in localStorage
     if (typeof window !== 'undefined') {
       const actingAs = _findActingAs(sessionId);
       if (actingAs) {
+        // Verify the secret with the BE
         try {
           const verified = await getSession(sessionId);
           session = verified;
           await goto('/sessions/' + sessionId, { replaceState: true });
           return;
         } catch {
+          // Secret invalid or expired — clear localStorage and continue
           localStorage.removeItem(actingAs.key);
         }
       }
     }
 
-    // 尝试通过 cookie 认证 (logged-in)
-    try {
-      const verified = await getSession(sessionId);
-      session = verified;
-      await goto('/sessions/' + sessionId, { replaceState: true });
-      return;
-    } catch {
-      // Not a member — fall through to join page
-    }
-
-    // 加载 session preview (anon 也可用)
-    if (!session) {
+    // Step 2: if logged in, check if already a member
+    if (user) {
       try {
-        const res = await fetch('/api/sessions/' + sid + '/preview', {
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-        });
-        if (res.status === 410) {
-          // §3.11.11: 7 天外 session 已回收
-          reclaimed = true;
-          loading = false;
-          return;
-        }
-        if (res.ok) {
-          const p = await res.json() as {
-            id: number;
-            name: string;
-            currencies: string[];
-            primary_currency: string;
-            members: Array<{
-              id: number;
-              user_id: number | null;
-              display_name: string;
-              role: string;
-              claimed_at: string | null;
-            }>;
-          };
-          session = {
-            id: p.id,
-            name: p.name,
-            owner_user_id: null,
-            created_at: '',
-            currencies: p.currencies,
-            primary_currency: p.primary_currency,
-            exchange_rates: [],
-            members: p.members.map((m) => ({
-              id: m.id,
-              user_id: m.user_id,
-              email: null,
-              display_name: m.display_name,
-              role: m.role,
-              joined_at: m.claimed_at ?? '',
-            })),
-          } as SessionDetail;
-        }
+        const verified = await getSession(sessionId);
+        session = verified;
+        // Already a member — redirect to session
+        await goto('/sessions/' + sessionId, { replaceState: true });
+        return;
       } catch {
-        // 网络错误 — 仍显示 join form
+        // Not a member — fall through to join page
       }
     }
 
-    // invite token → 显示 inviter 信息
-    if (inviteToken && !invite) {
+    // Step 3: load public session preview (BUG-LANDING-1)
+    // This is reached only when neither actingAs nor logged-in flow
+    // produced a session (anon creator who clicked "直接开始使用" on
+    // landing). getSession() 403s for anon, so we fall back to the
+    // public /preview endpoint to render the session name + member
+    // slots (including the owner placeholder "我"). If this also
+    // fails (e.g. invalid id) the page just shows the "新增我的昵称"
+    // form without a session name.
+    try {
+      preview = await getSessionPreview(sessionId);
+    } catch {
+      // Preview not available — ignore; invite + add-nickname form still work
+    }
+
+    // Step 4: load session info
+    // If we have the invite token, use the public invite endpoint
+    if (inviteToken) {
       try {
         invite = await getInvite(inviteToken);
       } catch {
-        // ignore
+        // Token invalid — ignore, we'll still show the join form
       }
     }
 
@@ -142,6 +134,7 @@
       if (key && key.startsWith(LS_PREFIX)) {
         const secret = localStorage.getItem(key);
         if (secret) {
+          // key format: sbc.actingAs.{sessionId}
           const parts = key.split('.');
           if (parts.length === 3 && Number(parts[2]) === sid) {
             return { key, secret };
@@ -152,8 +145,7 @@
     return null;
   }
 
-  /** 上半屏: 点已有昵称 → claim slot */
-  async function handleClaim(slotId: number, displayName: string) {
+  async function handleClaim(slotId: number) {
     if (busy) return;
     error = null;
     busy = true;
@@ -162,24 +154,10 @@
       _storeActingAs(res.session_member_id, res.nickname_secret ?? '');
       await goto('/sessions/' + sessionId, { replaceState: true });
     } catch (e: any) {
-      // §3.11.11 decision gamma: anon clicked a logged-in bound slot.
-      // BE returns 403 + {detail: {error: 'requires_login', ...}}.
-      // Bounce to /auth/login with returnTo back to /join + use=<display_name>
-      // so the login page can show "请登录以使用 <昵称>" (PO 2026-07-10 #1 拍对).
-      const errDetail = e?.detail?.detail ?? e?.detail;
-      if (e?.status === 403 && errDetail?.error === 'requires_login') {
-        window.location.assign(
-          '/auth/login?returnTo=' +
-            encodeURIComponent('/sessions/' + sessionId + '/join') +
-            '&use=' + encodeURIComponent(displayName)
-        );
-        return;
-      }
-      // Fallback 409 handler (should not trigger under §3.11.11 decisions beta/gamma).
-      if (e?.status === 409) {
-        error = '该昵称已被其他人抢走了，请选择其他昵称或新建一个';
-      } else if (e?.status === 410) {
-        reclaimed = true;
+      const status = e?.status ?? e?.detail?.status;
+      if (status === 409) {
+        error = '该昵称已被其他人抢走了，请选择其他昵称';
+        selectedSlotId = null;
       } else {
         error = e?.message ?? '认领失败';
       }
@@ -188,7 +166,6 @@
     }
   }
 
-  /** 下半屏: 新建昵称 → add slot */
   async function handleAdd() {
     if (busy) return;
     const nickname = newNickname.trim();
@@ -203,135 +180,169 @@
       _storeActingAs(res.session_member_id, res.nickname_secret ?? '');
       await goto('/sessions/' + sessionId, { replaceState: true });
     } catch (e: any) {
-      const status = e?.status ?? e?.detail?.status;
-      if (status === 410) {
-        reclaimed = true;
-      } else {
-        error = e?.message ?? '加入失败';
-      }
+      error = e?.message ?? '加入失败';
     } finally {
       busy = false;
     }
   }
 
   function _storeActingAs(_memberId: number, secret: string) {
+    // v0.3.1: store under sessionId (not memberId) so session page /
+    // settle / listBills (which all read 'sbc.actingAs.' + sessionId)
+    // can find the secret. memberId-keyed was a v0.3.0 typo.
     if (typeof window !== 'undefined' && sessionId && secret) {
       localStorage.setItem(LS_PREFIX + sessionId, secret);
     }
   }
+
+  // Derive the list of available (unclaimed / unbound) nickname slots.
+  // For anonymous users: show slots with nickname_secret=NULL (unclaimed).
+  // For logged-in users: show all slots (they can bind any).
+  let availableSlots = $derived(members.filter((m: AnyMember) => {
+    if (user) {
+      // Logged-in users see all slots (any can be bound)
+      return true;
+    }
+    // Anonymous users only see unclaimed slots
+    return m.user_id === null;
+  }));
+
+  // Slots that are already claimed/bound (for display only)
+  let takenSlots = $derived(members.filter((m: AnyMember) => {
+    if (user) return false; // Don't grey out for logged-in
+    return m.user_id !== null;
+  }));
 </script>
 
 <section>
   <h2>加入 session</h2>
 
   {#if loading}
-    <p class="muted">正在加载…</p>
-
-  {:else if reclaimed}
-    <!-- §3.11.11 决策 b: 7 天外 session 直接回收 -->
-    <div class="reclaimed-card">
-      <div class="reclaimed-icon" aria-hidden="true">⏱</div>
-      <h3>session 已回收</h3>
-      <p>这个 session 的邀请链接已过期（owner 超过 7 天没有活动）。</p>
-      <p>如果你是 owner，请 <a href="/auth/login?returnTo=/sessions/{sessionId}">登录</a> 后认领并重新激活 session。</p>
-    </div>
-
+    <p>正在加载…</p>
   {:else if error && !session && !invite}
     <div class="error">{error}</div>
-
   {:else}
-    <!-- Session 名称显示 -->
     {#if invite}
       <p class="muted">
         来自 <strong>{invite.inviter_display_name}</strong> 的 session:
         <strong>{invite.session_name}</strong>
       </p>
     {:else if session}
-      <p class="muted">Session: <strong>{session.name}</strong></p>
+      <p class="muted">
+        Session: <strong>{session.name}</strong>
+      </p>
+    {:else if preview}
+      <p class="muted">
+        Session: <strong>{preview.name}</strong>
+      </p>
     {/if}
 
     {#if error}
       <div class="error" style="margin-bottom: 1rem;">{error}</div>
     {/if}
 
-    <!-- ============================================================
-         单屏 wizard (SPEC §5 + PRD §3.11.11 决策 2)
-         ============================================================ -->
-    <div class="wizard">
-      <!-- 上半屏: 选你的昵称 — 所有已认领 slot buttons -->
-      <div class="wizard-section">
-        <p class="wizard-label">选你的昵称</p>
-        {#if session?.members?.length}
-          <div class="slot-list">
-            {#each session.members as m (m.id)}
-              <button
-                class="slot-btn"
-                onclick={() => handleClaim(m.id, m.display_name)}
-                disabled={busy}
-                title="点击加入这个昵称"
-              >
-                {m.display_name}
-              </button>
-            {/each}
+    {#if user}
+      <!-- Logged-in user -->
+      <p>登录身份: <strong>{user.email}</strong></p>
+
+      <div class="stack" style="max-width: 480px;">
+        {#if availableSlots.length > 0}
+          <div>
+            <p class="label">选择已有昵称（绑定到你的账号）</p>
+            <div class="slot-list">
+              {#each availableSlots as slot (slot.id)}
+                <button
+                  class="slot-btn"
+                  onclick={() => handleClaim(slot.id)}
+                  disabled={busy}
+                >
+                  {slot.display_name}
+                </button>
+              {/each}
+            </div>
           </div>
-        {:else}
-          <p class="muted small">还没有昵称，直接新建一个吧</p>
         {/if}
-      </div>
 
-      <hr class="wizard-sep" />
-
-      <!-- 下半屏: 新建昵称 -->
-      <div class="wizard-section">
-        <p class="wizard-label">或新建昵称</p>
-        <div class="row gap">
-          <input
-            type="text"
-            placeholder="输入你想用的昵称"
-            bind:value={newNickname}
-            maxlength="50"
-            onkeydown={(e) => e.key === 'Enter' && handleAdd()}
-          />
-          <button class="primary" onclick={handleAdd} disabled={busy}>
-            {busy ? '加入中…' : '加入'}
-          </button>
+        <div>
+          <p class="label">或者新增一个昵称</p>
+          <div class="row gap">
+            <input
+              type="text"
+              placeholder="你的昵称"
+              bind:value={newNickname}
+              maxlength="50"
+              onkeydown={(e) => e.key === 'Enter' && handleAdd()}
+            />
+            <button class="primary" onclick={handleAdd} disabled={busy}>
+              {busy ? '加入中…' : '加入'}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    {:else}
+      <!-- Anonymous user -->
+      <div class="stack" style="max-width: 480px;">
+        {#if availableSlots.length > 0}
+          <div>
+            <p class="label">选择已有昵称（先到先得）</p>
+            <div class="slot-list">
+              {#each availableSlots as slot (slot.id)}
+                <button
+                  class="slot-btn"
+                  onclick={() => handleClaim(slot.id)}
+                  disabled={busy}
+                >
+                  {slot.display_name}
+                </button>
+              {/each}
+            </div>
+          </div>
+        {/if}
 
-    <p class="muted small tip">
-      点错昵称也没关系，进入后可以退出重选
-    </p>
+        {#if takenSlots.length > 0}
+          <div>
+            <p class="label muted">已被认领的昵称</p>
+            <div class="slot-list">
+              {#each takenSlots as slot (slot.id)}
+                <span class="slot-btn disabled">
+                  {slot.display_name}
+                  {#if (slot as SessionMember).email}
+                    <span class="muted">（已被 {(slot as SessionMember).email} 绑定）</span>
+                  {/if}
+                </span>
+              {/each}
+            </div>
+          </div>
+        {/if}
+
+        <hr />
+
+        <div>
+          <p class="label">新建一个角色（昵称）</p>
+          <div class="row gap">
+            <input
+              type="text"
+              placeholder="你想叫什么名字？"
+              bind:value={newNickname}
+              maxlength="50"
+              onkeydown={(e) => e.key === 'Enter' && handleAdd()}
+            />
+            <button class="primary" onclick={handleAdd} disabled={busy}>
+              {busy ? '加入中…' : '加入'}
+            </button>
+          </div>
+        </div>
+      </div>
+    {/if}
   {/if}
 </section>
 
 <style>
-  .wizard {
-    background: var(--gray-50, #f9fafb);
-    border: 1px solid var(--gray-200, #e5e7eb);
-    border-radius: var(--radius-lg, 12px);
-    padding: var(--space-4, 1.5rem);
-    max-width: 540px;
-    margin-top: var(--space-3, 1rem);
-  }
-  .wizard-section {
-    padding: var(--space-2, 0.5rem) 0;
-  }
-  .wizard-label {
-    font-weight: 600;
-    font-size: 0.9rem;
-    color: var(--gray-700, #374151);
-    margin: 0 0 0.75rem 0;
-  }
-  .wizard-sep {
-    border: none;
-    border-top: 1px solid var(--gray-200, #e5e7eb);
-    margin: var(--space-3, 1rem) 0;
-  }
   .slot-list {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
+    margin-top: 0.5rem;
   }
   .slot-btn {
     display: inline-flex;
@@ -344,48 +355,30 @@
     color: #4f46e5;
     cursor: pointer;
     font-size: 0.9rem;
-    transition: background 0.15s, border-color 0.15s;
+    transition: background 0.15s;
   }
   .slot-btn:hover:not(:disabled) {
     background: rgba(99, 102, 241, 0.1);
-    border-color: rgba(99, 102, 241, 0.5);
   }
   .slot-btn:disabled {
     cursor: not-allowed;
     opacity: 0.6;
+  }
+  .slot-btn.disabled {
+    background: rgba(0, 0, 0, 0.03);
+    border-color: rgba(0, 0, 0, 0.1);
+    color: var(--color-text-muted);
+    cursor: default;
   }
   .gap {
     gap: 0.5rem;
   }
   .row {
     display: flex;
-    flex-wrap: wrap;
   }
-  .tip {
-    margin-top: var(--space-3, 1rem);
-    font-size: 0.8rem;
-  }
-  /* 7 天外回收卡片 */
-  .reclaimed-card {
-    background: var(--gray-50, #f9fafb);
-    border: 1px solid var(--gray-200, #e5e7eb);
-    border-radius: var(--radius-lg, 12px);
-    padding: var(--space-6, 2.5rem);
-    text-align: center;
-    max-width: 480px;
-    margin-top: var(--space-3, 1rem);
-  }
-  .reclaimed-icon {
-    font-size: 3rem;
-    margin-bottom: 1rem;
-  }
-  .reclaimed-card h3 {
-    margin: 0 0 0.75rem 0;
-    color: var(--gray-800, #1f2937);
-  }
-  .reclaimed-card p {
-    color: var(--gray-600, #4b5563);
-    margin: 0.5rem 0;
-    font-size: 0.9rem;
+  hr {
+    border: none;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+    margin: 1rem 0;
   }
 </style>
