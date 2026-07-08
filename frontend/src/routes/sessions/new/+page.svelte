@@ -157,7 +157,7 @@
       {#if step === 1}第一步{/if}
       {#if step === 2}第二步{/if}
       {#if step === 3 && showCurrencyStep}第三步{/if}
-      {#if step === 4}第{showCurrencyStep ? '四' : '三'}步{/if}
+      {#if step === 3}第三步{/if}
     </p>
     {#if error}
       <div class="error-banner">{error}</div>
@@ -208,20 +208,11 @@
     {/if}
 
     {#if step === 3 && showCurrencyStep}
-      <!-- §3.11.10: reserved blank step for logged-in flow -->
+      <!-- PO 14:01: 撤 reserved blank "准备选择币种" step. step 3 直接是币种选择 (原 step 4 内容). -->
       <div class="step-panel">
-        <div style="text-align:center; padding: 3rem 0;">
-          <p class="step-hint">准备选择币种…</p>
-        </div>
-        <div class="step-nav">
-          <button class="btn-back" onclick={() => (step = 2)}>上一步</button>
-          <button class="btn-next" onclick={goNext}>下一步</button>
-        </div>
-      </div>
-    {/if}
 
-    {#if step === 4}
-      <div class="step-panel">
+    {#if step === 3}
+      <div class="step-panel">  {/* fallback: if legacy step=4 still set (shouldn't happen after b98f6a1), keep showing currency */}
         <h2 class="step-title">使用什么币种？</h2>
         <p class="step-hint">选择单币种或双币种结算</p>
 
@@ -241,7 +232,7 @@
         <div class="currency-section">
           <label class="currency-label">主币种（必选）</label>
           <div class="currency-pills">
-            {#each ["CNY", "USD", "EUR", "GBP", "JPY", "THB"] as ccy}
+            {#each ["CNY", "USD", "EUR", "JPY", "THB"] as ccy}
               <button type="button" class="currency-pill" class:active={primaryCurrency === ccy}
                 onclick={() => {
                   // 主币种切换 → 清空副币种 + 汇率 (币种对换了 rate 没意义).
@@ -260,7 +251,7 @@
           <div class="currency-section">
             <label class="currency-label">副币种（必选）</label>
             <div class="currency-pills">
-              {#each ["CNY", "USD", "EUR", "GBP", "JPY", "THB"] as ccy}
+              {#each ["CNY", "USD", "EUR", "JPY", "THB"] as ccy}
                 {#if ccy !== primaryCurrency}
                   <button type="button" class="currency-pill" class:active={secondaryCurrency === ccy}
                     onclick={() => secondaryCurrency = ccy}>

@@ -44,7 +44,7 @@
   // v0.3.x (PRD §3.11.3): 「登录以保存」详情页 CTA 组件 + claimSession API helper.
   import ClaimLoginCta from '$components/ClaimLoginCta.svelte';
   import { getSessionWithSecret, claimSession } from '$api/sessions';
-  import { user, logout as apiLogout } from '$stores/user';
+  import { user, logout as apiLogout, loadUser } from '$stores/user';
   import { toast } from '$stores/toast';
 
   // v0.1.4 round 2: 一旦用了 $state runes, 整个组件就进入 runes mode,
@@ -122,25 +122,9 @@
   // §3.11 收尾 (PO 11:38 拍板): 详情页 header 显示 owner info.
   // 位置: 详情页顶部 (在 banner 之外, 在 session 标题之后).
   // 登录态 + owner: nickname + email + 退出登录 button.
-  // PO 13:10 修正: 详情页 header **只** 1 按钮, 动态切文字. nickname + email
-  // 在 member list 每行 (Bug 3 fix c979518) 显示, 不在 header 重复.
-  // 撤 Z 任务 (1329aa5) 加的 ownerNickname / ownerEmail / ownerHeaderVisible
-  // 3 个 derived 块, 以及 owner-info DOM 块. 保留 handleOwnerHeaderLogout
-  // 给新 "退出登录" button 用.
-  // 防止双点击 — 用独立状态避免跟 page-level busy 冲突.
-  let ownerHeaderLoggingOut = $state(false);
-
-  async function handleOwnerHeaderLogout() {
-    if (ownerHeaderLoggingOut) return;
-    ownerHeaderLoggingOut = true;
-    try {
-      await apiLogout();
-    } catch {
-      // ignore — cookie clearing is the goal regardless
-    }
-    ownerHeaderLoggingOut = false;
-    await goto('/');
-  }
+  // PO 14:01 重申: 详情页 header 完全**不**要 login/logout/登录以保存 按钮.
+  // 全部用 banner 那个. 这里**只**留 "查看结算" 链接. 撤 handleOwnerHeaderLogout
+  // + ownerHeaderLoggingOut (之前 commit b98f6a1 加的 logout button 用).
 
   /** v0.2.1 T05: bills 列表按 description 模糊 filter (大小写不敏感)。 */
   let filteredBills = $derived(
@@ -159,6 +143,12 @@
   const membersStorageKey = (sid: number) => `sbc.membersOpen.${sid}`;
 
   onMount(async () => {
+    // Bug fix (PO 14:01 报 "登录态 email 这里还是没有正常显示"):
+    // detail page 之前**不**调 loadUser, $user store 永远 null, member list fallback
+    // (m.user_id === $user.user_id 显 $user.email) 永远 false → owner "me" 行没 email.
+    // loadUser() 调 /api/auth/me 拿 user_id + email + default_name.
+    await loadUser();
+
     // 还原 localStorage 折叠偏好
     try {
       const raw = localStorage.getItem(membersStorageKey(sessionId));
@@ -457,20 +447,8 @@
 
 
       <div class="session-header-actions">
-        <!-- PO 13:10: header **只** 1 按钮, 动态切文字. 3 状态共用一个 slot.
-             nickname + email 在 member list 每行 (Bug 3 fix c979518), 不**重**复.
-             非 owner 登录态不显 (banner 已有退出). -->
-        {#if !$user}
-          <ClaimLoginCta sessionId={session.id} ownerUserId={session.owner_user_id} />
-        {:else if isOwner}
-          <button
-            type="button"
-            class="btn"
-            onclick={handleOwnerHeaderLogout}
-            disabled={ownerHeaderLoggingOut}
-            aria-label="退出登录"
-          >{ownerHeaderLoggingOut ? '退出中…' : '退出登录'}</button>
-        {/if}
+        <!-- PO 14:01 重申: header 完全**不**要任何 login/logout/登录以保存 按钮.
+             全部用页面最上方的 banner 那个就行. 这里只留 "查看结算" 链接. -->
         <a class="btn ghost" href="/sessions/{session.id}/settle">查看结算</a>
       </div>
     </div>
