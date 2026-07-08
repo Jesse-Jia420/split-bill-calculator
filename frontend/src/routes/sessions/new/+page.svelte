@@ -17,6 +17,10 @@
   let currencyMode: "single" | "dual" = "single";
   let primaryCurrency = "CNY";
   let secondaryCurrency = "";
+  // §3.11 收尾 (PO 11:38 拍板): dual mode 必填汇率.
+  // BE v0.2.1 (currencies=2 时 exchange_rates 必填, 否则 422).
+  // 用 string 输入框, 提交时 parseFloat. 允许中间空白态.
+  let exchangeRate: string = "";
 
   $: showCurrencyStep = $user !== null;
 
@@ -35,9 +39,13 @@
 
   $: nicknamesValid = nicknames.every((n) => n.trim().length > 0);
 
+  $: exchangeRateValid =
+    currencyMode === "single" || parseFloat(exchangeRate) > 0;
+
   $: currencyValid =
     primaryCurrency.length > 0 &&
-    (currencyMode === "single" || secondaryCurrency.length > 0);
+    (currencyMode === "single" ||
+      (secondaryCurrency.length > 0 && parseFloat(exchangeRate) > 0));
 
   function adjustCount(delta: number) {
     const next = memberCount + delta;
@@ -69,6 +77,18 @@
         ? [primaryCurrency]
         : [primaryCurrency, secondaryCurrency];
 
+      // §3.11 dual mode 必传 exchange_rates (BE v0.2.1 model_validator).
+      // primary → secondary 单向即可, BE 会自动补 reciprocal.
+      const exchangeRates = showCurrencyStep && currencyMode === "dual"
+        ? [
+            {
+              from_currency: primaryCurrency,
+              to_currency: secondaryCurrency,
+              rate: parseFloat(exchangeRate),
+            },
+          ]
+        : [];
+
       const createRes = await fetch("/api/sessions", {
         method: "POST",
         credentials: "include",
@@ -78,6 +98,7 @@
           member_nicknames: nicknames.map((n) => n.trim()),
           currencies,
           primary_currency: primaryCurrency,
+          exchange_rates: exchangeRates,
         }),
       });
       if (!createRes.ok) {
@@ -202,7 +223,7 @@
         <!-- 模式切换：单币 vs 双币 -->
         <div class="currency-mode-row" role="radiogroup" aria-label="币种模式">
           <button type="button" class="mode-pill" class:active={currencyMode === 'single'}
-            onclick={() => { currencyMode = 'single'; secondaryCurrency = ''; }}>
+            onclick={() => { currencyMode = 'single'; secondaryCurrency = ''; exchangeRate = ''; }}>
             单一币种
           </button>
           <button type="button" class="mode-pill" class:active={currencyMode === 'dual'}
@@ -217,7 +238,12 @@
           <div class="currency-pills">
             {#each ["CNY", "USD", "EUR", "GBP", "JPY", "THB"] as ccy}
               <button type="button" class="currency-pill" class:active={primaryCurrency === ccy}
-                onclick={() => { primaryCurrency = ccy; if (currencyMode === 'single') secondaryCurrency = ''; }}>
+                onclick={() => {
+                  // 主币种切换 → 清空副币种 + 汇率 (币种对换了 rate 没意义).
+                  primaryCurrency = ccy;
+                  secondaryCurrency = '';
+                  exchangeRate = '';
+                }}>
                 {ccy}
               </button>
             {/each}
@@ -238,6 +264,33 @@
                 {/if}
               {/each}
             </div>
+          </div>
+
+          <!-- §3.11 收尾 (PO 11:38 拍板): dual mode 必填汇率.
+               BE v0.2.1: currencies=2 时 exchange_rates 必填, 否则 422.
+               主币种切换时已清空, 副币种切换时**不**清 (用户可能想换币种再改 rate, 简化 UX). -->
+          <div class="currency-section">
+            <label class="currency-label" for="exchange-rate-input">
+              汇率 (1 {primaryCurrency} = ? {secondaryCurrency || '副币种'})
+            </label>
+            <input
+              id="exchange-rate-input"
+              type="number"
+              step="any"
+              min="0"
+              bind:value={exchangeRate}
+              placeholder="例如 0.14"
+              class="exchange-rate-input"
+            />
+            <p class="exchange-rate-hint">
+              {#if !secondaryCurrency}
+                请先选副币种
+              {:else if !exchangeRate || parseFloat(exchangeRate) <= 0}
+                请输入大于 0 的汇率
+              {:else}
+                1 {primaryCurrency} = {parseFloat(exchangeRate).toFixed(4)} {secondaryCurrency}
+              {/if}
+            </p>
           </div>
         {/if}
 
@@ -302,4 +355,10 @@
   .currency-pill { padding: 0.5rem 1rem; border: 2px solid #e5e5e5; border-radius: 9999px; background: #fff; color: #525252; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: border-color 0.15s, background 0.15s, color 0.15s; }
   .currency-pill:hover { border-color: #3b82f6; color: #3b82f6; }
   .currency-pill.active { border-color: #3b82f6; background: #3b82f6; color: #fff; font-weight: 600; }
+
+  /* §3.11 收尾: dual mode 汇率 input 样式 */
+  .exchange-rate-input { width: 100%; padding: 0.75rem 1rem; border: 2px solid #e5e5e5; border-radius: 0.75rem; font-size: 1rem; background: #fff; transition: border-color 0.15s; box-sizing: border-box; }
+  .exchange-rate-input:focus { outline: none; border-color: #3b82f6; }
+  .exchange-rate-input::placeholder { color: #a3a3a3; }
+  .exchange-rate-hint { font-size: 0.8125rem; color: #737373; margin: 0.5rem 0 0; min-height: 1.2em; }
 </style>
