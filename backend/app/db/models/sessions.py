@@ -37,6 +37,13 @@ class Session(Base):  # noqa: F811 — intentional re-export as BillSession in m
     owner_user_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
     )
+    # v0.3.x (PRD §3.11): verified email of the owner; NULL until the
+    # anonymous creator hits POST /sessions/{id}/claim (the
+    # "🔐 登录以保存" button on the detail page). Mirrors the users.email
+    # column width (255) since they are semantically the same value.
+    # No index -- the claim endpoint looks up by sessions.id, never scans
+    # this column (PRD §3.11.2 + §3.11.8).
+    owner_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

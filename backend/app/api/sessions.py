@@ -70,7 +70,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Request, Response, status
 from pydantic import BaseModel, Field, field_validator, model_validator
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user, get_optional_user
@@ -265,6 +265,10 @@ class SessionSummary(BaseModel):
     name: str
     # v0.3 (PRD §3.10): nullable for anonymous session creation.
     owner_user_id: int | None
+    # v0.3.x (PRD §3.11): mirrors owner_user_id; NULL until the anonymous
+    # creator hits POST /sessions/{id}/claim via the
+    # "🔐 登录以保存" button.
+    owner_email: str | None = None
     role: str
     member_count: int | None = None  # only populated for list responses
     created_at: str
@@ -295,6 +299,8 @@ class SessionDetail(BaseModel):
     name: str
     # v0.3 (PRD §3.10): nullable for anonymous session.
     owner_user_id: int | None
+    # v0.3.x (PRD §3.11): see owner_email in SessionSummary.
+    owner_email: str | None = None
     members: list[SessionMemberOut]
     created_at: str
     # v0.1.1: owner-only token preview. Frontend prefers the dedicated
@@ -362,6 +368,7 @@ def _summary_dict(
         "id": session.id,
         "name": session.name,
         "owner_user_id": session.owner_user_id,
+        "owner_email": session.owner_email,
         "role": role,
         "member_count": member_count,
         "created_at": _iso(session.created_at),
@@ -452,10 +459,13 @@ async def create_session(
     now = datetime.now(timezone.utc)
     invite_token = secrets.token_urlsafe(32)
 
-    # v0.3: owner_user_id is nullable. Anonymous creator → NULL.
+    # v0.3 (PRD §3.10) + v0.3.x (PRD §3.11): anonymous creator leaves
+    # both owner_user_id and owner_email NULL. Logged-in creator gets
+    # both fields bound atomically here -- no further claim needed.
     session = SessionModel(
         name=name,
         owner_user_id=user.id if user else None,
+        owner_email=user.email if user else None,
         invite_token=invite_token,
         invite_expires_at=now + timedelta(days=settings.invite_ttl_days),
         invite_created_at=now,
@@ -666,6 +676,10 @@ async def get_session_by_code(
         "session_code": session.session_code or "",
         "name": session.name,
         "owner_user_id": session.owner_user_id,
+        # v0.3.x (PRD §3.11): persist owner email so the FE can render
+        # the "🔐 登录以保存" CTA conditionally on session.owner_user_id
+        # being NULL. Mirrors SessionSummary / SessionDetail.
+        "owner_email": session.owner_email,
         "members": [
             {
                 "id": sm_row.id,
@@ -763,6 +777,10 @@ async def get_session(
         "session_code": session.session_code or "",
         "name": session.name,
         "owner_user_id": session.owner_user_id,
+        # v0.3.x (PRD §3.11): persist owner email so the FE can render
+        # the "🔐 登录以保存" CTA conditionally on session.owner_user_id
+        # being NULL. Mirrors SessionSummary / SessionDetail.
+        "owner_email": session.owner_email,
         "members": [_member_dict(sm_row, u) for sm_row, u in members],
 
         "created_at": _iso(session.created_at),
@@ -787,6 +805,151 @@ async def get_session(
     # sm.id is the SessionMember row PK from get_session_member_or_secret.
     response.headers["X-SBC-Member-ID"] = str(sm.id)
 
+    return payload
+
+
+# ---------------------------------------------------------------------------
+# POST /sessions/{id}/claim (v0.3.x — PRD §3.11)
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/{session_id}/claim",
+    response_model=SessionDetail,
+)
+async def claim_session(
+    session_id: int,
+    request: Request,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    """v0.3.x (PRD §3.11): bind the current user as the session owner.
+
+    Sole entry point for owner claim. Triggered by the FE onMount of
+    /sessions/{id} when the URL carries ``?claim=1`` -- the user
+    originally hit the "🔐 登录以保存" CTA on the anon-owned session
+    detail page, went through /auth/login?returnTo=...&claim=1, and
+    is now back with a fresh sbc_session cookie.
+
+    Guards (PRD §3.11.5):
+      * Must be authenticated (401 otherwise, via get_current_user).
+      * Session must exist (404).
+      * session.owner_user_id must still be NULL (409) -- prevents
+        racing with another user who claimed first.
+      * session.owner_email must still be NULL (409) -- belt-and-braces
+        to owner_user_id (they are always set together, but checking
+        both catches any future drift).
+
+    Success: atomically sets owner_user_id AND owner_email on the
+    sessions row and returns the full SessionDetail so the FE can
+    refresh its local state and re-render without the
+    "🔐 登录以保存" CTA.
+
+    Not invoked from any other path: verify-code, dashboard, session
+    list, etc. all leave owner_email alone (PRD §3.11.8).
+    """
+    _ = request  # kept for parity with other endpoints that use Request directly
+    session = db.query(SessionModel).filter_by(id=session_id).first()
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "session not found"},
+        )
+    if session.owner_user_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"error": "session already claimed"},
+        )
+    if session.owner_email is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"error": "session owner_email already set"},
+        )
+
+    # Atomic UPDATE with the same guard in the WHERE so two concurrent
+    # claimants cannot both succeed even if both pass the read-side
+    # check above. SQLite serialises writes; we also add the explicit
+    # owner_user_id IS NULL guard for clarity.
+    db.execute(
+        update(SessionModel)
+        .where(SessionModel.id == session_id, SessionModel.owner_user_id.is_(None))
+        .values(owner_user_id=user.id, owner_email=user.email)
+    )
+    db.commit()
+    db.refresh(session)
+
+    # Build the same inline payload as get_session (see comment there)
+    # so the FE can drop the response into its existing session state
+    # without a second round-trip. The claimer is the new owner; the
+    # SessionMember row was created back in the wizard / join-claim
+    # flow, so we can derive their member_id from the (user_id,
+    # session_id) binding. If the claimer never bound a nickname
+    # (e.g. creator who skipped §3.10.5), we fall back to the
+    # session's first owner-role row (typically None -- caller is
+    # the first owner member).
+    from app.db.models.session_members import SessionMember as _SM
+    sm = (
+        db.query(_SM)
+        .filter(_SM.session_id == session.id, _SM.user_id == user.id)
+        .first()
+    )
+    if sm is None:
+        # No nickname binding yet -- synthesise a minimal SessionMember
+        # payload so the response shape stays consistent. The FE's
+        # currentMember derivation will fall back to "no row" UI.
+        members = (
+            db.query(SessionMember, User)
+            .outerjoin(User, User.id == SessionMember.user_id)
+            .filter(SessionMember.session_id == session.id)
+            .order_by(SessionMember.joined_at.asc())
+            .all()
+        )
+        acting_member_id: int | None = None
+    else:
+        members = (
+            db.query(SessionMember, User)
+            .outerjoin(User, User.id == SessionMember.user_id)
+            .filter(SessionMember.session_id == session.id)
+            .order_by(SessionMember.joined_at.asc())
+            .all()
+        )
+        acting_member_id = sm.id
+
+    last_bill_participants = _compute_last_bill_participants(db, session.id)
+    rates = (
+        db.query(SessionExchangeRate)
+        .filter(SessionExchangeRate.session_id == session.id)
+        .order_by(
+            SessionExchangeRate.from_currency.asc(),
+            SessionExchangeRate.to_currency.asc(),
+        )
+        .all()
+    )
+
+    payload: dict = {
+        "id": session.id,
+        "session_code": session.session_code or "",
+        "name": session.name,
+        "owner_user_id": session.owner_user_id,
+        "owner_email": session.owner_email,
+        "members": [
+            {
+                "id": sm_row.id,
+                "user_id": sm_row.user_id,
+                "email": u.email if u else None,
+                "display_name": sm_row.display_name,
+                "role": sm_row.role,
+                "joined_at": _iso(sm_row.joined_at),
+            }
+            for sm_row, u in members
+        ],
+        "created_at": _iso(session.created_at),
+        "invite_token_preview": session.invite_token,
+        "invite_expires_at": _iso(session.invite_expires_at),
+        "last_bill_participants": last_bill_participants,
+        "currencies": list(session.currencies or ["CNY"]),
+        "primary_currency": session.primary_currency or "CNY",
+        "exchange_rates": [_exchange_rate_dict(r) for r in rates],
+    }
     return payload
 
 
