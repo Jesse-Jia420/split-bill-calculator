@@ -419,6 +419,36 @@ def _classify_invite_status(session: SessionModel) -> str:
     return "active"
 
 
+def _check_session_activity_window(
+    session: SessionModel,
+) -> None:
+    """§3.11.11 7-day activity window check.
+
+    Raises HTTPException 410 if the session's last_active_at is more than
+    ``settings.session_activity_ttl_days`` (default 7) in the past.
+    This is independent from invite token TTL — the invite link can still
+    be valid per ``invite_expires_at`` while the session itself has been
+    reclaimed due to owner inactivity (PRD §3.11.11 decision α).
+    """
+    if session.last_active_at is None:
+        # Defensive: treat missing value as active (new sessions).
+        return
+    last_active = session.last_active_at
+    if last_active.tzinfo is None:
+        last_active = last_active.replace(tzinfo=timezone.utc)
+    cutoff = datetime.now(timezone.utc) - timedelta(
+        days=settings.session_activity_ttl_days
+    )
+    if last_active < cutoff:
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail={
+                "error": "session expired, owner not active for 7 days",
+                "code": "session_reclaimed",
+            },
+        )
+
+
 # ---------------------------------------------------------------------------
 # POST /sessions
 # ---------------------------------------------------------------------------
@@ -472,6 +502,8 @@ async def create_session(
         currencies=list(payload.currencies),
         primary_currency=payload.primary_currency,
         session_code=_generate_session_code(),
+        # §3.11.11: initialise activity clock at session creation.
+        last_active_at=now,
     )
     db.add(session)
     db.flush()  # populate session.id
@@ -633,6 +665,9 @@ async def get_session_by_code(
     if session is None:
         raise HTTPException(status_code=404, detail={"error": "session not found"})
 
+    # §3.11.11: 7-day activity window check.
+    _check_session_activity_window(session)
+
     from app.db.models.session_members import SessionMember as SessionMemberModel
     from app.db.models.users import User as UserModel
     sm = None
@@ -731,6 +766,9 @@ async def get_session_preview_public(
     if session is None:
         raise HTTPException(status_code=404, detail={"error": "session not found"})
 
+    # §3.11.11: 7-day activity window check (410 Gone when reclaimed).
+    _check_session_activity_window(session)
+
     from app.db.models.session_members import SessionMember as SessionMemberModel
     members = db.execute(
         select(SessionMemberModel)
@@ -790,6 +828,9 @@ async def get_session(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": "session not found"},
         )
+
+    # §3.11.11: 7-day activity window check (410 Gone when reclaimed).
+    _check_session_activity_window(session)
 
     # v0.3 (PRD §3.10): use LEFT JOIN so anonymous members (user_id=NULL)
     # are included. Anonymous members have no user row, so u.email is None.
@@ -921,10 +962,13 @@ async def claim_session(
     # claimants cannot both succeed even if both pass the read-side
     # check above. SQLite serialises writes; we also add the explicit
     # owner_user_id IS NULL guard for clarity.
+    # §3.11.11: also bump last_active_at so owner claiming resets the
+    # 7-day clock (owner proving they're still active).
+    now = datetime.now(timezone.utc)
     db.execute(
         update(SessionModel)
         .where(SessionModel.id == session_id, SessionModel.owner_user_id.is_(None))
-        .values(owner_user_id=user.id, owner_email=user.email)
+        .values(owner_user_id=user.id, owner_email=user.email, last_active_at=now)
     )
     db.commit()
     db.refresh(session)
@@ -1131,6 +1175,9 @@ async def join_claim_session(
             detail={"error": "session not found"},
         )
 
+    # §3.11.11: 7-day activity window check.
+    _check_session_activity_window(session)
+
     now = datetime.now(timezone.utc)
 
     if payload.action == "claim":
@@ -1150,6 +1197,8 @@ async def join_claim_session(
             # Logged-in: bind user_id to this nickname slot.
             sm.user_id = user.id
             sm.is_anon = False
+            # §3.11.11: bump owner activity clock on every join/claim.
+            session.last_active_at = now
             db.commit()
             db.refresh(sm)
             return {
@@ -1171,6 +1220,8 @@ async def join_claim_session(
             sm.nickname_secret = new_secret
             sm.claimed_at = now
             sm.is_anon = True
+            # §3.11.11: bump owner activity clock on every join/claim.
+            session.last_active_at = now
             db.commit()
             db.refresh(sm)
             return {
@@ -1201,6 +1252,8 @@ async def join_claim_session(
                 claimed_at=now,
             )
             db.add(sm)
+            # §3.11.11: bump owner activity clock on every join/claim.
+            session.last_active_at = now
             db.commit()
             db.refresh(sm)
             return {
@@ -1224,6 +1277,8 @@ async def join_claim_session(
                 claimed_at=now,
             )
             db.add(sm)
+            # §3.11.11: bump owner activity clock on every join/claim.
+            session.last_active_at = now
             db.commit()
             db.refresh(sm)
             return {

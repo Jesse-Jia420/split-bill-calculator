@@ -68,6 +68,23 @@ class Session(Base):  # noqa: F811 — intentional re-export as BillSession in m
     )
     # ------------------------------------------------------------------------
 
+    # ---- v0.3.x §3.11.11: 7-day active window (PRD §3.11.11 + SPEC §3) --
+    # ``last_active_at`` is set at session create (server default now())
+    # and bumped whenever the owner performs a join-claim / claim / etc.
+    # The 7-day TTL on the invite link is measured from this column — NOT
+    # from invite_expires_at (which is unrelated to activity). When the
+    # delta exceeds 7 days the session is reclaimed (GET endpoints 410).
+    last_active_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    # ``expired_notice_sent_at`` is NULL until the (deferred) 2-day-prior
+    # cron sets it. Today the cron is out of scope (SPEC §6), but the
+    # column is created now so a future migration needs no backfill.
+    expired_notice_sent_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # ------------------------------------------------------------------------
+
     # ---- v0.3.1: public-facing unguessable session code (Bug & Issues #5).
     # 10-char URL-safe alphabet (no 0/O/1/l/I confusion); ~10^15 space.
     # Exposed in the SessionDetail response so the FE can build invite

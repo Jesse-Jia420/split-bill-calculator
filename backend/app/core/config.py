@@ -65,6 +65,15 @@ class Settings(BaseSettings):
     # Controlled via env INVITE_TTL_DAYS.
     invite_ttl_days: int = Field(default=30)
 
+    # --- v0.3.x §3.11.11 (PRD §3.11.11) ---
+    # 7-day active window measured from session.last_active_at. When the
+    # delta exceeds this, the session is reclaimed (GET endpoints 410).
+    # This is intentionally independent from invite_ttl_days — the invite
+    # link is still valid for invite_ttl_days after rotation, but the
+    # *ability to enter the session* via that link is bound by this
+    # activity window.
+    session_activity_ttl_days: int = Field(default=7)
+
     # --- AI parse (T11) ---
     # MiniMax API key for POST /sessions/{id}/bills/parse.
     # v0.1 simplification: read directly from env MINIMAX_API_KEY.
