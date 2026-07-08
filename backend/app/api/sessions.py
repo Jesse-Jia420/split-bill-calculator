@@ -706,6 +706,58 @@ async def get_session_by_code(
     return payload
 
 
+@router.get("/{session_id}/preview", response_model=dict)
+async def get_session_preview_public(
+    session_id: int,
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    """v0.3.x (PO 12:45 Bug 2 fix): public no-auth session preview.
+
+    Returns minimum session metadata + member list needed by the
+    /join page for anon visitors who don't yet have a cookie or
+    X-Nickname-Secret. Used so anon creators / invitees can see the
+    nickname slots in the session before deciding to login / claim.
+
+    Public fields only: name, currencies, primary_currency, members
+    (id, display_name, role, user_id (NULL=anon), claimed_at).
+    NO owner_user_id, owner_email, invite_token, invite_url, X-Nickname-Secret.
+
+    200: lightweight payload
+    404: session not found
+    """
+    session = db.execute(
+        select(SessionModel).where(SessionModel.id == session_id)
+    ).scalar_one_or_none()
+    if session is None:
+        raise HTTPException(status_code=404, detail={"error": "session not found"})
+
+    from app.db.models.session_members import SessionMember as SessionMemberModel
+    members = db.execute(
+        select(SessionMemberModel)
+        .where(SessionMemberModel.session_id == session.id)
+        .order_by(SessionMemberModel.joined_at.asc())
+    ).scalars().all()
+
+    return {
+        "id": session.id,
+        "name": session.name,
+        "session_code": session.session_code or "",
+        "currencies": list(session.currencies or ["CNY"]),
+        "primary_currency": session.primary_currency or "CNY",
+        "members": [
+            {
+                "id": m.id,
+                "display_name": m.display_name,
+                "role": m.role,
+                "user_id": m.user_id,
+                "is_anon": m.user_id is None,
+                "claimed_at": _iso(m.joined_at),
+            }
+            for m in members
+        ],
+    }
+
+
 @router.get("/{session_id}", response_model=SessionDetail)
 async def get_session(
     response: Response,
