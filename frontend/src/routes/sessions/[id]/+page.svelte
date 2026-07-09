@@ -496,7 +496,7 @@
                       <!-- Bug fix (PO 12:51 报): 普通 member 详情页看不到自己 email.
                            BE 端同伴 slot claim 没 push user.email 到 SessionMember.email,
                            但 $user store 已有 email. 如果 member 是当前 user, fallback 显示 $user.email. -->
-                      <span class="member-email muted" data-testid="member-email-fallback">{$user.email ?? '(null)'}</span>
+                      <span class="member-email muted">{$user.email}</span>
                     {/if}
                   </div>
                 </div>
