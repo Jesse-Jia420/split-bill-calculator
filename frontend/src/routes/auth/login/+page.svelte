@@ -139,18 +139,30 @@
    * inside the session via the localStorage secret.
    */
   async function tryBindActingMember() {
-    if (!returnTo) return;
+    console.log('[§3.11.14 DEBUG] tryBindActingMember called, returnTo=', returnTo);
+    if (!returnTo) {
+      console.log('[§3.11.14 DEBUG] early return: returnTo null');
+      return;
+    }
     const m = returnTo.match(/^\/sessions\/(\d+)(\/|$)/);
-    if (!m) return;
+    if (!m) {
+      console.log('[§3.11.14 DEBUG] early return: regex no match');
+      return;
+    }
     const sid = parseInt(m[1], 10);
     const secret = typeof localStorage !== 'undefined'
       ? localStorage.getItem(`sbc.actingAs.${sid}`)
       : null;
-    if (!secret) return;
+    console.log('[§3.11.14 DEBUG] sid=', sid, 'secret=', secret ? secret.substring(0, 8) + '...' : null);
+    if (!secret) {
+      console.log('[§3.11.14 DEBUG] early return: secret null');
+      return;
+    }
     try {
-      await bindActingMember(sid, { nickname_secret: secret });
-    } catch {
-      // 静默吞掉: slot 已被 β 轮换 / 已绑 user_id / session 过期
+      const r = await bindActingMember(sid, { nickname_secret: secret });
+      console.log('[§3.11.14 DEBUG] bind OK', r);
+    } catch (e) {
+      console.log('[§3.11.14 DEBUG] bind FAILED', e?.status, e?.message);
     }
   }
 
