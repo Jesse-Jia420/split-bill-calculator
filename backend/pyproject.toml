@@ -40,9 +40,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://gitea.jessejia.click:433/jessejia/split-bill-calculator"
-Repository = "https://gitea.jessejia.click:433/jessejia/split-bill-calculator.git"
-Issues = "https://gitea.jessejia.click:433/jessejia/split-bill-calculator/issues"
+Homepage = "https://gitea.jessejia.pp.ua/jessejia/split-bill-calculator"
+Repository = "https://gitea.jessejia.pp.ua/jessejia/split-bill-calculator.git"
+Issues = "https://gitea.jessejia.pp.ua/jessejia/split-bill-calculator/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]
