@@ -168,7 +168,7 @@
       await loadUser();
       await tryBindActingMember();  // §3.11.14 新加
       // Navigate to safe returnTo (or default /sessions).
-      await goto(returnTo ?? '/sessions');
+      await goto(returnTo ?? '/sessions', { invalidateAll: true });
     } catch (e: any) {
       const c = e?.code ?? '';
       if (c === 'invalid or expired code') {
