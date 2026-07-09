@@ -1,11 +1,18 @@
 <script lang="ts">
   import { user, logout } from '$stores/user';
   import { goto } from '$app/navigation';
-  import { FRONTEND_VERSION } from '$lib/version';
+  import { page } from '$app/state';
 
   async function handleLogout() {
     await logout();
     await goto('/');
+  }
+
+  // §3.11.13 决策 η: 在 session 内 vs session 外, 登录按钮语义不同.
+  // 在 session 内 → "登录以保存" + returnTo=当前路径 (登录后回 session 页面)
+  // 在 session 外 → 普通 "登录" → /sessions (默认登录后跳转)
+  function inSession(): boolean {
+    return /^\/sessions\/\d+(\/|$)/.test(page.url.pathname);
   }
 </script>
 
@@ -17,11 +24,17 @@
   <div class="right">
     {#if $user}
       <span class="email" title="{$user.email}">{$user.default_name}</span>
-      <button class="ghost btn-sm" on:click={handleLogout}>退出</button>
+      <button class="ghost btn-sm" on:click={handleLogout}>注销登录</button>
+    {:else if inSession()}
+      <a
+        href={`/auth/login?returnTo=${encodeURIComponent(page.url.pathname + page.url.search)}`}
+        class="btn-sm"
+      >
+        登录以保存
+      </a>
     {:else}
       <a href="/auth/login" class="btn-sm">登录</a>
     {/if}
-    <span class="version" title="frontend version">FE: {FRONTEND_VERSION}</span>
   </div>
 </header>
 
@@ -61,11 +74,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-  .version {
-    color: var(--color-text-muted);
-    font-size: 0.75rem;
-    font-family: monospace;
   }
   .btn-sm {
     min-height: var(--touch-target);
