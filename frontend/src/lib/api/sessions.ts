@@ -230,3 +230,29 @@ export const claimSession = (
     method: 'POST'
   });
 };
+
+// §3.11.13 — public session preview for anon / login-context derivation.
+// BE returns nickname_secret only for anon-claimed slots (logged-in slot
+// secrets are never exposed). Used by /auth/login page to derive a
+// personalised H2 (e.g. "嗨 alice，请登录") based on the returnTo path +
+// the caller's localStorage actingAs secret.
+export interface SessionMemberPreview {
+  id: number;
+  display_name: string;
+  role: string;
+  user_id: number | null;
+  claimed_at: string | null;
+  /** Only present for anon-claimed slots (user_id === null). */
+  nickname_secret: string | null;
+}
+
+export interface SessionPreview {
+  name: string;
+  currencies: string[];
+  primary_currency: string;
+  members: SessionMemberPreview[];
+}
+
+export async function getSessionPreview(sessionId: number): Promise<SessionPreview> {
+  return apiFetch<SessionPreview>(`/sessions/${sessionId}/preview`, { method: 'GET' });
+}

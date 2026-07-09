@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { sendCode, verifyCode } from '$api/auth';
+  import { getSessionPreview } from '$api/sessions';
   import { loadUser } from '$stores/user';
 
   let email = '';
@@ -11,6 +12,10 @@
   let busy = false;
   let error: string | null = null;
   let hint: string | null = null;
+  // §3.11.13 决策 α/β/γ/δ/ε/ζ — 根据 returnTo + actingAs 上下文动态切换.
+  // 默认 = "登录"; 场景 A (从 join 页点 logged-in slot 来) → "嗨 X，请登录";
+  // 场景 C (在 session 内 + 有 secret, 非 join) → "嗨 X，完成登录即可永久保存 session".
+  let pageTitle = '登录';
 
   /**
    * Safe returnTo (post-login redirect target).
@@ -36,6 +41,9 @@
 
     expired = page.url.searchParams.get('expired') === '1';
 
+    // §3.11.13: 在 loadUser 前 derive 上下文, 决定 H2 文案.
+    await deriveLoginContext();
+
     // Test-mode pre-fill: ?email=foo&code=123456 lets e2e specs jump
     // straight to the verify step without going through /auth/send-code
     // (which would require a real SMTP roundtrip in CI).
@@ -60,6 +68,40 @@
     if (raw.startsWith('//')) return null; // protocol-relative = open-redirect
     if (raw === '/auth/login') return null; // avoid loop
     return raw;
+  }
+
+  /**
+   * §3.11.13: 根据 returnTo + localStorage actingAs secret + BE preview
+   * 推导登录页 H2 文案. 失败或场景不匹配 → 保持默认 '登录'.
+   */
+  async function deriveLoginContext() {
+    if (!returnTo) return; // 场景 B (无 returnTo): 保持 '登录'
+
+    const m = returnTo.match(/^\/sessions\/(\d+)(\/|$)/);
+    if (!m) return; // 非 session 路由: 保持默认
+    const sid = parseInt(m[1], 10);
+    const isJoinFlow = returnTo.includes(`/sessions/${sid}/join`);
+
+    // localStorage 只在浏览器端可用
+    const secret = typeof localStorage !== 'undefined'
+      ? localStorage.getItem(`sbc.actingAs.${sid}`)
+      : null;
+    if (!secret) return; // 场景 C 需要 secret, 没 secret → 降级到默认
+
+    let preview;
+    try {
+      preview = await getSessionPreview(sid);
+    } catch {
+      return; // 失败降级到默认
+    }
+    const me = preview.members.find((x) => x.nickname_secret === secret);
+    if (!me || !me.display_name) return; // 找不到对应 slot → 默认
+
+    if (isJoinFlow) {
+      pageTitle = `嗨 ${me.display_name}，请登录`;
+    } else {
+      pageTitle = `嗨 ${me.display_name}，完成登录即可永久保存 session`;
+    }
   }
 
   async function handleSend() {
@@ -118,7 +160,7 @@
 </script>
 
 <section class="login">
-  <h2>登录</h2>
+  <h2>{pageTitle}</h2>
   <p class="muted">用邮箱收验证码即可登录,无需密码。</p>
 
   {#if expired}

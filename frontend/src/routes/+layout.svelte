@@ -7,10 +7,13 @@
    *   让 fade 更明显,PO 说「系统几乎没有动画反馈」
    * - 加全局 Toast 挂载点 <Toast />
    * - 不引第三方动画库,用 Svelte 内置 fade
+   *
+   * §3.11.13: 加 <Footer /> 集中展示 FE/BE 版本号, NavBar 头部不再展示版本号
    */
   import '../app.css';
   import NavBar from '$components/NavBar.svelte';
   import Toast from '$components/Toast.svelte';
+  import Footer from '$components/Footer.svelte';
   import { onMount } from 'svelte';
   import { fade } from 'svelte/transition';
   import { loadUser } from '$stores/user';
@@ -39,6 +42,8 @@
     </div>
   {/key}
 </main>
+<!-- §3.11.13: 版本号集中显示在底部 Footer, NavBar 头部不再展示 -->
+<Footer />
 
 <style>
   .page {
