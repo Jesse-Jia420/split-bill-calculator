@@ -40,6 +40,141 @@
 
 ---
 
+## §3.11.11 join-claim 边界修复 (PO 2026-07-09 05:51 #3765 拍对)
+
+> 配套 PRD: §3.11.11.5 决策 β/γ/δ + §3.11.11.8 实施状态
+> 配套 commit: 修复 commit 在 §11 本条后续追加
+
+### A. 根因
+
+v0.3 Sprint 3 的 BE `join_claim_session` anon claim 分支 (`backend/app/api/sessions.py:1189-1208`) 有守卫 `if sm.nickname_secret is not None: raise 409`，**没区分** anon-claimed (该接受) 和 logged-in bound (该走 requires_login)。
+
+FE 按 §3.11.11.4 "全显" 把 anon-claimed slot 显给用户点 → BE 返 409 → 跟 §3.11.11.5 决策 a "BE 接受" 冲突。
+
+### B. BE 修复 (join_claim_session anon claim 分支)
+
+```python
+if user is not None:
+    # logged-in caller (不变)
+    sm.user_id = user.id
+    sm.is_anon = False
+    session.last_active_at = now
+    db.commit()
+    db.refresh(sm)
+    return {...}
+else:
+    # Anonymous caller — 拆 2 路径 (§3.11.11.5 决策 β/γ)
+    if sm.user_id is not None:
+        # 决策 γ: anon 点 logged-in bound slot → 不让覆盖 (冒充风险)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "error": "requires_login",
+                "reason": "slot is owned by a logged-in user; please login to claim",
+                "slot_owner_user_id": sm.user_id,
+            },
+        )
+    # 决策 β: anon-to-anon (覆盖) 或 anon-to-unclaimed (认领) → 都接受
+    new_secret = secrets.token_hex(32)
+    sm.nickname_secret = new_secret  # 覆盖任何已有 anon secret
+    sm.claimed_at = now
+    sm.is_anon = True
+    sm.user_id = None  # 显式 NULL (即便之前有 binding 也清掉, 防 logged-in 残留)
+    session.last_active_at = now
+    db.commit()
+    db.refresh(sm)
+    return {...}
+```
+
+**关键**:
+- 决策 β (anon-to-anon 轮换): 原 anon secret 失效 → 下次进 session → onMount `getSession` 失败 → `removeItem` + fall through → join page → 用户点 j 又拿到新 secret
+- 决策 γ (anon-to-loggedin): 403 + `requires_login` (FE 处理跳转)
+
+### C. FE 修复 (handleClaim)
+
+```typescript
+// frontend/src/routes/sessions/[id]/join/+page.svelte
+async function handleClaim(slotId: number) {
+  if (busy) return;
+  error = null;
+  busy = true;
+  try {
+    const res = await joinClaim(sessionId, { action: 'claim', session_member_id: slotId });
+    _storeActingAs(res.session_member_id, res.nickname_secret ?? '');
+    await goto('/sessions/' + sessionId, { replaceState: true });
+  } catch (e: any) {
+    const detail = e?.detail ?? e;
+    if (e?.status === 403 && detail?.error === 'requires_login') {
+      // 决策 γ: 跳登录, 登录后回 join 页走 logged-in claim 路径
+      window.location.assign(
+        '/auth/login?returnTo=' +
+          encodeURIComponent('/sessions/' + sessionId + '/join')
+      );
+      return;
+    }
+    if (e?.status === 409) {
+      // fallback: 保留原 "被抢走了" 提示, 未来 regression 兜底
+      error = '该昵称已被其他人抢走了，请选择其他昵称或新建一个';
+    } else if (e?.status === 410) {
+      reclaimed = true;
+    } else {
+      error = e?.message ?? '认领失败';
+    }
+  } finally {
+    busy = false;
+  }
+}
+```
+
+### D. e2e 测试 (3 场景, 必须全过)
+
+文件: `frontend/e2e/wizard_join_claim.spec.ts` (新)
+
+1. **场景 A: anon-to-anon 接受 + 覆盖** (决策 β)
+   - Setup: session "hh" 有 2 个 anon-claimed slot (j, k)
+   - Act: anon 用 fresh browser → /sessions/{id}/join → 点 j
+   - Expect: 
+     - BE 返 200 + `nickname_secret`
+     - FE 跳 /sessions/{id} 进详情页
+     - DB: j 的 `nickname_secret` 是新 secret, 旧 secret 失效
+
+2. **场景 B: anon-to-loggedin 跳登录** (决策 γ)
+   - Setup: session "hh" 有 1 个 logged-in bound slot (jesse 邮箱)
+   - Act: anon 用 fresh browser → /sessions/{id}/join → 点 jesse
+   - Expect:
+     - BE 返 403 + `{error: "requires_login"}`
+     - FE 跳 `/auth/login?returnTo=/sessions/{id}/join`
+     - 不进 session, 不弹 "被抢走了"
+
+3. **场景 C: anon-to-unclaimed 接受 + 首次认领** (回归)
+   - Setup: session "hh" 有 1 个 unclaimed slot (l)
+   - Act: anon 用 fresh browser → /sessions/{id}/join → 点 l
+   - Expect:
+     - BE 返 200 + `nickname_secret`
+     - FE 跳 /sessions/{id}
+     - DB: l 的 `nickname_secret` 有值, `is_anon=true`, `user_id=NULL`
+
+### E. pytest 测试 (BE 单元)
+
+文件: `backend/tests/test_sessions_join_claim.py` (新, 已有类似可改)
+
+3 个 cases:
+- `test_anon_claim_anon_slot_overwrites_secret` (决策 β)
+- `test_anon_claim_loggedin_slot_returns_403_requires_login` (决策 γ)
+- `test_anon_claim_unclaimed_slot_first_time` (回归)
+
+### F. 部署 / 验证
+
+1. Coder 实施 commit 后 push
+2. **必须重启 uvicorn** (BE 当前跑 commit `ac21ce2-dirty`, **不**在 git history 中 — 旧代码, 需 kill 重启加载新 commit)
+3. Master 真用户 walk (用手机浏览器):
+   - 场景 A: anon 进 /sessions/{id}/join → 看到 j/k → 点 j → 进 session → 截图
+   - 场景 B: anon 进 /sessions/{id}/join → 看到 jesse (logged-in) → 点 → 跳 /auth/login?returnTo=... → 截图
+4. 反 #117 + 反 #121 推 Telegram
+5. 反 #130 PO 拍**对**验收
+
+---
+
 ## v0.2.2 Sprint 2 多币种 (新增)
 
 ### A. Schema
