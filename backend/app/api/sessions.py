@@ -1304,3 +1304,78 @@ async def join_claim_session(
                 "joined_at": _iso(sm.joined_at),
                 "is_anon": sm.is_anon,
             }
+
+
+# §3.11.14: anon-claimed slot → user-bound on login.
+# Triggered by FE after /auth/login verify_code 200 — localStorage secret → BE.
+# BE finds the SessionMember (session_id, nickname_secret, is_anon=True, user_id IS NULL)
+# and binds user_id to the current user.
+
+
+class BindActingMemberRequest(BaseModel):
+    nickname_secret: str = Field(..., min_length=1, max_length=64)
+
+
+class BindActingMemberResponse(BaseModel):
+    session_member_id: int
+    display_name: str
+    user_id: int
+
+
+@router.post(
+    "/{session_id}/bind-acting-member",
+    response_model=BindActingMemberResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def bind_acting_member(
+    payload: BindActingMemberRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+    session_id: int = Path(..., description="Session ID"),
+) -> dict:
+    """§3.11.14: anon-claimed slot → user-bound.
+
+    FE 在登录 verify_code 200 后调一次 (NavBar "登录以保存" 触发流):
+    - 拿 localStorage `sbc.actingAs.{sid}` → secret
+    - 调本 endpoint with {nickname_secret: secret}
+    - BE 找 SessionMember (session_id=sid AND nickname_secret=secret AND user_id IS NULL AND is_anon=True)
+    - 找到 → SET user_id=current_user.id, is_anon=False, claimed_at=now()
+
+    失败返 404 (session 不存在 OR slot 已不存在 / 已被 β 轮换 / 已绑 user_id).
+    FE 静默吞掉 (用户仍以 anon 进入 session, localStorage secret 仍有效).
+    """
+    sm = db.execute(
+        select(SessionMember)
+        .where(
+            SessionMember.session_id == session_id,
+            SessionMember.nickname_secret == payload.nickname_secret,
+            SessionMember.user_id.is_(None),
+            SessionMember.is_anon.is_(True),
+        )
+    ).scalar_one_or_none()
+    if sm is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "no matching anon-claimed slot", "session_id": session_id},
+        )
+
+    session = db.get(SessionModel, session_id)
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "session not found"},
+        )
+    _check_session_activity_window(session)  # 410 if expired (existing helper)
+
+    sm.user_id = user.id
+    sm.is_anon = False
+    sm.claimed_at = datetime.now(timezone.utc)
+    session.last_active_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(sm)
+
+    return {
+        "session_member_id": sm.id,
+        "display_name": sm.display_name,
+        "user_id": sm.user_id,
+    }

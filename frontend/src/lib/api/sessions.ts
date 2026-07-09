@@ -256,3 +256,24 @@ export interface SessionPreview {
 export async function getSessionPreview(sessionId: number): Promise<SessionPreview> {
   return apiFetch<SessionPreview>(`/sessions/${sessionId}/preview`, { method: 'GET' });
 }
+/**
+ * §3.11.14: anon-claimed slot → user-bound on login.
+ *
+ * Called from `+page.svelte::tryBindActingMember` after verify_code 200
+ * succeeds. Pass the localStorage `sbc.actingAs.{sid}` secret; BE finds
+ * the matching SessionMember (session_id, nickname_secret, is_anon=true,
+ * user_id IS NULL) and binds it to the current user.
+ *
+ * Returns the bound member info. 404 is swallowed by the caller (slot
+ * rotated / already bound / session expired) — the user still falls back
+ * to anon-acting inside the session via the stored localStorage secret.
+ */
+export async function bindActingMember(
+  sessionId: number,
+  payload: { nickname_secret: string }
+): Promise<{ session_member_id: number; display_name: string; user_id: number }> {
+  return apiFetch(`/sessions/${sessionId}/bind-acting-member`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}

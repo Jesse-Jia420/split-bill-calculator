@@ -3,7 +3,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { sendCode, verifyCode } from '$api/auth';
-  import { getSessionPreview } from '$api/sessions';
+  import { bindActingMember, getSessionPreview } from '$api/sessions';
   import { loadUser } from '$stores/user';
 
   let email = '';
@@ -132,6 +132,28 @@
     }
   }
 
+  /**
+   * §3.11.14: After verify_code 200, try to bind the anon-acting localStorage
+   * secret to the now-logged-in user. Silent on failure (slot already bound /
+   * rotated by β / session expired) — the user still falls back to anon-acting
+   * inside the session via the localStorage secret.
+   */
+  async function tryBindActingMember() {
+    if (!returnTo) return;
+    const m = returnTo.match(/^\/sessions\/(\d+)(\/|$)/);
+    if (!m) return;
+    const sid = parseInt(m[1], 10);
+    const secret = typeof localStorage !== 'undefined'
+      ? localStorage.getItem(`sbc.actingAs.${sid}`)
+      : null;
+    if (!secret) return;
+    try {
+      await bindActingMember(sid, { nickname_secret: secret });
+    } catch {
+      // 静默吞掉: slot 已被 β 轮换 / 已绑 user_id / session 过期
+    }
+  }
+
   async function handleVerify() {
     if (busy) return;
     error = null;
@@ -144,6 +166,7 @@
     try {
       await verifyCode(email.trim(), trimmed);
       await loadUser();
+      await tryBindActingMember();  // §3.11.14 新加
       // Navigate to safe returnTo (or default /sessions).
       await goto(returnTo ?? '/sessions');
     } catch (e: any) {
