@@ -790,6 +790,13 @@ async def get_session_preview_public(
                 "user_id": m.user_id,
                 "is_anon": m.user_id is None,
                 "claimed_at": _iso(m.joined_at),
+                # §3.11.13: anon slot → return secret (already-public to claimer
+                # via localStorage / X-Nickname-Secret); logged-in slot → null.
+                "nickname_secret": (
+                    m.nickname_secret
+                    if (m.user_id is None and m.nickname_secret is not None)
+                    else None
+                ),
             }
             for m in members
         ],
