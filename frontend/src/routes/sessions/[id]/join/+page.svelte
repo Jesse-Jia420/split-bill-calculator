@@ -157,10 +157,23 @@
       _storeActingAs(res.session_member_id, res.nickname_secret ?? '');
       await goto('/sessions/' + sessionId, { replaceState: true });
     } catch (e: any) {
-      const status = e?.status ?? e?.detail?.status;
-      if (status === 409) {
+      // §3.11.11 decision gamma: anon clicked a logged-in bound slot.
+      // BE returns 403 + {detail: {error: 'requires_login', ...}}.
+      // apiFetch wraps the BE detail field under e.detail.detail (see s/[code] +page.svelte
+      // for the same convention). Bounce to /auth/login with returnTo back to /join so
+      // the now-logged-in user can re-claim via the logged-in path.
+      const errDetail = e?.detail?.detail ?? e?.detail;
+      if (e?.status === 403 && errDetail?.error === 'requires_login') {
+        window.location.assign(
+          '/auth/login?returnTo=' +
+            encodeURIComponent('/sessions/' + sessionId + '/join')
+        );
+        return;
+      }
+      // Fallback 409 handler (should not trigger under §3.11.11 decisions beta/gamma).
+      if (e?.status === 409) {
         error = '该昵称已被其他人抢走了，请选择其他昵称或新建一个';
-      } else if (status === 410) {
+      } else if (e?.status === 410) {
         reclaimed = true;
       } else {
         error = e?.message ?? '认领失败';

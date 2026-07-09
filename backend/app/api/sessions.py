@@ -1210,16 +1210,24 @@ async def join_claim_session(
                 "is_anon": sm.is_anon,
             }
         else:
-            # Anonymous: claim the slot.
-            if sm.nickname_secret is not None:
+            # Anonymous caller — split into 2 paths (SPEC §3.11.11.B / PRD §3.11.11.5 decisions beta/gamma).
+            if sm.user_id is not None:
+                # Decision gamma (anon-to-loggedin): do NOT overwrite (impersonation risk).
+                # Tell FE to bounce the caller to /auth/login with a returnTo back to /join.
                 raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail={"error": "nickname already claimed by another user"},
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={
+                        "error": "requires_login",
+                        "reason": "slot is owned by a logged-in user; please login to claim",
+                        "slot_owner_user_id": sm.user_id,
+                    },
                 )
+            # Decision beta (anon-to-anon overwrite) and anon-to-unclaimed (first claim) — both accepted.
             new_secret = secrets.token_hex(32)
-            sm.nickname_secret = new_secret
+            sm.nickname_secret = new_secret  # overwrite any prior anon secret (beta rotation)
             sm.claimed_at = now
             sm.is_anon = True
+            sm.user_id = None  # defensive: clear any stale user binding
             # §3.11.11: bump owner activity clock on every join/claim.
             session.last_active_at = now
             db.commit()
