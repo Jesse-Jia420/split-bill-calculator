@@ -39,6 +39,18 @@
     const raw = page.url.searchParams.get('returnTo');
     returnTo = sanitizeReturnTo(raw);
 
+    // PO 2026-07-10 #1: ?use=<display_name> 表明 anon 点了 logged-in bound slot
+    // (BE 返 403 requires_login), 登录页显 "请登录以使用 <昵称>".
+    // 这个 use 检查在 deriveLoginContext 之前, 优先于其他 H2 推导.
+    const useNameRaw = page.url.searchParams.get('use');
+    if (useNameRaw) {
+      const useName = useNameRaw.trim();
+      // 安全过滤: 1-50 字符, 允许中文/英文/数字/下划线/空格
+      if (useName.length >= 1 && useName.length <= 50 && /^[\w\s\u4e00-\u9fa5]+$/.test(useName)) {
+        pageTitle = `请登录以使用 ${useName}`;
+      }
+    }
+
     expired = page.url.searchParams.get('expired') === '1';
 
     // §3.11.13: 在 loadUser 前 derive 上下文, 决定 H2 文案.
