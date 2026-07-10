@@ -932,7 +932,10 @@
       opacity: 1; /* 触摸设备 hover 不可靠,默认显示 */
     }
     .member-email {
-      display: none; /* 移动端太挤,隐藏 */
+      /* §3.11.11+§3.11.14: 邮箱必须显示 (anon-claimed slot 登录后绑定显示邮箱).
+         旧 v0.2.1 规则 display:none 是错的, 改成小字号 + 缩窄. */
+      font-size: 11px;
+      max-width: 140px;
     }
   }
 
