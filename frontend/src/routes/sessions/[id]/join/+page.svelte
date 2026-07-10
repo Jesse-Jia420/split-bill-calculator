@@ -148,7 +148,7 @@
   }
 
   /** 上半屏: 点已有昵称 → claim slot */
-  async function handleClaim(slotId: number) {
+  async function handleClaim(slotId: number, displayName: string) {
     if (busy) return;
     error = null;
     busy = true;
@@ -159,14 +159,14 @@
     } catch (e: any) {
       // §3.11.11 decision gamma: anon clicked a logged-in bound slot.
       // BE returns 403 + {detail: {error: 'requires_login', ...}}.
-      // apiFetch wraps the BE detail field under e.detail.detail (see s/[code] +page.svelte
-      // for the same convention). Bounce to /auth/login with returnTo back to /join so
-      // the now-logged-in user can re-claim via the logged-in path.
+      // Bounce to /auth/login with returnTo back to /join + use=<display_name>
+      // so the login page can show "请登录以使用 <昵称>" (PO 2026-07-10 #1 拍对).
       const errDetail = e?.detail?.detail ?? e?.detail;
       if (e?.status === 403 && errDetail?.error === 'requires_login') {
         window.location.assign(
           '/auth/login?returnTo=' +
-            encodeURIComponent('/sessions/' + sessionId + '/join')
+            encodeURIComponent('/sessions/' + sessionId + '/join') +
+            '&use=' + encodeURIComponent(displayName)
         );
         return;
       }
@@ -261,7 +261,7 @@
             {#each session.members as m (m.id)}
               <button
                 class="slot-btn"
-                onclick={() => handleClaim(m.id)}
+                onclick={() => handleClaim(m.id, m.display_name)}
                 disabled={busy}
                 title="点击加入这个昵称"
               >
