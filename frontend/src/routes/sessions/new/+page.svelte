@@ -100,7 +100,9 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: sessionName.trim(),
-          member_nicknames: nicknames.map((n) => n.trim()),
+          // §3.11 修 bug: 登录态时 nicknames[0]="你" 已自动是 owner, BE 会再加一次, 总数 +1 错.
+          // 排除 "你", 只传同伴 nickname.
+          member_nicknames: ($user !== null ? nicknames.slice(1) : nicknames).map((n) => n.trim()),
           currencies,
           primary_currency: primaryCurrency,
           exchange_rates: exchangeRates,
