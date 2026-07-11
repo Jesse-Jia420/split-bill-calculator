@@ -86,8 +86,20 @@ def _reset_db() -> None:
 
 
 def _make_user(email: str, default_name: str | None = None) -> User:
+    """Find-or-create a User by email.
+
+    Fix for fixture bug: callers like `_make_session_with_owner_and_anon` +
+    `_login_as("alice@anon-bills.local")` would collide on UNIQUE(email).
+    """
     db = SessionLocal()
     try:
+        existing = db.query(User).filter_by(email=email).first()
+        if existing is not None:
+            if default_name is not None and existing.default_name != default_name:
+                existing.default_name = default_name
+                db.commit()
+                db.refresh(existing)
+            return existing
         u = User(
             email=email,
             default_name=default_name or email.split("@")[0][:120],

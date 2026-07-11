@@ -107,11 +107,16 @@ async function setupSessionWithAnonSlots(
 
   await page.locator("#session-name").fill(SESSION_NAME);
   await page.locator("button", { hasText: "下一步" }).first().click();
-  await page.locator("button", { hasText: "下一步" }).first().click();
+  // Step 2 (combined): member count + nickname inputs + confirm button.
+  // Bump member count 1 → 2 so we have an extra slot to claim anonymously.
+  await page.locator(".count-btn[aria-label='增加一人']").click();
   const inputs = await page.locator(".nickname-row input[type='text']").all();
   await inputs[0].fill("Alice");
   await inputs[1].fill("Friend");
-  await page.locator("button", { hasText: "确认创建" }).click();
+  // Button label is "确认创建" (anon owner) or "下一步" (logged-in owner
+  // → currency step). Match the confirm button by .btn-next class to
+  // tolerate both label variants.
+  await page.locator("button.btn-next").last().click();
 
   await page.waitForURL(/\/sessions\/\d+$/);
   const sid = Number(page.url().match(/\/sessions\/(\d+)/)?.[1]);
