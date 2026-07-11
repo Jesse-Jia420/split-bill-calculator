@@ -45,6 +45,27 @@ export interface CreateBillInput {
   use_calculator?: boolean;
 }
 
+/**
+ * v0.3.2 (PRD §3.12 + SPEC §3.12.B): read the per-session anon
+ * `X-Nickname-Secret` from localStorage for anonymous-CRUD endpoints.
+ *
+ * Why a per-call helper instead of baking into `apiFetch`:
+ *   - `apiFetch` is generic across all domains; some endpoints (e.g. future
+ *     `/sessions/{id}/preview`) may need a different secret key.
+ *   - Keeping the header injection explicit at the call site makes the
+ *     anonymous path greppable and easy to audit.
+ *
+ * Reuses the same `sbc.actingAs.<sessionId>` key as `listBills` below.
+ * Returns `{}` on SSR (no `window`) or when no secret is stored — the BE
+ * `get_session_member_or_secret` dependency will then fall back to the
+ * cookie-authenticated path.
+ */
+function getNicknameSecretHeader(sessionId: number): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  const secret = localStorage.getItem("sbc.actingAs." + sessionId);
+  return secret ? { "X-Nickname-Secret": secret } : {};
+}
+
 export const listBills = (sessionId: number) => {
   const url = "/sessions/" + sessionId + "/bills";
   // v0.3.1: send X-Nickname-Secret for anonymous access.
@@ -92,10 +113,13 @@ export const getBill = async (sessionId: number, billId: number): Promise<Bill> 
 
 export const createBill = (sessionId: number, body: CreateBillInput) => {
   const url = "/sessions/" + sessionId + "/bills";
+  // v0.3.2 (PRD §3.12): 3rd arg `apiFetch.extraHeaders` carries
+  // X-Nickname-Secret so anon dd can POST without a cookie (BE uses
+  // get_session_member_or_secret).
   return apiFetch<Bill>(url, {
     method: "POST",
     body: JSON.stringify(body)
-  });
+  }, getNicknameSecretHeader(sessionId));
 };
 
 export const updateBill = (
@@ -104,15 +128,17 @@ export const updateBill = (
   body: Partial<CreateBillInput>
 ) => {
   const url = "/sessions/" + sessionId + "/bills/" + billId;
+  // v0.3.2: PATCH now anonymous-capable (BE upgraded to or_secret).
   return apiFetch<Bill>(url, {
     method: "PATCH",
     body: JSON.stringify(body)
-  });
+  }, getNicknameSecretHeader(sessionId));
 };
 
 export const deleteBill = (sessionId: number, billId: number) => {
   const url = "/sessions/" + sessionId + "/bills/" + billId;
-  return apiFetch<void>(url, { method: "DELETE" });
+  // v0.3.2: DELETE now anonymous-capable (BE upgraded to or_secret).
+  return apiFetch<void>(url, { method: "DELETE" }, getNicknameSecretHeader(sessionId));
 };
 
 export interface ParseBillResult {
@@ -124,8 +150,9 @@ export interface ParseBillResult {
 
 export const parseBill = (sessionId: number, text: string) => {
   const url = "/sessions/" + sessionId + "/bills/parse";
+  // v0.3.2: AI parse now anonymous-capable (BE upgraded to or_secret).
   return apiFetch<ParseBillResult>(url, {
     method: "POST",
     body: JSON.stringify({ text })
-  });
+  }, getNicknameSecretHeader(sessionId));
 };

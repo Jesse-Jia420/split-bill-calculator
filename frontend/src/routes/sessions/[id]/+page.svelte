@@ -411,11 +411,10 @@
         {/if}
       </h2>
 
-      <div class="session-header-actions">
-        <!-- PO 14:01 重申: header 完全**不**要任何 login/logout/登录以保存 按钮.
-             全部用页面最上方的 banner 那个就行. 这里只留 "查看结算" 链接. -->
-        <a class="btn ghost" href="/sessions/{session.id}/settle">查看结算</a>
-      </div>
+      <!-- v0.3.2 (PRD §3.12.3): 移除整个 `.session-header-actions` 段，理由:
+           (1) PO 11:10 拍板「查看结算」按钮归位到账单 section head;
+           (2) PO 14:01 重申 session header 完全**不**要任何 login/logout/登录按钮.
+           视觉候选 B: 「查看结算」移到下面账单 head，ghost + Lucide 图标。-->
     </div>
 
     <!-- v0.2.1 UI rev (PO 2026-07-03 18:15 重设计): 整个 header clickable + 折叠态 avatar 预览 -->
@@ -517,18 +516,68 @@
       {/if}
     </div>
 
-    <!-- 反馈修 5 项目 8: 「个人账单」按钮移到 bills section head -->
+    <!-- 反馈修 5 项目 8 + v0.3.2 §3.12.3: 「个人账单」按钮迁到 head，「查看结算」也并排。
+         视觉候选 B（PO 10:30 拍板）：两按钮 ghost + Lucide inline SVG 图标。-->
     <div id="bills-card" class="card bills-card">
       <div class="bills-card-head">
         <div class="bills-card-head-left">
           <h3 class="bills-card-title">账单</h3>
           <span class="muted bills-card-count">共 {bills.length} 笔</span>
         </div>
-        <a
-          class="btn ghost btn-sm bills-personal-link"
-          href="/sessions/{session.id}/settle#personal"
-          aria-label="查看个人账单"
-        >个人账单</a>
+        <div class="bills-card-head-right">
+          <a
+            class="btn ghost btn-sm bills-action-link"
+            href="/sessions/{session.id}/settle"
+            aria-label="查看结算"
+          >
+            <!-- Lucide `calculator` 16x16 -->
+            <svg
+              class="bills-action-icon"
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <rect x="4" y="3" width="16" height="18" rx="2" />
+              <line x1="8" y1="7" x2="16" y2="7" />
+              <line x1="8" y1="11" x2="10" y2="11" />
+              <line x1="14" y1="11" x2="16" y2="11" />
+              <line x1="8" y1="15" x2="10" y2="15" />
+              <line x1="14" y1="15" x2="16" y2="15" />
+              <line x1="8" y1="19" x2="10" y2="19" />
+              <line x1="14" y1="19" x2="16" y2="19" />
+            </svg>
+            <span>查看结算</span>
+          </a>
+          <a
+            class="btn ghost btn-sm bills-action-link"
+            href="/sessions/{session.id}/settle#personal"
+            aria-label="查看个人账单"
+          >
+            <!-- Lucide `user` 16x16 -->
+            <svg
+              class="bills-action-icon"
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+            <span>个人账单</span>
+          </a>
+        </div>
       </div>
       {#if bills.length === 0 && !loading}
         <EmptyState
@@ -614,11 +663,8 @@
     font-weight: 500;
     vertical-align: middle;
   }
-  .session-header-actions {
-    display: flex;
-    gap: var(--space-2);
-    flex-wrap: wrap;
-  }
+  /* v0.3.2 §3.12.3: `.session-header-actions` 整段删除 — 相关 CSS 也清理。
+     保留是为了让后续 retro 引用，注释占位。*/
 
   /* §3.11 收尾: 详情页 header owner info 样式 */
   .owner-info {
@@ -655,15 +701,7 @@
     opacity: 0.55;
     cursor: not-allowed;
   }
-  @media (max-width: 600px) {
-    .session-header-actions {
-      width: 100%;
-    }
-    .session-header-actions .btn {
-      flex: 1 1 0;
-      min-width: 0;
-    }
-  }
+  /* v0.3.2 §3.12.3: `.session-header-actions` 移动端 CSS 块一并清理（类已删）。
 
   /* === 反馈修 6 项目 2: members section — grid 布局 彻底重写 === */
   .members-card {
@@ -959,16 +997,37 @@
   .bills-card-count {
     font-size: var(--font-size-sm);
   }
-  .bills-personal-link {
+  /* v0.3.2 §3.12.3: head-right 容器，gap 8px 并排两个 ghost btn。
+     视觉候选 B（PO 10:30 拍板）+ spec §3.12.D: ghost + Lucide inline SVG 图标。
+     移动端不换行（flex-wrap 不设到 right 子容器）。*/
+  .bills-card-head-right {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: nowrap;
+  }
+  .bills-action-link {
     min-height: 36px;
     padding: 4px 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
   }
+  .bills-action-icon {
+    flex: 0 0 auto;
+  }
+  /* 旧 `.bills-personal-link` 在 v0.3.2 改名 `.bills-action-link` 并彻底弃用。
+     CSS 块删除 — svelte-check 现不再报 unused-selector 警告。*/
   @media (max-width: 480px) {
     .bills-card-head-left {
       flex: 1 1 auto;
       min-width: 0;
     }
-    .bills-personal-link {
+    .bills-card-head-right {
+      flex: 0 0 auto;
+    }
+    .bills-action-link {
       flex: 0 0 auto;
     }
   }
