@@ -623,7 +623,7 @@ async def _call_minimax_api(text: str, member_names: list[str]) -> dict:
 )
 async def parse_bill(
     payload: ParseBillRequest,
-    sm: Annotated[SessionMember, Depends(get_session_member)],
+    sm: Annotated[SessionMember, Depends(get_session_member_or_secret)],
     db: Annotated[Session, Depends(get_db)],
 ) -> dict:
     """AI-assisted bill prefill (T11).
@@ -635,6 +635,12 @@ async def parse_bill(
     401: no/invalid cookie.
     403: not a session member.
     422: missing text / ai_unavailable / schema violation.
+
+    v0.3.2 (PRD §3.12 + SPEC §3.12.C): upgraded from
+    `get_session_member` to `get_session_member_or_secret` to match
+    POST/PATCH/DELETE/GET — aligned with the v0.3.1 design intent
+    that anonymous dd participating via `/s/{code}` can use any
+    bill CRUD endpoint, not just GET/POST.
     """
     # Build the member display-name list (deterministic ordering for the prompt).
     members = (
@@ -817,7 +823,7 @@ async def create_bill(
 )
 async def update_bill(
     payload: UpdateBillRequest,
-    sm: Annotated[SessionMember, Depends(get_session_member)],
+    sm: Annotated[SessionMember, Depends(get_session_member_or_secret)],
     db: Annotated[Session, Depends(get_db)],
     bill_id: int = Path(..., description="Bill.id"),
 ) -> dict:
@@ -843,6 +849,9 @@ async def update_bill(
     404: bill not found in this session.
     422: missing/over-long/invalid fields OR `description`/unknown field
          (pydantic extra='forbid').
+
+    v0.3.2 (PRD §3.12 + SPEC §3.12.C): upgraded from
+    `get_session_member` to `get_session_member_or_secret`.
     """
     bill = (
         db.query(Bill)
@@ -977,7 +986,7 @@ async def update_bill(
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_bill(
-    sm: Annotated[SessionMember, Depends(get_session_member)],
+    sm: Annotated[SessionMember, Depends(get_session_member_or_secret)],
     db: Annotated[Session, Depends(get_db)],
     bill_id: int = Path(..., description="Bill.id"),
 ) -> None:
@@ -987,6 +996,9 @@ async def delete_bill(
     401: no/invalid cookie.
     403: caller is not a session member.
     404: bill not found in this session.
+
+    v0.3.2 (PRD §3.12 + SPEC §3.12.C): upgraded from
+    `get_session_member` to `get_session_member_or_secret`.
     """
     bill = (
         db.query(Bill)

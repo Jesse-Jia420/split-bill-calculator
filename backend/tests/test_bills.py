@@ -897,9 +897,21 @@ class TestDeleteBill:
         r = c.delete(f"/sessions/{sid}/bills/99999")
         assert r.status_code == 404
 
-    def test_delete_no_auth_returns_401(self, client: TestClient) -> None:
+    def test_delete_no_auth_returns_403(self, client: TestClient) -> None:
+        """§3.12 (v0.3.2): DELETE /bills/{id} now accepts anonymous access
+        via ``X-Nickname-Secret``. A request with NO auth (no cookie + no
+        secret header) is therefore rejected with **403** (not a session
+        member), not 401 (please authenticate).
+
+        Pre-v0.3.2 this test asserted 401 because the BE dep was
+        ``get_session_member`` which depends on ``get_current_user`` and
+        bubbles up a 401 when the caller has no cookie. After upgrading
+        to ``get_session_member_or_secret`` the dep uses
+        ``get_optional_user`` and surfaces a 403 for the same request
+        shape, matching SPEC §3.12.E.1 "no secret / wrong secret → 403".
+        """
         r = client.delete("/sessions/1/bills/1")
-        assert r.status_code == 401
+        assert r.status_code == 403
 
 
 # ---------------------------------------------------------------------------
@@ -1016,9 +1028,14 @@ class TestParseBill:
         r = outsider.post(f"/sessions/{sid}/bills/parse", json={"text": "x"})
         assert r.status_code == 403
 
-    def test_parse_no_auth_returns_401(self, client: TestClient) -> None:
+    def test_parse_no_auth_returns_403(self, client: TestClient) -> None:
+        """§3.12 (v0.3.2): POST /bills/parse now accepts anonymous access
+        via ``X-Nickname-Secret``. No auth at all → **403** (you're not a
+        session member), not 401. Mirrors the DELETE test above — see
+        that docstring for the full behavioural rationale.
+        """
         r = client.post("/sessions/1/bills/parse", json={"text": "x"})
-        assert r.status_code == 401
+        assert r.status_code == 403
 
 
 # ---------------------------------------------------------------------------
