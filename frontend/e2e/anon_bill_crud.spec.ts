@@ -113,33 +113,38 @@ async function setupSessionWithAnonSlots(
   const inputs = await page.locator(".nickname-row input[type='text']").all();
   await inputs[0].fill("Alice");
   await inputs[1].fill("Friend");
-  // Button label is "确认创建" (anon owner) or "下一步" (logged-in owner
-  // → currency step). Match the confirm button by .btn-next class to
-  // tolerate both label variants.
+  // Step 2 button: "确认创建" (anon owner, no currency step) or
+  // "下一步" (logged-in owner → currency step). Match by .btn-next.
   await page.locator("button.btn-next").last().click();
+  // Step 3 (only for logged-in owner): currency mode = single,
+  // primary = CNY by default. Click "确认创建" to finish.
+  // Use a short timeout so anon-owner tests (which skip this step) don't hang.
+  const confirmBtn = page.locator("button", { hasText: "确认创建" });
+  if (await confirmBtn.count() > 0) {
+    await confirmBtn.first().click();
+  }
 
   await page.waitForURL(/\/sessions\/\d+$/);
   const sid = Number(page.url().match(/\/sessions\/(\d+)/)?.[1]);
   expect(sid, "sid must parse from /sessions/{id}").toBeGreaterThan(0);
 
-  // Pull sessionCode + member ids + creator's anon secret via the BE.
-  const creatorSecret = await page.evaluate(
-    (s) => localStorage.getItem(`sbc.actingAs.${s}`),
-    sid
-  );
-  expect(creatorSecret, "wizard must mint a creator secret").toBeTruthy();
-  const sessionRes = await page.request.get(`${BASE}/api/sessions/${sid}`, {
-    headers: { "X-Nickname-Secret": creatorSecret! },
-  });
+  // Pull sessionCode + member ids via the BE. The owner is logged-in here,
+  // so we use the page.request (inherits ownerCtx cookie auth) instead of
+  // an X-Nickname-Secret header. The owner has NO nickname_secret because
+  // wizard → logged-in owner binds via user_id, not anon slot.
+  const sessionRes = await page.request.get(`${BASE}/api/sessions/${sid}`);
   expect(sessionRes.status()).toBe(200);
   const sessionData = await sessionRes.json();
   const sessionCode: string = sessionData.session_code;
   expect(sessionCode).toMatch(/^[A-Z2-9]{10}$/);
-  const aliceMemberId: number = sessionData.members.find(
-    (m: any) => m.display_name === "Alice"
-  ).id;
   const friendMemberId: number = sessionData.members.find(
     (m: any) => m.display_name === "Friend"
+  ).id;
+  // aliceMemberId is the logged-in owner's SessionMember row (not "Alice"
+  // nickname — wizard slices nicknames[0] for logged-in users, so no
+  // "Alice" slot is created; "Alice" becomes the owner themselves).
+  const aliceMemberId: number = sessionData.members.find(
+    (m: any) => m.user_id !== null && m.role === "owner"
   ).id;
   await page.close();
   return {
@@ -147,7 +152,7 @@ async function setupSessionWithAnonSlots(
     sessionCode,
     aliceMemberId,
     friendMemberId,
-    friendSecret: "", // computed later when dd claims Friend
+    friendSecret: "", // computed later when dd claims Friend via /s/{code}
   };
 }
 

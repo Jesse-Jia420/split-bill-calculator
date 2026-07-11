@@ -12,7 +12,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import { getSession } from '$api/sessions';
+  import { getSessionWithSecret } from '$api/sessions';
   import { getBill, updateBill } from '$api/bills';
   import { formatDate } from '$lib/utils/format';
   import type { SessionDetail } from '$api/sessions';
@@ -29,7 +29,11 @@
 
   onMount(async () => {
     try {
-      session = await getSession(sessionId);
+      // v0.3.2: use getSessionWithSecret so anon callers can read
+      // session detail. Plain getSession only sends cookie auth and
+      // 403s for anon slots.
+      const result = await getSessionWithSecret(sessionId);
+      session = result.session;
       bill = await getBill(sessionId, billId);
     } catch (e: any) {
       error = e?.message ?? '加载失败';

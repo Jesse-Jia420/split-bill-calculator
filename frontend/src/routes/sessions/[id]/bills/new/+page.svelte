@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import { getSession } from '$api/sessions';
+  import { getSessionWithSecret } from '$api/sessions';
   import { createBill, listBills } from '$api/bills';
   import type { SessionDetail } from '$api/sessions';
   import { loadUser } from '$stores/user';
@@ -25,15 +25,22 @@
 
   onMount(async () => {
     try {
-      session = await getSession(sessionId);
+      // v0.3.2: use getSessionWithSecret so anon callers (X-Nickname-Secret
+      // in localStorage) can read session detail. Plain getSession only
+      // sends cookie auth and 403s for anon slots.
+      const result = await getSessionWithSecret(sessionId);
+      session = result.session;
       // Find the SessionMember that maps to the current user. If the
       // caller isn't yet a member (shouldn't happen in normal flow but
       // be defensive), `defaultPayerMemberId` stays null and the user
-      // picks manually.
+      // picks manually. For anon callers, actingAsMemberId IS the member
+      // row id and user_id is null, so use that as defaultPayer.
       const u = await loadUser();
       if (u && session) {
         const me = session.members.find((m) => m.user_id === u.user_id);
         if (me) defaultPayerMemberId = me.id;
+      } else if (result.actingAsMemberId && session) {
+        defaultPayerMemberId = result.actingAsMemberId;
       }
       // v0.2.1 T03: tally the bills to decide whether the smart-date
       // chips appear. We tolerate the listBills call failing (e.g. the
