@@ -804,6 +804,8 @@ class TestParseBillEndpointEdgeCases:
         # Helper must NOT be called for non-members.
         assert called == []
 
-    def test_no_auth_returns_401(self, client: TestClient) -> None:
+    def test_no_auth_or_secret_returns_403(self, client: TestClient) -> None:
+        """Section 3.12.E.1: parse_bill now uses get_session_member_or_secret.
+        No auth + no secret -> 403 (was 401 before this change)."""
         r = client.post("/sessions/999/bills/parse", json={"text": "x"})
-        assert r.status_code == 401
+        assert r.status_code == 403
