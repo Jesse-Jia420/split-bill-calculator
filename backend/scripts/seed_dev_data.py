@@ -438,11 +438,30 @@ def seed_dev_data(db: OrmSession | None = None) -> dict[str, Any]:
 
     Returns a small summary dict; safe to log at INFO level.
 
-    Skipped entirely when ``ENV=production`` (case sensitive) so a
-    production deploy will never accidentally seed dev fixtures.
+    Skip hierarchy (first match wins):
+      1. ``ENV=production`` → always skip (legacy prod guard).
+      2. ``settings.sbc_skip_seed`` (driven by ``SBC_SKIP_SEED`` env /
+         .env, default True) → skip (v0.3.13 default).
+      3. Otherwise → inject.
+
+    See SPEC.md §3.13 for rationale (why the default flipped to skip:
+    uvicorn restart was re-injecting the xinhua + Thailand fixtures
+    into the dev's own SBC personal space every reload).
     """
     if os.getenv("ENV") == "production":
         return {"skipped": "ENV=production"}
+
+    # v0.3.13 opt-out (反 #136): dev default flipped to skip so the
+    # dev's own SBC personal space doesn't get a 泰国测试账单 row every
+    # restart. Override via SBC_SKIP_SEED=false to bring fixtures back
+    # (e.g. for a sprint walk or demo).
+    from app.core.config import settings  # local import avoids cycles
+
+    if settings.sbc_skip_seed:
+        return {
+            "skipped": "SBC_SKIP_SEED",
+            "hint": "set SBC_SKIP_SEED=false (or .env SBC_SKIP_SEED=false) to inject",
+        }
 
     owns_db = db is None
     if owns_db:
