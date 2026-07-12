@@ -921,3 +921,93 @@ async def delete_bill(sm: Annotated[SessionMember, Depends(get_session_member_or
 - **反 #132**：Tester 必自己跑测试方案，不信 Coder "测试通过"
 - **反 #130**：Coder + Tester 都过不算 done，Master 真手机走完整 dd user story 才算 done
 - **反 #117**：Coder 完成 → Master 推 Telegram，commit hash + tests pass/fail 数 + 主变更文件数
+
+---
+
+## §3.13 dev_seed opt-out + nightly_cleanup (v0.3.13)
+
+**PO 拍板时间**：2026-07-12 09:21 — Jesse "要"（根治"sessions 数据反复出现"诉求）
+**前因**：Jesse 多次手动清 SBC DB 残留 + 邮箱，根因是 uvicorn lifespan hook 强制注入 `xinhua1001` user + 泰国测试账单 + 个人测试 + 27 bills；同时 `verification_codes` 与 `auth_tokens` 表没 TTL 清理，"几十年冒一次"症状。
+
+### A. 产品意图 (PO 单决策)
+
+| 决策 | 内容 |
+|------|------|
+| **a** | dev seed 在 dev 默认 **跳过**（不再强制注入）|
+| **b** | prod 沿用既有 `ENV=production` 守卫 (受 #53 prod 不可污染原则约束) |
+| **c** | dev 主动要 seed：显式 `SBC_SKIP_SEED=false`（opt-in 仍可用）|
+| **d** | 夜级清理脚本作为可重复执行的 CLI，**不**挂 cron（如要 cron 由 PO 后续单独拍）|
+| **e** | 清理脚本不动活跃 session-cookie —— 仅清 (expires_at < now) 或 (last_used_at IS NULL 且 created_at < now-N) 的 token |
+
+> 反 #136 自检：以上全部是产品问题，"用户看到什么/用什么"层面变化；技术实现 (env var 名 / 脚本设计 / retention 默认值) Master 拍板, 不重复问 PO.
+
+### B. Config 层
+
+新增到 `backend/app/core/config.py` (pydantic-settings 自动接 env):
+
+| key | 类型 | 默认 | 说明 |
+|-----|------|------|------|
+| `sbc_skip_seed` | bool | `True` | `True` = 启动时**不**注入 dev fixtures。改 False = opt-in 注入 |
+| `auth_token_ttl_days` | int | `30` | 30 天未使用过的 token 视为过期 |
+| `verification_code_retention_days` | int | `7` | 7 天前的 used/expired verification_code 清掉 |
+
+> 优先级: `ENV=production` → 永远 skip seed > `SBC_SKIP_SEED` > 默认值.
+
+### C. seed_dev_data 改动
+
+```python
+def seed_dev_data(db=None) -> dict:
+    if os.getenv("ENV") == "production":
+        return {"skipped": "ENV=production"}
+    from app.core.config import settings
+    if settings.sbc_skip_seed:
+        return {"skipped": "SBC_SKIP_SEED", "hint": "..."}
+    # ... 原来逻辑
+```
+
+### D. 新增 scripts/cleanup_expired.py
+
+**接口**:
+
+```
+cd backend && .venv/bin/python -m scripts.cleanup_expired [--dry-run] [--quiet]
+```
+
+**清理逻辑** (active session-cookie 不动):
+
+| 表 | 删除条件 |
+|----|----------|
+| `verification_codes` | `(used=1 AND created_at < now-7d)` ∪ `(used=0 AND expires_at < now-1h)` |
+| `auth_tokens` | `expires_at < now` ∪ `(last_used_at IS NULL AND created_at < now-30d)` |
+
+**输出**:
+
+```
+INFO  scripts.cleanup_expired: verification_codes: 6 stale row(s) (6 consumed-stale + 0 unused-expired)
+INFO  scripts.cleanup_expired:   would drop id=46 email=jessejia1001@gmail.com code=731673
+...
+WARNING scripts.cleanup_expired: CLEANUP SUMMARY: verification_codes dropped=6, auth_tokens dropped=3
+```
+
+**退出码**: 0 success / 1 config error / 2 SQL error.
+
+### E. 验收清单 (反 #129 #130)
+
+1. **冷启动 verify (`kill uvicorn && nohup uvicorn ... &`)**：日志含 `[startup] seed_dev_data: {'skipped': 'SBC_SKIP_SEED', ...}`。curl `/version` 验新 commit hash.
+2. **opt-in 验**: `SBC_SKIP_SEED=false kill uvicorn && SBC_SKIP_SEED=false nohup uvicorn ... &` → 日志含 `xinhua_user_id: 23 ...`.
+3. **cleanup dry-run**: `.venv/bin/python -m scripts.cleanup_expired --dry-run` → 6 行残留预期（4×auth_token 三胞胎 + 1×jessejia verification + 1×xinhua verification）.
+4. **cleanup 真跑**: 删 6 行后 `verification_codes` 总数从 46 → 45 (实际含过期未消耗的清理), `auth_tokens` 从 4 → 1 (保留最近活跃的 t=230).
+5. **接口 regression**: `curl /api/sessions -H cookie:sbc_session=...` 仍返 xinhua 的 3 个 sessions (sess=63/64/183).
+6. **DB 备份 验证**: `cat /home/node/.openclaw/backups/sbc/MANIFEST.tsv` 末行新时间戳 + sha256.
+
+### F. 部署
+
+- BE 单 commit 自包含: config.py + seed_dev_data.py + scripts/cleanup_expired.py + .env.example.
+- 不动 migration (无 schema 变化).
+- `kill <uvicorn_pid> && nohup uvicorn ... --env-file .env &` 重启后 verify.
+
+### G. 反模式预防
+
+- **反 #53 续**: 改 backend 代码前必跑 `sbc_backup.sh`. cleanup 脚本本身**修改**DB schema 不变，但运行时会 DELETE → 已先 backup (MANIFEST.tsv 有新行).
+- **反 #136**: Master 自查 — a/b/c/d/e 全是产品问题；env var 名 / 默认值 / 脚本 chunk size / dry-run 模式 都不问 PO.
+- **反 #129**: cleanup script **自带** 一个 dry-run 模式 + 一个真跑模式, 不是单元测试能 cover 的 destructive 操作 — pytest 里调 dry-run 1 次就够.

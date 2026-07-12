@@ -108,6 +108,51 @@ class Settings(BaseSettings):
     app_env: str = Field(default="dev")
     debug: bool = Field(default=False)
 
+    # --- v0.3.13 dev seed opt-out + cleanup (反 #136) ---
+    # Default True: uvicorn startup skips auto-injection of the
+    # `xinhua1001@outlook.com` user + 泰国测试账单 + 个人测试 fixtures,
+    # so the dev's own SBC personal space stays free of seed data
+    # (otherwise every restart re-injects 30+ rows). Set to "false" or
+    # "0" (case-insensitive) explicitly to *opt-in* to the legacy
+    # always-seed behaviour (e.g. for a sprint walk or demo).
+    #
+    # Override hierarchy:
+    #   1. `ENV=production` → seed is **always** skipped (legacy guard).
+    #   2. `SBC_SKIP_SEED` env → take this value (default True = skip).
+    #   3. .env file `SBC_SKIP_SEED=false` → opt back in.
+    #
+    # See SPEC.md §3.13 for rationale.
+    sbc_skip_seed: bool = Field(
+        default=True,
+        description=(
+            "Skip seed_dev_data lifespan injection (True = skip, False = "
+            "inject). Default True to keep the personal SBC space clean "
+            "across restarts. Override per dev with SBC_SKIP_SEED=false."
+        ),
+    )
+
+    # Retention windows for nightly_cleanup.py.
+    # - `auth_token_ttl_days`: drop auth_tokens that are expired OR older
+    #   than this AND never used. Active session cookies (those whose
+    #   raw token is still hashed and matched at request time) are NEVER
+    #   touched — the script only operates on tokens whose *hash* row is
+    #   already expired or whose row is 30+ days old without a recorded
+    #   `last_used_at`.
+    # - `verification_code_retention_days`: drop `verification_codes`
+    #   rows that are (used OR expired) for longer than this window.
+    auth_token_ttl_days: int = Field(
+        default=30,
+        description="Days to retain unused auth_tokens before cleanup.",
+    )
+    verification_code_retention_days: int = Field(
+        default=7,
+        description=(
+            "Days to retain consumed/expired verification_codes before "
+            "cleanup. Active (unconsumed & unexpired) codes are NEVER "
+            "touched by this script."
+        ),
+    )
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
