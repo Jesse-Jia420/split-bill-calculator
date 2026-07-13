@@ -1011,3 +1011,136 @@ WARNING scripts.cleanup_expired: CLEANUP SUMMARY: verification_codes dropped=6, 
 - **反 #53 续**: 改 backend 代码前必跑 `sbc_backup.sh`. cleanup 脚本本身**修改**DB schema 不变，但运行时会 DELETE → 已先 backup (MANIFEST.tsv 有新行).
 - **反 #136**: Master 自查 — a/b/c/d/e 全是产品问题；env var 名 / 默认值 / 脚本 chunk size / dry-run 模式 都不问 PO.
 - **反 #129**: cleanup script **自带** 一个 dry-run 模式 + 一个真跑模式, 不是单元测试能 cover 的 destructive 操作 — pytest 里调 dry-run 1 次就够.
+
+## §3.14 v1.0 UAT 反馈 — session 币种展示 + 汇率可编辑 + settle 用最新汇率重算 (v0.3.14)
+
+**PO 拍板时间**：2026-07-13 11:31 #4125 + 11:33 #4131 (telegram)
+**前因**：v1.0 UAT 阶段 Jesse #4117 + #4125 报 5 个 BUG；BUG #5 涉及 (1) 币种展示 (2) 汇率可编辑 (3) **改汇率后汇总立即更新** = 推翻 §3.7.6 snapshot 隔离部分。
+**PRD 章节**：§3.14 决策点 14。
+
+### A. 产品意图 (PO 单决策)
+
+| 决策 | 内容 |
+|------|------|
+| **a** (BUG #5 §3.14.1) | 单币种展示 `币种：CNY`; 双币种展示 `主币种：CNY` / `副币种：JPY` / `汇率：0.045`（**多行**，**不**单行）|
+| **b** (BUG #5 §3.14.2) | 双币种汇率**可编辑**（click → inline edit → POST PATCH `/sessions/{id}/exchange-rates`）|
+| **c** (BUG #5 §3.14.3) | **settle 汇总页** 用 **session_exchange_rates 当前值** 重算（**不**读 `bill.exchange_rate_snapshot`）|
+| **d** (BUG #5 §3.14.3 混合语义) | **bills 详情页 + bills 列表** 仍用 **`bill.exchange_rate_snapshot`**（历史准确性，**不**改）|
+| **e** (BUG #5 §3.14.1 位置) | 位置（session 标题上方/下方）**让 design agent 评估**，不是产品决策 |
+
+> 反 #121 / #136 自检：以上 (a)(b)(c)(d) 都是产品问题；位置让 design agent 拍；技术实现 (settle 算法如何读 / PATCH endpoint 形状 / 组件结构) Master 拍。
+
+### B. BUG #5 §3.14.3 — settle 算法改写（推翻 §3.7.6 settle 部分）
+
+**当前算法** (`backend/app/api/settle.py` `_compute_per_member`):
+```python
+# line 24-25 (current):
+# - currency == primary: use bill.amount as-is.
+# - currency != primary: bill.amount * bill.exchange_rate_snapshot,
+```
+
+**改后算法**（按 §3.14.3 PO 拍板）:
+```python
+# 查 session 当前汇率 (替代 bill.exchange_rate_snapshot)
+from app.db.models.session_exchange_rates import SessionExchangeRate
+current_rates: dict[tuple[str,str], Decimal] = {
+    (r.from_currency, r.to_currency): r.rate
+    for r in db.query(SessionExchangeRate).filter_by(session_id=session_id).all()
+}
+# 反向汇率自动算: 如果有 USD→CNY 没有 CNY→USD → 自动 1/rate
+for (f, t), r in list(current_rates.items()):
+    if (t, f) not in current_rates:
+        current_rates[(t, f)] = Decimal("1") / r
+
+# bill 计算
+for bill in bills:
+    if bill.currency == session.primary_currency:
+        amount_primary = bill.amount
+    else:
+        amount_primary = bill.amount * current_rates[(bill.currency, session.primary_currency)]
+    # ... rest of settle logic same as before ...
+```
+
+**关键差异**:
+- `amount_primary` per bill（用于 bills 列表）→ **仍用** `bill.exchange_rate_snapshot`（不在这函数里）
+- `amount_primary` per bill（用于 settle 内部聚合）→ 用 **current_rates[...][...]** 实时算
+- 两个地方数字可能不一样 — **预期**，**不**是 bug
+
+**反向汇率自动算** (从 §3.7.6 拍板): 双币种 session 创建时必填至少一条汇率；其他方向自动 1/rate。
+
+### C. BUG #5 §3.14.2 — 汇率 inline edit 流程
+
+**UI**（由 Design Agent 评估最终设计）:
+1. 双币种 session 详情页/settle 页显示「汇率：0.045」字段
+2. 点击 → 变成 input field（保留原值）
+3. 输入新值 + Enter / blur → POST PATCH `/sessions/{id}/exchange-rates` body `{from_currency, to_currency, rate}`
+4. 成功后 → 刷新页面（settle 立即用新汇率）
+
+**BE**（已有 `/sessions/{id}/exchange-rates` PATCH endpoint，从 v0.2.2 拍板）:
+- 验 owner 权限
+- UPDATE `session_exchange_rates` SET rate = ?, snapshot_at = NOW()
+- 不删旧 row（保留历史）
+- 返 200 + 新 rate row
+
+**不**做（§3.14.4 排除项）:
+- ❌ 汇率修改历史 / undo
+- ❌ 汇率修改通知
+- ❌ 批量修改
+- ❌ 双币种 session 创建流程改动（仍按 §3.7.6 必填至少一条汇率）
+
+### D. BUG #3 — FE `Number()` 转（最小修复）
+
+**根因**: BE `MemberSettlement.total_paid: Decimal` + `model_dump(mode="json")` 序列化为 string `"800.00"`；FE `tweenPaid.set("800.00")` svelte tweened 不接受 string → value 保持 0 → 显示 "0.00"。
+
+**修法** (1 行 × 3 处):
+```typescript
+// frontend/src/lib/components/SettleMemberBreakdown.svelte
+$: if (selectedMember) {
+  tweenPaid.set(Number(selectedMember.total_paid ?? 0));      // 加 Number()
+  tweenConsumed.set(Number(selectedMember.total_consumed ?? 0));  // 加 Number()
+  tweenNet.set(Number(selectedMember.net ?? 0));              // 加 Number()
+  prevSelectedMemberId = selectedMember.member_id;
+}
+```
+
+**不**动 BE: 不改 `MemberSettlement` json_encoders（保持 Decimal 序列化语义，避免全局影响）。
+
+### E. BUG #4 — tab 改名
+
+**改动** (`frontend/src/routes/sessions/[id]/settle/+page.svelte`):
+- 按钮 "源币种分列" → "原始数据"
+- 文案: 「主币种汇总 (CNY)」按钮保留不变；「原始数据」disabled 文案 "该 session 只有一种币种" 保留
+- 两个 tab 分工（PO #4117 明确）: 「原始数据」= 按源币种明细；「主币种汇总」= 换算成主币种后的汇总
+
+**不**改 settle 算法（BUG #5 §3.14.3 算法独立生效）。
+
+### F. BUG #1 — 「返回 session」按钮美化
+
+**当前**: `<a class="btn ghost back-btn" href="/sessions/{sessionId}">返回 session</a>` — 仅文字
+**改后**（Design Agent 拍最终设计）: 文字 + icon (chevron-left) + 触摸目标 ≥ 44px + 视觉 token (颜色 / 字号 参照 v0.1.3)
+
+### G. BUG #2 — 「谁付给谁多少，一目了然」文案
+
+**PO #4117 提问** — 出现在正式产品中是否合适？
+**Master 自检** (反 #121): 这是文案细节 → **PO 拍板**，**不**自决。
+**等 PO 拍文案**: Master 在 commit message / Telegram 跟进；如果 PO 不改，保留原文（"谁付给谁多少,一目了然" 暂作为 §3.6.6 T06 transfer path click 砍掉后的残留文案，v0.3.14 不主动改）。
+
+### H. 验收清单 (反 #129 #130)
+
+1. **DB 反 #53 备份** (codeserver 内 `cp sbc.db .../sbc-YYYYMMDD-HHMMSS.db.v0.3.14-pre` + sha256)
+2. **pytest** (`cd backend && .venv/bin/python -m pytest tests/ -q`): 数量不退化 (baseline 411 + 新增 ≥ 4 case for §3.14.3 算法)
+3. **svelte-check**: 0 new error
+4. **e2e** (按反 #131 + #132): 至少 3 个新 spec — (a) settle 改汇率立即更新 (b) 单币种展示「币种：CNY」(c) 双币种展示多行 + 汇率 inline edit
+5. **真用户验收 (反 #130)**: Jesse 在 `test.jessejia.pp.ua` 浏览器 (iPhone viewport 390x844) 走 4 场景 — (a) S1 单币种显示 (b) S2 双币种多行显示 (c) S2 改汇率 0.045→0.05 → settle balances/transfers 立即变 (d) S2 bills 列表 amount_primary 不变（snapshot 隔离）
+6. **git push** + **单分支铁律** (`git branch -r` 仅 origin/main)
+7. **PRD §11 changelog** append v0.3.14-done 行（Master 写）
+
+### I. 反模式预防
+
+- **反 #148**: 全部 spawn agents 走 codeserver 容器；OpenClaw 只调 `codeserver_exec.js` / `codeserver_write.js` / `codeserver_copy.py`。
+- **反 #53**: 改 DB schema / 数据前 codeserver 内 `cp sbc.db ...backup` + MANIFEST.tsv 验证。
+- **反 #121**: Master 不列技术选项 (a/b/c) 给 PO 选；本轮 BUG #3 修法自决 FE Number()。
+- **反 #131**: Coder + Tester + Design Agent 并行 spawn。
+- **反 #132**: Tester 自己跑测试方案，**不**信 Coder "测试通过"。
+- **反 #130**: process green + product green 双轴，未经过 Jesse 真用户验收 = **未完成**。
+

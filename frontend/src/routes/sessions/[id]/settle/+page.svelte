@@ -22,6 +22,8 @@
   import type { SessionDetail } from '$api/sessions';
   import SettleTransferPath from '$components/SettleTransferPath.svelte';
   import SettleMemberBreakdown from '$components/SettleMemberBreakdown.svelte';
+  import BackButton from '$components/BackButton.svelte';
+  import SessionCurrencyBadge from '$components/SessionCurrencyBadge.svelte';
   import { user } from '$stores/user';
 
   let session: SessionDetail | null = null;
@@ -71,7 +73,7 @@
 
 <section>
   <div class="row" style="margin-bottom: var(--space-3);">
-    <a class="btn ghost back-btn" href="/sessions/{sessionId}">返回 session</a>
+    <BackButton href="/sessions/{sessionId}" />
   </div>
 
   {#if loading}
@@ -80,6 +82,14 @@
     <div class="error">{error}</div>
   {:else if session}
     <h2>{session.name} · 结算</h2>
+    <SessionCurrencyBadge
+      currencies={session.currencies ?? []}
+      primary_currency={session.primary_currency}
+      exchange_rates={session.exchange_rates ?? []}
+      editable={memberIdToRole[currentMember?.id ?? 0] === 'owner'}
+      variant="settle"
+      onRateChange={() => window.location.reload()}
+    />
     <p class="muted">谁付给谁多少,一目了然</p>
 
     <div class="tab-bar" role="tablist" aria-label="结算视图">
@@ -130,7 +140,7 @@
         }
         on:click={() => (viewMode = 'split')}
       >
-        源币种分列
+        原始数据
       </button>
     </div>
 
@@ -149,15 +159,6 @@
 </section>
 
 <style>
-  .back-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    min-height: 36px;
-    padding: 4px 12px;
-    font-size: var(--font-size-sm, 14px);
-  }
-
   /* v0.2.2 (T11): view-mode toggle above the tab bar */
   .view-switch {
     display: inline-flex;

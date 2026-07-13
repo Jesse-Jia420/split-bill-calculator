@@ -41,6 +41,7 @@
   import InviteLinkButton from '$components/InviteLinkButton.svelte';
   import BillListGrouped from '$components/BillListGrouped.svelte';
   import EmptyState from '$components/EmptyState.svelte';
+  import SessionCurrencyBadge from '$components/SessionCurrencyBadge.svelte';
   import { getSessionWithSecret } from '$api/sessions';
   import { user, loadUser } from '$stores/user';
   import { toast } from '$stores/toast';
@@ -401,21 +402,18 @@
     <div class="row between session-header" style="margin-bottom: var(--space-3); flex-wrap: wrap; gap: var(--space-2);">
       <h2 style="margin: 0;">
         {session.name}
-        {#if session.currencies && session.currencies.length > 0}
-          <span
-            class="primary-currency-tag"
-            title={'币种: ' + session.currencies.join(', ') + ' / 主币种: ' + session.primary_currency}
-          >
-            主币种: {session.primary_currency}
-          </span>
-        {/if}
       </h2>
-
-      <!-- v0.3.2 (PRD §3.12.3): 移除整个 `.session-header-actions` 段，理由:
-           (1) PO 11:10 拍板「查看结算」按钮归位到账单 section head;
-           (2) PO 14:01 重申 session header 完全**不**要任何 login/logout/登录按钮.
-           视觉候选 B: 「查看结算」移到下面账单 head，ghost + Lucide 图标。-->
     </div>
+    {#if session.currencies && session.currencies.length > 0}
+      <SessionCurrencyBadge
+        currencies={session.currencies}
+        primary_currency={session.primary_currency}
+        exchange_rates={session.exchange_rates ?? []}
+        editable={isOwner}
+        variant="detail"
+        onRateChange={() => window.location.reload()}
+      />
+    {/if}
 
     <!-- v0.2.1 UI rev (PO 2026-07-03 18:15 重设计): 整个 header clickable + 折叠态 avatar 预览 -->
     <div class="card members-card">
@@ -651,18 +649,10 @@
 </section>
 
 <style>
-  /* === header === */
-  .primary-currency-tag {
-    display: inline-block;
-    margin-left: 0.5rem;
-    padding: 0.125rem 0.5rem;
-    background: rgba(99, 102, 241, 0.1);
-    color: #4f46e5;
-    border-radius: 999px;
-    font-size: 0.75rem;
-    font-weight: 500;
-    vertical-align: middle;
-  }
+  /* === header ===
+     v0.3.14 §3.14.1: 移除 `.primary-currency-tag` (单行 h2 内嵌 tag), 
+     替换为 SessionCurrencyBadge 组件 (标题下方独立 dl-like grid)。
+     设计推荐 4 条理由见 design_output.md 任务 A 第 1 节。*/
   /* v0.3.2 §3.12.3: `.session-header-actions` 整段删除 — 相关 CSS 也清理。
      保留是为了让后续 retro 引用，注释占位。*/
 
