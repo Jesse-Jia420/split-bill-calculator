@@ -131,6 +131,23 @@
         {/each}
       </ul>
     {/if}
+    <!-- v0.3.14.1 (Bug B): currency breakdown in split view -->
+    {#if viewMode === 'split' && data.currency_breakdown}
+      <h3>按源币种</h3>
+      <ul class="currency-breakdown" style="list-style: none; padding: 0; margin: 0 0 var(--space-4);">
+        {#each Object.entries(data.currency_breakdown).sort((a, b) => (b[1].paid || 0) - (a[1].paid || 0)) as [ccy, breakdown] (ccy)}
+          <li class="currency-row row between">
+            <span class="ccy-name">{ccy}</span>
+            <span class="ccy-detail">
+              paid {fmt(breakdown.paid)} / consumed {fmt(breakdown.consumed)} / net
+              <span class:pos={breakdown.net > 0} class:neg={breakdown.net < 0}>
+                {breakdown.net > 0 ? '+' : ''}{fmt(breakdown.net)}
+              </span>
+            </span>
+          </li>
+        {/each}
+      </ul>
+    {/if}
     <p class="hint" style="margin-top: var(--space-3);">
       生成时间: {fmtGenerated(data.generated_at)}
     </p>
@@ -150,6 +167,18 @@
   }
   .amount.neg {
     color: var(--error-500);
+  }
+  .currency-row {
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .ccy-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+  .ccy-detail {
+    font-size: 0.85rem;
+    color: var(--gray-500);
   }
   /* 反馈修 6 项目 5: 用户名 normal 字体 (不加粗) */
   .member-name {

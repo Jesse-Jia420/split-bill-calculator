@@ -209,6 +209,13 @@ class SettleResponse(BaseModel):
     balances: dict[str, Decimal]
     transfers: list[Transfer]
     per_member: list[MemberSettlement] = []
+    currency_breakdown: dict[str, CurrencyBreakdown] | None = None
+
+
+class CurrencyBreakdown(BaseModel):
+    paid: Decimal
+    consumed: Decimal
+    net: Decimal
 
 
 class ViewMode(str, Enum):
@@ -336,7 +343,7 @@ def _compute_balances(
                 exclusive_total += excl_amt
 
         shared_pool = amount_primary - exclusive_total
-        per_user_shared = _quantize(shared_pool / len(ppts))
+        per_user_shared = shared_pool / Decimal(len(ppts))
         for p in ppts:
             own_excl = Decimal("0")
             if p.is_exclusive:
@@ -349,7 +356,16 @@ def _compute_balances(
 
     net: dict[int, Decimal] = {}
     for mid in member_ids:
-        net[mid] = _quantize(paid.get(mid, Decimal("0")) - consumed.get(mid, Decimal("0")))
+        net[mid] = paid.get(mid, Decimal("0")) - consumed.get(mid, Decimal("0"))
+    # Invariant (v0.3.14.1): sum(net) MUST equal 0 because every cent paid
+    # is also consumed by definition of the algorithm. Raw-Decimal aggregation
+    # keeps sum-to-zero. Tolerance 0.0001 handles non-terminating Decimal div.
+    total_net = sum(net.values(), Decimal("0"))
+    if not _is_zero(total_net):
+        raise AssertionError(
+            f"settle invariant violated: sum(net)={total_net} (expected 0). "
+            f"net={dict(net)}"
+        )
     return net
 
 
@@ -364,6 +380,48 @@ def _primary_currency_for(bill: Bill) -> str:
         return bill.session.primary_currency
     except AttributeError:
         return "CNY"
+
+
+def _compute_currency_breakdown(
+    bills_with_primary: list[tuple[Bill, Decimal]],
+    participants_by_bill: dict[int, list[BillParticipant]],
+) -> dict[str, CurrencyBreakdown]:
+    """v0.3.14.1 (Bug B): per-source-currency aggregation for view=split.
+
+    Aggregates paid / consumed per source currency across all bills.
+    Called only when view == 'split'. Balances / transfers stay in primary currency.
+    """
+    paid_by_ccy: dict[str, Decimal] = {}
+    consumed_by_ccy: dict[str, Decimal] = {}
+
+    for bill, amount_primary in bills_with_primary:
+        bill_currency = getattr(bill, "currency", None) or "CNY"
+        ppts = participants_by_bill.get(bill.id, [])
+
+        # Accumulate paid in source currency (not converted)
+        paid_by_ccy[bill_currency] = paid_by_ccy.get(bill_currency, Decimal("0")) + Decimal(bill.amount)
+
+        # Accumulate consumed: each participant's share in source currency
+        if ppts:
+            amount_f = Decimal(bill.amount)
+            excl_total = sum(
+                Decimal(p.exclusive_amount) for p in ppts if p.is_exclusive
+            )
+            shared = amount_f - excl_total
+            per_user = shared / Decimal(len(ppts))
+            for p in ppts:
+                own = Decimal(p.exclusive_amount) if p.is_exclusive else Decimal("0")
+                consumed_by_ccy[bill_currency] = (
+                    consumed_by_ccy.get(bill_currency, Decimal("0")) + per_user + own
+                )
+
+    result: dict[str, CurrencyBreakdown] = {}
+    all_ccys = set(paid_by_ccy) | set(consumed_by_ccy)
+    for ccy in all_ccys:
+        p = paid_by_ccy.get(ccy, Decimal("0"))
+        c = consumed_by_ccy.get(ccy, Decimal("0"))
+        result[ccy] = CurrencyBreakdown(paid=p, consumed=c, net=p - c)
+    return result
 
 
 def _greedy_pair(net: dict[int, Decimal]) -> list[dict]:
@@ -452,7 +510,7 @@ def _share_amounts_primary(
                 excl = _quantize(excl)
             exclusive_total += excl
     shared_pool = amount_primary - exclusive_total
-    per_user_shared = _quantize(shared_pool / len(parts))
+    per_user_shared = shared_pool / len(parts)
     out: list[Decimal] = []
     for p in parts:
         own = Decimal("0")
@@ -719,4 +777,8 @@ async def settle_session(
         "balances": {str(mid): balances[mid] for mid in member_ids},
         "transfers": transfers,
         "per_member": [pm.model_dump(mode="json") for pm in per_member],
+        "currency_breakdown": (
+            _compute_currency_breakdown(bills_with_primary, participants_by_bill)
+            if view == "split" else None
+        ),
     }

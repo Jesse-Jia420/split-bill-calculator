@@ -25,7 +25,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.api import settle as settle_module
-from app.api.settle import _compute_balances, _greedy_pair
+from app.api.settle import _compute_balances, _greedy_pair, _is_zero
+from decimal import Decimal
 from app.core.auth import COOKIE_NAME, hash_token
 from app.core.database import SessionLocal
 from app.db.models.auth_tokens import AuthToken
@@ -947,3 +948,76 @@ class TestSettlePerMemberBreakdown:
         c_frank = _login_as("frank@settle.local")
         r = c_frank.get(f"/sessions/{sid}/settle")
         assert r.status_code == 403
+
+class TestBalancesInvariantSumZero:
+    """v0.3.14.1 Bug A: sum(balances) must be exactly 0 for any bill combo.
+
+    Regression suite for the bug where per_user_shared = _quantize(shared_pool / N)
+    caused N * per_user_shared != shared_pool (remainder lost in quantization).
+    """
+
+    def test_balances_sum_to_zero_single_currency(self) -> None:
+        """2 members, 3 single-currency bills - no rounding edge cases."""
+        alice, bob = 1, 2
+        bills = [
+            _FakeBill(id=1, amount=100.0, payer_id=alice),
+            _FakeBill(id=2, amount=50.0, payer_id=bob),
+            _FakeBill(id=3, amount=25.0, payer_id=alice),
+        ]
+        parts = {
+            1: [_FakePart(alice), _FakePart(bob)],
+            2: [_FakePart(bob), _FakePart(alice)],
+            3: [_FakePart(alice), _FakePart(bob)],
+        }
+        nets = _compute_balances(bills, parts, [alice, bob])
+        total = sum(nets.values(), Decimal("0"))
+        assert _is_zero(total), f"sum(balances)={total}, expected ~0"
+
+    def test_balances_sum_to_zero_multi_currency(self) -> None:
+        """Multiple bills, multiple members - stress test for sum-to-zero."""
+        a, b, c = 1, 2, 3
+        bills = [
+            _FakeBill(id=1, amount=100.0, payer_id=a),
+            _FakeBill(id=2, amount=3000.0, payer_id=b),
+            _FakeBill(id=3, amount=50.0, payer_id=a),
+        ]
+        parts = {
+            1: [_FakePart(a), _FakePart(b), _FakePart(c)],
+            2: [_FakePart(b), _FakePart(a), _FakePart(c)],
+            3: [_FakePart(a), _FakePart(b), _FakePart(c)],
+        }
+        nets = _compute_balances(bills, parts, [a, b, c])
+        total = sum(nets.values(), Decimal("0"))
+        assert _is_zero(total), f"sum(balances)={total}, expected ~0"
+
+    def test_balances_sum_to_zero_extreme_rounding(self) -> None:
+        """1000 / 3 - non-terminating decimal exposes drift if per_user_shared quantized."""
+        a, b, c = 1, 2, 3
+        # 1000 split 3 ways = 333.333... each; if quantized to 333.33, sum = 999.99 != 1000
+        bills = [
+            _FakeBill(id=1, amount=1000.0, payer_id=a),
+        ]
+        parts = {
+            1: [_FakePart(a), _FakePart(b), _FakePart(c)],
+        }
+        nets = _compute_balances(bills, parts, [a, b, c])
+        total = sum(nets.values(), Decimal("0"))
+        assert _is_zero(total), f"sum(balances)={total}, expected ~0 (1000/3 drift)"
+
+    def test_balances_sum_to_zero_with_exclusive(self) -> None:
+        """Multiple bills with exclusive portions - sum must stay zero."""
+        a, b = 1, 2
+        bills = [
+            _FakeBill(id=1, amount=100.0, payer_id=a),
+            _FakeBill(id=2, amount=60.0, payer_id=b),
+            _FakeBill(id=3, amount=90.0, payer_id=a),
+        ]
+        parts = {
+            1: [_FakePart(a, True, 20.0), _FakePart(b)],
+            2: [_FakePart(b), _FakePart(a)],
+            3: [_FakePart(a, True, 30.0), _FakePart(b, True, 15.0)],
+        }
+        nets = _compute_balances(bills, parts, [a, b])
+        total = sum(nets.values(), Decimal("0"))
+        assert _is_zero(total), f"sum(balances)={total}, expected ~0"
+
