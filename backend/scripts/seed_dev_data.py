@@ -96,7 +96,7 @@ THAILAND_MEMBERS: list[tuple[str, str, str]] = [
 #   (0=Jesse, 1=Ju, 2=Canyina, 3=Q, 4=像汤圆一样圆.)
 # - occurred_at_iso is timezone-aware (Asia/Shanghai)
 # - participant_indices is a list of member indices who split the bill.
-THAILAND_BILLS: list[tuple[str, float, int, str, list[int]]] = [
+THAILAND_BILLS: list[tuple[str, float, int, str, list[int]] | tuple[str, float, int, str, list[int], str]] = [
     ("6.19打车",                   159.0,  2, "2026-06-19T20:00:00+08:00", [0, 1, 3, 4]),
     ("午餐",                       900.0,  3, "2026-06-20T12:00:00+08:00", [0, 1, 2, 3, 4]),
     ("晚餐妈妈面",                 1340.0, 0, "2026-06-20T12:00:00+08:00", [0, 1, 2, 3, 4]),
@@ -124,6 +124,12 @@ THAILAND_BILLS: list[tuple[str, float, int, str, list[int]]] = [
     ("6.22打车大金佛回民宿",       109.0,  3, "2026-06-22T20:00:00+08:00", [0, 1, 3, 4]),
     ("6.22打车去酒店",             100.0,  3, "2026-06-22T20:00:00+08:00", [3, 4]),
     ("6.22榴莲",                   550.0,  3, "2026-06-22T20:00:00+08:00", [0, 3]),
+    # CNY bills — WeChat/Alipay paid in CNY (for dual-currency testing)
+    ("6.20WeChat大餐",             380.0,  0, "2026-06-20T20:00:00+08:00", [0, 1, 2, 3, 4], "CNY"),
+    ("6.21支付宝午饭",              220.0,  1, "2026-06-21T12:00:00+08:00", [0, 1, 3, 4], "CNY"),
+    ("6.22微信买水果",              85.0,   3, "2026-06-22T10:00:00+08:00", [0, 3, 4], "CNY"),
+    ("6.21支付宝按摩后加菜",         128.0,  4, "2026-06-21T21:00:00+08:00", [0, 1, 3, 4], "CNY"),
+    ("6.22微信零食",                66.0,   2, "2026-06-22T15:00:00+08:00", [0, 2, 3], "CNY"),
 ]
 
 THAILAND_SESSION_NAME = "泰国测试账单 6.19-6.22"
@@ -483,7 +489,7 @@ def _seed_thailand_bills(
     members: list[SessionMember],
     now: datetime,
 ) -> int:
-    """Create 27 THB bills for the Thailand session.
+    """Create 27 bills (25 THB + 5 CNY) for the Thailand session.
 
     Returns the number of bills created (0 if they already exist — we
     never recreate). Idempotent: only inserts when there are no bills
@@ -495,14 +501,20 @@ def _seed_thailand_bills(
     if existing_count > 0:
         return 0
 
-    for description, amount, payer_idx, occurred_iso, pax_indices in THAILAND_BILLS:
+    thailand_bills = THAILAND_BILLS
+    for i, entry in enumerate(thailand_bills):
+        desc = entry[0]
+        amount = entry[1]
+        payer_idx = entry[2]
+        occurred_iso = entry[3]
+        pax_indices = entry[4]
         occurred = datetime.fromisoformat(occurred_iso)
         bill = Bill(
             session_id=session.id,
             payer_id=members[payer_idx].id,
             amount=amount,
-            currency="THB",
-            description=description,
+            currency=entry[5] if len(entry) > 5 else "THB",
+            description=desc,
             occurred_at=occurred,
             created_by=session.owner_user_id,
             created_at=now,
@@ -518,7 +530,7 @@ def _seed_thailand_bills(
                 exclusive_amount=0.0,
             )
             db.add(bp)
-    return len(THAILAND_BILLS)
+    return len(thailand_bills)
 
 
 def seed_dev_data(db: OrmSession | None = None) -> dict[str, Any]:
