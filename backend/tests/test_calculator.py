@@ -172,7 +172,8 @@ def _make_session(owner: User, name: str = "Test session") -> tuple[SessionModel
             invite_token="t" + str(owner.id),
             invite_expires_at=None,
             invite_created_at=None,
-        )
+session_code=secrets.token_hex(4),
+)
         db.add(s)
         db.flush()
         sm = SessionMember(

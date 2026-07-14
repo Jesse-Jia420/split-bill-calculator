@@ -57,13 +57,33 @@ v0.2.2 (T11) view modes
   currency); the per-bill ``currency`` field on per-member rows
   carries the source.
 
-v0.2.2 (T11) snapshot mode
---------------------------
-Each bill carries its own ``exchange_rate_snapshot`` (recorded at bill
-creation time, never overwritten). settlement reads only the bill's
-own snapshot — never the live session rate — so historical bills
-stay stable when rates change (PRD §3.7.5). Bills in primary currency
-have ``exchange_rate_snapshot IS NULL`` and skip the conversion.
+v0.3.14 (§3.14.3) settle real-time re-rate
+-----------------------------------------
+PRD §3.14.3 (PO 2026-07-13 11:33 #4131 拍板) reverses §3.7.6 for the
+**settle** path:
+
+- **settle 汇总页** (this endpoint + GET ?view=personal): converts each
+  non-primary bill using the *current* ``session_exchange_rates`` row,
+  not the bill's historical snapshot. Therefore changes to the session
+  rate are reflected immediately in balances / transfers /
+  per_member[].total_paid / per_member[].total_consumed /
+  per_member[].net / per_member[].exclusive_amount_primary /
+  per_member[].share_amount_primary.
+
+- **bill 详情 + bills 列表** (``/sessions/{id}/bills`` endpoint): keeps
+  the historical snapshot for amount_primary display (PRD §3.7.5
+  snapshot isolation preserved). The ``bills.exchange_rate_snapshot``
+  column is **not** mutated by rate changes — we only **read** the
+  live session rate when converting inside settle.
+
+- The DB column ``bills.exchange_rate_snapshot`` itself stays
+  unchanged by this module. It is still written at bill-create time
+  by ``bills.py`` and never overwritten.
+
+When a bill's currency differs from the primary but no current
+``session_exchange_rates`` row exists for ``(bill.currency → primary)``,
+we still raise 422 ``missing_exchange_rate_snapshot`` (error code
+preserved for FE compat).
 """
 from __future__ import annotations
 
@@ -450,8 +470,18 @@ def _compute_per_member(
     bills_with_primary: list[tuple[Bill, Decimal]],
     participants_by_bill: dict[int, list[BillParticipant]],
     members: list[SessionMember],
+    session_rates: dict[tuple[str, str], Decimal] | None = None,
+    primary_currency: str | None = None,
 ) -> list[MemberSettlement]:
-    """Build the per-member breakdown (primary currency throughout)."""
+    """Build the per-member breakdown (primary currency throughout).
+
+    v0.3.14 §3.14.3: when ``session_rates`` is provided, the
+    per-bill ``exclusive_amount_primary`` uses the *current*
+    session rate (matching the conversion used for ``amount_primary``
+    above) instead of the historical ``bill.exchange_rate_snapshot``.
+    Unit-test paths that omit ``session_rates`` keep the snapshot-based
+    behaviour so the v0.1.2 / v0.2.1 unit fixtures remain valid.
+    """
     out: list[MemberSettlement] = []
     for m in members:
         paid_bills: list[BillSummary] = []
@@ -486,7 +516,22 @@ def _compute_per_member(
                     exclusive_raw = Decimal("0")
                     if p.is_exclusive:
                         exclusive_raw = _quantize(Decimal(p.exclusive_amount))
-                        if bill.exchange_rate_snapshot is not None and bill.currency != primary:
+                        # v0.3.14 §3.14.3: prefer the *current* session rate
+                        # so exclusive_amount_primary matches the rate used
+                        # for amount_primary above. Fall back to the bill's
+                        # stored snapshot only when no live rate is supplied
+                        # (unit-test path — preserves existing fixtures).
+                        use_live_rate = (
+                            session_rates is not None
+                            and primary_currency is not None
+                            and bill.currency != primary_currency
+                            and (bill.currency, primary_currency) in session_rates
+                        )
+                        if use_live_rate:
+                            exclusive_primary = _quantize(
+                                exclusive_raw * session_rates[(bill.currency, primary_currency)]
+                            )
+                        elif bill.exchange_rate_snapshot is not None and bill.currency != primary:
                             exclusive_primary = _quantize(exclusive_raw * bill.exchange_rate_snapshot)
                         else:
                             exclusive_primary = exclusive_raw
@@ -586,19 +631,32 @@ async def settle_session(
         for r in rows:
             participants_by_bill.setdefault(r.bill_id, []).append(r)
 
+    # ---- 2.5. Load session_exchange_rates (v0.3.14 §3.14.3) -------------
+    # Settle converts each non-primary bill using the *current* row in
+    # session_exchange_rates (PRD §3.14.3 — PO #4131). The bill's stored
+    # ``exchange_rate_snapshot`` is ignored here (it remains immutable
+    # for the bills-list / bill-detail path, where PRD §3.7.5 still
+    # applies).
+    session_rates: dict[tuple[str, str], Decimal] = {}
+    rate_rows = (
+        db.query(SessionExchangeRate)
+        .filter(SessionExchangeRate.session_id == sm.session_id)
+        .all()
+    )
+    for r in rate_rows:
+        session_rates[(r.from_currency, r.to_currency)] = Decimal(r.rate)
+
     # ---- 3. Convert each bill to primary currency (Decimal throughout) ---
     bills_with_primary: list[tuple[Bill, Decimal]] = []
     for b in bills:
-        # Bill.amount is Numeric(12, 2) → Decimal. The snapshot, if set,
-        # is also Numeric(28, 8) → Decimal. multiply, then quantize to cents.
         if b.currency == primary_currency:
             amount_primary = _quantize(Decimal(b.amount))
         else:
-            if b.exchange_rate_snapshot is None:
-                # PRD §3.7.5: snapshot is mandatory for foreign bills. If
-                # missing, settlement cannot proceed (we refuse to
-                # silently invent a rate). Return 422 with the bill id
-                # so the FE can guide the user to set the rate first.
+            # v0.3.14 §3.14.3: read the current session rate. Fall back
+            # to 422 with the legacy error code if no direct rate is set
+            # (e.g. owner only configured the reverse pair).
+            current_rate = session_rates.get((b.currency, primary_currency))
+            if current_rate is None:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail={
@@ -608,7 +666,7 @@ async def settle_session(
                         "primary_currency": primary_currency,
                     },
                 )
-            amount_primary = _quantize(Decimal(b.amount) * Decimal(b.exchange_rate_snapshot))
+            amount_primary = _quantize(Decimal(b.amount) * current_rate)
         bills_with_primary.append((b, amount_primary))
 
     # ---- 4. Aggregate balances (Decimal) + greedy pair (Decimal) ---------
@@ -620,6 +678,8 @@ async def settle_session(
         bills_with_primary=bills_with_primary,
         participants_by_bill=participants_by_bill,
         members=members,
+        session_rates=session_rates,
+        primary_currency=primary_currency,
     )
 
     # ---- 6. Persist snapshot (backward-compatible JSON shape) -------------

@@ -57,7 +57,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.session_isolation import get_session_member
+from app.core.session_isolation import get_session_member, require_session_owner
 from app.db.models.session_exchange_rates import SessionExchangeRate
 from app.db.models.session_members import SessionMember
 from app.db.models.sessions import Session as SessionModel
@@ -294,14 +294,17 @@ async def list_exchange_rates(
 )
 async def update_exchange_rate(
     payload: UpdateRateRequest,
-    sm: Annotated[SessionMember, Depends(get_session_member)],
+    sm: Annotated[SessionMember, Depends(require_session_owner)],
     db: Annotated[Session, Depends(get_db)],
     rate_id: int = Path(..., description="SessionExchangeRate.id"),
 ) -> list[dict]:
     """Update an existing rate's value; the reciprocal is auto-updated too.
 
-    snapshot_at + set_by are refreshed; existing bills keep their
-    snapshots so historical settlement doesn't shift (PRD \u00a73.7.5).
+    v0.3.14 (\u00a73.14.2): owner-only — changing the rate affects everyone's
+    settle math, so we restrict to owner. Existing bills keep their
+    snapshots so historical settlement doesn't shift (PRD \u00a73.7.5
+    snapshot isolation preserved); the settle endpoint uses the
+    *current* rate per \u00a73.14.3.
     """
     rate_row = (
         db.query(SessionExchangeRate)

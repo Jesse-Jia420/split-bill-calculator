@@ -151,6 +151,7 @@ def _make_session_with_members(
             invite_token=_secrets.token_urlsafe(32),
             invite_expires_at=_now + timedelta(days=30),
             invite_created_at=_now,
+            session_code=_secrets.token_hex(4),
         )
         db.add(session)
         db.flush()
@@ -1188,6 +1189,7 @@ class TestSessionIsolationBills:
                 invite_token=_secrets.token_urlsafe(32),
                 invite_expires_at=_now + timedelta(days=30),
                 invite_created_at=_now,
+                session_code=_secrets.token_hex(4),
             )
             db.add(sid_b)
             db.flush()
