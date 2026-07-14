@@ -463,7 +463,6 @@
               <div class="day-header-sub">
                 <span class="muted">人均 {fmtBreakdown(g.perCapitaBreakdown)}</span>
                 <span class="muted">总笔数 {g.bills.length}</span>
-                <span class="muted day-header-tag">(合计)</span>
               </div>
             </summary>
 
@@ -637,10 +636,6 @@
     gap: var(--space-2);
     flex-wrap: wrap;
     font-size: var(--font-size-sm, 13px);
-  }
-  .day-header-tag {
-    color: var(--gray-500);
-    opacity: 0.85;
   }
   .day-date {
     font-weight: 600;
