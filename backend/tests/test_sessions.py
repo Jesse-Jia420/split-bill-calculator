@@ -527,8 +527,8 @@ class TestGetInvitePublic:
                 invite_token=token,
                 invite_expires_at=(
                     now - timedelta(days=1) if expired else now + timedelta(days=30),
-session_code=secrets.token_hex(4),
-),
+                ),
+                session_code=secrets.token_hex(4),
                 invite_created_at=now,
             )
             db.add(session)
@@ -609,7 +609,7 @@ class TestAcceptInvite:
                 invite_token=token,
                 invite_expires_at=now + timedelta(days=30),
                 invite_created_at=now,
-session_code=secrets.token_hex(4),
+                session_code=secrets.token_hex(4),
 )
             db.add(session)
             db.flush()
@@ -686,7 +686,7 @@ session_code=secrets.token_hex(4),
                 invite_token=token,
                 invite_expires_at=datetime.now(timezone.utc) - timedelta(days=1),
                 invite_created_at=datetime.now(timezone.utc),
-session_code=secrets.token_hex(4),
+                session_code=secrets.token_hex(4),
 )
             db.add(session)
             db.flush()

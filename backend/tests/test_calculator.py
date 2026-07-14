@@ -29,6 +29,7 @@ from app.db.models.sessions import Session as SessionModel
 from app.db.models.users import User
 from app.main import app
 from app.services.calculator import AmountCalculator
+import secrets
 
 
 # ---------------------------------------------------------------------------
