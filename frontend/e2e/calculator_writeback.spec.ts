@@ -87,14 +87,17 @@ test("TEST-005: calculator = closes sheet + writes back evaluated amount", async
   await page.locator("#session-name").fill(SESSION_NAME);
   await page.locator('button:has-text("下一步")').click();
 
-  // Step 2: accept default member count (2) → 下一步
+  // Step 2: fill nicknames (for logged-in: inputs[0]=owner disabled, inputs[1+]=placeholders)
+  await page.waitForLoadState("networkidle");
+  await expect(page.locator("h2")).toHaveText(/一共有多少个昵称/);
+  const inputs = await page.locator('input[type="text"]').all();
+  // For logged-in, only inputs[1+] are editable placeholders
+  await inputs[1].fill("Frank");
   await page.locator('button:has-text("下一步")').click();
 
-  // Step 3: fill 2 placeholder nicknames → 确认创建
-  const inputs = await page.locator('input[type="text"]').all();
-  expect(inputs.length).toBeGreaterThanOrEqual(2);
-  await inputs[0].fill("Eve");
-  await inputs[1].fill("Frank");
+  // Step 3: currency → confirm
+  await page.waitForLoadState("networkidle");
+  await expect(page.locator("h2")).toHaveText(/使用什么币种/);
   await page.locator('button:has-text("确认创建")').click();
 
   await page.waitForURL(/\/sessions\/\d+/, { timeout: 10000 });

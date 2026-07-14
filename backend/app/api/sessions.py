@@ -292,6 +292,67 @@ class SessionMemberOut(BaseModel):
     joined_at: str
 
 
+# ---------------------------------------------------------------------------
+# BUG-LANDING-1 / BUG-LANDING-3 (fix): public session preview.
+#
+# GET /sessions/{id}/preview is the new no-auth endpoint anon visitors use
+# to render the /join page before they have a nickname secret. It exposes
+# enough to:
+#   - show the session name + currency chips on /join
+#   - show all member slots (owner placeholder + nicknames) so /join can
+#     render clickable "claim me" buttons
+#   - share the invite_token + invite_url so an anon creator can copy the
+#     invite link to friends right after creating the session
+#
+# Critical: this is a SEPARATE endpoint from GET /sessions/{id}. The
+# existing detail endpoint still requires X-Nickname-Secret or login and
+# never returns invite_token to non-owners. The preview endpoint always
+# returns invite_token because it's the only way an anon visitor can
+# learn the URL without first claiming a slot.
+# ---------------------------------------------------------------------------
+
+
+class SessionPreviewMember(BaseModel):
+    """One slot in the session preview.
+
+    No secrets (no nickname_secret, no email). No joined_at (preview is
+    for the /join page which only cares about the slot identity + claim
+    state). The ``display_name`` and ``role`` are sufficient for /join's
+    "select your nickname" UI.
+    """
+
+    id: int
+    display_name: str
+    role: str
+    user_id: int | None
+    is_anon: bool
+    # ISO datetime string; null when the slot has never been claimed.
+    claimed_at: str | None
+
+
+class SessionPreview(BaseModel):
+    """Public preview payload (anon-accessible)."""
+
+    id: int
+    name: str
+    currencies: list[str]
+    primary_currency: str
+    # v0.3.1: unguessable 10-char public code (e.g. /s/HY3MYUL9EQ).
+    session_code: str
+    # BUG-LANDING-3 (fix): the full invite token. Always returned on the
+    # preview endpoint (no auth required) so anon creators can copy the
+    # invite link from /join without first claiming a slot. Contrast with
+    # GET /sessions/{id} which only returns invite_token_preview to the
+    # owner.
+    invite_token: str
+    # Client-relative path to the invite landing page (FE will prepend
+    # the origin). Same token as invite_token.
+    invite_url: str
+    # All slots (owner + member). Unclaimed first, claimed last, both
+    # ordered by id so the order is stable across renders.
+    members: list[SessionPreviewMember]
+
+
 class SessionDetail(BaseModel):
     id: int
     # v0.3.1 (Bug & Issues #5): unguessable public code.
@@ -544,9 +605,43 @@ async def create_session(
         )
         db.add(sm)
 
+    # BUG-LANDING-2 (fix): when the creator is anon (user is None), also
+    # insert an unclaimed owner SessionMember row so the creator has a
+    # slot to claim on the /join page. Without this, the anon creator
+    # would land on /join and see no owner slot (only nicknames they
+    # passed via member_nicknames). The placeholder uses display_name="我"
+    # so /join renders it as the natural "claim me" slot.
+    owner_placeholder_id: int | None = None
+    if user is None:
+        owner_sm = SessionMember(
+            session_id=session.id,
+            user_id=None,
+            display_name="我",
+            role=SessionRole.OWNER.value,
+            nickname_secret=None,
+            is_anon=True,
+            claimed_at=None,
+        )
+        db.add(owner_sm)
+        db.flush()
+        owner_placeholder_id = owner_sm.id
+
     # v0.3.1: bulk-create unclaimed anonymous member rows for nicknames.
-    created_member_ids = []
+    # BUG-LANDING-2 (fix): when the creator is anon and the new owner
+    # placeholder already represents "我", we must NOT also create a
+    # second member row for "我" (case-insensitive). The landing wizard
+    # sends member_nicknames=["我"] by default; without dedupe we'd end
+    # up with TWO owner-role rows for the same display name.
+    created_member_ids: list[int] = []
+    if owner_placeholder_id is not None:
+        created_member_ids.append(owner_placeholder_id)
+    seen_nickname_keys = {"我".casefold()} if owner_placeholder_id is not None else set()
     for nickname in payload.member_nicknames:
+        key = nickname.casefold()
+        if key in seen_nickname_keys:
+            # Skip — the owner placeholder already represents this name.
+            continue
+        seen_nickname_keys.add(key)
         sm = SessionMember(
             session_id=session.id,
             user_id=None,
@@ -563,7 +658,16 @@ async def create_session(
     db.commit()
     db.refresh(session)
 
-    total_members = (1 if user is not None else 0) + len(payload.member_nicknames)
+    # total_members:
+    #   - Logged-in creator: 1 (their user-bound owner row) + len(nicknames).
+    #   - Anon creator: 1 (the owner placeholder) + len(deduped nicknames).
+    # In the anon branch created_member_ids starts with the owner
+    # placeholder id, so we subtract 1 to get the count of additional
+    # nickname rows. In the logged-in branch created_member_ids holds
+    # ONLY the nickname rows (placeholder skipped), so we subtract 0.
+    owner_in_created = 1 if owner_placeholder_id is not None else 0
+    nickname_count = len(created_member_ids) - owner_in_created
+    total_members = 1 + nickname_count
     return _summary_dict(
         session,
         role=SessionRole.OWNER.value if user else "owner",
@@ -607,6 +711,95 @@ async def list_sessions(
         )
         out.append(_summary_dict(session, role=sm.role, member_count=int(count or 0)))
     return out
+
+
+# ---------------------------------------------------------------------------
+# GET /sessions/{id}/preview   (BUG-LANDING-1 + BUG-LANDING-3 fix)
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/{session_id}/preview",
+    response_model=SessionPreview,
+    status_code=status.HTTP_200_OK,
+)
+async def get_session_preview(
+    db: Annotated[Session, Depends(get_db)],
+    session_id: int = Path(..., description="Session ID"),
+) -> dict:
+    """Public, no-auth preview of a session.
+
+    Why: anon visitors landing on /join need to see the session name,
+    all member slots (so they can pick one to claim), and the invite
+    token (so the creator can copy the invite link right after creation)
+    -- without first calling GET /sessions/{id}, which 403s for anon.
+
+    What this returns:
+    - id, name, currencies, primary_currency
+    - session_code (10-char unguessable public code)
+    - invite_token (full token) + invite_url (client-relative /invites/{token})
+    - members[]: all slots, ordered unclaimed-first then claimed (both
+      ordered by id ASC) so the /join UI can render "claim me" buttons
+      before "already taken" badges.
+
+    What this does NOT do:
+    - No auth check. Anon visitors can call it freely.
+    - Does NOT expose nickname_secret, email, or joined_at.
+    - Does NOT expose invite_expires_at (anon callers don't need to act
+      on TTL -- they need to act on the URL).
+    - Does NOT include bills or settlements.
+
+    Path note: registered as /{session_id}/preview (not /preview) so it
+    matches a literal ``preview`` segment, NOT the catch-all
+    /{session_id} GET. FastAPI evaluates routes in declaration order so
+    this endpoint also shadows any /{session_id}/preview/<x> future
+    routes correctly.
+
+    200: SessionPreview payload.
+    404: session_id doesn't exist (raw integer lookup -- does NOT raise
+         the auth-style 403 the detail endpoint raises).
+    """
+    session = db.query(SessionModel).filter_by(id=session_id).first()
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "session not found"},
+        )
+
+    # Pull every slot. No JOIN needed -- we don't expose email here, so
+    # the User table is irrelevant for this endpoint.
+    members_rows = (
+        db.query(SessionMember)
+        .filter(SessionMember.session_id == session.id)
+        .order_by(SessionMember.claimed_at.is_(None).desc(), SessionMember.id.asc())
+        .all()
+    )
+
+    members_payload: list[dict] = []
+    for sm_row in members_rows:
+        members_payload.append(
+            {
+                "id": sm_row.id,
+                "display_name": sm_row.display_name,
+                "role": sm_row.role,
+                "user_id": sm_row.user_id,
+                "is_anon": bool(sm_row.is_anon),
+                # None for unclaimed slots; ISO string once claimed.
+                "claimed_at": _iso(sm_row.claimed_at) if sm_row.claimed_at else None,
+            }
+        )
+
+    invite_token = session.invite_token or ""
+    return {
+        "id": session.id,
+        "name": session.name,
+        "currencies": list(session.currencies or ["CNY"]),
+        "primary_currency": session.primary_currency or "CNY",
+        "session_code": session.session_code or "",
+        "invite_token": invite_token,
+        "invite_url": f"/invites/{invite_token}" if invite_token else "",
+        "members": members_payload,
+    }
 
 
 # ---------------------------------------------------------------------------

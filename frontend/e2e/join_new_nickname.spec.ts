@@ -124,12 +124,12 @@ test("TEST-003a: anon visitor adds NEW nickname via /join page", async ({
   expect(detailRes.status()).toBe(200);
   const detail = await detailRes.json();
 
-  // 3 members total: Alice + Bob (placeholders) + Carol (newly added)
-  expect(detail.members.length, "members should be 3 after add").toBe(3);
+  // 4 members total: owner (我, unclaimed) + Alice + Bob (placeholders) + Carol (newly added)
+  expect(detail.members.length, "members should be 4 after add").toBe(4);
   const memberNames = detail.members
     .map((m: any) => m.display_name)
     .sort();
-  expect(memberNames).toEqual(["Alice", "Bob", "Carol"]);
+  expect(memberNames).toEqual(["Alice", "Bob", "Carol", "我"]);
 
   // Alice + Bob should be unclaimed (user_id=null)
   for (const name of ["Alice", "Bob"]) {

@@ -1,25 +1,21 @@
 /**
- * TEST-008 — 老 /invites/{token} 路径 claim
+ * TEST-008 — /invites/{token} → dispatch to /sessions/{id}/join
  *
  * Covers: Coverage-Gaps.md gap #8 (PRD §3.2 / §3.3)
  *
  * What this verifies
  * ------------------
- * 1. Owner GETs /api/sessions/{id}/invite to obtain a token + url.
- * 2. Anonymous browser (no cookie) navigates to /invites/{token}:
- *    - Public preview renders with session_name + inviter_display_name.
- *    - "登录 / 注册" CTA shows with ?next=/invites/{token} link.
- * 3. Authenticated user (cookie set) navigates to same /invites/{token}:
- *    - Accept form renders (input#display_name + "加入 session" button).
- *    - Submitting with display_name POSTs /invites/{token}/accept.
- *    - Redirects to /sessions/{sid}.
- *    - User is now a member (GET /api/sessions/{sid}/members includes them).
- * 4. Idempotency: re-accepting the same invite = same session_id, no dup.
+ * v0.3.2 rewrote /invites/{token} to be a dispatcher (not a claim page):
+ *   - Anon users → redirect to /sessions/{id}/join
+ *   - Logged-in non-members → redirect to /sessions/{id}/join
+ *   - Logged-in members → redirect to /sessions/{id}
+ *   - Anon with valid secret → auto-redirect to /sessions/{id}
  *
- * Real selectors (read from invites/[token]/+page.svelte):
- *   - #display_name input
- *   - button.primary:has-text("加入 session")
- *   - a:has-text("登录 / 注册") (for anon users)
+ * This test verifies:
+ * 1. Anonymous browser → /invites/{token} → redirect to /sessions/{id}/join
+ * 2. Authenticated non-member → /invites/{token} → redirect to /sessions/{id}/join
+ *    → fill nickname + 加入 → member of session
+ * 3. Idempotency: re-accept = same session, no duplicate member
  *
  * Setup: use ensureUserAndToken for both owner + claimer (no DEV_BYPASS
  * SMTP round-trip). For anon steps, use a fresh context with no cookies.
@@ -32,7 +28,7 @@ import { ensureUserAndToken, wipeDb, type SeededUser } from "./test-helpers";
 const BASE = "http://localhost:8448";
 const OWNER_EMAIL = "invite.owner@jessejia.local";
 const CLAIMER_EMAIL = "invite.claimer@jessejia.local";
-const SESSION_NAME = "TEST-008 invite token claim";
+const SESSION_NAME = "TEST-008 invite token dispatch";
 
 const SCREENSHOTS_DIR = path.join(process.cwd(), "e2e", "screenshots");
 const SCREENSHOT_STEP = (n: number, name: string) =>
@@ -59,7 +55,7 @@ test.beforeEach(() => {
   wipeDb();
 });
 
-test("TEST-008: /invites/{token} public preview + authenticated claim flow", async ({
+test("TEST-008: /invites/{token} dispatches anon → /join, logged-in non-member → /join + join", async ({
   browser,
 }) => {
   // ── Setup: owner creates session, gets invite token ──────────────────
@@ -90,66 +86,48 @@ test("TEST-008: /invites/{token} public preview + authenticated claim flow", asy
   expect(invite.status).toBe("active");
 
   // ── Step 1: anonymous browser hits /invites/{token} ──────────────────
+  // v0.3.2: anon users are IMMEDIATELY redirected to /sessions/{id}/join
   const anonCtx = await browser.newContext({ ignoreHTTPSErrors: true });
   const anonPage = await anonCtx.newPage();
   await anonPage.goto(`${BASE}/invites/${token}`);
   await anonPage.waitForLoadState("networkidle");
 
-  // Preview renders session_name + inviter name.
-  // ensureUserAndToken derives default_name from email local-part, so
-  // inviter_display_name === 'invite.owner' for OWNER_EMAIL.
-  const inviterDisplayName = OWNER_EMAIL.split("@")[0];
+  // Should redirect to /sessions/{id}/join
+  await expect(anonPage).toHaveURL(/\/sessions\/\d+\/join/);
+
+  // Join page shows the session name and "加入 session" heading
   await expect(anonPage.locator("h2", { hasText: "加入 session" })).toBeVisible();
   await expect(anonPage.getByText(SESSION_NAME)).toBeVisible();
-  await expect(anonPage.getByText(inviterDisplayName)).toBeVisible();
-
-  // "登录 / 注册" CTA visible with ?next=/invites/{token}
-  const loginLink = anonPage.locator('a:has-text("登录 / 注册")');
-  await expect(loginLink).toBeVisible();
-  const loginHref = await loginLink.getAttribute("href");
-  expect(loginHref).toContain("/auth/login");
-  // next= may be raw or url-encoded depending on browser; check both.
-  expect(loginHref).toMatch(/next=(?:%2F|\/)invites%2F|\/invites\//);
-  await anonPage.screenshot({ path: SCREENSHOT_STEP(1, "anon-preview"), fullPage: true });
+  await anonPage.screenshot({ path: SCREENSHOT_STEP(1, "anon-join-redirect"), fullPage: true });
 
   await anonCtx.close();
 
-  // ── Step 2: authenticated user hits /invites/{token} ────────────────
+  // ── Step 2: authenticated non-member hits /invites/{token} ────────────
+  // v0.3.2: logged-in non-members are IMMEDIATELY redirected to /sessions/{id}/join
+  // They use the join form (action=add) to join.
   const claimer = ensureUserAndToken(CLAIMER_EMAIL);
   const claimerCtx = await browser.newContext({ ignoreHTTPSErrors: true });
   await loginAs(claimerCtx, claimer);
   const claimerPage = await claimerCtx.newPage();
 
-  // Watch the accept POST so we can verify it succeeds.
-  const acceptPromise = claimerPage.waitForResponse(
-    (r) =>
-      r.url().endsWith(`/invites/${token}/accept`) &&
-      r.request().method() === "POST"
-  );
-
   await claimerPage.goto(`${BASE}/invites/${token}`);
   await claimerPage.waitForLoadState("networkidle");
 
-  // Accept form renders
-  const displayNameInput = claimerPage.locator("#display_name");
-  await expect(displayNameInput).toBeVisible();
-  await expect(claimerPage.locator('button:has-text("加入 session")')).toBeVisible();
-  await claimerPage.screenshot({ path: SCREENSHOT_STEP(2, "accept-form") });
+  // Should redirect to /sessions/{id}/join
+  await expect(claimerPage).toHaveURL(/\/sessions\/\d+\/join/);
 
-  await displayNameInput.fill("Eve-from-invite");
-  await claimerPage.locator('button:has-text("加入 session")').click();
+  // Join page: for logged-in non-member, shows existing nicknames OR add new
+  // The input placeholder is "你的昵称" (not "你想叫什么名字？")
+  const nicknameInput = claimerPage.locator('input[placeholder="你的昵称"]');
+  await expect(nicknameInput).toBeVisible({ timeout: 5000 });
+  await nicknameInput.fill("Eve-from-invite");
+  await claimerPage.locator('button:has-text("加入")').click();
 
-  const acceptResp = await acceptPromise;
-  expect(acceptResp.status(), "POST /invites/{token}/accept should be 2xx").toBeLessThan(300);
-  const acceptBody = await acceptResp.json();
-  expect(acceptBody.session_id).toBe(sid);
-  expect(acceptBody.display_name).toBe("Eve-from-invite");
-
-  // Redirect to session detail
+  // Should redirect to /sessions/{id}
   await claimerPage.waitForURL(new RegExp(`/sessions/${sid}(?:$|[^0-9])`), {
     timeout: 10000,
   });
-  await claimerPage.screenshot({ path: SCREENSHOT_STEP(3, "after-accept") });
+  await claimerPage.screenshot({ path: SCREENSHOT_STEP(2, "after-join") });
 
   // ── Step 3: claimer is now a member ──────────────────────────────────
   const sessionRes = await claimerPage.request.get(`${BASE}/api/sessions/${sid}`);
@@ -161,29 +139,21 @@ test("TEST-008: /invites/{token} public preview + authenticated claim flow", asy
   expect(claimerMember, "claimer should now be a session member").toBeTruthy();
   expect(claimerMember.display_name).toBe("Eve-from-invite");
 
-  // ── Step 4: idempotency — re-accept = same session, no dup ──────────
-  const reacceptPromise = claimerPage.waitForResponse(
-    (r) =>
-      r.url().endsWith(`/invites/${token}/accept`) &&
-      r.request().method() === "POST"
-  );
+  // ── Step 4: re-join = same session, no duplicate member ────────────────
+  // Navigate to /invites/{token} again — should redirect to /sessions/{id} (already a member)
   await claimerPage.goto(`${BASE}/invites/${token}`);
   await claimerPage.waitForLoadState("networkidle");
-  await claimerPage.locator("#display_name").fill("Different-name");
-  await claimerPage.locator('button:has-text("加入 session")').click();
-  const reacceptResp = await reacceptPromise;
-  // Re-accept should still be 2xx (idempotent per BE docstring).
-  expect(reacceptResp.status()).toBeLessThan(300);
-  await claimerPage.waitForURL(new RegExp(`/sessions/${sid}(?:$|[^0-9])`));
+  // v0.3.2: logged-in member → redirect to /sessions/{id} (not the join page)
+  await expect(claimerPage).toHaveURL(new RegExp(`/sessions/${sid}(?:$|[^0-9])`));
 
   // Members list still has exactly one claimer member (no duplicate).
-  const afterReaccept = await (await claimerPage.request.get(`${BASE}/api/sessions/${sid}`)).json();
-  const claimerMembersAfter = afterReaccept.members.filter(
+  const afterRejoin = await (await claimerPage.request.get(`${BASE}/api/sessions/${sid}`)).json();
+  const claimerMembersAfter = afterRejoin.members.filter(
     (m: any) => m.user_id === claimer.user_id
   );
   expect(
     claimerMembersAfter.length,
-    "idempotent re-accept should not create duplicate SessionMember"
+    "re-join should not create duplicate SessionMember"
   ).toBe(1);
 
   await ownerCtx.close();

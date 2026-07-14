@@ -81,9 +81,22 @@ export const createSession = (input: CreateSessionInput | string) => {
 export const listSessions = () =>
   apiFetch<SessionSummary[]>('/sessions');
 
-export const getSession = (id: number) => {
-  const url = '/sessions/' + id;
-  return apiFetch<SessionDetail>(url);
+/** v0.3.1 (BUG-LANDING-2 / STORY-ANON-RECORDS-BILL): also read the
+ *  per-session anon actingAs secret from localStorage and forward it
+ *  as X-Nickname-Secret. Without this, anon wizard creators who click
+ *  "新建账单" → /sessions/{id}/bills/new would get a 403 "not a session
+ *  member" from the BE on onMount, breaking the whole bill flow.
+ *
+ *  Uses apiFetch (not raw fetch) so its 401/403 redirect + ApiError
+ *  shape are preserved — same pattern as getSessionByCode.
+ */
+export const getSession = async (id: number): Promise<SessionDetail> => {
+  const extraHeaders: Record<string, string> = {};
+  if (typeof window !== "undefined") {
+    const secret = localStorage.getItem("sbc.actingAs." + id);
+    if (secret) extraHeaders["X-Nickname-Secret"] = secret;
+  }
+  return apiFetch<SessionDetail>('/sessions/' + id, { headers: extraHeaders });
 };
 
 /** v0.3 (PRD §3.10): session detail with acting-as member ID.
@@ -206,6 +219,7 @@ export const joinClaim = (
   });
 };
 
+<<<<<<< HEAD
 /** v0.3.x (PRD §3.11) — Owner email claim.
  *
  * Sole entry point called from the session detail page onMount when
@@ -237,10 +251,24 @@ export const claimSession = (
 // personalised H2 (e.g. "嗨 alice，请登录") based on the returnTo path +
 // the caller's localStorage actingAs secret.
 export interface SessionMemberPreview {
+=======
+/** v0.3.1 (BUG-LANDING-1): public, no-auth session preview.
+ *
+ * Returns the minimum session metadata + member list needed by
+ * /join and / landing flows for anonymous visitors. Used as a
+ * fallback on /join when getSession() 403s (no X-Nickname-Secret
+ * + no logged-in user), so anon creators can see the owner
+ * placeholder "我" slot immediately after the wizard creates
+ * the session. The corresponding BE endpoint is
+ * `GET /api/sessions/{id}/preview` (added by BUG-LANDING-2).
+ */
+export interface SessionPreviewMember {
+>>>>>>> origin/fix/landing-flow-bugs
   id: number;
   display_name: string;
   role: string;
   user_id: number | null;
+<<<<<<< HEAD
   claimed_at: string | null;
   /** Only present for anon-claimed slots (user_id === null). */
   nickname_secret: string | null;
@@ -276,4 +304,23 @@ export async function bindActingMember(
     method: 'POST',
     body: JSON.stringify(payload),
   });
+=======
+  is_anon: boolean;
+  claimed_at: string | null;
+}
+
+export interface SessionPreview {
+  id: number;
+  name: string;
+  currencies: string[];
+  primary_currency: string;
+  session_code: string;
+  invite_token: string;
+  invite_url: string;
+  members: SessionPreviewMember[];
+}
+
+export function getSessionPreview(id: number): Promise<SessionPreview> {
+  return apiFetch<SessionPreview>(`/sessions/${id}/preview`);
+>>>>>>> origin/fix/landing-flow-bugs
 }

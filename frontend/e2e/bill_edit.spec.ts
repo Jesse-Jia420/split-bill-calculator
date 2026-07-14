@@ -69,15 +69,25 @@ test("TEST-006: edit-bill page prefills form, accepts amount change, locks descr
   const page = await ctx.newPage();
 
   // ── Setup: wizard → session → 1 bill (description='Original') ────────
+  // 3-step wizard: name → nicknames (count=2) → currency
   await page.goto(`${BASE}/sessions/new`);
   await page.waitForLoadState("networkidle");
 
+  // Step 1: name
   await page.locator("#session-name").fill(SESSION_NAME);
   await page.locator('button:has-text("下一步")').click();
-  await page.locator('button:has-text("下一步")').click(); // default 2
+
+  // Step 2: nicknames (default count=2 → owner + 1 placeholder)
+  // For logged-in: inputs[0] = owner (disabled/readonly), inputs[1] = placeholder
+  await page.waitForLoadState("networkidle");
+  await expect(page.locator("h2")).toHaveText(/一共有多少个昵称/);
   const inputs = await page.locator('input[type="text"]').all();
-  await inputs[0].fill("Member A");
-  await inputs[1].fill("Member B");
+  await inputs[1].fill("Member B"); // inputs[0] is disabled owner for logged-in
+  await page.locator('button:has-text("下一步")').click();
+
+  // Step 3: currency
+  await page.waitForLoadState("networkidle");
+  await expect(page.locator("h2")).toHaveText(/使用什么币种/);
   await page.locator('button:has-text("确认创建")').click();
 
   await page.waitForURL(/\/sessions\/\d+/);
@@ -189,15 +199,19 @@ test("TEST-006b: PATCH with description=anything → 422 (extra='forbid')", asyn
   await loginAs(ctx, user);
   const page = await ctx.newPage();
 
-  // Minimal setup: reuse the same wizard flow to get a session + bill.
+  // Minimal setup: reuse the same 3-step wizard flow to get a session + bill.
+  // For logged-in: inputs[0] = owner (disabled), inputs[1] = placeholder
   await page.goto(`${BASE}/sessions/new`);
   await page.waitForLoadState("networkidle");
   await page.locator("#session-name").fill(SESSION_NAME);
   await page.locator('button:has-text("下一步")').click();
-  await page.locator('button:has-text("下一步")').click();
+  // Step 2: nicknames (default count=2 → owner + 1 placeholder)
+  await page.waitForLoadState("networkidle");
   const inputs = await page.locator('input[type="text"]').all();
-  await inputs[0].fill("Member A");
-  await inputs[1].fill("Member B");
+  await inputs[1].fill("Member B"); // inputs[0] is disabled owner for logged-in
+  await page.locator('button:has-text("下一步")').click();
+  // Step 3: currency
+  await page.waitForLoadState("networkidle");
   await page.locator('button:has-text("确认创建")').click();
   await page.waitForURL(/\/sessions\/\d+/);
   const sid = Number(page.url().match(/\/sessions\/(\d+)/)![1]);
