@@ -196,7 +196,8 @@
             onkeydown={(e) => e.key === "Enter" && nameValid && goNext()}
             autofocus />
         </div>
-      {/if}
+      </div>
+    {/if}
 
       {#if step === 2}
         <div class="step-panel">
@@ -260,14 +261,13 @@
           </div>
         </div>
       {/if}
-    </div>
 
     <!-- Sticky bottom action bar — always visible regardless of scroll -->
     <div class="step-nav-bottom">
       {#if step === 1}
         <button class="btn-next" onclick={goNext} disabled={!nameValid}>下一步</button>
-      </div>
-    {/if}
+      {/if}
+    </div>
 
     {#if step === 2}
       <div class="step-panel">
