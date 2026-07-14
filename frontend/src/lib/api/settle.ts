@@ -41,6 +41,12 @@ export interface MemberSettlement {
   consumed_bills: BillShare[];
 }
 
+export interface CurrencyBreakdown {
+  paid: number;
+  consumed: number;
+  net: number;
+}
+
 export interface SettleResponse {
   session_id: number;
   generated_at: string;
@@ -48,6 +54,8 @@ export interface SettleResponse {
   transfers: Transfer[];
   /** v0.1.2 (T18): per-member breakdown for the 'personal view' tab. */
   per_member: MemberSettlement[];
+  /** v0.3.14.1 (Bug B): only present when view='split'. */
+  currency_breakdown?: Record<string, CurrencyBreakdown>;
   /** v0.2.2 (T08): the session's currency set, echoed here so the FE
    *  can render currency chips without a second GET /sessions/{id}. */
   currencies: string[];

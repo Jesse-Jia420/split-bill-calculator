@@ -1114,6 +1114,48 @@ $: if (selectedMember) {
 
 **不**改 settle 算法（BUG #5 §3.14.3 算法独立生效）。
 
+### E.1. v0.3.14.1 实现细节 (Bug A + Bug B 修复，2026-07-14)
+
+#### E.1.a Bug A — balances 不变量 `sum(balances) == 0`
+
+**根因**: `_compute_balances` 中 `per_user_shared = _quantize(shared_pool / len(ppts))` — 每份独立 quantize 导致 N x per_user_shared != shared_pool（有余数丢失）。累积到 balances 后 `sum(balances) != 0`。
+
+**修法**:
+- `per_user_shared` 用 raw Decimal（`shared_pool / Decimal(len(ppts))`，**不** quantize）
+- `net[mid] = paid - consumed` 用 raw Decimal（**不** quantize）
+- `_greedy_pair` 中每次转账金额 quantize（护住 sum-to-zero）
+- 加 invariant assertion: `total_net = sum(net.values())` 用 `_is_zero()` 检测（tolerance = 0.0001），violate 则 raise `AssertionError`
+- 同理 `_share_amounts_primary` 的 `per_user_shared` 也改为 raw Decimal
+
+**效果**: `sum(balances.values()) == Decimal("0")` 对任意 bill amount / participant 组合严格成立。
+
+**测试**: `TestBalancesInvariantSumZero` 4 cases — 单币种 / 多成员 / 极端除法 (1000/3) / 含 exclusive。
+
+#### E.1.b Bug B — `view=split` 返 `currency_breakdown`
+
+**BE** (`settle.py`):
+- `CurrencyBreakdown` Pydantic model: `{paid: Decimal, consumed: Decimal, net: Decimal}`
+- `SettleResponse.currency_breakdown: dict[str, CurrencyBreakdown] | None`（仅 `view=split` 时填充）
+- `_compute_currency_breakdown()`: 遍历每笔 bill，按 `bill.currency` 汇总 paid / consumed 到对应 currency dict
+- `balances` / `transfers` / `per_member` 仍为主币种（不受影响）
+
+**FE types** (`lib/api/settle.ts`):
+```typescript
+export interface CurrencyBreakdown {
+  paid: number;
+  consumed: number;
+  net: number;
+}
+// SettleResponse 加:
+currency_breakdown?: Record<string, CurrencyBreakdown>;
+```
+
+**FE 组件** (`SettleTransferPath.svelte`):
+- `{#if viewMode === 'split' && data.currency_breakdown}` 时渲染「按源币种」一节
+- 按 `paid` 降序排列 currency
+- 每行: `CCY  paid X.XX / consumed Y.YY / net Z.ZZ`（net > 0 绿色，< 0 红色）
+- `viewMode === 'primary'` 时该节隐藏
+
 ### F. BUG #1 — 「返回 session」按钮美化
 
 **当前**: `<a class="btn ghost back-btn" href="/sessions/{sessionId}">返回 session</a>` — 仅文字
