@@ -239,6 +239,12 @@ class BillOut(BaseModel):
     # v0.2.2 (T10): rate snapshot (NULL when bill.currency ==
     # session.primary_currency). Decimal-as-string for lossless wire.
     exchange_rate_snapshot: str | None = None
+    # v0.3.14 (§3.14.3): convenience field — bill total converted to
+    # the session's primary currency using the historical
+    # ``exchange_rate_snapshot`` (PRD §3.7.5 snapshot isolation). When
+    # the bill is already in primary currency this equals ``amount``.
+    # Decimal-as-string for lossless wire.
+    amount_primary: str | None = None
 
 
 # T11 schemas --------------------------------------------------------------
@@ -430,6 +436,35 @@ def _resolve_exchange_rate_snapshot(
     return Decimal(rate_row.rate)
 
 
+def _quantize_to_primary(
+    amount: Decimal,
+    bill_currency: str,
+    primary_currency: str,
+    rate_snapshot: Decimal | None,
+) -> Decimal:
+    """Convert a bill amount to the session's primary currency for
+    ``amount_primary`` display (PRD §3.14.3 bills-list path).
+
+    Uses the historical ``bill.exchange_rate_snapshot`` if present
+    (this is the recorded-at-write-time rate — PRD §3.7.5 isolation
+    preserved). For bills already in primary currency the amount
+    is quantised to cents and returned unchanged.
+
+    Returns a Decimal quantized to 2dp (CENT unit) using HALF_UP,
+    matching settle's rounding rule so the two endpoints agree on
+    cents-aligned display.
+    """
+    from decimal import ROUND_HALF_UP as _RHU
+    _CENT = Decimal("0.01")
+    if bill_currency == primary_currency:
+        return amount.quantize(_CENT, rounding=_RHU)
+    if rate_snapshot is None:
+        # No recorded rate — fall back to raw amount (FE will show
+        # currency context separately). Settle would 422 here.
+        return amount.quantize(_CENT, rounding=_RHU)
+    return (amount * Decimal(rate_snapshot)).quantize(_CENT, rounding=_RHU)
+
+
 def _check_exclusive_total(amount: float | Decimal, participants: list[ParticipantIn]) -> None:
     """Sum exclusive_amount must not exceed amount.
 
@@ -450,7 +485,11 @@ def _check_exclusive_total(amount: float | Decimal, participants: list[Participa
         )
 
 
-def _bill_to_dict(bill: Bill, participants: list[BillParticipant]) -> dict:
+def _bill_to_dict(
+    bill: Bill,
+    participants: list[BillParticipant],
+    primary_currency: str = "CNY",
+) -> dict:
     """Serialise a Bill row + its participants for the response.
 
     `share_amount` is computed here, NOT stored on the row (SPEC §3
@@ -489,6 +528,18 @@ def _bill_to_dict(bill: Bill, participants: list[BillParticipant]) -> dict:
             if bill.exchange_rate_snapshot is not None
             else None
         ),
+        # v0.3.14 (§3.14.3): amount converted to the session's primary
+        # currency using the *historical* snapshot, NOT the live
+        # session rate. PRD §3.7.5 snapshot isolation is preserved here
+        # — changing the session rate after the bill was recorded
+        # leaves amount_primary unchanged (the bill endpoint and the
+        # settle endpoint will show different totals, by design).
+        "amount_primary": (
+            str(_quantize_to_primary(Decimal(str(bill.amount)), bill.currency, primary_currency, bill.exchange_rate_snapshot))
+            if primary_currency
+            else None
+        ),
+        "primary_currency": primary_currency,
         "participants": [
             {
                 "member_id": p.member_id,
@@ -682,6 +733,15 @@ async def list_bills(
         .order_by(Bill.occurred_at.desc(), Bill.id.desc())
         .all()
     )
+    # v0.3.14 (§3.14.3): look up session primary_currency once so we can
+    # include ``amount_primary`` on every row (uses the recorded
+    # ``bill.exchange_rate_snapshot`` — history preserved).
+    session_row = (
+        db.query(SessionModel)
+        .filter(SessionModel.id == sm.session_id)
+        .first()
+    )
+    primary_currency = session_row.primary_currency if session_row else "CNY"
     out: list[dict] = []
     for bill in bills:
         participants = (
@@ -690,7 +750,7 @@ async def list_bills(
             .order_by(BillParticipant.id.asc())
             .all()
         )
-        out.append(_bill_to_dict(bill, participants))
+        out.append(_bill_to_dict(bill, participants, primary_currency))
     return out
 
 

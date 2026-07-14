@@ -46,9 +46,9 @@
   const tweenNet = tweenNumber(0, 600);
   let prevSelectedMemberId: number | null = null;
   $: if (selectedMember) {
-    tweenPaid.set(selectedMember.total_paid ?? 0);
-    tweenConsumed.set(selectedMember.total_consumed ?? 0);
-    tweenNet.set(selectedMember.net ?? 0);
+    tweenPaid.set(Number(selectedMember.total_paid ?? 0));
+    tweenConsumed.set(Number(selectedMember.total_consumed ?? 0));
+    tweenNet.set(Number(selectedMember.net ?? 0));
     prevSelectedMemberId = selectedMember.member_id;
   }
 

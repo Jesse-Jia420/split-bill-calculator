@@ -176,7 +176,8 @@ def _create_session_with(
             invite_token=secrets.token_urlsafe(32),
             invite_expires_at=now + timedelta(days=30),
             invite_created_at=now,
-        )
+session_code=secrets.token_hex(4),
+)
         db.add(sess)
         db.flush()
         owner_sm = SessionMember(

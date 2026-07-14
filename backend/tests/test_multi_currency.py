@@ -640,15 +640,15 @@ class TestSettleMultiCurrency:
         assert Decimal(body["balances"][str(owner_mid)]) == Decimal("0.15")
         assert Decimal(body["balances"][str(other_mid)]) == Decimal("-0.15")
 
-    def test_settle_missing_rate_snapshot_returns_422(
+    def test_settle_missing_session_rate_returns_422(
         self, client: TestClient
     ) -> None:
-        """Foreign-currency bill with NULL snapshot must yield 422 at settle time.
-
-        We trigger the snapshot=NULL path by inserting a SessionExchangeRate
-        that we then DELETE, leaving the bill with a stale snapshot NULL
-        (this simulates the v0.2.3+ Frankfurter-api pruning case where
-        the rate was removed after the bill recorded).
+        """v0.3.14 (\u00a73.14.3): settle uses session_exchange_rates (current),
+        NOT bill.exchange_rate_snapshot. So a foreign-currency bill whose
+        snapshot is NULL still settles successfully (the live rate is
+        what matters now). What MUST 422 is when the session itself has
+        no (currency \u2192 primary) rate row \u2014 we DELETE the THB\u2192CNY rate
+        after bill creation to simulate that scenario.
         """
         c = _login_as("settle3@mc.local")
         sid = _create_session_via_api(
@@ -668,9 +668,50 @@ class TestSettleMultiCurrency:
                 "participants": [{"member_id": owner_mid}],
             },
         )
-        # Simulate the snapshot-tampering scenario: NULL out the
-        # bill's snapshot directly (this is what a future "remove rate
-        # retroactively" feature would do).
+        # Delete the THB\u2192CNY session rate row (auto-cascades to reciprocal).
+        # Settle then has no rate to convert with \u2014 must surface a 422.
+        rates = c.get(f"/sessions/{sid}/exchange-rates").json()
+        thb_cny = next(
+            r for r in rates if r["from_currency"] == "THB"
+        )
+        delete = c.delete(
+            f"/sessions/{sid}/exchange-rates/{thb_cny['id']}"
+        )
+        assert delete.status_code == 204, delete.text
+
+        resp = c.get(f"/sessions/{sid}/settle")
+        assert resp.status_code == 422, resp.text
+        assert "rate" in resp.text.lower() or "missing" in resp.text.lower()
+
+    def test_settle_null_bill_snapshot_still_succeeds_under_v0314(
+        self, client: TestClient
+    ) -> None:
+        """v0.3.14 (\u00a73.14.3): NULL bill snapshot no longer breaks settle.
+
+        Prior to v0.3.14 the settle endpoint read bill.exchange_rate_snapshot,
+        so a NULL snapshot caused 422. With the new real-time re-rate, the
+        live session_exchange_rates row is used \u2014 a NULL bill snapshot is
+        benign for the settle path (and amount_primary on the bills-list
+        endpoint falls back to the raw amount when snapshot is NULL).
+        """
+        c = _login_as("settle3b@mc.local")
+        sid = _create_session_via_api(
+            c,
+            currencies=["THB", "CNY"],
+            primary="CNY",
+            rates=[{"from_currency": "THB", "to_currency": "CNY", "rate": "0.2150"}],
+        )
+        owner_mid = _get_member_id(c, sid, "settle3b@mc.local")
+        c.post(
+            f"/sessions/{sid}/bills",
+            json={
+                "amount": 100.0,
+                "payer_member_id": owner_mid,
+                "occurred_at": "2026-06-20T12:00:00+00:00",
+                "currency": "THB",
+                "participants": [{"member_id": owner_mid}],
+            },
+        )
         db = SessionLocal()
         try:
             bill = (
@@ -685,8 +726,13 @@ class TestSettleMultiCurrency:
             db.close()
 
         resp = c.get(f"/sessions/{sid}/settle")
-        assert resp.status_code == 422
-        assert "snapshot" in resp.text.lower() or "rate" in resp.text.lower()
+        # v0.3.14 \u00a73.14.3: settle uses the live session rate, not the
+        # bill's snapshot \u2014 so this should now succeed (200) using the
+        # current 0.2150 rate.
+        assert resp.status_code == 200, resp.text
+        # Conversion happened: 100 THB * 0.2150 = 21.50 CNY primary.
+        body = resp.json()
+        assert Decimal(str(body["balances"][str(owner_mid)])) == Decimal("21.50")
 
     def test_settle_view_split_returns_per_currency_totals(
         self, client: TestClient

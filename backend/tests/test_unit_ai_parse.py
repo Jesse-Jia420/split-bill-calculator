@@ -640,7 +640,8 @@ def _make_session(owner_email: str, member_emails: list[str]) -> tuple[int, dict
             invite_token=secrets.token_urlsafe(32),
             invite_expires_at=now + _td(days=30),
             invite_created_at=now,
-        )
+session_code=secrets.token_hex(4),
+)
         db.add(sess)
         db.flush()
         out: dict[str, int] = {}
