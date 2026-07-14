@@ -1,32 +1,60 @@
-
 export interface Transfer {
   from_member_id: number;
   to_member_id: number;
   amount: number;
 }
 
+/**
+ * v0.3.14.1 (hotfix #4): each per-bill row carries the amount in both
+ * the bill's source currency (``amount`` / ``share_amount`` /
+ * ``exclusive_amount``) and in the session's primary currency
+ * (``*_primary`` siblings).  ``primary_currency`` echoes the session
+ * primary so the FE can render the unit without a second GET.
+ *
+ * Personal view rendering rule (PO 拍板 2026-07-14 11:15 #4348):
+ * - viewMode='primary' → render ``*_primary`` + ``primary_currency``
+ * - viewMode='split'   → render raw values + ``currency``
+ */
 export interface BillSummary {
   bill_id: number;
   description: string | null;
+  /** Raw bill amount in source currency (or primary when same). */
   amount: number;
+  /** v0.3.14.1 (hotfix #4): amount in primary currency. */
+  amount_primary: number;
   currency: string;
+  primary_currency: string;
   occurred_at: string;
 }
 
 export interface BillShare {
   bill_id: number;
   description: string | null;
+  /** Bill total, raw source currency (or primary when same). */
   amount: number;
+  /** v0.3.14.1 (hotfix #4): bill total in primary currency. */
+  amount_primary: number;
+  /** Member's share, raw source currency (or primary when same). */
   share_amount: number;
   /**
-   * v0.1.2 (PO 2026-07-01 fix #4): the portion of `share_amount` that
-   * this member ate alone (is_exclusive=true on the participant row).
-   * 0 when the member is not exclusive on this bill. Always present
-   * (default 0) on the response so the FE doesn't need to handle
-   * `undefined` separately.
+   * v0.3.14.1 (hotfix #4): member's share in primary currency.
+   * Identical to ``share_amount`` when ``currency == primary_currency``.
+   */
+  share_amount_primary: number;
+  /**
+   * v0.1.2 (PO 2026-07-01 fix #4): the portion of ``share_amount``
+   * this member ate alone (``is_exclusive=true`` on the participant
+   * row), in source currency. 0 when not exclusive; default 0 so the
+   * FE never sees ``undefined``.
    */
   exclusive_amount: number;
+  /**
+   * v0.3.14.1 (hotfix #4): exclusive_amount in primary currency. 0
+   * when not exclusive (matches ``exclusive_amount``).
+   */
+  exclusive_amount_primary: number;
   currency: string;
+  primary_currency: string;
   occurred_at: string;
 }
 
@@ -34,8 +62,16 @@ export interface MemberSettlement {
   member_id: number;
   display_name: string;
   role: string;
+  /**
+   * v0.3.14.1 (T11): primary-currency aggregate across every bill this
+   * member paid. Always primary-currency regardless of view mode; in
+   * ``split`` mode the FE re-aggregates per source currency from the
+   * bill list for the per-currency hero meta.
+   */
   total_paid: number;
+  /** See ``total_paid``. */
   total_consumed: number;
+  /** See ``total_paid``. */
   net: number;
   paid_bills: BillSummary[];
   consumed_bills: BillShare[];
