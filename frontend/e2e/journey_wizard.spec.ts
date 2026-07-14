@@ -21,7 +21,7 @@ test.beforeEach(() => {
   stepCounter = 0;
 });
 
-test("scenario 1b wizard: name → count → 2 nicknames → session detail", async ({
+test("scenario 1b wizard: name → nicknames (3-step) → session detail", async ({
   browser,
 }) => {
   const ctx = await browser.newContext();
@@ -29,30 +29,29 @@ test("scenario 1b wizard: name → count → 2 nicknames → session detail", as
 
   // STEP 1: Go directly to wizard
   await page.goto("/sessions/new");
-  await expect(
-    page.locator("h2", { hasText: "给你的账本起个名字" })
-  ).toBeVisible({ timeout: 10000 });
+  await page.waitForLoadState("networkidle");
+  await expect(page.locator("h2")).toHaveText(/给你的账本起个名字/);
   await page.screenshot({ path: shotPath(step(), "wizard-1"), fullPage: true });
 
   // STEP 2: Fill name → next
   await page.locator("#session-name").fill("Wizard multi test");
-  await page.locator("button.btn-next", { hasText: "下一步" }).click();
-  await expect(page.locator("h2", { hasText: "一共有多少人" })).toBeVisible();
+  await page.locator('button:has-text("下一步")').click();
+
+  // STEP 3: Member count + nicknames (default count=2)
+  await page.waitForLoadState("networkidle");
+  await expect(page.locator("h2")).toHaveText(/一共有多少个昵称/);
   await page.screenshot({ path: shotPath(step(), "wizard-2"), fullPage: true });
-
-  // STEP 3: Count → next (keep default 2)
-  await page.locator("button.btn-next", { hasText: "下一步" }).click();
-  await expect(page.locator("h2", { hasText: "每个人叫什么名字" })).toBeVisible();
-  await page.screenshot({ path: shotPath(step(), "wizard-3"), fullPage: true });
-
-  // STEP 4: Fill nicknames → confirm
-  const nickInputs = page.locator(".nickname-row input[type='text']");
+  const nickInputs = page.locator('input[type="text"]');
   await expect(nickInputs).toHaveCount(2);
   await nickInputs.nth(0).fill("Carol");
   await nickInputs.nth(1).fill("Dave");
-  await page.screenshot({ path: shotPath(step(), "wizard-3-filled"), fullPage: true });
+  await page.locator('button:has-text("下一步")').click();
 
-  await page.locator("button.btn-confirm", { hasText: "确认创建" }).click();
+  // STEP 4: Currency (pill buttons) → confirm
+  await page.waitForLoadState("networkidle");
+  await expect(page.locator("h2")).toHaveText(/使用什么币种/);
+  await page.screenshot({ path: shotPath(step(), "wizard-3"), fullPage: true });
+  await page.locator('button:has-text("确认创建")').click();
   await page.waitForURL(/\/sessions\/\d+$/, { timeout: 15000 });
   const sessionId = Number(page.url().match(/\/sessions\/(\d+)/)?.[1]);
   expect(sessionId).toBeGreaterThan(0);

@@ -24,20 +24,30 @@ test.beforeEach(() => {
 });
 
 test("scenario 2 multi-user: creator + invitee via /s/{code}", async ({ browser }) => {
-  // ── Creator (anonymous) creates session via wizard ───────────────────
+  // ── Creator (anonymous) creates session via wizard (3-step) ───────────────────
   const creatorCtx = await browser.newContext();
   const creatorPage = await creatorCtx.newPage();
   await creatorPage.goto("/sessions/new");
+  await creatorPage.waitForLoadState("networkidle");
+
+  // Step 1: name the session
   await creatorPage.locator("#session-name").fill("Multi-user session");
-  await creatorPage.locator("button.btn-next", { hasText: "下一步" }).click();
-  await expect(creatorPage.locator("h2", { hasText: "一共有多少人" })).toBeVisible();
-  await creatorPage.locator("button.btn-next", { hasText: "下一步" }).click();
-  await expect(creatorPage.locator("h2", { hasText: "每个人叫什么名字" })).toBeVisible();
-  const cn = creatorPage.locator(".nickname-row input[type='text']");
+  await creatorPage.locator('button:has-text("下一步")').click();
+
+  // Step 2: member count + nicknames
+  await creatorPage.waitForLoadState("networkidle");
+  await expect(creatorPage.locator("h2")).toHaveText(/一共有多少个昵称/);
+  const cn = creatorPage.locator("input[type='text']");
   await cn.nth(0).fill("Creator");
   await cn.nth(1).fill("Friend");
-  await creatorPage.locator("button.btn-confirm", { hasText: "确认创建" }).click();
-  await creatorPage.waitForURL(/\/sessions\/\d+$/);
+  await creatorPage.locator('button:has-text("下一步")').click();
+
+  // Step 3: currency (pill buttons)
+  await creatorPage.waitForLoadState("networkidle");
+  await expect(creatorPage.locator("h2")).toHaveText(/使用什么币种/);
+  await creatorPage.locator('button:has-text("确认创建")').click();
+
+  await creatorPage.waitForURL(/\/sessions\/\d+$/, { timeout: 10000 });
   const creatorSid = Number(creatorPage.url().match(/\/sessions\/(\d+)/)?.[1]);
   expect(creatorSid).toBeGreaterThan(0);
 

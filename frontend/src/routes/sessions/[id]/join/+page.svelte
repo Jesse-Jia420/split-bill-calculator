@@ -28,6 +28,11 @@
   let loading = $state(true);
   let error: string | null = $state(null);
   let session: SessionDetail | null = $state(null);
+  // v0.3.1 (BUG-LANDING-1): public, no-auth session preview. Populated
+  // when getSession() 403s (anon flow) so /join can still render
+  // session name + member slots (including the owner placeholder "我"
+  // that the wizard creates).
+  let preview: SessionPreview | null = $state(null);
   let invite: InvitePublicView | null = $state(null);
   let reclaimed = $state(false);   // 7 天外 410
   let newNickname = $state('');

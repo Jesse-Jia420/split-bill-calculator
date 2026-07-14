@@ -6,12 +6,12 @@
    * - Full-page Unsplash background image
    * - Dark semi-transparent overlay
    * - Centered tagline + 2 CTA buttons
-   * - Anonymous: "直接开始使用" (creates anon session) + "登录"
+   * - Anonymous: "直接开始使用" → /sessions/new (wizard) + "登录"
    * - Logged-in users are redirected to /sessions by +layout.svelte
    *
-   * The "直接开始使用" button creates an anonymous session with
-   * a single placeholder nickname slot, then navigates to the join
-   * page so the user can claim it and enter the session.
+   * The "直接开始使用" button sends both anonymous and logged-in users
+   * to the same 2-step wizard (/sessions/new). Logged-in users skip
+   * the wizard and go straight to /sessions from there.
    */
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
@@ -29,19 +29,36 @@
   let error: string | null = null;
 
   onMount(() => {
-    // If user is already logged in, +layout.svelte will redirect to /sessions.
-    // We don't need to do anything here.
+    // Landing is a full-viewport immersive page (BG image + 2 CTAs).
+    // Lock body scroll + disable touch-action so iOS Safari doesn't
+    // bounce / rubber-band when the user swipes at the edges. Restored
+    // on unmount so /sessions/* pages scroll normally.
+    document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.touchAction = '';
+    };
   });
 
   async function handleStartUsing() {
-    // v0.3.x (PO 10:39 拍板, 推翻 v0.3.1 PO 16:59):
-    //   landing "直接开始使用" -> /sessions/new (Wizard 3 步) -- anon 创建 session
-    //   标准入口. v0.3.1 quick-start 1-member + 跳 join 路径作废.
-    if ($user) {
-      await goto('/sessions', { replaceState: true });
-      return;
+    if (busy) return;
+    error = null;
+    busy = true;
+    try {
+      // Logged-in users go straight to the dashboard, not the wizard.
+      // (v0.3.1: keep existing behavior for $user branch — unchanged.)
+      if ($user) {
+        await goto('/sessions', { replaceState: true });
+        return;
+      }
+      // Anonymous users land on the wizard to name the book + list
+      // their group, then the wizard creates the session.
+      await goto('/sessions/new', { replaceState: true });
+    } catch (e: any) {
+      error = e?.message ?? '跳转失败，请重试';
+      busy = false;
     }
-    await goto('/sessions/new', { replaceState: true });
   }
 </script>
 

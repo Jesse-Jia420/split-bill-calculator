@@ -46,47 +46,29 @@ export interface CreateBillInput {
 }
 
 /**
- * v0.3.2 (PRD §3.12 + SPEC §3.12.B): read the per-session anon
- * `X-Nickname-Secret` from localStorage for anonymous-CRUD endpoints.
+ * Build headers that include the anonymous session-member secret, if one
+ * is stored in localStorage for this session. Anon users (the wizard flow
+ * and `?nickname=` join flow) only have their identity proved via this
+ * header — the BE's `require_session_member` dependency reads it.
  *
- * Why a per-call helper instead of baking into `apiFetch`:
- *   - `apiFetch` is generic across all domains; some endpoints (e.g. future
- *     `/sessions/{id}/preview`) may need a different secret key.
- *   - Keeping the header injection explicit at the call site makes the
- *     anonymous path greppable and easy to audit.
- *
- * Reuses the same `sbc.actingAs.<sessionId>` key as `listBills` below.
- * Returns `{}` on SSR (no `window`) or when no secret is stored — the BE
- * `get_session_member_or_secret` dependency will then fall back to the
- * cookie-authenticated path.
+ * Centralized here so every session-scoped bill endpoint stays in sync.
+ * Prior to v0.3.x this was open-coded in each function and `createBill`
+ * was missing it, causing 403 "not a session member" on real iPhone UAT.
  */
-function getNicknameSecretHeader(sessionId: number): Record<string, string> {
-  if (typeof window === "undefined") return {};
-  const secret = localStorage.getItem("sbc.actingAs." + sessionId);
-  return secret ? { "X-Nickname-Secret": secret } : {};
+function anonHeaders(sessionId: number): Record<string, string> {
+  const h: Record<string, string> = {};
+  if (typeof window !== "undefined") {
+    const secret = localStorage.getItem("sbc.actingAs." + sessionId);
+    if (secret) h["X-Nickname-Secret"] = secret;
+  }
+  return h;
 }
 
 export const listBills = (sessionId: number) => {
   const url = "/sessions/" + sessionId + "/bills";
-  // v0.3.1: send X-Nickname-Secret for anonymous access.
-  const headers: Record<string, string> = {};
-  if (typeof window !== "undefined") {
-    const secret = localStorage.getItem("sbc.actingAs." + sessionId);
-    if (secret) headers["X-Nickname-Secret"] = secret;
-  }
-  return fetch("/api" + url, {
-    credentials: "include",
-    headers: { "Content-Type": "application/json", ...headers },
-  }).then(async (r) => {
-    if (!r.ok) {
-      const body = await r.json().catch(() => ({}));
-      const err: any = new Error(body?.detail?.error ?? `HTTP ${r.status}`);
-      err.status = r.status;
-      err.code = body?.detail?.error ?? `http_${r.status}`;
-      throw err;
-    }
-    return r.json() as Promise<Bill[]>;
-  });
+  // Routed through apiFetch so 401/403 redirect logic kicks in
+  // consistently (raw fetch bypassed it before).
+  return apiFetch<Bill[]>(url, { headers: anonHeaders(sessionId) });
 };
 
 /**
@@ -118,8 +100,9 @@ export const createBill = (sessionId: number, body: CreateBillInput) => {
   // get_session_member_or_secret).
   return apiFetch<Bill>(url, {
     method: "POST",
-    body: JSON.stringify(body)
-  }, getNicknameSecretHeader(sessionId));
+    body: JSON.stringify(body),
+    headers: anonHeaders(sessionId),
+  });
 };
 
 export const updateBill = (
@@ -131,14 +114,17 @@ export const updateBill = (
   // v0.3.2: PATCH now anonymous-capable (BE upgraded to or_secret).
   return apiFetch<Bill>(url, {
     method: "PATCH",
-    body: JSON.stringify(body)
-  }, getNicknameSecretHeader(sessionId));
+    body: JSON.stringify(body),
+    headers: anonHeaders(sessionId),
+  });
 };
 
 export const deleteBill = (sessionId: number, billId: number) => {
   const url = "/sessions/" + sessionId + "/bills/" + billId;
-  // v0.3.2: DELETE now anonymous-capable (BE upgraded to or_secret).
-  return apiFetch<void>(url, { method: "DELETE" }, getNicknameSecretHeader(sessionId));
+  return apiFetch<void>(url, {
+    method: "DELETE",
+    headers: anonHeaders(sessionId),
+  });
 };
 
 export interface ParseBillResult {
@@ -153,6 +139,7 @@ export const parseBill = (sessionId: number, text: string) => {
   // v0.3.2: AI parse now anonymous-capable (BE upgraded to or_secret).
   return apiFetch<ParseBillResult>(url, {
     method: "POST",
-    body: JSON.stringify({ text })
-  }, getNicknameSecretHeader(sessionId));
+    body: JSON.stringify({ text }),
+    headers: anonHeaders(sessionId),
+  });
 };

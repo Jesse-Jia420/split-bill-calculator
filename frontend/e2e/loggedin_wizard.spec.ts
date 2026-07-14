@@ -73,39 +73,36 @@ test("TEST-002: logged-in wizard → owner_user_id set, owner auto-added as memb
   // Should NOT be redirected away (we're logged in, have valid cookie)
   expect(page.url()).toContain("/sessions/new");
 
-  // Step 1: enter session name
+  // Step 1: enter session name → next
   await page.locator("#session-name").fill(SESSION_NAME);
   await page.locator('button:has-text("下一步")').click();
-  await page.screenshot({ path: SCREENSHOT_STEP(1, "step2-count") });
+  await page.waitForLoadState("networkidle");
+  await page.screenshot({ path: SCREENSHOT_STEP(1, "step2-nicknames") });
 
-  // Step 2: default count = 2, accept it
-  await page.locator('button:has-text("下一步")').click();
-  await page.screenshot({ path: SCREENSHOT_STEP(2, "step3-nicknames") });
+  // Step 2: For logged-in, first input is readonly (owner auto-filled).
+  // We need 2 placeholders (to make 3 total: owner + 2 placeholders).
+  // Increase count to 3: memberCount starts at 2, click + button once.
+  await expect(page.locator("h2")).toHaveText(/一共有多少个昵称/);
+  const countDisplay = page.locator(".count-display");
+  await expect(countDisplay).toHaveText("2");
+  // Click + to increase to 3
+  await page.locator('.count-btn[aria-label="增加一人"]').click();
+  await expect(countDisplay).toHaveText("3");
+  await page.screenshot({ path: SCREENSHOT_STEP(2, "step2-count3") });
 
-  // Step 3: enter 2 nicknames for placeholders
-  // Find the two nickname inputs (owner is auto-added — we only create placeholders)
-  const nicknameInputs = page.locator('input[type="text"]').filter({
-    hasNot: page.locator('[id="session-name"]'),
-  });
-  // Or just look for placeholder inputs
-  const placeholderInputs = page
-    .locator('input')
-    .filter({ has: page.locator(':scope') });
-
-  // Use a more targeted selector — the wizard renders nickname inputs
-  // in step 3, all empty by default. Let's find by attribute pattern.
+  // Now fill the 2 placeholder nicknames (inputs[0] is owner readonly, inputs[1-2] are placeholders)
   const inputs = await page.locator('input[type="text"]').all();
-  // The session-name input is no longer visible (we're on step 3).
-  // So inputs[0..1] should be the 2 nickname inputs.
-  expect(inputs.length).toBeGreaterThanOrEqual(2);
+  expect(inputs.length).toBeGreaterThanOrEqual(3);
+  // inputs[0] = owner readonly, inputs[1] = first placeholder, inputs[2] = second placeholder
+  await inputs[1].fill("Bob");
+  await inputs[2].fill("Charlie");
+  await page.screenshot({ path: SCREENSHOT_STEP(2, "step2-filled") });
+  await page.locator('button:has-text("下一步")').click();
 
-  // Try to fill the first 2 inputs with nicknames
-  if (inputs.length >= 2) {
-    await inputs[0].fill("Bob");
-    await inputs[1].fill("Charlie");
-  }
-
-  // Click "确认创建"
+  // Step 3: Currency → confirm
+  await page.waitForLoadState("networkidle");
+  await expect(page.locator("h2")).toHaveText(/使用什么币种/);
+  await page.screenshot({ path: SCREENSHOT_STEP(3, "step3-currency") });
   await page.locator('button:has-text("确认创建")').click();
 
   // Should navigate to /sessions/{id}

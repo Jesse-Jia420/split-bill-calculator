@@ -35,25 +35,41 @@ test("scenario 1 anon: landing → 直接开始使用 → join → claim → 2 b
 
   // STEP 2: Click "直接开始使用"
   await page.locator("button", { hasText: "直接开始使用" }).first().click();
-  await page.waitForURL(/\/sessions\/\d+\/join/, { timeout: 15000 });
+  await page.waitForURL(/\/sessions\/new$/, { timeout: 15000 });
+  await page.waitForLoadState("networkidle");
+  await page.screenshot({ path: shotPath(step(), "wizard-step1"), fullPage: true });
+
+  // STEP 2a: Wizard step 1 — session name
+  await page.locator("#session-name").fill("Anon Quick Session");
+  await page.locator('button:has-text("下一步")').click();
+
+  // STEP 2b: Wizard step 2 — member nicknames (3-step wizard)
+  await page.waitForLoadState("networkidle");
+  await expect(page.locator("h2")).toHaveText(/一共有多少个昵称/);
+  const inputs = await page.locator('input[type="text"]').all();
+  await inputs[0].fill("Alice");
+  await inputs[1].fill("同伴 B");
+  await page.screenshot({ path: shotPath(step(), "wizard-step2"), fullPage: true });
+  await page.locator('button:has-text("下一步")').click();
+
+  // STEP 2c: Wizard step 3 — currency
+  await page.waitForLoadState("networkidle");
+  await expect(page.locator("h2")).toHaveText(/使用什么币种/);
+  await page.screenshot({ path: shotPath(step(), "wizard-step3"), fullPage: true });
+  await page.locator('button:has-text("确认创建")').click();
+
+  await page.waitForURL(/\/sessions\/\d+$/, { timeout: 15000 });
+  await page.waitForLoadState("networkidle");
   const sessionId = Number(page.url().match(/\/sessions\/(\d+)/)?.[1]);
   expect(sessionId).toBeGreaterThan(0);
-  await page.screenshot({ path: shotPath(step(), "join-page"), fullPage: true });
-
-  // STEP 3: Claim placeholder "Alice"
-  const nicknameInput = page.locator("input[type='text']").first();
-  await nicknameInput.fill("Alice");
-  const claimBtn = page.locator("button", { hasText: "加入" }).first();
-  await claimBtn.click();
-  await page.waitForURL(new RegExp(`/sessions/${sessionId}$`), { timeout: 10000 });
   await page.screenshot({ path: shotPath(step(), "session-detail"), fullPage: true });
 
-  // Verify localStorage secret was set
+  // Verify localStorage secret was set (wizard auto-claims via join-claim)
   const secret = await page.evaluate(
     (sid) => localStorage.getItem(`sbc.actingAs.${sid}`),
     sessionId
   );
-  expect(secret, "X-Nickname-Secret should be in localStorage after claim").toBeTruthy();
+  expect(secret, "X-Nickname-Secret should be in localStorage after wizard").toBeTruthy();
   expect(secret?.length).toBeGreaterThan(20);
 
   // STEP 4: Get session_code + member ids

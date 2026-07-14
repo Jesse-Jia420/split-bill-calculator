@@ -84,20 +84,22 @@ test("TEST-004: invite URL end-to-end — creator + invitee via /s/{code}", asyn
 
   await creatorPage.locator("#session-name").fill(SESSION_NAME);
   await creatorPage.locator('button:has-text("下一步")').click();
-  await creatorPage.waitForSelector('button:has-text("下一步"):nth-of-type(2)', {
-    timeout: 5000,
-  });
-  await creatorPage.locator('button.btn-next').click(); // step 2 → 3
-  await creatorPage.waitForSelector('.nickname-row input[type="text"]', {
-    timeout: 5000,
-  });
-  const inputs = await creatorPage
-    .locator('.nickname-row input[type="text"]')
-    .all();
-  expect(inputs.length).toBeGreaterThanOrEqual(2);
-  await inputs[0].fill("Alice");
-  await inputs[1].fill("Bob");
-  await creatorPage.locator('button.btn-confirm').click();
+
+  // Step 2: nicknames (for logged-in: inputs[0]=owner disabled, inputs[1+]=placeholders)
+  await creatorPage.waitForLoadState("networkidle");
+  await expect(creatorPage.locator("h2")).toHaveText(/一共有多少个昵称/);
+  // Need 2 placeholders: click + to increase count to 3
+  await creatorPage.locator('.count-btn[aria-label="增加一人"]').click();
+  const inputs = await creatorPage.locator('.nickname-row input[type="text"]').all();
+  expect(inputs.length).toBeGreaterThanOrEqual(3);
+  await inputs[1].fill("Alice");
+  await inputs[2].fill("Bob");
+  await creatorPage.locator('button:has-text("下一步")').click();
+
+  // Step 3: currency → confirm
+  await creatorPage.waitForLoadState("networkidle");
+  await expect(creatorPage.locator("h2")).toHaveText(/使用什么币种/);
+  await creatorPage.locator('button:has-text("确认创建")').click();
 
   await creatorPage.waitForURL(/\/sessions\/\d+$/, { timeout: 10000 });
   const sessionId = Number(creatorPage.url().match(/\/sessions\/(\d+)/)![1]);
