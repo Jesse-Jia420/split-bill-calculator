@@ -5,6 +5,15 @@
    * 本次 Commit 1 改动:
    * - Token alias 迁移: var(--color-*) → var(--*) 主 token。
    *
+   * v0.3.14.1 hotfix #4 (2026-07-14) — 个人视图反馈 1/2/3.
+   * - 反馈 1 (UI 架构): 「主币种汇总 / 原始数据」radio 从 tab bar 下方
+   *   整体外提, **只**在「个人视图」tab 显示; 概览 tab 隐藏。
+   *   概览 tab (SettleTransferPath) 仍按 session primary 聚合显示,
+   *   不需要 per-bill 原始数据, 故 radio 对概览无意义。
+   * - 反馈 2/3 (单位 + 换算): SettleMemberBreakdown 现在所有金额都
+   *   带具体单位, 主币种汇总模式下付款/消费明细行用 BE 已换算好的
+   *   `*_primary` 字段。
+   *
    * 注:
    * - 该页本身没有金额 / 日期 format 调用 (SettleTransferPath / SettleMemberBreakdown
    *   已分别在子组件迁移)。
@@ -40,6 +49,12 @@
   // currency (default); 'split' = source currency per bill, primary
   // only for the totals. Pushed down to the child components which
   // re-fetch on the fly.
+  //
+  // v0.3.14.1 hotfix #4: only consumed by SettleMemberBreakdown
+  // (the "personal view" tab). SettleTransferPath always renders in
+  // primary currency. Kept at the page level so the radio can live
+  // next to the personal tab without round-tripping through props
+  // from the breakdown component.
   type ViewMode = 'primary' | 'split';
   let viewMode: ViewMode = 'primary';
 
@@ -115,41 +130,49 @@
       </button>
     </div>
 
-    <div class="view-switch" role="radiogroup" aria-label="结算视图">
-      <button
-        type="button"
-        role="radio"
-        class="view-switch-btn"
-        class:active={viewMode === 'primary'}
-        aria-checked={viewMode === 'primary'}
-        on:click={() => (viewMode = 'primary')}
-      >
-        主币种汇总 ({session.primary_currency})
-      </button>
-      <button
-        type="button"
-        role="radio"
-        class="view-switch-btn"
-        class:active={viewMode === 'split'}
-        aria-checked={viewMode === 'split'}
-        disabled={!session.currencies || session.currencies.length < 2}
-        title={
-          session.currencies && session.currencies.length < 2
-            ? '该 session 只有一种币种'
-            : ''
-        }
-        on:click={() => (viewMode = 'split')}
-      >
-        原始数据
-      </button>
-    </div>
-
     <div class="card">
       {#if activeTab === 'overview'}
+        <!--
+          v0.3.14.1 hotfix #4 反馈 1: 概览 tab 不显示
+          「主币种汇总 / 原始数据」radio — SettleTransferPath 始终按
+          session primary 聚合, 不需要 per-bill 原始货币视图。
+        -->
         <div in:slide={{ duration: 200 }}>
           <SettleTransferPath {session} {memberIdToName} {viewMode} />
         </div>
       {:else}
+        <!--
+          个人视图 tab: radio 只在此处出现 (PO 拍板 C1+D1 — 主币种
+          汇总 vs 原始数据 的切换对个人视图才有意义)。
+        -->
+        <div class="view-switch" role="radiogroup" aria-label="结算视图">
+          <button
+            type="button"
+            role="radio"
+            class="view-switch-btn"
+            class:active={viewMode === 'primary'}
+            aria-checked={viewMode === 'primary'}
+            on:click={() => (viewMode = 'primary')}
+          >
+            主币种汇总 ({session.primary_currency})
+          </button>
+          <button
+            type="button"
+            role="radio"
+            class="view-switch-btn"
+            class:active={viewMode === 'split'}
+            aria-checked={viewMode === 'split'}
+            disabled={!session.currencies || session.currencies.length < 2}
+            title={
+              session.currencies && session.currencies.length < 2
+                ? '该 session 只有一种币种'
+                : ''
+            }
+            on:click={() => (viewMode = 'split')}
+          >
+            原始数据
+          </button>
+        </div>
         <div in:slide={{ duration: 200 }}>
           <SettleMemberBreakdown {session} currentUserId={$user?.user_id ?? null} {viewMode} />
         </div>
@@ -159,7 +182,9 @@
 </section>
 
 <style>
-  /* v0.2.2 (T11): view-mode toggle above the tab bar */
+  /* v0.2.2 (T11): view-mode toggle (hotfix #4 — only used by the
+     personal view tab now, but kept as a page-level style for the
+     shared pill design). */
   .view-switch {
     display: inline-flex;
     gap: 0.25rem;

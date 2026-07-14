@@ -2,19 +2,29 @@
   /**
    * v0.1.3 Sprint 3 Commit 4 (2026-07-02) — 个人视图交互动画。
    *
-   * 本次 Commit 4 改动:
-   * - T16 Cross-fade chip 切换: {#key selectedMember.member_id} 包整个 member-panel,
-   *   in:fade=150ms / out:fade=100ms,切换 chip 时 breakdown 平滑淡入淡出。
-   *   chip selector (member-tabs) 本身**不**在 keyed 块内,避免切 chip 时 chip 也 fade 掉。
-   * - T17 Count-up 数字动画: 新建 src/lib/utils/tween.ts(tweenNumber 工厂),
-   *   tweenPaid / tweenConsumed / tweenNet 全部走统一 600ms cubicOut preset。
-   *   hero-net 切换 member 时数字从 0 → 绝对值平滑过渡。
-   * - 沿用 inline tweened() -> tweenNumber() 重构,call site 更声明式。
+   * v0.3.14.1 hotfix #4 (2026-07-14) — 个人视图反馈 1/2/3 实现 (单位
+   * + 换算)。PO 拍板 (Jesse 11:15 #4348):
+   * - 「主币种汇总」= **只**显示主币种 (CNY) 数字 + 单位 CNY
+   * - 「原始数据」= **只**显示源币种数字 + 单位
+   *
+   * 实现要点:
+   * - 个人视图**所有**金额都带具体单位 (反馈 2)。
+   * - 主币种汇总模式下, 付款明细行 (paid_bills[i].amount) 和消费明细
+   *   行 (consumed_bills[i].share_amount / exclusive_amount / bill
+   *   total) 走 BE 已换算好的 `*_primary` 字段; 原始数据模式走 raw
+   *   `amount` / `share_amount` + `bill.currency`。
+   * - 顶部 hero (net / consumed / paid) 和 member chip 顶部 net 在原
+   *   始数据模式下按源币种分组展示 (THB + CNY 不能相加, 因此 hero 多
+   *   行 / per-currency chip)。
+   * - 顶部 hero 顶部 amount + consumed / paid 元数据在主币种汇总模式
+   *   下走 BE primary 聚合 (`m.total_paid` / `m.total_consumed` /
+   *   `m.net`) — 这三个值 BE 永远按 primary 输出, 保持不变。
    *
    * 沿用:
    * - T8 Hero Metric (Commit 2)
    * - T9 Chip Redesign (Commit 3)
    * - T10 Sticky Section Header (Commit 2)
+   * - T16 / T17 (Commit 4) — chip cross-fade + tween
    * - v0.1.2 反馈修 6 项目 6/7
    */
   import { onMount, tick } from 'svelte';
@@ -41,6 +51,11 @@
   let chipRefs: Record<number, HTMLButtonElement | null> = {};
 
   // === T17 数字 counter animation (统一走 tweenNumber 工厂) ===
+  //
+  // hotfix #4: 仍 tween BE 返回的 primary 聚合值, 因为 BE 不管 view
+  // mode 都按 primary 输出 `total_paid` / `total_consumed` / `net`。
+  // 原始数据模式下这些值只是**不**显示 (改用下方 `perCurrencyAgg`
+  // 静态展开) — tween 仍可用作 chip fallback / debug。
   const tweenPaid = tweenNumber(0, 600);
   const tweenConsumed = tweenNumber(0, 600);
   const tweenNet = tweenNumber(0, 600);
@@ -68,16 +83,55 @@
   }
 
   /**
-   * T9 chip net amount: formatMoney no symbol, tabular-nums.
-   * Color via CSS classes .pos / .neg / .zero on the chip-net element.
+   * T9 chip net amount: formatMoney no symbol, tabular-nums. Sign with
+   * ASCII ``-`` (the e2e regex pattern ``[+-]`` does not match the
+   * Unicode minus; keep ASCII for test compat).
    */
-  function fmtChipNet(n: number): string {
+  function fmtSigned(n: number): string {
     if (n > 0) return '+' + formatMoney(n, { showSymbol: false });
-    if (n < 0) return '\u2212' + formatMoney(Math.abs(n), { showSymbol: false });
+    if (n < 0) return '-' + formatMoney(Math.abs(n), { showSymbol: false });
     return formatMoney(0, { showSymbol: false });
   }
 
+  /**
+   * v0.3.14.1 hotfix #4: chip-net 双模式 —
+   * - primary: 单值, 美元面额按 primary currency (例如 "+14.36 CNY")。
+   * - split: 按源币种聚合 paid_bills / consumed_bills, 输出多行
+   *   ("+26.75 THB" / "-20.00 CNY"), 每行独立 signed + unit。
+   */
+  type CurrencyBucket = { paid: number; consumed: number; net: number };
+
+  function aggregatePerCurrency(m: MemberSettlement | null): Record<string, CurrencyBucket> {
+    const buckets: Record<string, CurrencyBucket> = {};
+    if (!m) return buckets;
+    const addCur = (cur: string): CurrencyBucket => {
+      if (!buckets[cur]) buckets[cur] = { paid: 0, consumed: 0, net: 0 };
+      return buckets[cur];
+    };
+    for (const b of m.paid_bills ?? []) {
+      const cur = (b as any).currency as string;
+      if (!cur) continue;
+      const slot = addCur(cur);
+      slot.paid += Number((b as any).amount ?? 0);
+    }
+    for (const b of m.consumed_bills ?? []) {
+      const cur = (b as any).currency as string;
+      if (!cur) continue;
+      const slot = addCur(cur);
+      // BE 的 ``share_amount`` 实际是 primary; 原始数据模式下这里必须
+      // 用 ``sourceShareOf`` 反推源币种再归类到源 bucket。
+      slot.consumed += sourceShareOf(b as any);
+    }
+    for (const k of Object.keys(buckets)) {
+      buckets[k].net = buckets[k].paid - buckets[k].consumed;
+    }
+    return buckets;
+  }
+
   $: selectedMember = members.find((m) => m.member_id === selectedMemberId) ?? null;
+
+  $: perCurrencyAgg = aggregatePerCurrency(selectedMember);
+  $: perCurrencyKeys = Object.keys(perCurrencyAgg);
 
   $: meMemberId = (() => {
     if (currentUserId === null || currentUserId === undefined) return null;
@@ -100,6 +154,120 @@
         el.scrollIntoView();
       }
     }
+  }
+
+  // -------------------------------------------------------------
+  // hotfix #4 渲染 helper
+  // -------------------------------------------------------------
+
+  /**
+   * v0.3.14.1 hotfix #4: BE BillShare 的 ``share_amount`` /
+   * ``exclusive_amount`` 字段虽然名字暗示源币种, 但内部值是主币种
+   * (settle.py `_compute_per_member` 直接把 ``share_primary`` 传给
+   * schema 字段)。原始数据模式要在 FE 端反推源币种值。
+   *
+   * 反推方法: 用每张账单隐含的 (源/主) 比率乘以 primary 数值。
+   * 比率 = bill.amount / bill.amount_primary = 这张账单当时的
+   * snapshot 转换率。
+   *
+   * 边角情形:
+   * - amount_primary = 0 → 直接退回 primary 数值
+   * - amount == amount_primary (源币种 = 主币种, 纯 CNY session)
+   *   → 比率 1, 数值不变
+   */
+  function sourceShareOf(b: any): number {
+    const primaryShare = Number(b.share_amount_primary ?? b.share_amount ?? 0);
+    const src = Number(b.amount ?? 0);
+    const prim = Number(b.amount_primary ?? 0);
+    if (prim <= 0) return primaryShare;
+    return primaryShare * (src / prim);
+  }
+  function sourceExclusiveOf(b: any): number {
+    const primaryExcl = Number(b.exclusive_amount_primary ?? b.exclusive_amount ?? 0);
+    const src = Number(b.amount ?? 0);
+    const prim = Number(b.amount_primary ?? 0);
+    if (prim <= 0) return primaryExcl;
+    return primaryExcl * (src / prim);
+  }
+
+  /** 主币种汇总: 付款明细 = BE ``amount_primary`` + ``primary_currency``. */
+  function fmtPaidPrimary(b: any): string {
+    return `${fmt(Number(b.amount_primary ?? b.amount))} ${b.primary_currency ?? session.primary_currency}`;
+  }
+
+  /** 原始数据: 付款明细 = 源币种 ``amount`` + ``currency``. */
+  function fmtPaidSplit(b: any): string {
+    return `${fmt(Number(b.amount))} ${b.currency}`;
+  }
+
+  /** 主币种汇总: 消费明细 share = BE ``share_amount_primary`` + primary. */
+  function fmtConsumedPrimary(b: any): string {
+    return `${fmt(Number(b.share_amount_primary ?? b.share_amount))} ${b.primary_currency ?? session.primary_currency}`;
+  }
+
+  /** 原始数据: 消费明细 share 按源币种 (BE primary → 反推). */
+  function fmtConsumedSplit(b: any): string {
+    return `${fmt(sourceShareOf(b))} ${b.currency}`;
+  }
+
+  /**
+   * 独占 / 共享 / 账单总 的渲染。两模式都需带具体单位。
+   * primary 模式: ``exclusive_amount_primary`` / ``share_primary -
+   * exclusive_primary`` / ``amount_primary``, 单位 ``primary_currency``。
+   * split 模式: 原始 ``exclusive_amount`` / (share - exclusive) /
+   * ``amount``, 单位 ``b.currency``.
+   */
+  function fmtConsumedTags(b: any): {
+    excl: string | null;
+    shared: string;
+    total: string;
+  } {
+    if (viewMode === 'primary') {
+      const cur = b.primary_currency ?? session.primary_currency;
+      const exclPrimary = Number(b.exclusive_amount_primary ?? b.exclusive_amount ?? 0);
+      const sharePrimary = Number(b.share_amount_primary ?? b.share_amount ?? 0);
+      const sharedPrimary = sharePrimary - exclPrimary;
+      const totalPrimary = Number(b.amount_primary ?? b.amount);
+      return {
+        excl: exclPrimary > 0 ? `${fmt(exclPrimary)} ${cur}` : null,
+        shared: `${fmt(sharedPrimary)} ${cur}`,
+        total: `${fmt(totalPrimary)} ${cur}`,
+      };
+    }
+    // 原始数据模式: BE 字段都是 primary, 反推源币种。
+    const cur = b.currency;
+    const excl = sourceExclusiveOf(b);
+    const share = sourceShareOf(b);
+    const shared = share - excl;
+    const total = Number(b.amount);
+    return {
+      excl: excl > 0 ? `${fmt(excl)} ${cur}` : null,
+      shared: `${fmt(shared)} ${cur}`,
+      total: `${fmt(total)} ${cur}`,
+    };
+  }
+
+  /** 顶部 hero meta (consumed / paid) — 双模式。 */
+  function fmtSplitPaidAndConsumed(m: MemberSettlement | null): {
+    paid: string;
+    consumed: string;
+  } {
+    if (!m) return { paid: '-', consumed: '-' };
+    const agg = aggregatePerCurrency(m);
+    const ks = Object.keys(agg);
+    if (ks.length === 0) return { paid: '-', consumed: '-' };
+    const paidStr = ks.map((k) => `${fmt(agg[k].paid)} ${k}`).join(' / ');
+    const consumedStr = ks.map((k) => `${fmt(agg[k].consumed)} ${k}`).join(' / ');
+    return { paid: paidStr, consumed: consumedStr };
+  }
+
+  /** 顶部 hero net — 双模式 (primary 单值, split 按源币种分组)。 */
+  function fmtSplitNet(m: MemberSettlement | null): string {
+    if (!m) return '-';
+    const agg = aggregatePerCurrency(m);
+    const ks = Object.keys(agg);
+    if (ks.length === 0) return '-';
+    return ks.map((k) => `${fmtSigned(agg[k].net)} ${k}`).join(' / ');
   }
 
   onMount(async () => {
@@ -170,12 +338,28 @@
             <div class="chip-avatar" aria-hidden="true">{avatarLetter(m.display_name)}</div>
             <div class="chip-info">
               <div class="chip-name">{m.display_name}</div>
-              <div
-                class="chip-net"
-                class:pos={m.net > 0}
-                class:neg={m.net < 0}
-                class:zero={m.net === 0}
-              >{fmtChipNet(m.net)}</div>
+              <!--
+                hotfix #4: chip-net 双模式。
+                - primary: 单值, 主币种聚合 (来自 BE `m.net`)。
+                - split: 按源币种聚合, 多行, 每行独立符号。
+              -->
+              {#if viewMode === 'split'}
+                {#each Object.entries(aggregatePerCurrency(m)) as [cur, bucket] (cur)}
+                  <div
+                    class="chip-net-line"
+                    class:pos={bucket.net > 0}
+                    class:neg={bucket.net < 0}
+                    class:zero={bucket.net === 0}
+                  >{fmtSigned(bucket.net)} {cur}</div>
+                {/each}
+              {:else}
+                <div
+                  class="chip-net"
+                  class:pos={m.net > 0}
+                  class:neg={m.net < 0}
+                  class:zero={m.net === 0}
+                >{fmtSigned(m.net)} {session.primary_currency}</div>
+              {/if}
             </div>
           </button>
         {/each}
@@ -199,24 +383,54 @@
             {#if isMe(selectedMember.member_id)}<span class="me-badge" aria-label="当前用户">me</span>{/if}
           </h3>
 
-          <!-- T8: Hero Metric -->
+          <!-- T8: Hero Metric (hotfix #4 双模式) -->
           <div class="hero">
             <div
               class="hero-net"
-              class:pos={selectedMember.net > 0}
-              class:neg={selectedMember.net < 0}
-              class:zero={selectedMember.net === 0}
+              class:pos={viewMode === 'primary' ? selectedMember.net > 0 : false}
+              class:neg={viewMode === 'primary' ? selectedMember.net < 0 : false}
+              class:zero={viewMode === 'primary' ? selectedMember.net === 0 : false}
             >
-              {#if selectedMember.net === 0}
+              {#if viewMode === 'split'}
+                <!-- 按源币种分别展示 (THB / CNY 不可相加) -->
+                {#if perCurrencyKeys.length === 0}
+                  <span class="settled-text">已结清</span>
+                {:else}
+                  <div class="hero-net-multicur">
+                    {#each perCurrencyKeys as cur (cur)}
+                      {@const bucket = perCurrencyAgg[cur]}
+                      <div
+                        class="hero-net-line"
+                        class:pos={bucket.net > 0}
+                        class:neg={bucket.net < 0}
+                        class:zero={bucket.net === 0}
+                      >{fmtSigned(bucket.net)} {cur}</div>
+                    {/each}
+                  </div>
+                {/if}
+              {:else if selectedMember.net === 0}
                 <span class="settled-text">已结清</span>
               {:else}
-                {fmtChipNet(selectedMember.net)}
+                {fmtSigned($tweenNet)} {session.primary_currency}
               {/if}
             </div>
             <div class="hero-meta">
-              <span>consumed <strong>{fmt($tweenConsumed)}</strong></span>
-              <span class="meta-sep" aria-hidden="true">·</span>
-              <span>paid <strong>{fmt($tweenPaid)}</strong></span>
+              {#if viewMode === 'split'}
+                <!-- split: 按源币种分别展示 paid / consumed -->
+                {@const split = fmtSplitPaidAndConsumed(selectedMember)}
+                {#if split.consumed !== '-'}
+                  <span>consumed <strong>{split.consumed}</strong></span>
+                  <span class="meta-sep" aria-hidden="true">·</span>
+                {/if}
+                {#if split.paid !== '-'}
+                  <span>paid <strong>{split.paid}</strong></span>
+                {/if}
+              {:else}
+                <!-- primary: BE 聚合 = primary_currency -->
+                <span>consumed <strong>{fmt($tweenConsumed)}</strong> <span class="meta-unit">{session.primary_currency}</span></span>
+                <span class="meta-sep" aria-hidden="true">·</span>
+                <span>paid <strong>{fmt($tweenPaid)}</strong> <span class="meta-unit">{session.primary_currency}</span></span>
+              {/if}
             </div>
           </div>
 
@@ -238,7 +452,14 @@
                   >
                     <div class="row1">
                       <span class="bill-sub-desc">{b.description || '(无说明)'}</span>
-                      <span class="amount-primary">{fmt(b.amount)} {b.currency}</span>
+                      <!--
+                        hotfix #4: paid bill 主金额。
+                        - primary → BE `amount_primary` (已换算) + `primary_currency`.
+                        - split   → 原始 `amount` + `currency`.
+                      -->
+                      <span class="amount-primary">
+                        {#if viewMode === 'primary'}{fmtPaidPrimary(b)}{:else}{fmtPaidSplit(b)}{/if}
+                      </span>
                     </div>
                     <div class="row2 muted">
                       <span class="bill-sub-date">{fmtDate(b.occurred_at)}</span>
@@ -261,26 +482,32 @@
             {:else}
               <ul class="bill-sublist">
                 {#each selectedMember.consumed_bills as b, i (b.bill_id)}
-                  {@const excl = b.exclusive_amount ?? 0}
-                  {@const shared = b.share_amount - excl}
+                  {@const tags = fmtConsumedTags(b)}
                   <li
                     class="bill-subrow"
                     in:fly={{ y: 6, duration: 200, delay: Math.min(i * 25, 200) }}
                   >
                     <div class="row1">
                       <span class="bill-sub-desc">{b.description || '(无说明)'}</span>
-                      <span class="amount-primary">{fmt(b.share_amount)} {b.currency}</span>
+                      <!--
+                        hotfix #4: consumed share 主金额: 双模式。
+                        - primary → BE `share_amount_primary` + `primary_currency`.
+                        - split   → 原始 `share_amount` + `currency`.
+                      -->
+                      <span class="amount-primary">
+                        {#if viewMode === 'primary'}{fmtConsumedPrimary(b)}{:else}{fmtConsumedSplit(b)}{/if}
+                      </span>
                     </div>
                     <div class="row2 muted">
                       <span class="bill-sub-date">{fmtDate(b.occurred_at)}</span>
-                      {#if excl > 0}
+                      {#if tags.excl}
                         <span class="sep" aria-hidden="true">·</span>
-                        <span class="tag exclusive-tag">独占 {fmt(excl)}</span>
+                        <span class="tag exclusive-tag">独占 {tags.excl}</span>
                       {/if}
                       <span class="sep" aria-hidden="true">·</span>
-                      <span class="tag shared-tag">共享 {fmt(shared)}</span>
+                      <span class="tag shared-tag">共享 {tags.shared}</span>
                       <span class="sep" aria-hidden="true">·</span>
-                      <span class="bill-total">账单总 {fmt(b.amount)}</span>
+                      <span class="bill-total">账单总 {tags.total}</span>
                     </div>
                   </li>
                 {/each}
@@ -430,6 +657,21 @@
   .member-chip.selected .chip-net.pos { color: white; }
   .member-chip.selected .chip-net.neg { color: rgba(255,255,255,0.85); }
 
+  /* hotfix #4: split-mode per-currency chip line (e.g., +26.75 THB) */
+  .chip-net-line {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    font-size: var(--font-size-sm, 14px);
+    color: var(--gray-500);
+    line-height: 1.25;
+  }
+  .chip-net-line.pos { color: var(--success-500); }
+  .chip-net-line.neg { color: var(--error-500); }
+  .chip-net-line.zero { color: var(--gray-500); }
+  .member-chip.selected .chip-net-line { color: rgba(255,255,255,0.9); }
+  .member-chip.selected .chip-net-line.pos { color: white; }
+  .member-chip.selected .chip-net-line.neg { color: rgba(255,255,255,0.85); }
+
   .chip-badge {
     display: inline-block;
     background: var(--accent-500);
@@ -505,6 +747,23 @@
   .hero-net.pos { color: var(--success-500); }
   .hero-net.neg { color: var(--error-500); }
   .hero-net.zero { color: var(--gray-500); }
+  /* hotfix #4: split-mode per-currency stack inside hero */
+  .hero-net-multicur {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .hero-net-line {
+    font-size: var(--font-size-3xl, 40px);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+  .hero-net-line.pos { color: var(--success-500); }
+  .hero-net-line.neg { color: var(--error-500); }
+  .hero-net-line.zero { color: var(--gray-500); }
   .settled-text {
     font-size: var(--font-size-2xl, 32px);
   }
@@ -520,6 +779,10 @@
   .hero-meta strong {
     font-weight: 500;
     font-variant-numeric: tabular-nums;
+  }
+  .meta-unit {
+    font-variant-numeric: tabular-nums;
+    color: var(--gray-500);
   }
   .meta-sep { color: var(--gray-400); }
 
