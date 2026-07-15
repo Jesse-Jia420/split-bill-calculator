@@ -17,6 +17,9 @@
   import { formatDate } from '$lib/utils/format';
   import type { SessionDetail } from '$api/sessions';
   import type { Bill } from '$api/bills';
+  // v0.3.15 (PRD §3.15.2 #7): 用 Lucide ArrowLeft 替代 ← Unicode 字符
+  // (iOS 系统字体在 PO 真机截图里显示为"乱码" #4543).
+  import { ArrowLeft } from 'lucide-svelte';
   import BillForm from '$components/BillForm.svelte';
 
   let session: SessionDetail | null = null;
@@ -54,7 +57,7 @@
     <p class="muted">加载中…</p>
   {:else if error}
     <div class="error">{error}</div>
-    <a class="btn ghost" href="/sessions/{sessionId}">返回</a>
+    <a class="btn ghost" href="/sessions/{sessionId}"><ArrowLeft size={16} /> 返回</a>
   {:else if session && bill}
     <h2>编辑账单</h2>
     <p class="muted">

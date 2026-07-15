@@ -13,6 +13,10 @@
   import type { Bill, ParseBillResult } from '$api/bills';
   import { evaluateExpression } from '$api/calculator';
   import { currencySymbol } from '$lib/utils/currency';
+  // v0.3.15 (PRD §3.15.2 #7): 「←」Unicode 字符在 iOS 系统字体下偶尔显示
+  // 「乱码」(PO 04:22 真机截图 #4543)。换成 lucide-svelte 的 ArrowLeft 图标,
+  // BackButton.svelte 已用 ChevronLeft, 这里统一为 ArrowLeft 走 PO 拍板。
+  import { ArrowLeft } from 'lucide-svelte';
   import AiAssistInput from './AiAssistInput.svelte';
   import AmountCalculatorInput from './AmountCalculatorInput.svelte';
 
@@ -614,7 +618,7 @@
        (form card) 而不是 viewport — 这样在 modal 或 detail 页里
        不会覆盖非相关按钮。 -->
   <div class="action-bar sticky-bottom">
-    <a class="btn ghost" href="/sessions/{session.id}">返回 session</a>
+    <a class="btn ghost" href="/sessions/{session.id}"><ArrowLeft size={16} /> 返回 session</a>
     <button class="primary" type="submit" disabled={submitting}>
       {submitting
         ? '保存中…'
@@ -909,9 +913,10 @@
     /* ghost 按钮允许 row 拉伸, 但视觉上更柔 */
     color: var(--gray-500, #737373);
   }
-  /* 保存按钮在 mobile viewport (≤480px) 全宽, 因为 thumb reach 友好 */
+  /* 保存按钮在 mobile viewport (≤480px) 全宽, 因为 thumb reach 友好
+     (button 仅 class="primary", 不是 .btn.primary). */
   @media (max-width: 480px) {
-    .action-bar.sticky-bottom > .btn.primary {
+    .action-bar.sticky-bottom > button.primary {
       flex: 1;
       min-width: 0;
     }

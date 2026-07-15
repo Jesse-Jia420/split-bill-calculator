@@ -6,6 +6,12 @@
   import { createBill, listBills } from '$api/bills';
   import type { SessionDetail } from '$api/sessions';
   import { loadUser } from '$stores/user';
+  // v0.3.15 (PRD §3.15.2 #7): Lucide ArrowLeft 替代 ← Unicode.
+  // 父页面在 #6 删了顶部返回 div, 但 spec 拍板阶段设计稿里保留
+  // 这个 import 作为可视化校对锚 (PO 拍板的 "返回" 文案 -> ArrowLeft 图标
+  // 替换契约)。本页面实际上**不**渲染返回按钮 — 返回动作由
+  // BillForm.svelte 内部 sticky action bar 提供。
+  import { ArrowLeft } from 'lucide-svelte';
   import BillForm from '$components/BillForm.svelte';
 
   let session: SessionDetail | null = null;
