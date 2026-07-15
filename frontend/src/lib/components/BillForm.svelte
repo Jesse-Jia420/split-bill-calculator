@@ -536,11 +536,7 @@
       disabled={!canEditDescription}
       on:input={() => (descriptionPristine = false)}
     />
-    {#if !canEditDescription}
-      <div class="muted hint" data-testid="description-readonly-hint">
-        说明在账单录入后不可修改(PO 06-30 T17 拍板)
-      </div>
-    {/if}
+
   </div>
 
   <div>
