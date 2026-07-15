@@ -32,6 +32,7 @@
   import { getSettle } from '$api/settle';
   import { formatMoney, formatDate } from '$lib/utils/format';
   import { tweenNumber } from '$lib/utils/tween';
+  import { currencySymbol } from '$lib/utils/currency';
   import SkeletonBill from '$components/SkeletonBill.svelte';
   import type { MemberSettlement } from '$api/settle';
   import type { SessionDetail } from '$api/sessions';
@@ -349,8 +350,8 @@
                     class="chip-net-line"
                     class:pos={bucket.net > 0}
                     class:neg={bucket.net < 0}
-                    class:zero={bucket.net === 0}
-                  >{fmtSigned(bucket.net)} {cur}</div>
+                  class:zero={bucket.net === 0}
+                  >{fmtSigned(bucket.net)} {currencySymbol(cur)}</div>
                 {/each}
               {:else}
                 <div
@@ -358,7 +359,7 @@
                   class:pos={m.net > 0}
                   class:neg={m.net < 0}
                   class:zero={m.net === 0}
-                >{fmtSigned(m.net)} {session.primary_currency}</div>
+                >{fmtSigned(m.net)} {currencySymbol(session.primary_currency)}</div>
               {/if}
             </div>
           </button>
