@@ -71,9 +71,6 @@
   {:else if error}
     <div class="error">{error}</div>
   {:else if session}
-    <div class="row" style="margin-bottom: var(--space-3);">
-      <a class="btn ghost" href="/sessions/{session.id}">返回</a>
-    </div>
     <h2>新建账单</h2>
     <p class="muted">session: {session.name}</p>
 

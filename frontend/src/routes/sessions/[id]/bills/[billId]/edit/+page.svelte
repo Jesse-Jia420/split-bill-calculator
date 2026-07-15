@@ -56,9 +56,6 @@
     <div class="error">{error}</div>
     <a class="btn ghost" href="/sessions/{sessionId}">返回</a>
   {:else if session && bill}
-    <div class="row" style="margin-bottom: var(--space-3);">
-      <a class="btn ghost" href="/sessions/{session.id}">返回</a>
-    </div>
     <h2>编辑账单</h2>
     <p class="muted">
       session: {session.name} · 账单 #{bill.id} · 记录于
