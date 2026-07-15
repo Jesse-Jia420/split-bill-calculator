@@ -28,12 +28,12 @@
   } from '$api/sessions';
   import { getInvite, type InvitePublicView } from '$api/invites';
   import { loadUser } from '$stores/user';
+  import { toast } from '$stores/toast';
 
   // localStorage key prefix for anonymous acting-as
   const LS_PREFIX = 'sbc.actingAs.';
 
   let loading = $state(true);
-  let error: string | null = null;
   let session: SessionDetail | null = $state(null);
   // v0.3.1 (BUG-LANDING-1): public, no-auth session preview. Populated
   // when getSession() 403s (anon flow) so /join can still render
@@ -64,7 +64,8 @@
   onMount(async () => {
     const sid = sessionId;
     if (!sid) {
-      error = '无效的 session';
+      // v0.3.15 (PO #4807): 错误统一走 Toast
+      toast.error('无效的 session');
       loading = false;
       return;
     }
@@ -147,19 +148,19 @@
 
   async function handleClaim(slotId: number) {
     if (busy) return;
-    error = null;
     busy = true;
     try {
       const res = await joinClaim(sessionId, { action: 'claim', session_member_id: slotId });
       _storeActingAs(res.session_member_id, res.nickname_secret ?? '');
       await goto('/sessions/' + sessionId, { replaceState: true });
     } catch (e: any) {
+      // v0.3.15 (PO #4807): 错误统一走 Toast
       const status = e?.status ?? e?.detail?.status;
       if (status === 409) {
-        error = '该昵称已被其他人抢走了，请选择其他昵称';
+        toast.error('该昵称已被其他人抢走了，请选择其他昵称');
         selectedSlotId = null;
       } else {
-        error = e?.message ?? '认领失败';
+        toast.error(e?.message ?? '认领失败');
       }
     } finally {
       busy = false;
@@ -170,17 +171,18 @@
     if (busy) return;
     const nickname = newNickname.trim();
     if (!nickname) {
-      error = '请输入昵称';
+      // v0.3.15 (PO #4807): 错误统一走 Toast
+      toast.error('请输入昵称');
       return;
     }
-    error = null;
     busy = true;
     try {
       const res = await joinClaim(sessionId, { action: 'add', display_name: nickname });
       _storeActingAs(res.session_member_id, res.nickname_secret ?? '');
       await goto('/sessions/' + sessionId, { replaceState: true });
     } catch (e: any) {
-      error = e?.message ?? '加入失败';
+      // v0.3.15 (PO #4807): 错误统一走 Toast
+      toast.error(e?.message ?? '加入失败');
     } finally {
       busy = false;
     }
@@ -219,8 +221,6 @@
 
   {#if loading}
     <p>正在加载…</p>
-  {:else if error && !session && !invite}
-    <div class="error">{error}</div>
   {:else}
     {#if invite}
       <p class="muted">
@@ -235,10 +235,6 @@
       <p class="muted">
         Session: <strong>{preview.name}</strong>
       </p>
-    {/if}
-
-    {#if error}
-      <div class="error" style="margin-bottom: 1rem;">{error}</div>
     {/if}
 
     {#if user}

@@ -26,6 +26,11 @@
    * - T10 Sticky Section Header (Commit 2)
    * - T16 / T17 (Commit 4) — chip cross-fade + tween
    * - v0.1.2 反馈修 6 项目 6/7
+   *
+   * v0.3.15 (PO #4807 + Designer 报告) — 错误统一走 Toast.
+   * - 删 `let error` 状态 + `<div class="error">` 模板
+   * - loadSettle catch → toast.error()
+   * - 失败时 members=[] + selectedMemberId=null, 让模板走"还没成员"占位
    */
   import { onMount, tick } from 'svelte';
   import { scale, fly, fade } from 'svelte/transition';
@@ -33,6 +38,7 @@
   import { formatMoney, formatDate } from '$lib/utils/format';
   import { tweenNumber } from '$lib/utils/tween';
   import { currencySymbol } from '$lib/utils/currency';
+  import { toast } from '$stores/toast';
   import SkeletonBill from '$components/SkeletonBill.svelte';
   import type { MemberSettlement } from '$api/settle';
   import type { SessionDetail } from '$api/sessions';
@@ -44,7 +50,6 @@
   export let viewMode: 'primary' | 'split' = 'primary';
 
   let loading = true;
-  let error: string | null = null;
   let members: MemberSettlement[] = [];
   let loadedView: 'primary' | 'split' = viewMode;
 
@@ -282,7 +287,6 @@
 
   async function loadSettle(targetView: 'primary' | 'split') {
     loading = true;
-    error = null;
     try {
       const data = await getSettle(session.id, targetView);
       members = data.per_member ?? [];
@@ -298,7 +302,10 @@
         if (el) el.scrollIntoView({ block: 'nearest', inline: 'center' });
       }
     } catch (e: any) {
-      error = e?.message ?? 'failed to load settlement';
+      // v0.3.15 (PO #4807): 错误统一走 Toast, 失败时清空数据走占位
+      members = [];
+      selectedMemberId = null;
+      toast.error(e?.message ?? '加载结算失败');
     } finally {
       loading = false;
     }
@@ -314,8 +321,6 @@
         <li><SkeletonBill /></li>
       </ul>
     </div>
-  {:else if error}
-    <div class="error">{error}</div>
   {:else if members.length === 0}
     <p class="muted">这个 session 还没有成员。</p>
   {:else}

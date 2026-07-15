@@ -14,6 +14,11 @@
    * - 取符号走 `$lib/utils/currency` 的 currencySymbol() 函数, 跟 BillForm
    *   共用一个映射 (CNY ¥ / THB ฿ / JPY ¥ / USD $)。
    *
+   * v0.3.15 (PO #4807 + Designer 报告) — 错误统一走 Toast.
+   * - 删 `let error` 状态 + `<div class="error">` 模板
+   * - fetchSettle catch → toast.error() (失败时主容器直接空, 用户能 retry)
+   * - data 加载失败/无数据 → 用 `.muted` "暂无结算数据" 占位, 替代原 error 块
+   *
    * 沿用:
    * - v0.1.2 反馈修 6 项目 5 (用户名不加粗,转帐箭头克制)
    */
@@ -21,6 +26,7 @@
   import { getSettle } from '$api/settle';
   import { formatMoney, formatDate } from '$lib/utils/format';
   import { currencySymbol } from '$lib/utils/currency';
+  import { toast } from '$stores/toast';
   import type { SettleResponse } from '$api/settle';
   import type { SessionDetail } from '$api/sessions';
 
@@ -31,7 +37,6 @@
   export let viewMode: 'primary' | 'split' = 'primary';
 
   let loading = true;
-  let error: string | null = null;
   let data: SettleResponse | null = null;
   // Track the current view so we don't show stale data after a toggle.
   let loadedView: 'primary' | 'split' = viewMode;
@@ -53,12 +58,13 @@
   // representation stays in sync with what the user selected.
   async function fetchSettle(targetView: 'primary' | 'split') {
     loading = true;
-    error = null;
     try {
       data = await getSettle(session.id, targetView);
       loadedView = targetView;
     } catch (e: any) {
-      error = e?.message ?? 'failed to load settlement';
+      // v0.3.15 (PO #4807): 错误统一走 Toast, 失败时把 data 清掉让模板走空态
+      data = null;
+      toast.error(e?.message ?? '加载结算失败');
     } finally {
       loading = false;
     }
@@ -89,8 +95,6 @@
 <div>
   {#if loading}
     <p class="muted">正在计算结算…</p>
-  {:else if error}
-    <div class="error">{error}</div>
   {:else if data}
     <h3>每人净收/净付</h3>
     <ul class="list balances" style="list-style: none; padding: 0; margin: 0 0 var(--space-4);">
@@ -168,6 +172,9 @@
     <p class="hint" style="margin-top: var(--space-3);">
       生成时间: {fmtGenerated(data.generated_at)}
     </p>
+  {:else}
+    <!-- v0.3.15 (PO #4807): 失败后 data=null, 显示"暂无数据"占位让用户能切 tab / 刷新重试 -->
+    <p class="muted">暂无结算数据,请稍后再试。</p>
   {/if}
 </div>
 
@@ -208,9 +215,6 @@
   .hint {
     color: var(--gray-500);
     font-size: var(--font-size-sm);
-  }
-  .error {
-    color: var(--error-500);
   }
   .settled-emoji {
     font-size: var(--font-size-base);

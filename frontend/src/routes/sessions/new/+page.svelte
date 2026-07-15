@@ -3,13 +3,13 @@
   import { goto } from "$app/navigation";
   import { user } from "$stores/user";
   import { loadUser } from "$stores/user";
+  import { toast } from "$stores/toast";
 
   let step = 1;
   let sessionName = "";
   let memberCount = 1;
   let nicknames: string[] = [""];
   let busy = false;
-  let error: string | null = null;
   let loading = true;
   const LS_PREFIX = "sbc.actingAs.";
 
@@ -75,7 +75,6 @@
   async function handleCreate() {
     if (busy || !nicknamesValid) return;
     if (showCurrencyStep && !currencyValid) return;
-    error = null;
     busy = true;
     try {
       const currencies = currencyMode === "single"
@@ -133,7 +132,9 @@
       }
       await goto("/sessions/" + sid, { replaceState: true });
     } catch (e: any) {
-      error = e?.message ?? "创建失败，请重试";
+      // v0.3.15 (PO #4807): 错误统一走 Toast. wizard step 3 提交失败时
+      // user 保留当前 step 状态, 可改完再点确认.
+      toast.error(e?.message ?? "创建失败，请重试");
       busy = false;
     }
   }
@@ -161,9 +162,6 @@
       {#if step === 3 && showCurrencyStep}第三步{/if}
       {#if step === 3}第三步{/if}
     </p>
-    {#if error}
-      <div class="error-banner">{error}</div>
-    {/if}
 
     {#if step === 1}
       <div class="step-panel">
@@ -336,7 +334,6 @@
   .nickname-row input { flex: 1; padding: 0.75rem 1rem; border: 2px solid #e5e5e5; border-radius: 0.75rem; font-size: 1rem; background: #fff; transition: border-color 0.15s; box-sizing: border-box; }
   .nickname-row input:focus { outline: none; border-color: #3b82f6; }
   .nickname-row input::placeholder { color: #a3a3a3; }
-  .error-banner { background: #fff1f2; border: 1px solid #fecdd3; color: #be123c; border-radius: 0.5rem; padding: 0.625rem 1rem; font-size: 0.875rem; margin-bottom: 1rem; }
   .muted { color: #737373; }
 
   /* §3.11.10: currency step styles */

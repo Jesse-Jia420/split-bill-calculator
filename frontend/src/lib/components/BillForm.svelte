@@ -8,6 +8,11 @@
    *     (1) `<form id="bill-form">` — 让外部 FAB save button 能 submit;
    *     (2) 不再画 sticky bar (反 PO 拍板: 圆形 FAB 比 sticky bar 更轻量,
    *         跟 session 主页「新建账单」FAB 同形态)。
+   *
+   * v0.3.15 (PO #4807 + Designer 报告) — 错误统一走 Toast.
+   * - 删 `let formError` 状态 + form 顶部 `<div class="error">` 模板 + data-testid
+   * - 4 个 formError 赋值源 (3 客户端校验 + 1 BE 错误) → toast.error()
+   * - humanizeApiError() helper 保留 (返回 string, 仍被 toast 消费)
    */
   import { onMount } from 'svelte';
   import type { SessionDetail } from '$api/sessions';
@@ -15,6 +20,7 @@
   import { evaluateExpression } from '$api/calculator';
   import { currencySymbol } from '$lib/utils/currency';
   import { ApiError } from '$api/client';
+  import { toast } from '$stores/toast';
   import AiAssistInput from './AiAssistInput.svelte';
   import AmountCalculatorInput from './AmountCalculatorInput.svelte';
 
@@ -99,7 +105,6 @@
   }
   let showAi = false;
   let submitting = false;
-  let formError: string | null = null;
   let descriptionPristine = true;
 
   // v0.2.1 T02+T03: last-bill participants + smart date suggestions.
@@ -427,28 +432,26 @@
 
   async function handleSubmit(e: Event) {
     e.preventDefault();
-    formError = null;
     const p = buildPayload();
     if (amount == null || !Number.isFinite(amount) || amount <= 0) {
-      formError = '请填写金额(大于 0)';
+      toast.error('请填写金额(大于 0)');
       return;
     }
     if (!p.payer_member_id) {
-      formError = '请选择付款人';
+      toast.error('请选择付款人');
       return;
     }
     if (!p.participants.length) {
-      formError = '至少勾选一个参与者';
+      toast.error('至少勾选一个参与者');
       return;
     }
     submitting = true;
     try {
       if (onSubmit) await onSubmit(p);
     } catch (err: any) {
-      // v0.3.15: human-readable form error (PO #4790 / P0-2). Use the
-      // helper above so Pydantic 422 field paths + business codes render
-      // as actionable strings, not raw "422 http_422".
-      formError = humanizeApiError(err);
+      // v0.3.15 (PO #4807): 错误统一走 Toast. humanizeApiError 把
+      // Pydantic 422 字段路径 + 业务码翻译成可操作字符串, 不是 "422 http_422".
+      toast.error(humanizeApiError(err));
     } finally {
       submitting = false;
     }
@@ -456,16 +459,9 @@
 </script>
 
 <form class="stack" id="bill-form" on:submit={handleSubmit}>
-  <!-- v0.3.15 (PO #4790, P0-1 + P0-2 — Designer report): the form-level
-       error is rendered at the TOP of the form (so it never overlaps
-       with the bottom-left / bottom-right FABs) and uses the
-       human-readable message produced by `humanizeApiError`. The form
-       itself reserves `padding-bottom: 96px` so the last member row is
-       scroll-clear of both FABs on a 5-member session. -->
-  {#if formError}
-    <div class="error" role="alert" data-testid="bill-form-error">{formError}</div>
-  {/if}
-
+  <!-- v0.3.15 (PO #4807 + Designer 报告): form-level error 改走 Toast 系统,
+       不再渲染 inline 错误块. form 仍保留 padding-bottom: 96px 让最后
+       一行 member 不被左右下角 FAB 遮挡 (5-member session 测过). -->
   <div class="row" style="gap: var(--space-3); flex-wrap: wrap;">
     <div style="flex: 2; min-width: 140px;">
       <label class="label" for="amount">金额</label>
@@ -938,12 +934,6 @@
      this component, leaves the global .stack utility rule alone. */
   .stack {
     padding-bottom: 96px;
-  }
-  /* v0.3.15 (PO #4790, P0-2): keep the rendered error visibly spaced
-     from the next form row (the amount input) so users can read it
-     cleanly. The global .error rule already gives colour + size. */
-  .error {
-    margin-bottom: var(--space-3);
   }
 
 </style>

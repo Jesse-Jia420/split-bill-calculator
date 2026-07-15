@@ -16,15 +16,16 @@
   import SessionCard from '$components/SessionCard.svelte';
   import SkeletonCard from '$components/SkeletonCard.svelte';
   import EmptyState from '$components/EmptyState.svelte';
+  import { toast } from '$stores/toast';
 
   let loading = true;
-  let error: string | null = null;
 
   onMount(async () => {
     try {
       await loadSessions();
     } catch (e: any) {
-      error = e?.message ?? '加载失败';
+      // v0.3.15 (PO #4807): 错误统一走 Toast
+      toast.error(e?.message ?? '加载失败');
     } finally {
       loading = false;
     }
@@ -43,8 +44,6 @@
       <SkeletonCard />
       <SkeletonCard />
     </div>
-  {:else if error}
-    <div class="error">{error}</div>
   {:else if $sessions.length === 0}
     <EmptyState
       icon="inbox"
