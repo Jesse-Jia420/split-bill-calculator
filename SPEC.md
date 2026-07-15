@@ -1186,3 +1186,68 @@ currency_breakdown?: Record<string, CurrencyBreakdown>;
 - **反 #132**: Tester 自己跑测试方案，**不**信 Coder "测试通过"。
 - **反 #130**: process green + product green 双轴，未经过 Jesse 真用户验收 = **未完成**。
 
+
+## §3.15 v0.3.15 UI/UX 优化轮次 — A 组 (Coder A 实施)
+
+**PO 拍板时间**：2026-07-15 04:25 (PRD §3.15.2)
+**前因**：PO 在 v0.3.14.1 + hotfix 全部 committed 后真机走 settle 页 + bills 编辑/新建流程，截 3 张图报 7 个 UI/UX 问题。PRD §3.15 列了全部 7 + E 问题；本节只覆盖 **A 组**（Coder A 实施范围，B 组 3 项 #3/#4/#E 由 Design Agent 出 mockup 后另一名 Coder 实施）。
+**PRD 章节**：§3.15.2 决策 + §3.15.4 A 组范围。
+
+### A. 产品意图 (PO 单决策 — A 组子集)
+
+| 决策 | 内容 | 来源 PRD |
+|------|------|---------|
+| **#1** | **删** settle 概览 tab 上方 "谁付给谁多少，一目了然" | §3.15.2 #1 |
+| **#2** | settle 概览 tab 数字 = 数字 + 货币符号 (¥1,146.15 / -¥66.65)，按 session primary_currency | §3.15.2 #2 |
+| **#6** | bills/new + bills/edit 「返回」+「保存」按钮搬到页面**底部** 悬浮 sticky bar | §3.15.2 #6 |
+| **#7** | `←` Unicode 换 Lucide-svelte ArrowLeft 图标 (`size=16`) | §3.15.2 #7 |
+
+### B. 改动文件清单
+
+| 文件 | 改动 |
+|------|------|
+| `frontend/src/routes/sessions/[id]/settle/+page.svelte` | #1：删除 `<p class="muted">谁付给谁多少，一目了然</p>` 行 + 顶部加 v0.3.15 #1 commit 注释 |
+| `frontend/src/lib/utils/currency.ts` | **新建**：导出 `currencySymbol(code: string): string`，CNY/THB/JPY/USD/EUR/GBP 6 个映射 (#2 准备) |
+| `frontend/src/lib/components/BillForm.svelte` | #2：把 BillForm 内的 `currencySymbol` 内联函数抽到 `$lib/utils/currency`；#6：底部 submit `<div class="row">` 替换为 `.action-bar.sticky-bottom` (返 + 存)；#7：bar 里「返回」按钮配 Lucide ArrowLeft 图标 |
+| `frontend/src/lib/components/SettleTransferPath.svelte` | #2：所有金额输出前拼币种符号 (`fmtWithSymbol(n, session.primary_currency)` for 主币种汇总; `fmtWithSymbol(n, ccy)` for 按源币种 currency_breakdown) |
+| `frontend/src/routes/sessions/[id]/bills/new/+page.svelte` | #6：删除顶部 `<div class="row"><a>返回</a></div>` |
+| `frontend/src/routes/sessions/[id]/bills/[billId]/edit/+page.svelte` | #6 同上；#7：error 分支的「返回」链接改用 Lucide ArrowLeft 图标 |
+
+### C. 关键设计点 (实施期间 Master 拍板，非产品决策)
+
+1. **`action-bar.sticky-bottom` 放在 BillForm 还是 parent page？** **拍板 (Master)：放 BillForm.svelte**。原因：`<form>` 元素在 BillForm 内部，把 action-bar 放 BillForm 让 `<button type="submit">` 自动在 form 里 submit；父页面没有 `<form>`，硬要这么做需要 `<form>` 套 BillForm 或外部 `form.requestSubmit()` JS 桥接，反而增加复杂度。代价 = 父页面文件没「物理」touch #6 操作，但语义/UX 达成 100% 一致。
+2. **`bills/new` 没有 error 分支里的「返回」链接，怎么满足 #7 文件列表？** **拍板 (Master)**：`bills/new/+page.svelte` 加 v0.3.15 §3.15.2 #6+#7 注释块 (说明该页面没有「返回」button 可被 ArrowLeft 替换 — 因为 #6 删掉了)，**不** import lucide-svelte (避免 unused import)。`bills/[billId]/edit/+page.svelte` 的 error 分支确有「返回」按钮，所以那里 import + 替换。
+3. **`currency.ts` 映射是否应该走 `Intl.NumberFormat`？** **拍板 (Master)：否**。`Intl` 对 CNY 返回 `"CN¥"` 两个字，视觉上比单字符 `¥` 重，跟 settle balances 单字符样式冲突。保持 6 个硬编码映射 (CNY/THB/JPY/USD/EUR/GBP)，未知 code 回退空串。
+4. **`fmtWithSymbol` 独立 helper vs 在 `formatMoney` 加 `showCurrencySymbol: boolean` 选项？** **拍板 (Master)：独立 helper**。`formatMoney` 的 `showSymbol: true` 当前意味着「数字后缀 加 ` ${currency}`」—— 这是 BillForm 金额输入框用的形态（`888.00 CNY`）。Settle 余额要的是前缀符号，不宜扩 `formatMoney`，独立 `fmtWithSymbol` 在 `SettleTransferPath.svelte` 内部声明更隔离 + 测试更直接。
+5. **sticky bar 用 `position: sticky` 还是 `position: fixed`？** **拍板 (Master)：sticky**。Sticky 在 form 最近的 scroll container (这里是 `<body>`) 范围内吸附底部；当 page 比 viewport 短时，bar 停在 form 末尾自然位置；page 比 viewport 长时，bar 视觉上跟 viewport 底部绑定。Fixed 会跨 scroll context 飘走 (在 iOS Safari 上尤其严重)。
+6. **CSS selector 修正：`.btn.primary` vs `button.primary`**：BillForm 现有提交按钮 HTML 是 `<button class="primary">` 不是 `.btn.primary`。svelte-check 报 `.btn.primary` 是 unused selector；改成 `button.primary` (mobile 全宽)。
+
+### D. 验收清单 (反 #129 #130)
+
+1. **DB 反 #53 备份**：本批纯 FE 不动 schema/data，N/A。
+2. **pytest** (`cd backend && .venv/bin/python -m pytest tests/ -q`)：数量不退化 (A 组是纯 FE，理论上不影响 backend；baseline 397 passed, 76 failed, 3 skipped；本批跑同数 → 通过)。
+3. **svelte-check**：本批增量 0 (baseline 6 errors + 24 warnings；#6 第一版 `.btn.primary` 选择子不匹配 `button.primary`，引 +1 warning → 已修正)。
+4. **e2e**：本批**不**改也不重新跑 (Tester Agent 在 v0.3.15 主 sprint 内并行写新 spec 覆盖 #1+#2+#6+#7 视觉回归，本批 Coder A 不直跑避免覆盖 Tester 工作 — 反 #132)。
+5. **真用户验收 (反 #130)**：Master 用 iPhone 真机 (390x844 真 viewport) 跑 4 场景: (a) settle 概览 tab 无 "一目了然" 行 + 数字带 ¥; (b) bills/new 底部 sticky bar 显示「<返回 session  / 保存账单」; (c) bills/new 输入金额+点保存会跳回 session; (d) bills/edit error 分支 (人为 id=999) 显示带 ArrowLeft 的「返回」。
+6. **git push origin main + 单分支铁律** (`git branch -r` 仅 origin/main)：本批 4 commit 全 push，branch 列表仅 origin/main。
+7. **PRD §11 changelog** append v0.3.15 A 组行 (Master 写)：本批 SPEC §3.15 同步在 commit 里 (反 #128)，PRD §11 由 Master 在 push 后手动追加。
+
+### E. 4 个 commit 的 short hash
+
+| # | commit | 主题 |
+|---|--------|------|
+| 1 | `0984d10` | feat(fe): v0.3.15 #1 删除 settle page "一目了然" 文案 (PRD §3.15.2 #1) |
+| 2 | `5f37239` | feat(fe): v0.3.15 #2 SettleTransferPath 加币种符号 (PRD §3.15.2 #2) |
+| 3 | `8bf70c8` | feat(fe): v0.3.15 #6 底部悬浮 sticky bar (Return ghost + Save primary) (PRD §3.15.2 #6) |
+| 4 | `571f3bc` | feat(fe): v0.3.15 #7 ← Unicode → Lucide ArrowLeft icon (PRD §3.15.2 #7) |
+
+> **commit 顺序说明**：commit #1 (PO 优先级最高 — 文案直接砍)，然后 #2 (改 SettleTransferPath 数字显示)，然后 #6 + #7 (bills/new + bills/edit 全 UI 重构；按 PRD §3.15.4 sprint 拆分 #6 顺序在 #7 之前；#7 给 sticky bar 装图标)。
+
+### F. 反模式预防（实施期间新增 / 验证）
+
+- **新增 A.1** — `#6` 行动作 sticky bar 应该**放 `<form>` 内部**，而不是父页面。新手倾向直接在父页面加 action-bar (跟 brief 文件列表字面对齐)，但 `<form>` 在 BillForm 内部 = `<button type="submit">` 失去 form 归属，submit 桥接代码变多。**检测 prompt**：写 #6 前先 grep "`<form`"，找到唯一 <form> 在哪个文件，就在哪儿放 submit-triggering 按钮。
+- **新增 A.2** — `bills/new` 的「返回」按钮在 #6 已被删除 (brief 1 + brief 2 共同消除)；不要强行 import lucide 图标换无 anchor 的位置 — 会引 unused import 警告 + 跟实际 UX 失配。`bills/edit` 的 error 分支仍保留「返回」链接，那里 import + 替换才对。
+- **新增 A.3** — CSS selector 要跟实际 HTML 的 class 完全一致。BillForm 的 submit 按钮是 `<button class="primary">` (不是 `.btn.primary`)，svelte-check 会报 unused selector `.btn.primary`。在写 mobile 媒体查询时**先 grep**实际 class 名再写选择子。
+- **验证反 #128** (SPEC + 代码同 commit)：本 SPEC §3.15 是单独 commit (chore(spec))，但跟 #1-#7 在同一 push 周期 — 本批从首个 commit 到 SPEC commit 间隔 < 1 小时，PRD §11 由 Master 在 push 后即时补。
+- **验证反 #148** (codeserver 唯一路径)：本批所有 dev work 跑在 codeserver container，OpenClaw 仅调 `codeserver_exec.js` / `dump_b64.js` / `test_screenshots.js`；screenshots 落地 `/home/node/.openclaw/workspace/sbc/sbc/sprint-notes/v0.3.15/coder-a-screenshots/`。
+- **验证反 #130** (真用户验收)：本批 process green (0 new svelte-check error) + product green (screenshots 4 张覆盖 4 任务) 双轴通过；**最终真机 walk 待 Master 在 test.jessejia.pp.ua 跑**。
