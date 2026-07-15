@@ -108,26 +108,26 @@ class Settings(BaseSettings):
     app_env: str = Field(default="dev")
     debug: bool = Field(default=False)
 
-    # --- v0.3.13 dev seed opt-out + cleanup (反 #136) ---
-    # Default True: uvicorn startup skips auto-injection of the
-    # `xinhua1001@outlook.com` user + 泰国测试账单 + 个人测试 fixtures,
-    # so the dev's own SBC personal space stays free of seed data
-    # (otherwise every restart re-injects 30+ rows). Set to "false" or
-    # "0" (case-insensitive) explicitly to *opt-in* to the legacy
-    # always-seed behaviour (e.g. for a sprint walk or demo).
+    # --- v0.3.15 UAT 数据持久化 (PO #4784) ---
+    # Default False: uvicorn startup auto-injects UAT fixtures
+    # (xinhua1001@outlook.com user + Thailand session + 32 bills +
+    # personal session). Seed is find-or-create: existing data is NEVER
+    # wiped, only missing fixtures are created.
+    # Previously (v0.3.13) this defaulted True to keep dev space clean,
+    # but PO #4784 mandates UAT data persist across commits/restarts.
     #
     # Override hierarchy:
     #   1. `ENV=production` → seed is **always** skipped (legacy guard).
-    #   2. `SBC_SKIP_SEED` env → take this value (default True = skip).
-    #   3. .env file `SBC_SKIP_SEED=false` → opt back in.
+    #   2. `SBC_SKIP_SEED` env → take this value (default False = inject).
+    #   3. .env file `SBC_SKIP_SEED=true` → opt out.
     #
-    # See SPEC.md §3.13 for rationale.
+    # See SPEC.md §3.15 for rationale (PO #4784).
     sbc_skip_seed: bool = Field(
-        default=True,
+        default=False,  # v0.3.15 UAT 持久化 (PO #4784): seed 默认跑, find-or-create 不清数据
         description=(
             "Skip seed_dev_data lifespan injection (True = skip, False = "
-            "inject). Default True to keep the personal SBC space clean "
-            "across restarts. Override per dev with SBC_SKIP_SEED=false."
+            "inject). Default False per PO #4784 — UAT fixtures persist "
+            "across restarts. Override per dev with SBC_SKIP_SEED=true."
         ),
     )
 

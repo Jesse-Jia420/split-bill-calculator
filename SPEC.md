@@ -1251,3 +1251,56 @@ currency_breakdown?: Record<string, CurrencyBreakdown>;
 - **验证反 #128** (SPEC + 代码同 commit)：本 SPEC §3.15 是单独 commit (chore(spec))，但跟 #1-#7 在同一 push 周期 — 本批从首个 commit 到 SPEC commit 间隔 < 1 小时，PRD §11 由 Master 在 push 后即时补。
 - **验证反 #148** (codeserver 唯一路径)：本批所有 dev work 跑在 codeserver container，OpenClaw 仅调 `codeserver_exec.js` / `dump_b64.js` / `test_screenshots.js`；screenshots 落地 `/home/node/.openclaw/workspace/sbc/sbc/sprint-notes/v0.3.15/coder-a-screenshots/`。
 - **验证反 #130** (真用户验收)：本批 process green (0 new svelte-check error) + product green (screenshots 4 张覆盖 4 任务) 双轴通过；**最终真机 walk 待 Master 在 test.jessejia.pp.ua 跑**。
+
+
+## §3.16 v0.3.15 UAT 数据持久化 (PO #4784)
+
+**PO 拍板时间**：2026-07-15 20:00 — Jesse "找 test coder 建一组 uat 测试数据，之后确保测试数据在每次 commit 后都持续存在。"
+
+### A. 产品意图 (PO #4784)
+
+| 决策 | 内容 |
+|------|------|
+| **a** | 建 UAT 测试数据：xinhua1001 user + Thailand session (currencies=['CNY','THB'], primary=CNY) + 32 bills (27 THB + 5 CNY) + personal session owned by xinhua1001 |
+| **b** | seed 默认行为改为**自动注入**（`sbc_skip_seed` 默认值 True → False） |
+| **c** | seed 为 find-or-create 模式：**不清已有数据**，只补缺失 fixture |
+| **d** | 已有 DB 不 wipe：xinhua1001 user 保留，Thailand session 和 personal session find-or-create 补入 |
+
+### B. Config 改动
+
+`backend/app/core/config.py`:
+
+| key | 旧值 | 新值 | 说明 |
+|-----|------|------|------|
+| `sbc_skip_seed` | `True` | `False` | v0.3.15 UAT 持久化 (PO #4784) |
+
+> 改动影响：uvicorn 启动时 seed 默认跑，find-or-create 不清数据。开发者可通过 `SBC_SKIP_SEED=true` 临时 opt-out。
+
+### C. seed_dev_data 行为
+
+seed 脚本 (`backend/scripts/seed_dev_data.py`) 已有 find-or-create 逻辑：
+
+- `xinhua1001@outlook.com` user：已存在则跳过
+- `泰国测试账单 6.19-6.22` session：已存在则跳过（保留现有 bills）
+- `个人测试` session：已存在则跳过
+- Bills：已存在则跳过（32 bills = 27 THB + 5 CNY）
+
+**不做**：不 DELETE 任何已有行，不 truncate，不 DROP TABLE。
+
+### D. 验收清单
+
+1. **Config verify**：`grep "default=False" backend/app/core/config.py` 含 `sbc_skip_seed` 行。
+2. **DB verify**（seed 跑完后）：
+   - `SELECT COUNT(*) FROM users WHERE email='xinhua1001@outlook.com'` → 1
+   - `SELECT id, name, primary_currency, currencies FROM sessions WHERE owner_user_id=<xinhua_id>` → 2 rows (Thailand + personal)
+   - Thailand session: `currencies=['CNY','THB']`, `primary_currency='CNY'`
+   - Bills: 32 total (27 THB + 5 CNY)
+3. **seed log verify**：`cat /tmp/uvicorn.log` 含 `{...}` 非 `skipped` 的 seed 结果。
+4. **commit + push**：`git log --oneline -1` 确认为最新 commit，branch 仅 origin/main。
+
+### E. 反模式预防
+
+- **反 #53**：不 rm sbc.db，find-or-create 模式保证不丢数据。
+- **反 #152**：不 DELETE + seed 清数据，seed 只补缺失 fixture。
+- **commit 不丢**：seed 默认注入，commit push 后 uvicorn 重启仍然保持 fixture 在 DB（find-or-create 防重置）。
+- **restart 不丢**：同 find-or-create 逻辑，restart 后 seed 发现 fixture 存在则跳过。
