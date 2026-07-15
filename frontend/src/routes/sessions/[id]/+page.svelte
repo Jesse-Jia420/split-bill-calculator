@@ -52,7 +52,6 @@
   let session = $state<SessionDetail | null>(null);
   let bills = $state<Bill[]>([]);
   let loading = $state(true);
-  let error = $state<string | null>(null);
 
   let memberIdToName = $state<Record<number, string>>({});
   let memberIdToNet = $state<Record<number, number>>({});
@@ -200,7 +199,6 @@
   async function load() {
     if (!sessionId) return;
     loading = true;
-    error = null;
     try {
       const result = await getSessionWithSecret(sessionId);
       session = result.session;
@@ -234,7 +232,8 @@
         // with returnTo=<current path>). The previous inline goto('/auth/login')
         // here duplicated that redirect AND dropped the returnTo param;
         // removing it lets client.ts own the single source of truth.
-        error = e?.message ?? '加载失败';
+        // v0.3.15 (PO #4807): 错误统一走 Toast
+        toast.error(e?.message ?? '加载失败');
       }
     } finally {
       loading = false;
@@ -396,8 +395,6 @@
 <section>
   {#if loading}
     <p class="muted">加载中…</p>
-  {:else if error}
-    <div class="error">{error}</div>
   {:else if session}
     <div class="row between session-header" style="margin-bottom: var(--space-3); flex-wrap: wrap; gap: var(--space-2);">
       <h2 style="margin: 0;">
@@ -1190,9 +1187,7 @@
   .muted {
     color: var(--gray-500);
   }
-  .error {
-    color: var(--error-500);
-  }
+
   .small {
     font-size: var(--font-size-sm);
   }

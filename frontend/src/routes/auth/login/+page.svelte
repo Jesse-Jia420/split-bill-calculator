@@ -5,13 +5,12 @@
   import { sendCode, verifyCode } from '$api/auth';
   import { bindActingMember, getSessionPreview } from '$api/sessions';
   import { loadUser } from '$stores/user';
+  import { toast } from '$stores/toast';
 
   let email = '';
   let code = '';
   let step: 'send' | 'verify' = 'send';
   let busy = false;
-  let error: string | null = null;
-  let hint: string | null = null;
   // §3.11.13 决策 α/β/γ/δ/ε/ζ — 根据 returnTo + actingAs 上下文动态切换.
   // 默认 = "登录"; 场景 A (从 join 页点 logged-in slot 来) → "嗨 X，请登录";
   // 场景 C (在 session 内 + 有 secret, 非 join) → "嗨 X，完成登录即可永久保存 session".
@@ -118,26 +117,24 @@
 
   async function handleSend() {
     if (busy) return;
-    error = null;
-    hint = null;
     const trimmed = email.trim();
     if (!trimmed || !trimmed.includes('@')) {
-      error = '请输入有效邮箱';
+      toast.error('请输入有效邮箱');
       return;
     }
     busy = true;
     try {
       const res = await sendCode(trimmed);
-      hint = '验证码已发送 (' + res.ttl_minutes + ' 分钟内有效)';
+      toast.success('验证码已发送 (' + res.ttl_minutes + ' 分钟内有效)');
       step = 'verify';
     } catch (e: any) {
       const code = e?.code ?? '';
       if (code === 'rate limit exceeded') {
-        error = '请求过于频繁,请稍后再试';
+        toast.error('请求过于频繁,请稍后再试');
       } else if (code === 'invalid email format') {
-        error = '邮箱格式不正确';
+        toast.error('邮箱格式不正确');
       } else {
-        error = e?.message ?? '发送失败';
+        toast.error(e?.message ?? '发送失败');
       }
     } finally {
       busy = false;
@@ -168,10 +165,9 @@
 
   async function handleVerify() {
     if (busy) return;
-    error = null;
     const trimmed = code.trim();
     if (!/^\d{6}$/.test(trimmed)) {
-      error = '验证码是 6 位数字';
+      toast.error('验证码是 6 位数字');
       return;
     }
     busy = true;
@@ -184,9 +180,9 @@
     } catch (e: any) {
       const c = e?.code ?? '';
       if (c === 'invalid or expired code') {
-        error = '验证码无效或已过期';
+        toast.error('验证码无效或已过期');
       } else {
-        error = e?.message ?? '验证失败';
+        toast.error(e?.message ?? '验证失败');
       }
     } finally {
       busy = false;
@@ -238,17 +234,10 @@
         <button class="primary" on:click={handleVerify} disabled={busy}>
           {busy ? '验证中…' : '验证并登录'}
         </button>
-        <button class="ghost" on:click={() => { step = 'send'; code = ''; error = null; hint = null; }} disabled={busy}>
+        <button class="ghost" on:click={() => { step = 'send'; code = ''; }} disabled={busy}>
           重新发送
         </button>
       </div>
-    {/if}
-
-    {#if hint}
-      <div class="success">{hint}</div>
-    {/if}
-    {#if error}
-      <div class="error">{error}</div>
     {/if}
   </div>
 </section>

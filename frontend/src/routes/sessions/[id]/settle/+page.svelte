@@ -42,11 +42,11 @@
   import SessionCurrencyBadge from '$components/SessionCurrencyBadge.svelte';
   import { user } from '$stores/user';
   import { ArrowLeft } from 'lucide-svelte';
+  import { toast } from '$stores/toast';
 
   let session: SessionDetail | null = null;
   let currentMember: { id: number } | null = null;
   let loading = true;
-  let error: string | null = null;
 
   $: sessionId = Number(page.params.id);
 
@@ -82,12 +82,14 @@
         memberIdToRole[m.id] = m.role;
       }
     } catch (e: any) {
-      // v0.3.1: 非成员 → 重定向到 join 页 claim nickname。
+      // v0.3.1: 非成员 → 重定向到 join 页 claim nickname.
       if (e?.code === 'not a session member' || e?.status === 403) {
         await goto('/sessions/' + sessionId + '/join', { replaceState: true });
         return;
       }
-      error = e?.message ?? '加载失败';
+      // v0.3.15 (PO #4807): 错误统一走 Toast. 父 onMount 失败时子组件
+      // (SettleTransferPath / SettleMemberBreakdown) 不会渲染, 不会重複 toast.
+      toast.error(e?.message ?? '加载失败');
     } finally {
       loading = false;
     }
@@ -97,8 +99,6 @@
 <section>
   {#if loading}
     <p class="muted">加载中…</p>
-  {:else if error}
-    <div class="error">{error}</div>
   {:else if session}
     <h2>{session.name} · 结算</h2>
     <SessionCurrencyBadge
@@ -295,7 +295,5 @@
   .muted {
     color: var(--gray-500);
   }
-  .error {
-    color: var(--error-500);
-  }
+
 </style>

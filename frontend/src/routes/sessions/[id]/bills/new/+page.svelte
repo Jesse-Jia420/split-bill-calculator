@@ -13,10 +13,10 @@
   import { ArrowLeft, Check } from 'lucide-svelte';
   import { fly } from 'svelte/transition';
   import BillForm from '$components/BillForm.svelte';
+  import { toast } from '$stores/toast';
 
   let session: SessionDetail | null = null;
   let loading = true;
-  let error: string | null = null;
 
   // v0.1.2 (T19): pass this into BillForm so the payer dropdown
   // defaults to the caller's own SessionMember.id in this session.
@@ -59,7 +59,8 @@
         existingBillsCount = 0;
       }
     } catch (e: any) {
-      error = e?.message ?? '加载失败';
+      // v0.3.15 (PO #4807): 错误统一走 Toast
+      toast.error(e?.message ?? '加载失败');
     } finally {
       loading = false;
     }
@@ -74,8 +75,6 @@
 <section>
   {#if loading}
     <p class="muted">加载中…</p>
-  {:else if error}
-    <div class="error">{error}</div>
   {:else if session}
     <h2>新建账单</h2>
     <p class="muted">session: {session.name}</p>

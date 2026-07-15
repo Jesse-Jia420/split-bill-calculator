@@ -8,6 +8,11 @@
    * - 不弹 modal,无需用户再点一次
    * - 失败兜底: 选中 input + execCommand('copy')
    * - 第一次点击 lazy load invite,后续点击只复制
+   *
+   * v0.3.15 (PO #4807 + Designer 报告) — 清理死代码:
+   * - 删 `let error: string | null = null` (声明后从未赋值)
+   * - 删 `<div class="error">{error}</div>` 模板 (永远不显示)
+   * 成功/失败反馈一直走 toast (L68/70),无副作用.
    */
   import { toast } from '$stores/toast';
 
@@ -18,7 +23,6 @@
   export const isOwner: boolean = false;
 
   let copied = false;
-  let error: string | null = null;
   let resetTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** v0.3.1: copy the SESSION URL (not the invite URL).
@@ -99,10 +103,6 @@
       <span class="btn-label">{copied ? '已复制' : '邀请'}</span>
     </span>
   </button>
-
-  {#if error}
-    <div class="error">{error}</div>
-  {/if}
 </div>
 
 <style>

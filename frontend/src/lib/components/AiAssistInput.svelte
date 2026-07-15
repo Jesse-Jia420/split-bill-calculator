@@ -1,6 +1,13 @@
 <script lang="ts">
+  /**
+   * v0.3.15 (PO #4807 + Designer 报告) — 错误统一走 Toast.
+   * - 删 `<div class="error">{error}</div>` 模板
+   * - 删 `let error: string | null = null`
+   * - 3 个错误源 (空文本 / ai_unavailable / catch) → toast.error()
+   */
   import { parseBill } from '$api/bills';
   import type { ParseBillResult } from '$api/bills';
+  import { toast } from '$stores/toast';
 
   export let sessionId: number;
   /** Called with parsed result so the parent can fill the form. */
@@ -8,26 +15,24 @@
 
   let text = '';
   let busy = false;
-  let error: string | null = null;
 
   async function handleParse() {
     if (busy) return;
     const trimmed = text.trim();
     if (!trimmed) {
-      error = '请先描述一下这笔消费';
+      toast.error('请先描述一下这笔消费');
       return;
     }
     busy = true;
-    error = null;
     try {
       const res = await parseBill(sessionId, trimmed);
       if (onResult) onResult(res);
     } catch (e: any) {
       const code = e?.code ?? '';
       if (code === 'ai_unavailable') {
-        error = 'AI 暂时不可用,请手动填写';
+        toast.error('AI 暂时不可用,请手动填写');
       } else {
-        error = e?.message ?? '解析失败';
+        toast.error(e?.message ?? '解析失败');
       }
     } finally {
       busy = false;
@@ -48,9 +53,6 @@
     </button>
     <span class="hint">结果只填表单,不直接保存</span>
   </div>
-  {#if error}
-    <div class="error">{error}</div>
-  {/if}
 </div>
 
 <style>

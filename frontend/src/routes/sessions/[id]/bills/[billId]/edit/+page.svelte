@@ -24,11 +24,11 @@
   import { ArrowLeft, Check } from 'lucide-svelte';
   import { fly } from 'svelte/transition';
   import BillForm from '$components/BillForm.svelte';
+  import { toast } from '$stores/toast';
 
   let session: SessionDetail | null = null;
   let bill: Bill | null = null;
   let loading = true;
-  let error: string | null = null;
 
   $: sessionId = Number(page.params.id);
   $: billId = Number(page.params.billId);
@@ -42,8 +42,8 @@
       session = result.session;
       bill = await getBill(sessionId, billId);
     } catch (e: any) {
-      error = e?.message ?? '加载失败';
-      // 401 is handled by the auth middleware; 403/404 land here.
+      // v0.3.15 (PO #4807): 错误统一走 Toast. 401 handled by auth middleware; 403/404 land here.
+      toast.error(e?.message ?? '加载失败');
     } finally {
       loading = false;
     }
@@ -58,9 +58,6 @@
 <section>
   {#if loading}
     <p class="muted">加载中…</p>
-  {:else if error}
-    <div class="error">{error}</div>
-    <a class="btn ghost" href="/sessions/{sessionId}"><ArrowLeft size={16} /> 返回</a>
   {:else if session && bill}
     <h2>编辑账单</h2>
     <p class="muted">
