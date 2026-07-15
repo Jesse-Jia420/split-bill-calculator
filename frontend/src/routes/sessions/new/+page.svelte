@@ -27,6 +27,13 @@
   onMount(async () => {
     await loadUser();
     loading = false;
+    // v0.3.15 (PO #4861) 修 n+1 bug: nicknames[0] 默认用 placeholder 字符串
+    // - 登录态: "你" → FE slice(1) 排除 (跟 §3.11 75cbdec 一致)
+    // - anon 态:  "我" → FE 改用同一 slice(1) 逻辑 (见 改动 2), BE dedupe 处理 "我" placeholder
+    // 这样两条路径都用 nicknames.slice(1), nicknames[0] 是 placeholder 字符串 (永远**不**发给 BE)
+    if (nicknames[0] === "") {
+      nicknames = [$user !== null ? "你" : "我"];
+    }
   });
 
   $: nameValid = sessionName.trim().length > 0;
@@ -99,9 +106,10 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: sessionName.trim(),
-          // §3.11 修 bug: 登录态时 nicknames[0]="你" 已自动是 owner, BE 会再加一次, 总数 +1 错.
-          // 排除 "你", 只传同伴 nickname.
-          member_nicknames: ($user !== null ? nicknames.slice(1) : nicknames).map((n) => n.trim()),
+          // v0.3.15 (PO #4861) 修 n+1 bug: 两条路径都 slice(1)
+          // nicknames[0] 是 placeholder (登录态 "你" / anon 态 "我"), 不发给 BE
+          // BE 收到 len(nicknames) - 1 个同伴, 跟 owner 加在一起 = nicknames.length = wizard count
+          member_nicknames: nicknames.slice(1).map((n) => n.trim()),
           currencies,
           primary_currency: primaryCurrency,
           exchange_rates: exchangeRates,
