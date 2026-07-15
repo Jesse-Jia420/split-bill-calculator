@@ -6,12 +6,21 @@
    * - T11 转账路径卡片化: 每笔转账独立 card,付款方→收款方头像+名字,金额居中
    * - Token alias 迁移: var(--color-*) → var(--*) 主 token (已在 Commit 1 完成)
    *
+   * v0.3.15 (PRD §3.15.2 #2) — 金额前缀币种符号:
+   * - balances / transfers 之前走 formatMoney({showSymbol:false}) 显示纯数字,
+   *   没单位时容易跟"主币种"混淆。PO 拍板: 在数字前面拼币种符号, 让用户
+   *   一眼读出"这是 ¥xxx 还是 ฿xxx"。session primary 用其符号;
+   *   currency_breakdown (按源币种) 用每个币种各自的符号。
+   * - 取符号走 `$lib/utils/currency` 的 currencySymbol() 函数, 跟 BillForm
+   *   共用一个映射 (CNY ¥ / THB ฿ / JPY ¥ / USD $)。
+   *
    * 沿用:
    * - v0.1.2 反馈修 6 项目 5 (用户名不加粗,转帐箭头克制)
    */
   import { onMount } from 'svelte';
   import { getSettle } from '$api/settle';
   import { formatMoney, formatDate } from '$lib/utils/format';
+  import { currencySymbol } from '$lib/utils/currency';
   import type { SettleResponse } from '$api/settle';
   import type { SessionDetail } from '$api/sessions';
 
@@ -30,6 +39,14 @@
   /** T6: 金额显示用 formatMoney (千分位)。 */
   function fmt(n: number): string {
     return formatMoney(n, { showSymbol: false });
+  }
+
+  /** v0.3.15 §3.15.2 #2 — 金额前缀币种符号.
+   * `ccy` 留空时回退成无符号, 跟 fmt() 一致 (调试场景用)。 */
+  function fmtWithSymbol(n: number, ccy: string): string {
+    const sym = currencySymbol(ccy);
+    const body = fmt(n);
+    return sym ? sym + body : body;
   }
 
   // v0.2.2 (T11): refetch whenever viewMode flips so the primary / split
@@ -81,7 +98,7 @@
         <li class="bal-row row between">
           <span class="member-name">{displayName(mid)}</span>
           <span class:pos={net > 0} class:neg={net < 0} class="amount">
-            {net > 0 ? '+' : ''}{fmt(net)}
+            {net > 0 ? '+' : ''}{fmtWithSymbol(net, session.primary_currency)}
           </span>
         </li>
       {/each}
@@ -107,7 +124,7 @@
             <div
               class="transfer-card"
               role="group"
-              aria-label="转账 {fromName} → {toName} {fmt(t.amount)}"
+              aria-label="转账 {fromName} → {toName} {fmtWithSymbol(t.amount, session.primary_currency)}"
             >
               <!-- 付款方 -->
               <div class="transfer-party">
@@ -117,7 +134,7 @@
 
               <!-- 金额 + 箭头 -->
               <div class="transfer-center">
-                <span class="transfer-amount">{fmt(t.amount)}</span>
+                <span class="transfer-amount">{fmtWithSymbol(t.amount, session.primary_currency)}</span>
                 <span class="transfer-arrow" aria-hidden="true">→</span>
               </div>
 
@@ -139,9 +156,9 @@
           <li class="currency-row row between">
             <span class="ccy-name">{ccy}</span>
             <span class="ccy-detail">
-              paid {fmt(breakdown.paid)} / consumed {fmt(breakdown.consumed)} / net
+              paid {fmtWithSymbol(breakdown.paid, ccy)} / consumed {fmtWithSymbol(breakdown.consumed, ccy)} / net
               <span class:pos={breakdown.net > 0} class:neg={breakdown.net < 0}>
-                {breakdown.net > 0 ? '+' : ''}{fmt(breakdown.net)}
+                {breakdown.net > 0 ? '+' : ''}{fmtWithSymbol(breakdown.net, ccy)}
               </span>
             </span>
           </li>
