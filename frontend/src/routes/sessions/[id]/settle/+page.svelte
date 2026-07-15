@@ -16,6 +16,12 @@
    *   带具体单位, 主币种汇总模式下付款/消费明细行用 BE 已换算好的
    *   `*_primary` 字段。
    *
+   * v0.3.15 §3.15.2 #6 v2 (PO msg #4772): settle 页面返回按钮
+   * 改成左下圆形 FAB (Lucide ArrowLeft), 跟 bills/new + bills/edit
+   * 同形态 (56×56 圆形 + indigo 渐变 + 阴影 + bottom 24px)。
+   * 删除 inline BackButton.ghost 按钮用法; BackButton.svelte 组件
+   * 保留 (最小改动原则, 反 #121)。
+   *
    * 注:
    * - 该页本身没有金额 / 日期 format 调用 (SettleTransferPath / SettleMemberBreakdown
    *   已分别在子组件迁移)。
@@ -28,14 +34,14 @@
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
-  import { slide } from 'svelte/transition';
+  import { slide, fly } from 'svelte/transition';
   import { getSessionWithSecret } from '$api/sessions';
   import type { SessionDetail } from '$api/sessions';
   import SettleTransferPath from '$components/SettleTransferPath.svelte';
   import SettleMemberBreakdown from '$components/SettleMemberBreakdown.svelte';
-  import BackButton from '$components/BackButton.svelte';
   import SessionCurrencyBadge from '$components/SessionCurrencyBadge.svelte';
   import { user } from '$stores/user';
+  import { ArrowLeft } from 'lucide-svelte';
 
   let session: SessionDetail | null = null;
   let currentMember: { id: number } | null = null;
@@ -89,10 +95,6 @@
 </script>
 
 <section>
-  <div class="row" style="margin-bottom: var(--space-3);">
-    <BackButton href="/sessions/{sessionId}" />
-  </div>
-
   {#if loading}
     <p class="muted">加载中…</p>
   {:else if error}
@@ -179,10 +181,51 @@
         </div>
       {/if}
     </div>
+
+    <!-- v0.3.15 §3.15.2 #6 v2 (PO msg #4772): 左下圆形 FAB 返回按钮 -->
+    <a
+      class="fab fab-left"
+      href="/sessions/{sessionId}"
+      aria-label="返回"
+      in:fly={{ y: 60, duration: 400, delay: 200 }}
+    >
+      <ArrowLeft size={24} strokeWidth={2.4} />
+    </a>
   {/if}
 </section>
 
 <style>
+  /* v0.3.15 §3.15.2 #6 v2 (PO msg #4772): 左下圆形 FAB (跟 bills/new + bills/edit 同形态) */
+  .fab {
+    position: fixed;
+    bottom: 24px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
+    z-index: 100;
+    text-decoration: none;
+    border: none;
+    cursor: pointer;
+    transition: transform 150ms ease, box-shadow 150ms ease;
+  }
+  .fab-left { left: 24px; }
+  .fab:hover { transform: scale(1.05); }
+  .fab:active { transform: scale(0.95); }
+  .fab:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px #4f46e5;
+  }
+  @media (max-width: 600px) {
+    .fab { bottom: 16px; }
+    .fab-left { left: 16px; }
+  }
+
   /* v0.2.2 (T11): view-mode toggle (hotfix #4 — only used by the
      personal view tab now, but kept as a page-level style for the
      shared pill design). */
