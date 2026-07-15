@@ -14,6 +14,7 @@
   import type { Bill, ParseBillResult } from '$api/bills';
   import { evaluateExpression } from '$api/calculator';
   import { currencySymbol } from '$lib/utils/currency';
+  import { ApiError } from '$api/client';
   import AiAssistInput from './AiAssistInput.svelte';
   import AmountCalculatorInput from './AmountCalculatorInput.svelte';
 
@@ -393,6 +394,37 @@
     return payload;
   }
 
+  // v0.3.15 (PO #4790, P0-2 — Designer report):
+  //   Translates a BE 4xx response into a one-line, human-actionable
+  //   hint for the inline form error. Two shapes we have to handle:
+  //
+  //   (a) Pydantic 422 validation error — `detail` is an ARRAY of
+  //       `{loc: ['body', 'amount'], msg: '...', type: '...'}`. We
+  //       surface the first one as "amount: Field required" so the
+  //       user can fix the right input.
+  //   (b) Business 4xx — `detail` is an OBJECT `{error: 'code',
+  //       hint?: 'free-form'}`. We render "code (hint)" so users
+  //       learn both the protocol-level code and a friendlier string.
+  //
+  //   Anything else falls through to `err.message` (which for
+  //   ApiError is "422 http_422" — visible, but not great) or
+  //   '提交失败'. Returning `string` keeps the call-site tidy.
+  function humanizeApiError(err: any): string {
+    if (!err) return '提交失败';
+    if (Array.isArray(err.detail) && err.detail.length > 0) {
+      const first = err.detail[0];
+      const loc = Array.isArray(first?.loc) ? first.loc.slice(1) : [];
+      const field = loc.length ? loc.join('.') + ': ' : '';
+      return field + (first?.msg || '字段错误');
+    }
+    if (err.detail && typeof err.detail === 'object' && !Array.isArray(err.detail)) {
+      const code = err.detail.error || '提交失败';
+      const hint = err.detail.hint;
+      return hint ? `${code} (${hint})` : code;
+    }
+    return err?.message ?? '提交失败';
+  }
+
   async function handleSubmit(e: Event) {
     e.preventDefault();
     formError = null;
@@ -413,7 +445,10 @@
     try {
       if (onSubmit) await onSubmit(p);
     } catch (err: any) {
-      formError = err?.message ?? '提交失败';
+      // v0.3.15: human-readable form error (PO #4790 / P0-2). Use the
+      // helper above so Pydantic 422 field paths + business codes render
+      // as actionable strings, not raw "422 http_422".
+      formError = humanizeApiError(err);
     } finally {
       submitting = false;
     }
@@ -421,6 +456,16 @@
 </script>
 
 <form class="stack" id="bill-form" on:submit={handleSubmit}>
+  <!-- v0.3.15 (PO #4790, P0-1 + P0-2 — Designer report): the form-level
+       error is rendered at the TOP of the form (so it never overlaps
+       with the bottom-left / bottom-right FABs) and uses the
+       human-readable message produced by `humanizeApiError`. The form
+       itself reserves `padding-bottom: 96px` so the last member row is
+       scroll-clear of both FABs on a 5-member session. -->
+  {#if formError}
+    <div class="error" role="alert" data-testid="bill-form-error">{formError}</div>
+  {/if}
+
   <div class="row" style="gap: var(--space-3); flex-wrap: wrap;">
     <div style="flex: 2; min-width: 140px;">
       <label class="label" for="amount">金额</label>
@@ -604,9 +649,10 @@
     {/if}
   </div>
 
-  {#if formError}
-    <div class="error">{formError}</div>
-  {/if}
+  <!-- v0.3.15 (PO #4790, P0-1): the inline error was previously rendered HERE
+       (after the participants list) which physically overlapped the bottom-left
+       back-FAB. It now lives at the TOP of the form (see above) so it never
+       collides with the page-level FABs. -->
 
   <!-- v0.3.15 §3.15.2 #6 v2 (PO msg #4752+#4763): 父页面在 <form> 外加左右两个圆形 FAB。
        这里**不**画 sticky bar — 圆形 FAB 由 `bills/new/+page.svelte` 和
@@ -884,5 +930,20 @@
      `<style>` 块里 — 跟 session 主页「新建账单」FAB
      (sessions/[id]/+page.svelte) 保持视觉一致
      (56×56 圆形 + indigo 渐变 + 阴影)。 */
+
+  /* v0.3.15 (PO #4790, P0-1 — Designer report): reserve 96px at the
+     bottom of the form so the last member row stays scroll-clear of
+     the page-level bottom-left / bottom-right FABs (56×56 + 16px
+     inset + ~24px breathing room). Scoped: only affects the form in
+     this component, leaves the global .stack utility rule alone. */
+  .stack {
+    padding-bottom: 96px;
+  }
+  /* v0.3.15 (PO #4790, P0-2): keep the rendered error visibly spaced
+     from the next form row (the amount input) so users can read it
+     cleanly. The global .error rule already gives colour + size. */
+  .error {
+    margin-bottom: var(--space-3);
+  }
 
 </style>
