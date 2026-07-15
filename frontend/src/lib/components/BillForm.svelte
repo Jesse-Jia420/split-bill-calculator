@@ -3,6 +3,7 @@
   import type { SessionDetail } from '$api/sessions';
   import type { Bill, ParseBillResult } from '$api/bills';
   import { evaluateExpression } from '$api/calculator';
+  import { currencySymbol } from '$lib/utils/currency';
   import AiAssistInput from './AiAssistInput.svelte';
   import AmountCalculatorInput from './AmountCalculatorInput.svelte';
 
@@ -75,16 +76,10 @@
   let occurredAt: string = new Date().toISOString().slice(0, 16); // datetime-local
   let currency = 'CNY';
 
-  /** v0.3.1 (PO Bug #1): derive a display symbol from the currency code.
-   * Falls back to the currency code itself when no symbol is known
-   * (e.g. AUD, SGD) so we never show the wrong sign. */
-  function currencySymbol(code: string): string {
-    const map: Record<string, string> = {
-      CNY: '¥', USD: '$', EUR: '€', GBP: '£', JPY: '¥',
-      THB: '฿', KRW: '₩', HKD: 'HK$', TWD: 'NT$',
-    };
-    return map[code?.toUpperCase()] ?? code;
-  }
+  // v0.3.15 (PRD §3.15.2 #2): currencySymbol moved to
+  // lib/utils/currency.ts so other components (SettleTransferPath,
+  // SessionCurrencyBadge) share the same mapping. Function
+  // declaration removed; calls below still go through the import.
 
   // participant state, keyed by SessionMember.id
   let participantState: Record<number, { included: boolean; exclusive: boolean; amount: string }> = {};
