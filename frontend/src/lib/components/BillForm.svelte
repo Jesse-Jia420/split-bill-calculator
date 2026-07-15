@@ -1,4 +1,13 @@
 <script lang="ts">
+  /**
+   * v0.3.15 (PRD §3.15.2 #6) — 底部悬浮 sticky action bar:
+   * - 「返回 session」+「保存账单」两个按钮一起 sticky 在
+   *   `<form>` 末尾, 移动端拇指热区友好。回退按钮在用户滑到尾
+   *   部之后仍能直接点 (不用回滚), 保存是 primary CTA。
+   * - 删掉了原来顶层的 `<div class="row"><button>保存</button></div>`。
+   *   父页面的「← 返回」也已经在 PRD §3.15.2 #7 里改成
+   *   本组件外的事 (由父页面 `.action-bar.sticky-bottom` 处理)。
+   */
   import { onMount } from 'svelte';
   import type { SessionDetail } from '$api/sessions';
   import type { Bill, ParseBillResult } from '$api/bills';
@@ -598,10 +607,17 @@
     <div class="error">{formError}</div>
   {/if}
 
-  <div class="row">
+  <!-- v0.3.15 §3.15.2 #6: 底部悬浮 sticky action bar.
+       - 「返回 session」是 ghost link, 走浏览器 native navigation;
+       - 「保存...」 是 primary submit, 触发 <form>.
+       使用 sticky positioning 而不是 fixed, 让 bar 跟随 scroll context
+       (form card) 而不是 viewport — 这样在 modal 或 detail 页里
+       不会覆盖非相关按钮。 -->
+  <div class="action-bar sticky-bottom">
+    <a class="btn ghost" href="/sessions/{session.id}">返回 session</a>
     <button class="primary" type="submit" disabled={submitting}>
       {submitting
-        ? (isEdit ? '保存中…' : '保存中…')
+        ? '保存中…'
         : (isEdit ? '保存修改' : '保存账单')}
     </button>
   </div>
@@ -870,4 +886,35 @@
     line-height: 1;
     opacity: 0.55;
   }
+
+  /* v0.3.15 §3.15.2 #6: sticky-bottom action bar.
+     - position: sticky 而不是 fixed; sticky 在 form card 内自然吸附底部
+       (页面滚动时 bar 在视觉上贴在 card 底部, 不脱离 card).
+     - background + 负 margin 让 bar 撑满 card 宽度, 上下边框 1px 跟表单内
+       fields 视觉上分隔。 */
+  .action-bar.sticky-bottom {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-3, 12px);
+    margin: var(--space-4, 16px) calc(var(--space-4, 16px) * -1) calc(var(--space-4, 16px) * -1);
+    padding: var(--space-3, 12px) var(--space-4, 16px);
+    background: var(--bg-surface, #fff);
+    border-top: 1px solid var(--gray-200, #e5e5e5);
+    z-index: 10;
+  }
+  .action-bar.sticky-bottom > .btn.ghost {
+    /* ghost 按钮允许 row 拉伸, 但视觉上更柔 */
+    color: var(--gray-500, #737373);
+  }
+  /* 保存按钮在 mobile viewport (≤480px) 全宽, 因为 thumb reach 友好 */
+  @media (max-width: 480px) {
+    .action-bar.sticky-bottom > .btn.primary {
+      flex: 1;
+      min-width: 0;
+    }
+  }
+
 </style>
