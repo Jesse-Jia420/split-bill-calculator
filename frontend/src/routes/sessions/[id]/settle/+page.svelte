@@ -1,5 +1,7 @@
 <script lang="ts">
   /**
+   * v0.3.15 (2026-07-15) — PRD §3.15.2 #1: 删 "谁付给谁多少，一目了然" 文案 (PO 2026-07-15 04:25 拍板)。
+   *
    * v0.1.3 Sprint 2 Commit 1 (2026-07-02) — settle 视图。
    *
    * 本次 Commit 1 改动:
@@ -105,7 +107,6 @@
       variant="settle"
       onRateChange={() => window.location.reload()}
     />
-    <p class="muted">谁付给谁多少,一目了然</p>
 
     <div class="tab-bar" role="tablist" aria-label="结算视图">
       <button
