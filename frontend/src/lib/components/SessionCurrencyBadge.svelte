@@ -114,7 +114,7 @@
   data-sbc="currency-meta"
 >
   {#if is_single}
-    <div class="currency-pill-row">
+    <div class="currency-pill-row currency-pill-row--single">
       <span class="currency-chip primary">{primary_currency}</span>
     </div>
   {:else}
@@ -152,7 +152,8 @@
             data-rate={rate_row.rate}
             data-rate-id={rate_row.id}
           >
-            {rate_row.rate}
+            <span class="rate-num">{rate_row.rate}</span>
+            <span class="rate-unit">{secondary_currency}</span>
             <svg
               class="edit-icon"
               viewBox="0 0 24 24"
@@ -175,7 +176,8 @@
             data-rate={rate_row.rate}
             data-rate-id={rate_row.id}
           >
-            {rate_row.rate}
+            <span class="rate-num">{rate_row.rate}</span>
+            <span class="rate-unit">{secondary_currency}</span>
           </span>
         {/if}
       {/if}
@@ -192,56 +194,106 @@
     margin: 0 0 var(--space-3);
   }
 
-  /* Compact pill row: 单行胶囊 CNY ⇄ THB · 1 CNY = 4.6512 */
+  /* Compact pill row: 单行胶囊 CNY ⇄ THB · 1 CNY = 4.6512 (v0.3.16 #7: iOS27 Liquid Glass + 居中) */
   .currency-pill-row {
-    display: inline-flex;
+    /* 居中 + 上下 margin */
+    display: flex;
+    justify-content: center;
     align-items: center;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 8px;
+    margin: 8px auto 16px;
+    padding: 6px 14px;
+    width: fit-content;
+    max-width: calc(100% - 32px);
     font-size: 13px;
     line-height: 1.4;
     color: var(--gray-700);
-    padding: 4px 0;
+
+    /* iOS 27 Liquid Glass — 温和版 (蓝色 accent 渐变, saturate 200% + blur 20px) */
+    background: linear-gradient(
+      135deg,
+      rgba(99, 102, 241, 0.10) 0%,
+      rgba(59, 130, 246, 0.08) 100%
+    );
+    backdrop-filter: saturate(200%) blur(20px);
+    -webkit-backdrop-filter: saturate(200%) blur(20px);
+
+    /* 玻璃分层 — 顶部高光 + 底部 hairline + 软外阴影 */
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.6),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.04),
+      0 1px 4px rgba(99, 102, 241, 0.08);
+
+    border-radius: 999px; /* 完整胶囊 (pill shape) */
+    border: 1px solid rgba(99, 102, 241, 0.15);
   }
 
+  /* Safari iOS < 18 fallback (无 backdrop-filter): 用更深不透明 bg 兜底 */
+  @supports not (backdrop-filter: blur(1px)) {
+    .currency-pill-row {
+      background: rgba(99, 102, 241, 0.18);
+    }
+  }
+
+  /* 内部 chip 透明融入胶囊 (胶囊已有 bg) */
   .currency-chip {
     display: inline-flex;
     align-items: center;
-    padding: 2px 8px;
-    border-radius: 10px;
+    padding: 0;
+    background: transparent;
     font-size: 12px;
-    font-weight: var(--font-weight-medium, 500);
+    font-weight: 600;
     font-variant-numeric: tabular-nums;
-    background: var(--gray-100);
     color: var(--gray-800);
+    letter-spacing: 0.02em;
   }
   .currency-chip.primary {
-    background: var(--accent-50, #f0f7ff);
-    color: var(--accent-700, #1d4ed8);
+    background: transparent;
+    color: var(--accent-700, #4338ca); /* 主币种更深 */
   }
   .currency-chip.secondary {
-    background: var(--gray-100);
+    background: transparent;
     color: var(--gray-700);
   }
 
   .currency-arrow {
-    color: var(--gray-400);
-    font-size: 12px;
+    color: var(--accent-500, #6366f1);
+    font-size: 14px;
+    font-weight: 600;
   }
 
   .currency-sep {
     color: var(--gray-400);
     margin: 0 -2px;
+    opacity: 0.5;
   }
 
   .currency-rate-label {
     color: var(--gray-500);
+    font-size: 12px;
+  }
+
+  /* 数字 + 单位分行 (rate-num 数字黑, rate-unit accent 蓝) */
+  .rate-num {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: var(--gray-900);
+  }
+  .rate-unit {
+    margin-left: 3px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--accent-700, #4338ca);
+    letter-spacing: 0.02em;
   }
 
   .rate-button,
   .rate-value {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0;
     font-variant-numeric: tabular-nums;
-    font-weight: var(--font-weight-medium, 500);
     color: var(--gray-900);
   }
 
@@ -258,8 +310,8 @@
     align-items: center;
     gap: 4px;
   }
-  .rate-button:hover {
-    color: var(--accent-700, #1d4ed8);
+  .rate-button:hover .rate-num {
+    color: var(--accent-700, #4338ca);
   }
   .rate-button:hover .edit-icon {
     color: var(--accent-500);
@@ -267,7 +319,7 @@
   .rate-button:focus-visible {
     outline: 2px solid var(--accent-500);
     outline-offset: 2px;
-    border-radius: 3px;
+    border-radius: 4px;
   }
 
   .edit-icon {
