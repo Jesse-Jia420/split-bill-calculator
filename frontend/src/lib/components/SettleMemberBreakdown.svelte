@@ -489,7 +489,26 @@
                       <span class="bill-sub-date">{fmtDate(b.occurred_at)}</span>
                       {#if b.participant_count}
                         <span class="sep" aria-hidden="true">·</span>
-                        <span class="participant-count">👤 {b.participant_count}人</span>
+                        <span class="participant-count">
+                          <svg
+                            class="participant-icon"
+                            viewBox="0 0 24 24"
+                            width="14"
+                            height="14"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.75"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            aria-hidden="true"
+                          >
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                            <circle cx="9" cy="7" r="4" />
+                            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                          </svg>
+                          <span class="participant-count-num">{b.participant_count}人</span>
+                        </span>
                       {/if}
                     </div>
                   </li>
@@ -544,14 +563,33 @@
                       <span class="bill-sub-date">{fmtDate(b.occurred_at)}</span>
                       {#if b.participant_count}
                         <span class="sep" aria-hidden="true">·</span>
-                        <span class="participant-count">👤 {b.participant_count}人</span>
+                        <span class="participant-count">
+                          <svg
+                            class="participant-icon"
+                            viewBox="0 0 24 24"
+                            width="14"
+                            height="14"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.75"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            aria-hidden="true"
+                          >
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                            <circle cx="9" cy="7" r="4" />
+                            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                          </svg>
+                          <span class="participant-count-num">{b.participant_count}人</span>
+                        </span>
                       {/if}
+                      <span class="sep" aria-hidden="true">·</span>
+                      <span class="tag shared-tag">共享 {tags.shared}</span>
                       {#if tags.excl}
                         <span class="sep" aria-hidden="true">·</span>
                         <span class="tag exclusive-tag">独占 {tags.excl}</span>
                       {/if}
-                      <span class="sep" aria-hidden="true">·</span>
-                      <span class="tag shared-tag">共享 {tags.shared}</span>
                     </div>
                   </li>
                 {/each}
@@ -970,7 +1008,22 @@
   .exclusive-tag { color: var(--accent-500); font-weight: 500; }
   .shared-tag { color: var(--gray-500); }
   /* v0.3.16 #3: 人数 chip in row2 */
-  .participant-count { color: var(--gray-500); font-size: var(--font-size-xs, 12px); }
+  .participant-icon {
+    display: inline-block;
+    vertical-align: -2px;
+    margin-right: 3px;
+    color: currentColor;
+  }
+  .participant-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    color: var(--gray-500);
+    font-size: var(--font-size-xs, 12px);
+  }
+  .participant-count-num {
+    /* inherit muted color */
+  }
   .sep { color: var(--gray-400); }
 
   /* === Sprint 3 T13: loading 骨架样式 === */
