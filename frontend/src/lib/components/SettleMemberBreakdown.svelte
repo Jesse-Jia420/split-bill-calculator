@@ -830,15 +830,25 @@
   }
   .meta-sep { color: var(--gray-400); }
 
-  /* === T10: Sticky Section Header === */
+  /* === T10: Sticky Section Header ===
+     v0.3.16 #2 hotfix (PO msg 15:41): iOS 27 Liquid Glass.
+     上方消费明细内容穿透出来 (PO 截图 row2 露在 sticky 顶部)。
+     当前 blur(12px) + opacity 0.85 太弱, 升级参数:
+       - opacity 0.85 → 0.72 (玻璃必须透才能 blur 生效)
+       - blur 12px → 24px (Liquid Glass 典型深度)
+       - saturate 180% → 200% (iOS 玻璃增强饱和度)
+       - 加 inset 0 1px 0 rgba(255,255,255,0.6) 顶部高光 (玻璃"分层感")
+       - 加 0 1px 0 rgba(0,0,0,0.04) 软外阴影 (替代 border-bottom) */
   .section-header {
     position: sticky;
     top: 0;
     z-index: 10;
-    background: rgba(255, 255, 255, 0.85);
-    backdrop-filter: saturate(180%) blur(12px);
-    -webkit-backdrop-filter: saturate(180%) blur(12px);
-    border-bottom: 1px solid var(--gray-200);
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: saturate(200%) blur(24px);
+    -webkit-backdrop-filter: saturate(200%) blur(24px);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.6),
+      0 1px 0 rgba(0, 0, 0, 0.04);
   }
 
   /* === bills section — left border visual separation === */
@@ -864,12 +874,16 @@
     font-size: var(--font-size-sm, 14px);
     font-weight: 600;
     color: var(--gray-900);
-    /* 略提透明度让 sticky bg + backdrop blur 更明显 (PO msg 14:54 验收) */
-    background: rgba(255, 255, 255, 0.92);
-    /* Capsule feel + bottom hairline (replaces .section-header's border-bottom) */
+    /* v0.3.16 #2 hotfix (PO msg 15:41): iOS 27 Liquid Glass.
+       同步降到 0.72 (与 .section-header 一致), 让 backdrop blur 真正生效。 */
+    background: rgba(255, 255, 255, 0.72);
+    /* Capsule feel + bottom hairline (from prev commit) + Liquid Glass
+       top highlight (new) — 两个 inset shadow 共存, 不冲突 */
     border-radius: 6px;
     border-bottom: 0;
-    box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.06);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.6),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.06);
   }
   /* === v0.3.16 #1: clickable section header + collapse icon === */
   .bills-section-head[role="button"] {
