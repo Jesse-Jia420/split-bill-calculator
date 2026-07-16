@@ -89,7 +89,10 @@
   let dragLastX = 0;
   let dragAxis: 'h' | 'v' | null = null;
 
-  const ACTION_WIDTH = 64;
+  // v0.3.17 #18 hotfix (PO msg 06:18): 编辑/删除按钮改圆形 (从 64px 胶囊 → 56px 真圆)
+  // 56 是圆形按钮直径 — Apple HIG 触摸目标 ≥ 44pt, 56 同时跟 row 高 (60-80px) 视觉协调,
+  // 不会因 width > height 而退化成竖椭圆 (如果 button height 固定, width 必须 <= height)。
+  const ACTION_WIDTH = 56;
   const SWIPE_THRESHOLD = 60;
   const TAP_THRESHOLD = 10;
 
@@ -500,8 +503,11 @@
                          直接读 store 值, 让 derived 重算。Svelte 5 legacy 模式组件
                          里 $state() 不可用, 用 writable<>() 替代。 -->
                     {@const rowOffset = $isDraggingStore[b.id] ? ($dragOffsetStore[b.id] ?? 0) : ($swipeOffsetStore[b.id] ?? 0)}
-                    {@const leftProgress = Math.max(0, Math.min(1, rowOffset / 64))}
-                    {@const rightProgress = Math.max(0, Math.min(1, -rowOffset / 64))}
+                    <!-- v0.3.17 #18 hotfix (PO msg 06:18): 圆形按钮 (56px) 替换原 64px 胶囊。
+                         progress / 56: progress=1 时 width=56px = 直径 = 圆形; progress<1 时
+                         width < height → 视觉上是竖椭圆 (iOS Mail 同款, 物理不可避免, 见 #18 完成消息)。 -->
+                    {@const leftProgress = Math.max(0, Math.min(1, rowOffset / 56))}
+                    {@const rightProgress = Math.max(0, Math.min(1, -rowOffset / 56))}
                     <li
                       class="bill-swipe-wrap"
                       in:fly={{ y: 8, duration: 220, delay: Math.min(bi * 25, 200) }}
@@ -513,15 +519,15 @@
                           style="--swipe-progress: {rightProgress}"
                           tabindex={rightProgress >= 1 ? 0 : -1}
                           aria-hidden={rightProgress <= 0}
-                          aria-label="删除账单: {b.description || '(无说明)'}"
+                          aria-label="删除账单 (圆形按钮): {b.description || '(无说明)'}"
                           on:click={(e) => onSwipeDelete(b.id, e)}
                         >
-                          <!-- v0.3.17 #17 hotfix (PO msg 04:25 续): emoji/纯文字 → Lucide icon
-                               跟全站 landing Wallet 等按钮同语言 (lucide-svelte line SVG)。
-                               icon size 14px (跟 button font-size 同级) + 文字,
-                               64px 宽度内 "icon + 2 字" ≈ 54px, 不溢出。-->
-                          <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
-                          <span class="bill-swipe-action-label">删除</span>
+                          <!-- v0.3.17 #18 hotfix (PO msg 06:18): 圆形 icon-only 按钮。
+                               size 14→22: 圆形按钮直径 56px, icon 14 在圆里偏小不协调,
+                               22 视觉占圆形约 40%, 跟全站 landing/settle 大圆形 FAB 同语言。
+                               删文字「删除」: 圆形 + 2 字塞不下 (iOS Mail 也是 icon-only 圆)。
+                               aria-label 屏幕阅读器仍告知 "删除账单", 视觉只是 icon。 -->
+                          <Trash2 size={22} strokeWidth={2} aria-hidden="true" />
                         </button>
                       {/if}
                       <button
@@ -530,12 +536,10 @@
                         style="--swipe-progress: {leftProgress}"
                         tabindex={leftProgress >= 1 ? 0 : -1}
                         aria-hidden={leftProgress <= 0}
-                        aria-label="编辑账单: {b.description || '(无说明)'}"
+                        aria-label="编辑账单 (圆形按钮): {b.description || '(无说明)'}"
                         on:click={(e) => onSwipeEdit(b.id, e)}
                       >
-                        <!-- v0.3.17 #17 hotfix: 同 --delete, Lucide Pencil icon + 文字 -->
-                        <Pencil size={14} strokeWidth={2} aria-hidden="true" />
-                        <span class="bill-swipe-action-label">编辑</span>
+                          <Pencil size={22} strokeWidth={2} aria-hidden="true" />
                       </button>
                       <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
                       <!-- svelte-ignore a11y-no-noninteractive-element-to-interactive-role -->
@@ -759,13 +763,20 @@
     border-bottom: none;
   }
 
-  /* v0.3.17 #17 hotfix (PO msg 04:25 续): 编辑/删除按钮跟全站按钮风格统一
-     - 基类不重复定义 (继承 app.css .glass-pill 的 0.10/0.08 玻璃蓝紫 + accent-700 字)
-     - --delete: 同玻璃质感, 但叠红玻璃 (rgba 0.10/0.08 红) + 红字 (--error-700),
-       不再是 #14 那种 0.92 实色 + 白字 (那是 #16 全站反向调之前的临时解)
-     - --edit:   跟基类同色 (glass-pill 蓝紫), 跟全站其它玻璃按钮同一种语言
-     - :hover 加深 + translateY(-1px) 跟全站 .glass-pill:hover 完全一致
-     - 宽度 64px / top 6px / bottom 6px / padding 0 不变 (PO 03:25 拍对 + #15 fixed) */
+  /* v0.3.17 #18 hotfix (PO msg 06:18): 编辑/删除按钮从 64px 横长胶囊 → 56px 真圆 icon-only
+     PO 06:18 反馈 #17 「编辑删除按钮要圆形的」— 上一版 border-radius: 999px + 64px 宽
+     = 横长椭圆胶囊, 不像圆。这次:
+     - border-radius: 50% (真圆, 不是 999px 椭圆胶囊)
+     - 直径 56px (Apple HIG 触摸目标 ≥ 44pt; 56 也跟 row 高度 60-80px 视觉协调)
+     - 删「删除/编辑」文字, 只保留 Lucide icon (Trash2/Pencil) size 14→22
+       (圆形 + 2 字塞不下, iOS Mail 也都是 icon-only 圆)
+     - width 公式 64px→56px, height 公式不变 (仍 top:6 bottom:6 = 高度跟 row 走)
+       物理约束: progress<1 时 width<height → 视觉上是竖椭圆 (iOS Mail 同款,
+       物理不可避免, 见完成消息)
+     - 基类 .glass-pill 的玻璃背景/边框/blur 全部保留 (跟全站其它玻璃按钮同语言),
+       只把 border-radius 改 50% + 删 padding (圆里没文字不需内边距)
+     - 基类不重复定义 — 继承 app.css .glass-pill 的 0.10/0.08 玻璃 + accent-700 字
+     - --delete / --edit 玻璃色 modifier 同 #17, 不重调 */
   /* 基类不重写 — 继承 app.css .glass-pill (已在 .btn.glass-pill / button.glass-pill
      复合选择子下 specificity bump 到 0,2,0, 盖过 .btn.primary 0,1,1)
      v0.3.17 #17 hotfix 之前这里有 5 行重复定义 glass-pill 同款属性, 全删 —
@@ -812,13 +823,19 @@
     position: absolute;
     top: 6px;
     bottom: 6px;
-    width: calc(var(--swipe-progress, 0) * 64px);
+    /* v0.3.17 #18 hotfix (PO msg 06:18): width 公式 64→56 (圆形按钮直径)。
+         物理约束: width 跟随 progress 0→56 变, height 固定 (= row 高 - 12)。
+         progress=1 时 56×h 是真圆; progress<1 时 width<height → 视觉上是竖椭圆
+         (iOS Mail 同款, 物理不可避免)。border-radius 50% 让所有 progress 下都
+         保持"圆角感", 而 progress=1 时是完美圆形。 */
+    width: calc(var(--swipe-progress, 0) * 56px);
+    /* v0.3.17 #18 hotfix (PO msg 06:18): 真圆形 border-radius 50%
+         (之前是 999px 横长椭圆胶囊, 跟 64px width 组合 = 横长药丸)。 */
+    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 4px; /* v0.3.17 #17: svg + 文字 间距, 64px 紧凑布局 */
-    font-weight: 500;
-    font-size: var(--font-size-sm);
+    /* v0.3.17 #18: 圆形 icon-only, 删 gap (圆里只有 1 个 svg, 不需要 icon-text 间距) */
     cursor: pointer;
     /* v0.3.16 #14 hotfix (PO msg 02:02): z-index 提到 2, 盖在 .bill-row (z=1) 上,
        让 glass-pill 玻璃 blur 看穿到下方的 bill 文字 (meta/amount)。
@@ -828,7 +845,8 @@
     appearance: none;
     padding: 0;
     font-family: inherit;
-    /* opacity 跟随 --swipe-progress 同步淡入文字 */
+    /* v0.3.17 #18 hotfix: 删 font-weight/font-size (圆里没文字) */
+    /* opacity 跟随 --swipe-progress 同步淡入 */
     opacity: var(--swipe-progress, 0);
     /* v0.3.17 #17: 跟全站 .glass-pill hover/active 同步加 transform 反馈 —
        translateY(-1px) (hover) + scale(0.97) (active).
@@ -856,21 +874,14 @@
   .bill-swipe-action-right {
     right: 6px;
   }
-  /* v0.3.17 #17 hotfix (PO msg 04:25 续): Lucide icon + 文字 + 玻璃背景
-     - icon 用 currentColor (跟随 .bill-swipe-action color, 蓝紫/红色)
-     - 文字 font-size 不变, 跟全站按钮 min-height 52px 视觉对齐
-     - 用 gap 替代 padding, 64px 宽度内 "icon + 2 字中文" ≈ 54px, 不溢出
-     - svg default `display: inline-block`, 行高对齐需要 vertical-align 一点微调 */
+  /* v0.3.17 #18 hotfix (PO msg 06:18): 圆形按钮里只剩 Lucide icon, 没文字。
+     svg size 14→22 (圆形直径 56, icon 22 占 ~40%, 视觉协调)。
+     color: currentColor 仍跟随 .bill-swipe-action (蓝紫编辑 / 红色删除)。
+     删 .bill-swipe-action-label rule (没文字节点了)。 */
   .bill-swipe-action > svg {
     flex: 0 0 auto;
     display: inline-block;
     color: currentColor;
-  }
-  .bill-swipe-action-label {
-    flex: 0 0 auto;
-    /* v0.3.17 #17: 中文 2 字 + letter-spacing 默认, 64px 内总占 ~42px,
-       svg 占 ~14px + gap 4px = 60px ≈ 64px 内边距 2px 留出。
-       white-space: nowrap (在 .bill-swipe-action 已设) 兜底。*/
   }
 
   /* === 反馈修 6 项目 3: .bill-row 删独立 background,默认透明继承,

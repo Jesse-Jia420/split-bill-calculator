@@ -253,7 +253,7 @@ test.describe("v0.3.16 #13 swipe state reactivity (真 mouse drag, 不 forceSwip
       expect(bottom).toBe("0px");
       expect(left).toBe("0px");
     }
-    expect(parseFloat(after!.delBtnWidth)).toBeGreaterThanOrEqual(60);
+    expect(parseFloat(after!.delBtnWidth)).toBeGreaterThanOrEqual(50);
     expect(parseFloat(after!.delBtnOpacity)).toBeGreaterThan(0);
 
     await page.screenshot({
@@ -328,7 +328,7 @@ test.describe("v0.3.16 #13 swipe state reactivity (真 mouse drag, 不 forceSwip
       expect(bottom).toBe("0px");
       expect(left).toBe("86px");
     }
-    expect(parseFloat(after!.editBtnWidth)).toBeGreaterThanOrEqual(60);
+    expect(parseFloat(after!.editBtnWidth)).toBeGreaterThanOrEqual(50);
     expect(parseFloat(after!.editBtnOpacity)).toBeGreaterThan(0);
 
     await page.screenshot({
