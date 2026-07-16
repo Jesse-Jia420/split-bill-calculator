@@ -500,21 +500,6 @@
     </div>
   </div>
 
-  {#if smartDateChips.length > 0 && !isEdit}
-    <div class="smart-dates" aria-label="快速日期">
-      <span class="muted hint">首笔 session — 快速选择日期:</span>
-      <div class="chips">
-        {#each smartDateChips as chip}
-          <button
-            type="button"
-            class="chip"
-            on:click={() => (occurredAt = chip.dateLocal)}
-          >{chip.label}</button>
-        {/each}
-      </div>
-    </div>
-  {/if}
-
   <div>
     <label class="label" for="payer">付款人</label>
     <select id="payer" bind:value={payerMemberId}>
@@ -553,6 +538,22 @@
       <input id="occurredAt" type="datetime-local" bind:value={occurredAt} />
       <span class="datetime-icon" aria-hidden="true">📅</span>
     </div>
+    <!-- v0.3.15 #4 (PO #4828): 把"快速选择日期"挪到发生时间段内, 行内快捷入口.
+         原 .smart-dates 是独立 segment; 现在跟 datetime-local input 视觉关联. -->
+    {#if smartDateChips.length > 0 && !isEdit}
+      <div class="quick-dates-inline" aria-label="快速日期">
+        <span class="muted hint">首笔 session — 快速选择日期:</span>
+        <div class="chips">
+          {#each smartDateChips as chip}
+            <button
+              type="button"
+              class="chip"
+              on:click={() => (occurredAt = chip.dateLocal)}
+            >{chip.label}</button>
+          {/each}
+        </div>
+      </div>
+    {/if}
   </div>
 
   <div>
@@ -653,19 +654,23 @@
 </form>
 
 <style>
-  .smart-dates {
+  /* v0.3.15 #4 (PO #4828): 把"快速选择日期"挪到发生时间段内, 行内快捷入口.
+     - 父容器: gap 8px + margin-top 8px 跟 datetime-local input 视觉关联
+     - chip 本身样式 (背景 / 边框 / 圆角 / 字号 / min-height / active 颜色)
+       保持 v0.2.1 T03 原文不变, 只把 selector 从 .smart-dates → .quick-dates-inline */
+  .quick-dates-inline {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
+    gap: 8px;
     flex-wrap: wrap;
-    margin-top: calc(-1 * var(--space-2, 8px));
+    margin-top: 8px;
   }
-  .smart-dates .chips {
+  .quick-dates-inline .chips {
     display: flex;
-    gap: var(--space-2);
+    gap: 8px;
     flex-wrap: wrap;
   }
-  .smart-dates .chip {
+  .quick-dates-inline .chip {
     appearance: none;
     background: var(--color-bg, #fff);
     border: 1px solid var(--color-border, #e5e7eb);
@@ -679,7 +684,7 @@
     transition: background-color 120ms ease, transform 80ms ease;
     -webkit-tap-highlight-color: transparent;
   }
-  .smart-dates .chip:active {
+  .quick-dates-inline .chip:active {
     background: var(--accent-500, #3b82f6);
     color: #fff;
     border-color: var(--accent-500, #3b82f6);
