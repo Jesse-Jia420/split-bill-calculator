@@ -767,41 +767,47 @@
       inset 0 -1px 0 rgba(0, 0, 0, 0.04),
       0 1px 4px rgba(99, 102, 241, 0.08);
   }
-  /* 语义色 modifier: 红色删除 */
+  /* 语义色 modifier: 饱和红删除 (iOS Mail 同款 — v0.3.16 #14 hotfix)
+     原 10% 透明渐变 + backdrop-filter(blur) 在 #12 clip-path 后变得没意义:
+     按钮后面变成 day-group 白底, 10% 红叠白底 ≈ 淡粉, PO 看到 "白白一个圆 + 红字"。
+     提到 0.92/0.85 + 白字 + text-shadow, 仍保留 backdrop-filter + pill + inset shadow。*/
   .bill-swipe-action.glass-pill.glass-pill--delete {
     background: linear-gradient(
       135deg,
-      rgba(220, 38, 38, 0.10) 0%,
-      rgba(239, 68, 68, 0.08) 100%
+      rgba(220, 38, 38, 0.92) 0%,
+      rgba(239, 68, 68, 0.85) 100%
     );
-    border-color: rgba(220, 38, 38, 0.18);
-    color: var(--error-600, #b91c1c);
+    border-color: rgba(220, 38, 38, 0.6);
+    color: #fff;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.15);
   }
   .bill-swipe-action.glass-pill.glass-pill--delete:hover {
     background: linear-gradient(
       135deg,
-      rgba(220, 38, 38, 0.18) 0%,
-      rgba(239, 68, 68, 0.15) 100%
+      rgba(220, 38, 38, 0.96) 0%,
+      rgba(239, 68, 68, 0.92) 100%
     );
-    border-color: rgba(220, 38, 38, 0.26);
+    border-color: rgba(220, 38, 38, 0.75);
   }
-  /* 语义色 modifier: 蓝紫编辑 (跟其他 glass-pill 同参数) */
+  /* 语义色 modifier: 饱和蓝紫编辑 (iOS Mail 同款 — v0.3.16 #14 hotfix)
+     同 --delete 思路: 0.92/0.85 饱和蓝紫渐变 + 白字 + text-shadow。*/
   .bill-swipe-action.glass-pill.glass-pill--edit {
     background: linear-gradient(
       135deg,
-      rgba(99, 102, 241, 0.10) 0%,
-      rgba(59, 130, 246, 0.08) 100%
+      rgba(99, 102, 241, 0.92) 0%,
+      rgba(59, 130, 246, 0.85) 100%
     );
-    border-color: rgba(99, 102, 241, 0.15);
-    color: var(--accent-700, #4338ca);
+    border-color: rgba(99, 102, 241, 0.6);
+    color: #fff;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.15);
   }
   .bill-swipe-action.glass-pill.glass-pill--edit:hover {
     background: linear-gradient(
       135deg,
-      rgba(99, 102, 241, 0.18) 0%,
-      rgba(59, 130, 246, 0.15) 100%
+      rgba(99, 102, 241, 0.96) 0%,
+      rgba(59, 130, 246, 0.92) 100%
     );
-    border-color: rgba(99, 102, 241, 0.22);
+    border-color: rgba(99, 102, 241, 0.75);
   }
 
   .bill-swipe-action {
@@ -815,7 +821,9 @@
     font-weight: 500;
     font-size: var(--font-size-sm);
     cursor: pointer;
-    z-index: 0;
+    /* v0.3.16 #14 hotfix (PO msg 02:02): z-index 提到 2, 盖在 .bill-row (z=1) 上,
+       让 glass-pill 玻璃 blur 看穿到下方的 bill 文字 (meta/amount)。*/
+    z-index: 2;
     appearance: none;
     padding: 0;
     font-family: inherit;
@@ -856,24 +864,12 @@
     user-select: none;
     -webkit-user-select: none;
   }
-  /* v0.3.16 #11 (PO msg 21:07): 前景层永远原位, 不透明背景覆盖底部按钮,
-       swipe 时信息不跟随移动 */
-  .bill-info-layer {
-    background: var(--bg-primary, #fff);
-    /* v0.3.16 #12 hotfix (PO msg 23:56): clip-path 按 swipe 方向 inset 出按钮区,
-       让下面的 .bill-swipe-action (z-index:0) 露出来。
-       86 = 80(button width) + 6(edge offset)。
-       左滑 → rightProgress>0 → inset 右侧 86px → 右按钮露出;
-       右滑 → leftProgress>0 → inset 左侧 86px → 左按钮露出。
-       clip-path 不影响 layout, 只影响 paint, 性能 OK。 */
-    clip-path: inset(
-      0
-      calc(var(--swipe-clip-right, 0) * 86px)
-      0
-      calc(var(--swipe-clip-left, 0) * 86px)
-    );
-    transition: clip-path 100ms ease-out;
-  }
+  /* v0.3.16 #14 hotfix (PO msg 02:02): 之前 #11/#12 用 white bg + clip-path
+     把按钮从 bill-info-layer 后面"挖洞"出来, 但挖洞后那块是 day-group 白底,
+     用户看到「按钮罩在白方块上」而不是「玻璃罩在账单内容上」。
+     这次改: 删 white bg + clip-path (class 仍挂 markup 上但无 rules),
+     bill 文字满宽直通到按钮玻璃 blur 后面。 */
+
   .bill-row.swiping {
     transition: none;
   }
