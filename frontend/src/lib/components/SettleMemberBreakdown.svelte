@@ -852,14 +852,24 @@
   .bills-section-consumed { border-left-color: var(--accent-500); }
   .bills-section-head {
     margin: 0 0 var(--space-2, 8px);
-    padding: var(--space-2, 8px) 0;
+    /* === v0.3.16 #2: extend sticky bg past container's padding-left (PO msg 14:54) === */
+    /* margin-left: -12px pulls the head box left so the sticky bg covers the
+       parent .bills-section's padding-left gap; padding-left: 12px restores
+       inner content alignment with the bill rows below. */
+    margin-left: calc(-1 * var(--space-3, 12px));
+    padding: var(--space-2, 8px) 0 var(--space-2, 8px) var(--space-3, 12px);
     display: flex;
     align-items: center;
     gap: var(--space-2, 8px);
     font-size: var(--font-size-sm, 14px);
     font-weight: 600;
     color: var(--gray-900);
-    background: transparent;
+    /* 略提透明度让 sticky bg + backdrop blur 更明显 (PO msg 14:54 验收) */
+    background: rgba(255, 255, 255, 0.92);
+    /* Capsule feel + bottom hairline (replaces .section-header's border-bottom) */
+    border-radius: 6px;
+    border-bottom: 0;
+    box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.06);
   }
   /* === v0.3.16 #1: clickable section header + collapse icon === */
   .bills-section-head[role="button"] {
@@ -869,7 +879,8 @@
   .bills-section-head[role="button"]:focus-visible {
     outline: 2px solid var(--accent-500);
     outline-offset: 2px;
-    border-radius: 4px;
+    /* Match the new capsule border-radius so focus ring doesn't pop */
+    border-radius: 6px;
   }
   .collapse-icon {
     margin-left: auto;
