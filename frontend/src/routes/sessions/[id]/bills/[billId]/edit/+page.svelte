@@ -100,7 +100,9 @@
 <style>
   /* v0.3.15 §3.15.2 #6 v2: 圆形 FAB (跟 session 主页「新建账单」FAB 同形态)
    * v0.3.16 #8 (PO msg 19:26): 加 .glass-pill 玻璃化 — bg/box-shadow/border 由
-   *   .glass-pill 提供, .fab 保留 border-radius: 50% + 强制 color: #fff (icon 白色)。
+   *   .glass-pill 提供。
+   * v0.3.16 #9 (PO msg 20:01): FAB icon color 改主题色 — 删 color: #fff (icon 白色在浅紫
+   *   玻璃上看不清),改由 .glass-pill 提供 var(--accent-700, #4338ca) 深紫主题色。
    *   .fab 写在 .glass-pill 之后 → 同 specificity 时 .fab 后定义覆盖 .glass-pill。 */
   .fab {
     position: fixed;
@@ -110,22 +112,19 @@
     border-radius: 50%;
     display: grid;
     place-items: center;
-    /* glass-pill 提供 bg / box-shadow / border / backdrop-filter,
-       这里只补 color (#fff 给 SVG icon) + padding + z-index + 圆形保持 */
-    color: #fff;
+    /* glass-pill 提供 bg / box-shadow / border / backdrop-filter / color (var(--accent-700, #4338ca)),
+       这里只补 padding + z-index + 圆形保持。icon 颜色 = 主题色,跟玻璃协调。 */
     z-index: 100;
     text-decoration: none;
     border: none;
     cursor: pointer;
     padding: 0;
-    transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease;
+    transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease, color 150ms ease;
   }
   .fab-left { left: 24px; }
   .fab-right { right: 24px; }
-  .fab:hover {
-    transform: translateY(-2px);
-    color: #fff;
-  }
+  /* .fab:hover 不再写 color — 由 .glass-pill:hover 全局处理 (icon 颜色保持主题色) */
+  .fab:hover { transform: translateY(-2px); }
   .fab:active { transform: scale(0.96); }
   .fab:focus-visible {
     outline: 2px solid #fff;

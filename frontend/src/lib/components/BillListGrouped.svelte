@@ -524,7 +524,26 @@
                         </div>
                         <div class="bill-row2 muted">
                           <span class="bill-meta-line">
-                            {fmtBillTime(b.occurred_at)} · {payerName(b)} 付 · {b.participants.length} 人均 {fmtAmount(b.amount / Math.max(1, b.participants.length))}{b.currency}
+                            <span class="bill-meta-text">{fmtBillTime(b.occurred_at)} · {payerName(b)} 付</span>
+                            <span class="bill-participants" aria-label="参与人数 {b.participants.length}">
+                              <svg
+                                viewBox="0 0 24 24"
+                                width="14"
+                                height="14"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.75"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                              >
+                                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                                <circle cx="9" cy="7" r="4" />
+                                <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                              </svg>
+                              <span>{b.participants.length}人</span>
+                            </span>
                           </span>
                           {#if share !== null}
                             <span class="your-share">分摊 {fmtAmount(share)}<span class="unit">{b.currency}</span></span>
@@ -792,13 +811,38 @@
     /* v0.1.4 polish: share_amount 独立新一行 — column 布局让 meta 在上、share 在下 */
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
     gap: 2px;
     margin-top: 2px;
     font-size: var(--font-size-sm);
   }
   .bill-meta-line {
     min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .bill-meta-text {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  /* v0.3.16 #9 (PO msg 20:01): bill row2 时间右侧加 Lucide users icon + 人数,
+     跟 SettleMemberBreakdown.svelte .participant-count 风格一致 (灰色文字) */
+  .bill-participants {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    color: var(--gray-500);
+    font-size: var(--font-size-xs, 12px);
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .bill-participants svg {
+    display: inline-block;
+    vertical-align: -2px;
+    color: currentColor;
+    flex-shrink: 0;
   }
   .your-share {
     font-weight: 600;

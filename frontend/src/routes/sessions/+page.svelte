@@ -35,7 +35,7 @@
 <section>
   <div class="row between" style="margin-bottom: var(--space-4);">
     <h2>我的 sessions</h2>
-    <a class="btn primary" href="/sessions/new">+ 新建 session</a>
+    <a class="btn primary glass-pill" href="/sessions/new">+ 新建 session</a>
   </div>
 
   {#if loading}
