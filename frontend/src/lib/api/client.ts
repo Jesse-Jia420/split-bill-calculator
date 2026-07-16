@@ -57,8 +57,8 @@ export async function apiFetch<T = unknown>(
 ): Promise<T> {
   const res = await fetch(`/api` + path, {
     credentials: 'include',
+    ...options,
     headers: { 'Content-Type': 'application/json', ...(options.headers ?? {}), ...(extraHeaders ?? {}) },
-    ...options
   });
 
   // 401 special handling BEFORE generic !res.ok branch.
