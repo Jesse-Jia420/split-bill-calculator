@@ -91,7 +91,7 @@
   <!-- PO 反馈修 6 项目 1: 点击立即复制 + toast,不再开 modal。 -->
   <button
     type="button"
-    class="primary invite-btn"
+    class="glass-pill invite-btn"
     class:copied
     on:click={(e) => { e.stopPropagation(); handleInviteClick(); }}
     title="复制邀请链接"
@@ -112,17 +112,36 @@
     gap: var(--space-1);
     align-items: flex-end;
   }
-  /* PO 反馈修 6 项目 1: 「邀请」按钮 — icon + 文字同行,不挤压 */
+  /* v0.3.16 #8 (PO msg 19:26): 加 .glass-pill 玻璃化 —
+     bg/border/box-shadow 由 .glass-pill 提供, 这里只保留布局与 copied 反馈。 */
   .invite-btn {
-    transition: background-color 150ms ease, transform 100ms ease, box-shadow 200ms ease;
+    /* 玻璃化在 .glass-pill 类里, 这里不重复定义 bg/border/box-shadow。
+       只保留 copied 状态的视觉反馈 (绿色) + transition (匹配 pill 的 150ms)。 */
+    transition: transform 150ms ease, background 150ms ease, box-shadow 150ms ease, color 150ms ease;
   }
   .invite-btn:active {
     transform: scale(0.97);
   }
+  /* copied 状态: 玻璃底色 + 绿色文字 + 绿色光晕, 保持玻璃质感 */
   .invite-btn.copied {
-    background: var(--color-success, #10b981);
-    border-color: var(--color-success, #10b981);
-    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.18);
+    background: linear-gradient(
+      135deg,
+      rgba(16, 185, 129, 0.18) 0%,
+      rgba(16, 185, 129, 0.12) 100%
+    );
+    border-color: rgba(16, 185, 129, 0.30);
+    color: var(--color-success, #047857);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.6),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.04),
+      0 1px 4px rgba(16, 185, 129, 0.14);
+  }
+  .invite-btn.copied:hover {
+    background: linear-gradient(
+      135deg,
+      rgba(16, 185, 129, 0.26) 0%,
+      rgba(16, 185, 129, 0.20) 100%
+    );
   }
   .btn-content {
     display: inline-flex;
