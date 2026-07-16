@@ -1,9 +1,12 @@
 <!--
-  SessionCurrencyBadge.svelte — v0.3.14 (PRD §3.14.1 + §3.14.2)
-  位置: session 标题下方 (设计推荐 4 条理由见 design_output.md 任务 A 第 1 节)
-  形态: dl-like grid, 单/双币种切换, 汇率可 inline edit (双币种 + owner)
+  SessionCurrencyBadge.svelte — v0.3.16 #6 currency meta redesign (PO msg 18:16 CST 拍板)
+  形态: Designer 方案 A — Compact pill row
+        - 单行胶囊 `CNY ⇄ THB · 1 CNY = 4.6512` (主币种 chip 蓝色 accent, 副币种 chip 灰底)
+        - 汇率数字 + owner 蓝色铅笔 (Lucide edit SVG 12x12)
+        - 单币种 session 退化为单 chip `[CNY]`
+        - 不喧宾夺主: 13px 字号, color var(--gray-700), padding 4px 0
   视觉 token 全部引用 v0.1.3 app.css, 不新增 token。
-  TODO (§3.14.2): 点汇率 → 切 input → Enter/blur 调 PATCH → onRateChange (reload page)
+  inline edit 逻辑 (editing / startEdit / commitEdit / handleEditKeydown) 保持不变。
 -->
 <script lang="ts">
   import { apiFetch, ApiError } from '$api/client';
@@ -111,24 +114,19 @@
   data-sbc="currency-meta"
 >
   {#if is_single}
-    <div class="row">
-      <span class="label">币种</span>
-      <span class="value">{currencies[0]}</span>
+    <div class="currency-pill-row">
+      <span class="currency-chip primary">{primary_currency}</span>
     </div>
   {:else}
-    <div class="row">
-      <span class="label">主币种</span>
-      <span class="value">{primary_currency}</span>
-    </div>
-    <div class="row">
-      <span class="label">副币种</span>
-      <span class="value">{secondary_currency}</span>
-    </div>
-    {#if show_rate && rate_row}
-      <div class="row">
-        <span class="label">汇率</span>
+    <div class="currency-pill-row">
+      <span class="currency-chip primary">{primary_currency}</span>
+      <span class="currency-arrow" aria-hidden="true">⇄</span>
+      <span class="currency-chip secondary">{secondary_currency}</span>
+      {#if show_rate && rate_row}
+        <span class="currency-sep" aria-hidden="true">·</span>
+        <span class="currency-rate-label">1 {primary_currency} =</span>
         {#if editing}
-          <span class="value edit-host">
+          <span class="edit-host">
             <input
               id="sbc-rate-input"
               type="text"
@@ -140,116 +138,164 @@
               disabled={edit_busy}
               aria-label="编辑汇率"
             />
-            <span class="rate-suffix">({secondary_currency}/{primary_currency})</span>
+            <span class="rate-suffix">{secondary_currency}/{primary_currency}</span>
             {#if edit_error}
               <span class="rate-error" role="alert">{edit_error}</span>
             {/if}
           </span>
+        {:else if editable}
+          <button
+            type="button"
+            class="rate-button"
+            on:click={startEdit}
+            aria-label={`编辑汇率 ${rate_row.rate}`}
+            data-rate={rate_row.rate}
+            data-rate-id={rate_row.id}
+          >
+            {rate_row.rate}
+            <svg
+              class="edit-icon"
+              viewBox="0 0 24 24"
+              width="12"
+              height="12"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+              <path d="m15 5 4 4" />
+            </svg>
+          </button>
         {:else}
-          {#if editable}
-            <button
-              type="button"
-              class="value value-button editable"
-              on:click={startEdit}
-              aria-label={`编辑汇率 ${rate_row.rate}`}
-              data-rate={rate_row.rate}
-              data-rate-id={rate_row.id}
-            >
-              {rate_row.rate}
-            </button>
-          {:else}
-            <span
-              class="value"
-              data-rate={rate_row.rate}
-              data-rate-id={rate_row.id}
-            >
-              {rate_row.rate}
-            </span>
-          {/if}
+          <span
+            class="rate-value"
+            data-rate={rate_row.rate}
+            data-rate-id={rate_row.id}
+          >
+            {rate_row.rate}
+          </span>
         {/if}
-      </div>
-    {/if}
+      {/if}
+    </div>
   {/if}
 </div>
 
 <style>
+  /* 容器: 仅负责外边距 (variant 决定) */
   .currency-meta {
     margin: var(--space-2) 0 var(--space-4);
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
   }
   .currency-meta--compact {
     margin: 0 0 var(--space-3);
   }
-  .row {
-    display: grid;
-    grid-template-columns: 60px 1fr;
-    align-items: baseline;
-    gap: var(--space-3);
-    font-size: var(--font-size-sm);
-    line-height: var(--line-height-normal);
-  }
-  .label {
-    color: var(--gray-500);
-    font-weight: var(--font-weight-normal);
-  }
-  .value {
+
+  /* Compact pill row: 单行胶囊 CNY ⇄ THB · 1 CNY = 4.6512 */
+  .currency-pill-row {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: 13px;
+    line-height: 1.4;
     color: var(--gray-700);
-    font-weight: var(--font-weight-medium);
+    padding: 4px 0;
+  }
+
+  .currency-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: var(--font-weight-medium, 500);
     font-variant-numeric: tabular-nums;
+    background: var(--gray-100);
+    color: var(--gray-800);
   }
-  .value.editable {
-    cursor: pointer;
-    text-decoration: underline;
-    text-decoration-style: dotted;
-    text-decoration-color: var(--gray-400);
-    text-underline-offset: 3px;
+  .currency-chip.primary {
+    background: var(--accent-50, #f0f7ff);
+    color: var(--accent-700, #1d4ed8);
   }
-  .value.editable:hover {
-    color: var(--accent-700);
-    text-decoration-color: var(--accent-500);
+  .currency-chip.secondary {
+    background: var(--gray-100);
+    color: var(--gray-700);
   }
-  .value.editable:focus-visible {
-    outline: 2px solid var(--accent-500);
-    outline-offset: 2px;
-    border-radius: var(--radius-sm);
+
+  .currency-arrow {
+    color: var(--gray-400);
+    font-size: 12px;
   }
-  /* value-button: 可点击的 button, 视觉跟普通 value 一致 (默认 button 样式清除) */
-  .value-button {
+
+  .currency-sep {
+    color: var(--gray-400);
+    margin: 0 -2px;
+  }
+
+  .currency-rate-label {
+    color: var(--gray-500);
+  }
+
+  .rate-button,
+  .rate-value {
+    font-variant-numeric: tabular-nums;
+    font-weight: var(--font-weight-medium, 500);
+    color: var(--gray-900);
+  }
+
+  .rate-button {
     appearance: none;
     background: transparent;
     border: 0;
     padding: 0;
     margin: 0;
-    text-align: left;
     font: inherit;
     color: inherit;
-    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
   }
+  .rate-button:hover {
+    color: var(--accent-700, #1d4ed8);
+  }
+  .rate-button:hover .edit-icon {
+    color: var(--accent-500);
+  }
+  .rate-button:focus-visible {
+    outline: 2px solid var(--accent-500);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+
+  .edit-icon {
+    color: var(--accent-500);
+    flex-shrink: 0;
+  }
+
   .edit-host {
     display: inline-flex;
     align-items: baseline;
-    gap: var(--space-2);
-    flex-wrap: wrap;
+    gap: 4px;
   }
   .rate-input {
     appearance: none;
     background: var(--color-bg, #fff);
-    border: 1px solid var(--gray-300);
-    border-radius: var(--radius-sm);
-    padding: 2px 6px;
-    font-size: var(--font-size-sm);
+    border: 1px solid var(--accent-500);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 12px;
     font-family: inherit;
     font-variant-numeric: tabular-nums;
     color: var(--gray-900);
-    min-width: 5em;
-    max-width: 12em;
+    min-width: 4em;
+    max-width: 10em;
   }
   .rate-input:focus {
     outline: 2px solid var(--accent-500);
     outline-offset: 1px;
-    border-color: var(--accent-500);
   }
   .rate-input:disabled {
     background: var(--gray-100);
@@ -258,12 +304,10 @@
   }
   .rate-suffix {
     color: var(--gray-500);
-    font-weight: var(--font-weight-normal);
-    font-size: var(--font-size-xs, 12px);
+    font-size: 11px;
   }
   .rate-error {
     color: var(--error-500, #dc2626);
-    font-size: var(--font-size-xs, 12px);
-    font-weight: var(--font-weight-normal);
+    font-size: 11px;
   }
 </style>
