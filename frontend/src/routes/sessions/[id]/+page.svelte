@@ -1026,7 +1026,10 @@
      用 grid + place-items: center 完美居中, 再 padding-bottom: 2px 视觉补偿,
      让 `+` 在圆形按钮里看起来完全居中。
      v0.3.16 #8 (PO msg 19:26): 加 .glass-pill 玻璃化 — bg/box-shadow/border 由
-       .glass-pill 提供, 这里只保留 layout (圆形 + 定位 + + 居中补偿) + 强制 color #fff。 */
+       .glass-pill 提供。
+     v0.3.16 #10 (PO msg 20:38): FAB icon 改主题色 — 删 color: #fff (`+` 白色在浅紫
+       玻璃上看不清),改由 .glass-pill 提供 var(--accent-700, #4338ca) 深紫主题色
+       (跟 bills/new/edit/settle 的 .fab 一致)。 */
   .fab {
     position: fixed;
     right: 24px;
@@ -1034,7 +1037,7 @@
     width: 56px;
     height: 56px;
     border-radius: 50%;        /* 圆形覆盖 .glass-pill 的 999px */
-    color: #fff;               /* 强制白色 + icon 可见 */
+    /* 删 color: #fff — 由 .glass-pill 提供 var(--accent-700, #4338ca) 深紫主题色 */
     font-size: 28px;
     font-weight: 300;
     line-height: 1;
@@ -1046,11 +1049,11 @@
     padding: 0;
     padding-bottom: 2px;      /* 视觉补偿: + 在 Inter 里偏上, 下移 2px 视觉居中 */
     text-decoration: none;
-    transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease;
+    transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease, color 150ms ease;
   }
+  /* .fab:hover 不再写 color — 由 .glass-pill:hover 全局处理 (icon 颜色保持主题色) */
   .fab:hover {
     transform: translateY(-2px);
-    color: #fff;
     text-decoration: none;
   }
   .fab:active {
