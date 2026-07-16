@@ -869,24 +869,27 @@
   .meta-sep { color: var(--gray-400); }
 
   /* === T10: Sticky Section Header ===
-     v0.3.16 #2 hotfix (PO msg 15:41): iOS 27 Liquid Glass.
-     上方消费明细内容穿透出来 (PO 截图 row2 露在 sticky 顶部)。
-     当前 blur(12px) + opacity 0.85 太弱, 升级参数:
-       - opacity 0.85 → 0.72 (玻璃必须透才能 blur 生效)
-       - blur 12px → 24px (Liquid Glass 典型深度)
-       - saturate 180% → 200% (iOS 玻璃增强饱和度)
-       - 加 inset 0 1px 0 rgba(255,255,255,0.6) 顶部高光 (玻璃"分层感")
-       - 加 0 1px 0 rgba(0,0,0,0.04) 软外阴影 (替代 border-bottom) */
+     v0.3.16 #2 hotfix v2 (PO msg 17:52): Liquid Glass 加强.
+     上版 (014098b) blur(24px) + opacity 0.72 仍不够, PO 截图 (17:51)
+     显示下方 bill 内容完全穿透 sticky header. 激进参数:
+       - opacity 0.72 → 0.55 (更透, blur 更明显)
+       - blur 24px → 40px (Liquid Glass 深度 +50%)
+       - saturate 200% → 220% (iOS 玻璃增强饱和度)
+       - 双层 box-shadow: 顶部 inset 高光 + 底部 hairline + 软外阴影
+       - 加 ::before 渐变 overlay 强化视觉遮挡 (z-index -1 在父
+         stacking context 内位于父 bg 之上)
+       - 加 @supports fallback 给 iOS Safari < 18 (opaque 0.95) */
   .section-header {
     position: sticky;
     top: 0;
     z-index: 10;
-    background: rgba(255, 255, 255, 0.72);
-    backdrop-filter: saturate(200%) blur(24px);
-    -webkit-backdrop-filter: saturate(200%) blur(24px);
+    background: rgba(255, 255, 255, 0.55);
+    backdrop-filter: saturate(220%) blur(40px);
+    -webkit-backdrop-filter: saturate(220%) blur(40px);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.6),
-      0 1px 0 rgba(0, 0, 0, 0.04);
+      inset 0 1px 0 rgba(255, 255, 255, 0.7),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.05),
+      0 1px 3px rgba(0, 0, 0, 0.04);
   }
 
   /* === bills section — left border visual separation === */
@@ -912,16 +915,44 @@
     font-size: var(--font-size-sm, 14px);
     font-weight: 600;
     color: var(--gray-900);
-    /* v0.3.16 #2 hotfix (PO msg 15:41): iOS 27 Liquid Glass.
-       同步降到 0.72 (与 .section-header 一致), 让 backdrop blur 真正生效。 */
-    background: rgba(255, 255, 255, 0.72);
-    /* Capsule feel + bottom hairline (from prev commit) + Liquid Glass
-       top highlight (new) — 两个 inset shadow 共存, 不冲突 */
+    /* v0.3.16 #2 hotfix v2 (PO msg 17:52): Liquid Glass 加强.
+       同步降到 0.55 (与 .section-header 一致), 让 backdrop blur 40px 真正生效. */
+    background: rgba(255, 255, 255, 0.55);
+    /* Capsule feel + 双 inset highlight + bottom hairline + 软外阴影.
+       配合 ::before 渐变 overlay + @supports Safari fallback. */
     border-radius: 6px;
     border-bottom: 0;
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.6),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.06);
+      inset 0 1px 0 rgba(255, 255, 255, 0.7),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.05),
+      0 1px 3px rgba(0, 0, 0, 0.04);
+  }
+
+  /* === v0.3.16 #2 hotfix v2: ::before 渐变 overlay ===
+     z-index -1 在父 stacking context (position: sticky + z-index 10)
+     内渲染于父 bg 之上一层 (step 2 of painting order). 这样渐变
+     强化 Liquid Glass 视觉遮挡而不破坏背景 blur 效果. */
+  .section-header::before,
+  .bills-section-head::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(180deg,
+      rgba(255, 255, 255, 0.6) 0%,
+      rgba(255, 255, 255, 0.4) 100%);
+    border-radius: inherit;
+    pointer-events: none;
+  }
+
+  /* === v0.3.16 #2 hotfix v2: Safari iOS < 18 backdrop-filter bug fallback ===
+     早期 iOS Safari 对 backdrop-filter 支持不稳, fallback 到几乎全 opaque.
+     不影响现代浏览器 (iOS 18+ / Chrome / Firefox). */
+  @supports not (backdrop-filter: blur(1px)) {
+    .section-header,
+    .bills-section-head {
+      background: rgba(255, 255, 255, 0.95);
+    }
   }
   /* === v0.3.16 #1: clickable section header + collapse icon === */
   .bills-section-head[role="button"] {
