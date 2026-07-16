@@ -35,12 +35,12 @@
 <NavBar />
 <Toast />
 <main class="page">
-  {#key page.url.pathname}
-    <!-- 反馈修 6 项目 7: 全局页面切换 fade 200ms in / 100ms out (略明显于之前的 150ms) -->
-    <div in:fade={{ duration: 200 }} out:fade={{ duration: 100 }}>
-      <slot />
-    </div>
-  {/key}
+  <!-- v0.3.16 #8 (PO msg 19:26): 去掉外层 key 包裹 — 原 {#key pathname}
+       + in:fade 会创建 Svelte hydration comment anchor, 偶发在 iOS Safari
+       被 fallback 渲染成乱码。直接 fade 即可, 仍有切换动画。 -->
+  <div in:fade={{ duration: 200 }} out:fade={{ duration: 100 }}>
+    <slot />
+  </div>
 </main>
 <!-- §3.11.13: 版本号集中显示在底部 Footer, NavBar 头部不再展示 -->
 <Footer />

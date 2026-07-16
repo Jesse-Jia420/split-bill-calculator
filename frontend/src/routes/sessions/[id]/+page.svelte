@@ -521,7 +521,7 @@
         </div>
         <div class="bills-card-head-right">
           <a
-            class="btn ghost btn-sm bills-action-link"
+            class="btn glass-pill btn-sm bills-action-link"
             href="/sessions/{session.id}/settle"
             aria-label="查看结算"
           >
@@ -550,7 +550,7 @@
             <span>查看结算</span>
           </a>
           <a
-            class="btn ghost btn-sm bills-action-link"
+            class="btn glass-pill btn-sm bills-action-link"
             href="/sessions/{session.id}/settle#personal"
             aria-label="查看个人账单"
           >
@@ -634,9 +634,10 @@
       </div>
     {/if}
 
-    <!-- FAB: 200ms 后从下方 60px 飞入 -->
+    <!-- FAB: 200ms 后从下方 60px 飞入
+         v0.3.16 #8 (PO msg 19:26): 加 .glass-pill 玻璃化 (保留 50% 圆形 + 白色 + icon) -->
     <a
-      class="fab"
+      class="fab glass-pill"
       href="/sessions/{session.id}/bills/new"
       title="新建账单"
       aria-label="新建账单"
@@ -1023,20 +1024,20 @@
      v0.1.4 round 2 改动 2: `+` 居中对齐修复。
      原因: Inter font 里 `+` baseline 偏上 (mathematical center ≠ optical center),
      用 grid + place-items: center 完美居中, 再 padding-bottom: 2px 视觉补偿,
-     让 `+` 在圆形按钮里看起来完全居中。 */
+     让 `+` 在圆形按钮里看起来完全居中。
+     v0.3.16 #8 (PO msg 19:26): 加 .glass-pill 玻璃化 — bg/box-shadow/border 由
+       .glass-pill 提供, 这里只保留 layout (圆形 + 定位 + + 居中补偿) + 强制 color #fff。 */
   .fab {
     position: fixed;
     right: 24px;
     bottom: 24px;
     width: 56px;
     height: 56px;
-    border-radius: 50%;
-    background: var(--accent-500);
-    color: #fff;
+    border-radius: 50%;        /* 圆形覆盖 .glass-pill 的 999px */
+    color: #fff;               /* 强制白色 + icon 可见 */
     font-size: 28px;
     font-weight: 300;
     line-height: 1;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
     z-index: 50;
     cursor: pointer;
     border: 0;
@@ -1045,12 +1046,10 @@
     padding: 0;
     padding-bottom: 2px;      /* 视觉补偿: + 在 Inter 里偏上, 下移 2px 视觉居中 */
     text-decoration: none;
-    transition: transform 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+    transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease;
   }
   .fab:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22);
-    background: var(--accent-700);
     color: #fff;
     text-decoration: none;
   }
@@ -1060,7 +1059,6 @@
   .fab:focus-visible {
     outline: 2px solid #fff;
     outline-offset: 2px;
-    box-shadow: 0 0 0 4px var(--accent-500);
   }
   @media (max-width: 600px) {
     .fab {
