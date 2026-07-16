@@ -992,9 +992,14 @@
   .empty-hint { margin: 0; padding: var(--space-2, 8px) 0; }
 
   /* === bill list rows === */
+  /* === v0.3.17 #15 hotfix: settle 页 sticky header 浮起漏内容 (PO msg 03:00) ===
+     sticky h4 (.bills-section-head, height ≈ 40px) 浮起到 top:0 后会盖住 list
+     第一个 .bill-subrow 的顶部 — 加 padding-top = sticky 高度作 visual 抵消,
+     list 第一个 item 现在落在 sticky header 下方, 不再被切。
+     CSS var --settle-sticky-height 方便后续微调, 默认 40px 接近 PO 截图实测值 */
   .bill-sublist {
     list-style: none;
-    padding: 0;
+    padding: var(--settle-sticky-height, 40px) 0 0 0;
     margin: 0;
     display: flex;
     flex-direction: column;

@@ -88,7 +88,7 @@
   let dragLastX = 0;
   let dragAxis: 'h' | 'v' | null = null;
 
-  const ACTION_WIDTH = 80;
+  const ACTION_WIDTH = 64;
   const SWIPE_THRESHOLD = 60;
   const TAP_THRESHOLD = 10;
 
@@ -499,8 +499,8 @@
                          直接读 store 值, 让 derived 重算。Svelte 5 legacy 模式组件
                          里 $state() 不可用, 用 writable<>() 替代。 -->
                     {@const rowOffset = $isDraggingStore[b.id] ? ($dragOffsetStore[b.id] ?? 0) : ($swipeOffsetStore[b.id] ?? 0)}
-                    {@const leftProgress = Math.max(0, Math.min(1, rowOffset / 80))}
-                    {@const rightProgress = Math.max(0, Math.min(1, -rowOffset / 80))}
+                    {@const leftProgress = Math.max(0, Math.min(1, rowOffset / 64))}
+                    {@const rightProgress = Math.max(0, Math.min(1, -rowOffset / 64))}
                     <li
                       class="bill-swipe-wrap"
                       in:fly={{ y: 8, duration: 220, delay: Math.min(bi * 25, 200) }}
@@ -814,7 +814,7 @@
     position: absolute;
     top: 6px;
     bottom: 6px;
-    width: calc(var(--swipe-progress, 0) * 80px);
+    width: calc(var(--swipe-progress, 0) * 64px);
     display: flex;
     align-items: center;
     justify-content: center;
