@@ -605,18 +605,21 @@ async def create_session(
         )
         db.add(sm)
 
-    # BUG-LANDING-2 (fix): when the creator is anon (user is None), also
-    # insert an unclaimed owner SessionMember row so the creator has a
-    # slot to claim on the /join page. Without this, the anon creator
-    # would land on /join and see no owner slot (only nicknames they
-    # passed via member_nicknames). The placeholder uses display_name="我"
-    # so /join renders it as the natural "claim me" slot.
+    # v0.3.15 (PO #4879) 修 wizard nicknames[0] "我" 改名不能生效:
+    # anon path 用 nicknames[0] 作 owner placeholder display_name (默认 "我")
+    # 这样用户改 nicknames[0] 后会真实成为 owner placeholder name, dedupe 跳过自己 → 无 n+1
     owner_placeholder_id: int | None = None
+    owner_placeholder_name: str = "我"
     if user is None:
+        # 用 nicknames[0] 作 owner placeholder name (trim 后非空), 否则默认 "我"
+        if payload.member_nicknames:
+            trimmed_first = (payload.member_nicknames[0] or "").strip()
+            if trimmed_first:
+                owner_placeholder_name = trimmed_first
         owner_sm = SessionMember(
             session_id=session.id,
             user_id=None,
-            display_name="我",
+            display_name=owner_placeholder_name,
             role=SessionRole.OWNER.value,
             nickname_secret=None,
             is_anon=True,
@@ -627,15 +630,26 @@ async def create_session(
         owner_placeholder_id = owner_sm.id
 
     # v0.3.1: bulk-create unclaimed anonymous member rows for nicknames.
-    # BUG-LANDING-2 (fix): when the creator is anon and the new owner
-    # placeholder already represents "我", we must NOT also create a
-    # second member row for "我" (case-insensitive). The landing wizard
-    # sends member_nicknames=["我"] by default; without dedupe we'd end
-    # up with TWO owner-role rows for the same display name.
+    # v0.3.15 (PO #4879) dedupe 包含 nicknames[0] (如果作 owner placeholder):
+    # The landing wizard sends member_nicknames=[nicknames[0], ...同伴].
+    # When nicknames[0] is empty/"我"/占位, BE uses owner placeholder "我"
+    # and dedupes "我" (casefold) so we don't get a second row.
+    # When nicknames[0] is a real name like "阿兰", BE uses that as owner
+    # placeholder and dedupes "阿兰" (casefold) so we don't get a second row.
     created_member_ids: list[int] = []
     if owner_placeholder_id is not None:
         created_member_ids.append(owner_placeholder_id)
-    seen_nickname_keys = {"我".casefold()} if owner_placeholder_id is not None else set()
+    # v0.3.15 (PO #4879): 登录态 owner 是 user.default_name (不是 placeholder),
+    # 但 wizard nicknames[0]="你" placeholder 仍应当被跳过 (避免变 member).
+    # 所以 login + anon 都把 nicknames[0] 加进 seen_nickname_keys (trim 后非空).
+    seen_nickname_keys: set[str] = set()
+    if owner_placeholder_id is not None:
+        seen_nickname_keys.add(owner_placeholder_name.casefold())
+    else:
+        # login path: dedupe nicknames[0] placeholder ("你")
+        first_nick = (payload.member_nicknames[0] if payload.member_nicknames else "").strip()
+        if first_nick:
+            seen_nickname_keys.add(first_nick.casefold())
     for nickname in payload.member_nicknames:
         key = nickname.casefold()
         if key in seen_nickname_keys:
