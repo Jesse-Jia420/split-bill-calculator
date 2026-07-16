@@ -19,7 +19,7 @@
 <header class="navbar">
   <a href="/" class="brand">Split Bill</a>
   <nav class="links">
-    <a href="/sessions">我的 sessions</a>
+    <a href="/sessions">我的账本</a>
   </nav>
   <div class="right">
     {#if $user}

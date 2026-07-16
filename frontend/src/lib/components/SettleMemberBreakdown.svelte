@@ -326,7 +326,7 @@
       </ul>
     </div>
   {:else if members.length === 0}
-    <p class="muted">这个 session 还没有成员。</p>
+    <p class="muted">这个账本还没有成员。</p>
   {:else}
     <!-- T9: member-tabs-wrapper with fade gradient mask (already present, kept) -->
     <div class="member-tabs-wrapper">
@@ -633,13 +633,20 @@
   }
 
   /* T9 chip: pill shape, filled when selected */
+  /* === v0.3.17 #16 hotfix (PO msg 03:00): member-chip 玻璃化 ===
+     - 未选中: glass-pill (半透明白 + backdrop blur) — 跟 .member-tabs
+       背景形成 Liquid Glass 视觉。
+     - 选中: 保留实色 --accent-500 蓝 (视觉锚点不能丢, T9 设计)
+     - hover: border + color 微变, 不改 background (玻璃透出背景) */
   .member-chip {
     scroll-snap-align: start;
     flex: 0 0 auto;
     appearance: none;
-    /* Inactive base */
-    background: white;
-    border: 1px solid var(--gray-200);
+    /* Inactive base — glass-pill */
+    background: linear-gradient(180deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.5) 100%);
+    border: 1px solid rgba(255,255,255,0.5);
+    backdrop-filter: saturate(180%) blur(16px);
+    -webkit-backdrop-filter: saturate(180%) blur(16px);
     border-radius: var(--radius-full);
     padding: var(--space-3) var(--space-4);
     cursor: pointer;
@@ -652,8 +659,11 @@
     text-align: left;
     color: var(--gray-700);
     font: inherit;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.4),
+      0 4px 12px rgba(0,0,0,0.08);
     transition:
-      background-color 200ms ease,
+      background 200ms ease,
       border-color 200ms ease,
       color 200ms ease,
       box-shadow 200ms ease,
@@ -662,6 +672,7 @@
   .member-chip:hover {
     border-color: var(--accent-500);
     color: var(--accent-700);
+    background: linear-gradient(180deg, rgba(255,255,255,0.82) 0%, rgba(255,255,255,0.62) 100%);
   }
   .member-chip:active {
     transform: scale(0.97);
@@ -670,17 +681,27 @@
     outline: 2px solid var(--accent-500);
     outline-offset: 2px;
   }
-  /* T9 Active state: filled accent bg */
+  /* T9 Active state: filled accent bg (保留实色, 玻璃态 OFF) */
   .member-chip.selected {
     background: var(--accent-500);
     border: 1px solid var(--accent-500);
     color: white;
-    box-shadow: var(--shadow-sm);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.2),
+      var(--shadow-sm);
   }
   .member-chip.selected:hover {
     background: var(--accent-500);
     border-color: var(--accent-500);
     color: white;
+  }
+  /* Safari iOS < 18 fallback (无 backdrop-filter): 用 opaque 半透明白 */
+  @supports not (backdrop-filter: blur(1px)) {
+    .member-chip {
+      background: rgba(255,255,255,0.85);
+    }
   }
   /* T9 me double ring (kept even though me badge text removed) */
   .member-chip.me .chip-avatar {
@@ -992,14 +1013,25 @@
   .empty-hint { margin: 0; padding: var(--space-2, 8px) 0; }
 
   /* === bill list rows === */
-  /* === v0.3.17 #15 hotfix: settle 页 sticky header 浮起漏内容 (PO msg 03:00) ===
-     sticky h4 (.bills-section-head, height ≈ 40px) 浮起到 top:0 后会盖住 list
-     第一个 .bill-subrow 的顶部 — 加 padding-top = sticky 高度作 visual 抵消,
-     list 第一个 item 现在落在 sticky header 下方, 不再被切。
-     CSS var --settle-sticky-height 方便后续微调, 默认 40px 接近 PO 截图实测值 */
+  /* === v0.3.17 #16 hotfix (PO msg 03:00 续): settle 页 sticky header 浮起漏内容 真修 ===
+     上版 (#15) 40px padding-top 不够, 上版 (#16 试 56) 也不够 — 实测数据:
+       - sticky h4 height = 36, h4 自然 bottom = h4 自然 top + 36
+       - h4 margin-bottom = 8, sublist 自然 top = h4 自然 top + 44
+       - padding-top 决定 first row top 距 sublist top
+       - 当 h4 sticky 在 top:0, sublist top = (h4 自然 + 44) - scroll
+         first row top = sublist top + padding-top = (h4 自然 + 44 - scroll) + padding-top
+         gap (first row 距 h4 bottom 36) = padding-top - scroll + h4 自然 + 8
+       - "0 gap" 临界: scroll = padding-top + h4 自然 + 8
+         (e.g. padding-top=40 → scroll=711.8; padding-top=100 → scroll=771.8)
+     修法: padding-top = 100px (h4 height 36 + h4 margin 8 + 视觉 buffer 56)
+     - h4 刚 sticky 时 (scroll = h4 自然): gap = padding-top + 8 = 108px (充足视觉间距)
+     - 用户 scroll 到 770 之前 first row 始终在 h4 下方
+     - scroll > 770 之后 first row 进入 h4 后面 (设计接受: 旧账单滚出视野, 用户已看新账单)
+     - 上版 #15 报告「0px 完全贴合」是因为 padding-top 太小, 临界 scroll 太靠近 h4 自然
+     CSS var --settle-sticky-height 默认 100, 可微调 */
   .bill-sublist {
     list-style: none;
-    padding: var(--settle-sticky-height, 40px) 0 0 0;
+    padding: var(--settle-sticky-height, 100px) 0 0 0;
     margin: 0;
     display: flex;
     flex-direction: column;

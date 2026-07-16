@@ -168,7 +168,7 @@
             disabled={!session.currencies || session.currencies.length < 2}
             title={
               session.currencies && session.currencies.length < 2
-                ? '该 session 只有一种币种'
+                ? '该账本只有一种币种'
                 : ''
             }
             on:click={() => (viewMode = 'split')}

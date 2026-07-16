@@ -11,7 +11,7 @@
 
   onMount(async () => {
     if (!code) {
-      error = '无效的 session 链接';
+      error = '无效的账本链接';
       loading = false;
       return;
     }
@@ -35,12 +35,12 @@
 </script>
 
 <svelte:head>
-  <title>打开 session · Split Bill</title>
+  <title>打开账本 · Split Bill</title>
 </svelte:head>
 
 <main class="container" style="padding-top: 4rem; text-align: center;">
   {#if loading}
-    <p>正在打开 session…</p>
+    <p>正在打开账本…</p>
   {:else if error}
     <h2>打不开</h2>
     <p class="muted">{error}</p>
