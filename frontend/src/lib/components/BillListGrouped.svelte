@@ -476,6 +476,10 @@
                 <ul class="day-bills">
                   {#each g.bills as b, bi (b.id)}
                     {@const share = yourShare(b)}
+                    <!-- v0.3.16 #11 (PO msg 21:07): swipe 动画重做 — bill info 不动,
+                         按钮随 --swipe-progress 从 0 → 80px clip-path 展开 -->
+                    {@const leftProgress = Math.max(0, Math.min(1, getRowOffset(b.id) / 80))}
+                    {@const rightProgress = Math.max(0, Math.min(1, -getRowOffset(b.id) / 80))}
                     <li
                       class="bill-swipe-wrap"
                       in:fly={{ y: 8, duration: 220, delay: Math.min(bi * 25, 200) }}
@@ -483,18 +487,20 @@
                       {#if onDelete}
                         <button
                           type="button"
-                          class="bill-swipe-action bill-swipe-action-right glass-pill"
-                          tabindex={swipeOffset[b.id] !== undefined && swipeOffset[b.id] < 0 ? 0 : -1}
-                          aria-hidden={swipeOffset[b.id] === undefined || swipeOffset[b.id] >= 0}
+                          class="bill-swipe-action bill-swipe-action-right glass-pill glass-pill--delete"
+                          style="--swipe-progress: {rightProgress}"
+                          tabindex={rightProgress >= 1 ? 0 : -1}
+                          aria-hidden={rightProgress <= 0}
                           aria-label="删除账单: {b.description || '(无说明)'}"
                           on:click={(e) => onSwipeDelete(b.id, e)}
                         >删除</button>
                       {/if}
                       <button
                         type="button"
-                        class="bill-swipe-action bill-swipe-action-left glass-pill"
-                        tabindex={swipeOffset[b.id] !== undefined && swipeOffset[b.id] > 0 ? 0 : -1}
-                        aria-hidden={swipeOffset[b.id] === undefined || swipeOffset[b.id] <= 0}
+                        class="bill-swipe-action bill-swipe-action-left glass-pill glass-pill--edit"
+                        style="--swipe-progress: {leftProgress}"
+                        tabindex={leftProgress >= 1 ? 0 : -1}
+                        aria-hidden={leftProgress <= 0}
                         aria-label="编辑账单: {b.description || '(无说明)'}"
                         on:click={(e) => onSwipeEdit(b.id, e)}
                       >编辑</button>
@@ -502,10 +508,11 @@
                       <!-- svelte-ignore a11y-no-noninteractive-element-to-interactive-role -->
                       <!-- svelte-ignore a11y-no-static-element-interactions -->
                       <!-- svelte-ignore a11y-click-events-have-key-events -->
+                      <!-- v0.3.16 #11 (PO msg 21:07): 前景层永远原位, 不再 transform,
+                           按钮在背景层 clip-path 展开 -->
                       <div
-                        class="bill-row"
+                        class="bill-row bill-info-layer"
                         class:swiping={!!isDragging[b.id]}
-                        style="transform: translateX({isDragging[b.id] ? (dragOffset[b.id] ?? 0) : (swipeOffset[b.id] ?? 0)}px)"
                         role="group"
                         aria-label="账单: {b.description || '(无说明)'}"
                         on:touchstart={(e) => onTouchStart(b.id, e)}
@@ -711,71 +718,126 @@
     position: relative;
     overflow: hidden;
     border-bottom: 1px solid var(--gray-200);
+    border-radius: var(--radius-md);
+    background: transparent;
   }
   .bill-swipe-wrap:last-child {
     border-bottom: none;
   }
 
-  /* v0.3.16 #10 (PO msg 20:38): 编辑/删除 swipe 按钮加 .glass-pill 玻璃化 —
-     border-radius 重置为 0 (80px 宽按钮配 999px 玻璃 pill 会变胶囊,矩形 swipe action 才协调)。 */
+  /* v0.3.16 #11 (PO msg 21:07): 编辑/删除按钮玻璃风格统一 + clip-path 展开
+     - 跟 app.css .glass-pill 同 bg-gradient / blur(20px) / border / shadow 参数
+     - 按钮 width + opacity 跟随 --swipe-progress (0 → 1) 展开
+     - bill info 层永远原位, 不 transform, 按钮在背景层展开 */
   .bill-swipe-action.glass-pill {
-    border-radius: 0;
+    background: linear-gradient(
+      135deg,
+      rgba(99, 102, 241, 0.10) 0%,
+      rgba(59, 130, 246, 0.08) 100%
+    );
+    backdrop-filter: saturate(200%) blur(20px);
+    -webkit-backdrop-filter: saturate(200%) blur(20px);
+    border: 1px solid rgba(99, 102, 241, 0.15);
+    color: var(--accent-700, #4338ca);
+    border-radius: 999px;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.6),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.04),
+      0 1px 4px rgba(99, 102, 241, 0.08);
+  }
+  /* 语义色 modifier: 红色删除 */
+  .bill-swipe-action.glass-pill.glass-pill--delete {
+    background: linear-gradient(
+      135deg,
+      rgba(220, 38, 38, 0.10) 0%,
+      rgba(239, 68, 68, 0.08) 100%
+    );
+    border-color: rgba(220, 38, 38, 0.18);
+    color: var(--error-600, #b91c1c);
+  }
+  .bill-swipe-action.glass-pill.glass-pill--delete:hover {
+    background: linear-gradient(
+      135deg,
+      rgba(220, 38, 38, 0.18) 0%,
+      rgba(239, 68, 68, 0.15) 100%
+    );
+    border-color: rgba(220, 38, 38, 0.26);
+  }
+  /* 语义色 modifier: 蓝紫编辑 (跟其他 glass-pill 同参数) */
+  .bill-swipe-action.glass-pill.glass-pill--edit {
+    background: linear-gradient(
+      135deg,
+      rgba(99, 102, 241, 0.10) 0%,
+      rgba(59, 130, 246, 0.08) 100%
+    );
+    border-color: rgba(99, 102, 241, 0.15);
+    color: var(--accent-700, #4338ca);
+  }
+  .bill-swipe-action.glass-pill.glass-pill--edit:hover {
+    background: linear-gradient(
+      135deg,
+      rgba(99, 102, 241, 0.18) 0%,
+      rgba(59, 130, 246, 0.15) 100%
+    );
+    border-color: rgba(99, 102, 241, 0.22);
   }
 
   .bill-swipe-action {
     position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 80px;
+    top: 6px;
+    bottom: 6px;
+    width: calc(var(--swipe-progress, 0) * 80px);
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #fff;
-    font-weight: 600;
-    font-size: var(--font-size-base);
-    border: 0;
+    font-weight: 500;
+    font-size: var(--font-size-sm);
     cursor: pointer;
-    z-index: 1;
+    z-index: 0;
     appearance: none;
     padding: 0;
     font-family: inherit;
-    opacity: 0;
-    transform: scale(0.85);
-    transition: opacity 200ms ease, transform 200ms cubic-bezier(0.2, 0, 0, 1);
+    /* opacity 跟随 --swipe-progress 同步淡入文字 */
+    opacity: var(--swipe-progress, 0);
+    transition:
+      width 100ms ease-out,
+      opacity 100ms ease-out,
+      background 150ms ease,
+      border-color 150ms ease,
+      color 150ms ease;
     pointer-events: none;
+    overflow: hidden;
+    white-space: nowrap;
+    box-sizing: border-box;
   }
+  /* 阈值 (≥ 1) 才允许点击, 避免 0~80px 之间误触 */
   .bill-swipe-action[aria-hidden="false"] {
-    opacity: 1;
-    transform: scale(1);
     pointer-events: auto;
   }
   .bill-swipe-action-left {
-    left: 0;
-    background: var(--accent-500);
-  }
-  .bill-swipe-action-left:hover {
-    background: var(--accent-700);
+    left: 6px;
   }
   .bill-swipe-action-right {
-    right: 0;
-    background: var(--error-500);
-  }
-  .bill-swipe-action-right:hover {
-    background: var(--error-700);
+    right: 6px;
   }
 
   /* === 反馈修 6 项目 3: .bill-row 删独立 background,默认透明继承,
        跟 .day-group 共享同一 surface 背景色 === */
   .bill-row {
     position: relative;
-    z-index: 2;
+    z-index: 1;
     /* 删除 background: white — 让 day-group 背景透出 */
     padding: var(--space-3) var(--space-4);
     /* 删除 border-bottom (已移到 .bill-swipe-wrap,避免双层) */
-    transition: transform 250ms cubic-bezier(0.2, 0, 0, 1), background-color 200ms ease;
+    transition: background-color 200ms ease;
     outline: none;
     user-select: none;
     -webkit-user-select: none;
+  }
+  /* v0.3.16 #11 (PO msg 21:07): 前景层永远原位, 不透明背景覆盖底部按钮,
+       swipe 时信息不跟随移动 */
+  .bill-info-layer {
+    background: var(--bg-primary, #fff);
   }
   .bill-row.swiping {
     transition: none;
