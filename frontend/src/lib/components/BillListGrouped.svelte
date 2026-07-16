@@ -508,10 +508,11 @@
                       <!-- svelte-ignore a11y-no-noninteractive-element-to-interactive-role -->
                       <!-- svelte-ignore a11y-no-static-element-interactions -->
                       <!-- svelte-ignore a11y-click-events-have-key-events -->
-                      <!-- v0.3.16 #11 (PO msg 21:07): 前景层永远原位, 不再 transform,
-                           按钮在背景层 clip-path 展开 -->
+                      <!-- v0.3.16 #12 (PO msg 23:56): 前景层永远原位, 加 clip-path 让按钮露出来。
+                           86 = 80(button width) + 6(edge offset) -->
                       <div
                         class="bill-row bill-info-layer"
+                        style="--swipe-clip-left: {leftProgress}; --swipe-clip-right: {rightProgress};"
                         class:swiping={!!isDragging[b.id]}
                         role="group"
                         aria-label="账单: {b.description || '(无说明)'}"
@@ -838,6 +839,19 @@
        swipe 时信息不跟随移动 */
   .bill-info-layer {
     background: var(--bg-primary, #fff);
+    /* v0.3.16 #12 hotfix (PO msg 23:56): clip-path 按 swipe 方向 inset 出按钮区,
+       让下面的 .bill-swipe-action (z-index:0) 露出来。
+       86 = 80(button width) + 6(edge offset)。
+       左滑 → rightProgress>0 → inset 右侧 86px → 右按钮露出;
+       右滑 → leftProgress>0 → inset 左侧 86px → 左按钮露出。
+       clip-path 不影响 layout, 只影响 paint, 性能 OK。 */
+    clip-path: inset(
+      0
+      calc(var(--swipe-clip-right, 0) * 86px)
+      0
+      calc(var(--swipe-clip-left, 0) * 86px)
+    );
+    transition: clip-path 100ms ease-out;
   }
   .bill-row.swiping {
     transition: none;
