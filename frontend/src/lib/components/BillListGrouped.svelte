@@ -25,6 +25,7 @@
   import { writable, get, type Writable } from 'svelte/store';
   import { goto } from '$app/navigation';
   import { fly } from 'svelte/transition';
+  import { Pencil, Trash2 } from 'lucide-svelte';
   import { formatMoney, formatDate } from '$lib/utils/format';
   import type { Bill } from '$api/bills';
   import SkeletonBill from './SkeletonBill.svelte';
@@ -514,7 +515,14 @@
                           aria-hidden={rightProgress <= 0}
                           aria-label="删除账单: {b.description || '(无说明)'}"
                           on:click={(e) => onSwipeDelete(b.id, e)}
-                        >删除</button>
+                        >
+                          <!-- v0.3.17 #17 hotfix (PO msg 04:25 续): emoji/纯文字 → Lucide icon
+                               跟全站 landing Wallet 等按钮同语言 (lucide-svelte line SVG)。
+                               icon size 14px (跟 button font-size 同级) + 文字,
+                               64px 宽度内 "icon + 2 字" ≈ 54px, 不溢出。-->
+                          <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
+                          <span class="bill-swipe-action-label">删除</span>
+                        </button>
                       {/if}
                       <button
                         type="button"
@@ -524,7 +532,11 @@
                         aria-hidden={leftProgress <= 0}
                         aria-label="编辑账单: {b.description || '(无说明)'}"
                         on:click={(e) => onSwipeEdit(b.id, e)}
-                      >编辑</button>
+                      >
+                        <!-- v0.3.17 #17 hotfix: 同 --delete, Lucide Pencil icon + 文字 -->
+                        <Pencil size={14} strokeWidth={2} aria-hidden="true" />
+                        <span class="bill-swipe-action-label">编辑</span>
+                      </button>
                       <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
                       <!-- svelte-ignore a11y-no-noninteractive-element-to-interactive-role -->
                       <!-- svelte-ignore a11y-no-static-element-interactions -->
@@ -747,67 +759,53 @@
     border-bottom: none;
   }
 
-  /* v0.3.16 #11 (PO msg 21:07): 编辑/删除按钮玻璃风格统一 + clip-path 展开
-     - 跟 app.css .glass-pill 同 bg-gradient / blur(20px) / border / shadow 参数
-     - 按钮 width + opacity 跟随 --swipe-progress (0 → 1) 展开
-     - bill info 层永远原位, 不 transform, 按钮在背景层展开 */
-  .bill-swipe-action.glass-pill {
-    background: linear-gradient(
-      135deg,
-      rgba(99, 102, 241, 0.10) 0%,
-      rgba(59, 130, 246, 0.08) 100%
-    );
-    backdrop-filter: saturate(200%) blur(20px);
-    -webkit-backdrop-filter: saturate(200%) blur(20px);
-    border: 1px solid rgba(99, 102, 241, 0.15);
-    color: var(--accent-700, #4338ca);
-    border-radius: 999px;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.6),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.04),
-      0 1px 4px rgba(99, 102, 241, 0.08);
-  }
-  /* 语义色 modifier: 饱和红删除 (iOS Mail 同款 — v0.3.16 #14 hotfix)
-     原 10% 透明渐变 + backdrop-filter(blur) 在 #12 clip-path 后变得没意义:
-     按钮后面变成 day-group 白底, 10% 红叠白底 ≈ 淡粉, PO 看到 "白白一个圆 + 红字"。
-     提到 0.92/0.85 + 白字 + text-shadow, 仍保留 backdrop-filter + pill + inset shadow。*/
+  /* v0.3.17 #17 hotfix (PO msg 04:25 续): 编辑/删除按钮跟全站按钮风格统一
+     - 基类不重复定义 (继承 app.css .glass-pill 的 0.10/0.08 玻璃蓝紫 + accent-700 字)
+     - --delete: 同玻璃质感, 但叠红玻璃 (rgba 0.10/0.08 红) + 红字 (--error-700),
+       不再是 #14 那种 0.92 实色 + 白字 (那是 #16 全站反向调之前的临时解)
+     - --edit:   跟基类同色 (glass-pill 蓝紫), 跟全站其它玻璃按钮同一种语言
+     - :hover 加深 + translateY(-1px) 跟全站 .glass-pill:hover 完全一致
+     - 宽度 64px / top 6px / bottom 6px / padding 0 不变 (PO 03:25 拍对 + #15 fixed) */
+  /* 基类不重写 — 继承 app.css .glass-pill (已在 .btn.glass-pill / button.glass-pill
+     复合选择子下 specificity bump 到 0,2,0, 盖过 .btn.primary 0,1,1)
+     v0.3.17 #17 hotfix 之前这里有 5 行重复定义 glass-pill 同款属性, 全删 —
+     specificity 已够, 重复定义只会在改 app.css 时脱节。*/
+
+  /* 语义色 modifier: 红色玻璃 (用于删除)
+     思路跟全站 .glass-pill 同级, 但用红玻璃渐变 (红 0.10 → 0.08) + 红字
+     (var(--error-700, #be123c))。保留 backdrop blur + pill + inset shadow。*/
   .bill-swipe-action.glass-pill.glass-pill--delete {
     background: linear-gradient(
       135deg,
-      rgba(220, 38, 38, 0.92) 0%,
-      rgba(239, 68, 68, 0.85) 100%
+      rgba(220, 38, 38, 0.10) 0%,
+      rgba(239, 68, 68, 0.08) 100%
     );
-    border-color: rgba(220, 38, 38, 0.6);
-    color: #fff;
-    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.15);
+    border-color: rgba(220, 38, 38, 0.22);
+    color: var(--error-700, #be123c);
   }
   .bill-swipe-action.glass-pill.glass-pill--delete:hover {
     background: linear-gradient(
       135deg,
-      rgba(220, 38, 38, 0.96) 0%,
-      rgba(239, 68, 68, 0.92) 100%
+      rgba(220, 38, 38, 0.18) 0%,
+      rgba(239, 68, 68, 0.15) 100%
     );
-    border-color: rgba(220, 38, 38, 0.75);
+    border-color: rgba(220, 38, 38, 0.30);
+    color: #9f1239; /* rose-800 — 比 --error-700 更深, 跟全站 .glass-pill:hover
+                      color: var(--accent-800, #3730a3) 同样的"加深一档"模式 */
   }
-  /* 语义色 modifier: 饱和蓝紫编辑 (iOS Mail 同款 — v0.3.16 #14 hotfix)
-     同 --delete 思路: 0.92/0.85 饱和蓝紫渐变 + 白字 + text-shadow。*/
+
+  /* 语义色 modifier: 蓝紫玻璃 (用于编辑) — 跟基类 .glass-pill 同色,
+     但 --edit 显式覆盖一次以保持语义可读性 (跟 --delete 对称)
+     v0.3.17 #17 hotfix 之前是 0.92 实色, 跟全站调色板完全脱节, 这里改成跟基类
+     完全一致即可, 但保留 modifier 让 design 后续可微调而其他按钮不变。*/
   .bill-swipe-action.glass-pill.glass-pill--edit {
-    background: linear-gradient(
-      135deg,
-      rgba(99, 102, 241, 0.92) 0%,
-      rgba(59, 130, 246, 0.85) 100%
-    );
-    border-color: rgba(99, 102, 241, 0.6);
-    color: #fff;
-    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.15);
+    /* 沿用基类 app.css .glass-pill 的渐变 (不重写) — 仅显式声明便于读 */
+    color: var(--accent-700, #4338ca);
+    border-color: rgba(99, 102, 241, 0.22);
   }
   .bill-swipe-action.glass-pill.glass-pill--edit:hover {
-    background: linear-gradient(
-      135deg,
-      rgba(99, 102, 241, 0.96) 0%,
-      rgba(59, 130, 246, 0.92) 100%
-    );
-    border-color: rgba(99, 102, 241, 0.75);
+    color: var(--accent-800, #3730a3);
+    border-color: rgba(99, 102, 241, 0.30);
   }
 
   .bill-swipe-action {
@@ -818,17 +816,25 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    gap: 4px; /* v0.3.17 #17: svg + 文字 间距, 64px 紧凑布局 */
     font-weight: 500;
     font-size: var(--font-size-sm);
     cursor: pointer;
     /* v0.3.16 #14 hotfix (PO msg 02:02): z-index 提到 2, 盖在 .bill-row (z=1) 上,
-       让 glass-pill 玻璃 blur 看穿到下方的 bill 文字 (meta/amount)。*/
+       让 glass-pill 玻璃 blur 看穿到下方的 bill 文字 (meta/amount)。
+       v0.3.17 #17: 玻璃饱和度降回 0.10/0.08 后, 玻璃 blur 看穿效果再次可见
+       (跟 #12 clip-path 后透明玻璃一样) — button 后面是 bill 文字, 不是 day 白底。*/
     z-index: 2;
     appearance: none;
     padding: 0;
     font-family: inherit;
     /* opacity 跟随 --swipe-progress 同步淡入文字 */
     opacity: var(--swipe-progress, 0);
+    /* v0.3.17 #17: 跟全站 .glass-pill hover/active 同步加 transform 反馈 —
+       translateY(-1px) (hover) + scale(0.97) (active).
+       但 swipe 期间不能 transform (按钮 absolute 跟 row 不动), 只在非 swiping
+       (--swipe-progress ≥ 1) 时有反馈 — 用 transition 上 width/opacity 控制,
+       transform 仍 fixed 时不抖动。*/
     transition:
       width 100ms ease-out,
       opacity 100ms ease-out,
@@ -849,6 +855,22 @@
   }
   .bill-swipe-action-right {
     right: 6px;
+  }
+  /* v0.3.17 #17 hotfix (PO msg 04:25 续): Lucide icon + 文字 + 玻璃背景
+     - icon 用 currentColor (跟随 .bill-swipe-action color, 蓝紫/红色)
+     - 文字 font-size 不变, 跟全站按钮 min-height 52px 视觉对齐
+     - 用 gap 替代 padding, 64px 宽度内 "icon + 2 字中文" ≈ 54px, 不溢出
+     - svg default `display: inline-block`, 行高对齐需要 vertical-align 一点微调 */
+  .bill-swipe-action > svg {
+    flex: 0 0 auto;
+    display: inline-block;
+    color: currentColor;
+  }
+  .bill-swipe-action-label {
+    flex: 0 0 auto;
+    /* v0.3.17 #17: 中文 2 字 + letter-spacing 默认, 64px 内总占 ~42px,
+       svg 占 ~14px + gap 4px = 60px ≈ 64px 内边距 2px 留出。
+       white-space: nowrap (在 .bill-swipe-action 已设) 兜底。*/
   }
 
   /* === 反馈修 6 项目 3: .bill-row 删独立 background,默认透明继承,
