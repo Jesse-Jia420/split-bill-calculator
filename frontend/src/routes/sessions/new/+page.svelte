@@ -106,10 +106,18 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: sessionName.trim(),
-          // v0.3.15 (PO #4861) 修 n+1 bug: 两条路径都 slice(1)
-          // nicknames[0] 是 placeholder (登录态 "你" / anon 态 "我"), 不发给 BE
-          // BE 收到 len(nicknames) - 1 个同伴, 跟 owner 加在一起 = nicknames.length = wizard count
-          member_nicknames: nicknames.slice(1).map((n) => n.trim()),
+          // v0.3.15 (PO #4879) 修 nicknames[0] 改名不生效:
+          // anon path: 全发 (含 nicknames[0] — BE 用 nicknames[0] 作 owner placeholder name,
+          //                        dedupe 自己跳过, 总数 = wizard count).
+          // login path: nicknames[0] 是 informational "你", 不是实际 nickname,
+          //             BE 用 user.default_name 作 owner. 不 slice 会让 nicknames[0]="你"
+          //             被 dedupe (BE 看见 "你" 比 user.default_name 短就跳过),
+          //             但 nickname[0]="你" 也不会**重**复加为 member (BE dedupe "你").
+          //             实际数字会 = 1 (owner user.default_name) + (n - 1) 同伴 (dedupe 跳过 "你").
+          //             等等 — 等等 — 登录态 nicknames[0]="你" 是 placeholder, 但其他 nicknames 是同伴.
+          //             BE dedupe 只跳过 "你", 同伴们正常加 — 总数 = 1 + (n - 1) = n ✓
+          //             所以登录态也**不**需要 slice!
+          member_nicknames: nicknames.map((n) => n.trim()).filter((n) => n.length > 0),
           currencies,
           primary_currency: primaryCurrency,
           exchange_rates: exchangeRates,

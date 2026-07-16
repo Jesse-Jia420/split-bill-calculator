@@ -780,6 +780,10 @@ async def create_bill(
     403: not a session member.
     422: missing/over-long/invalid fields (pydantic).
     """
+    # v0.3.15 (PO #4921) temp debug log — remove after #6 fix
+    import logging as _logging
+    _lg = _logging.getLogger("uvicorn.error")
+    _lg.warning(f"[#6 debug] create_bill payload: sm_id={sm.id} sm_user_id={sm.user_id} session_id={sm.session_id} payload={payload.model_dump_json()}")
     _validate_participants(db, sm.session_id, payload.payer_member_id, payload.participants)
 
     # v0.2.2 (T10): bill.currency must be in the session's allowed set,
