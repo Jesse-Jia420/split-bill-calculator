@@ -288,3 +288,19 @@ button:not(:disabled):active,
     background: rgba(99, 102, 241, 0.18);
   }
 }
+
+/* === v0.3.16 #9 hotfix: bump .glass-pill specificity over .btn.primary (0,1,0) === */
+.btn.glass-pill,
+button.glass-pill,
+a.glass-pill {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.10) 0%, rgba(59, 130, 246, 0.08) 100%);
+  border-color: rgba(99, 102, 241, 0.15);
+  color: var(--accent-700, #4338ca);
+}
+.btn.glass-pill:hover,
+button.glass-pill:hover,
+a.glass-pill:hover {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.18) 0%, rgba(59, 130, 246, 0.15) 100%);
+  border-color: rgba(99, 102, 241, 0.22);
+  color: var(--accent-800, #3730a3);
+}
