@@ -483,7 +483,7 @@
                       {#if onDelete}
                         <button
                           type="button"
-                          class="bill-swipe-action bill-swipe-action-right"
+                          class="bill-swipe-action bill-swipe-action-right glass-pill"
                           tabindex={swipeOffset[b.id] !== undefined && swipeOffset[b.id] < 0 ? 0 : -1}
                           aria-hidden={swipeOffset[b.id] === undefined || swipeOffset[b.id] >= 0}
                           aria-label="删除账单: {b.description || '(无说明)'}"
@@ -492,7 +492,7 @@
                       {/if}
                       <button
                         type="button"
-                        class="bill-swipe-action bill-swipe-action-left"
+                        class="bill-swipe-action bill-swipe-action-left glass-pill"
                         tabindex={swipeOffset[b.id] !== undefined && swipeOffset[b.id] > 0 ? 0 : -1}
                         aria-hidden={swipeOffset[b.id] === undefined || swipeOffset[b.id] <= 0}
                         aria-label="编辑账单: {b.description || '(无说明)'}"
@@ -524,7 +524,6 @@
                         </div>
                         <div class="bill-row2 muted">
                           <span class="bill-meta-line">
-                            <span class="bill-meta-text">{fmtBillTime(b.occurred_at)} · {payerName(b)} 付</span>
                             <span class="bill-participants" aria-label="参与人数 {b.participants.length}">
                               <svg
                                 viewBox="0 0 24 24"
@@ -544,6 +543,7 @@
                               </svg>
                               <span>{b.participants.length}人</span>
                             </span>
+                            <span class="bill-meta-text">{fmtBillTime(b.occurred_at)} · {payerName(b)} 付</span>
                           </span>
                           {#if share !== null}
                             <span class="your-share">分摊 {fmtAmount(share)}<span class="unit">{b.currency}</span></span>
@@ -714,6 +714,12 @@
   }
   .bill-swipe-wrap:last-child {
     border-bottom: none;
+  }
+
+  /* v0.3.16 #10 (PO msg 20:38): 编辑/删除 swipe 按钮加 .glass-pill 玻璃化 —
+     border-radius 重置为 0 (80px 宽按钮配 999px 玻璃 pill 会变胶囊,矩形 swipe action 才协调)。 */
+  .bill-swipe-action.glass-pill {
+    border-radius: 0;
   }
 
   .bill-swipe-action {
