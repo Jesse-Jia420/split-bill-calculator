@@ -25,6 +25,8 @@ export interface BillSummary {
   currency: string;
   primary_currency: string;
   occurred_at: string;
+  /** v0.3.16 #3: number of participants on the bill. */
+  participant_count: number;
 }
 
 export interface BillShare {
@@ -56,6 +58,8 @@ export interface BillShare {
   currency: string;
   primary_currency: string;
   occurred_at: string;
+  /** v0.3.16 #3: number of participants on the bill. */
+  participant_count: number;
 }
 
 export interface MemberSettlement {

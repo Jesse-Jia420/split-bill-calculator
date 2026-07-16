@@ -154,6 +154,7 @@ class BillSummary(BaseModel):
     currency: str
     primary_currency: str
     occurred_at: str  # ISO 8601 (UTC)
+    participant_count: int = 0  # v0.3.16 #3: number of participants on the bill
 
 
 class BillShare(BaseModel):
@@ -176,6 +177,7 @@ class BillShare(BaseModel):
     currency: str
     primary_currency: str
     occurred_at: str    # ISO 8601 (UTC)
+    participant_count: int = 0  # v0.3.16 #3: number of participants on the bill
 
 
 class MemberSettlement(BaseModel):
@@ -549,6 +551,9 @@ def _compute_per_member(
 
         for bill, amount_primary in bills_with_primary:
             primary = _primary_currency_for(bill)
+            # v0.3.16 #3: 提前算 ppts, 让 payer 侧 BillSummary 也能拿到 participant_count
+            ppts = participants_by_bill.get(bill.id, [])
+            shares_primary = _share_amounts_primary(bill, ppts, amount_primary)
             # Biller side: bills where this member is the payer.
             if bill.payer_id == m.id:
                 paid_bills.append(
@@ -560,13 +565,12 @@ def _compute_per_member(
                         currency=bill.currency,
                         primary_currency=primary,
                         occurred_at=_iso(bill.occurred_at),
+                        participant_count=len(ppts),
                     )
                 )
                 total_paid += amount_primary
 
             # Consumer side: bills that include this member as a participant.
-            ppts = participants_by_bill.get(bill.id, [])
-            shares_primary = _share_amounts_primary(bill, ppts, amount_primary)
             for idx, p in enumerate(ppts):
                 if p.member_id == m.id:
                     share_primary = shares_primary[idx] if idx < len(shares_primary) else Decimal("0")
@@ -606,6 +610,7 @@ def _compute_per_member(
                             currency=bill.currency,
                             primary_currency=primary,
                             occurred_at=_iso(bill.occurred_at),
+                            participant_count=len(ppts),
                         )
                     )
                     total_consumed += share_primary

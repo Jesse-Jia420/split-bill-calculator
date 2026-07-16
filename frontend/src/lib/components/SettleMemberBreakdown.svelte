@@ -73,6 +73,10 @@
     prevSelectedMemberId = selectedMember.member_id;
   }
 
+  // === v0.3.16 #1: 付款/消费明细可点击展开折叠 (PO 拍板默认展开) ===
+  let paidExpanded = true;
+  let consumedExpanded = true;
+
   /** T6: 金额统一改用 formatMoney (千分位 + 2dp)。 */
   function fmt(n: number): string {
     return formatMoney(n, { showSymbol: false });
@@ -442,14 +446,28 @@
 
           <!-- T10: 付款明细 section with sticky header -->
           <div class="bills-section bills-section-paid">
-            <h4 class="bills-section-head section-header">
+            <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
+            <h4
+              class="bills-section-head section-header"
+              role="button"
+              tabindex="0"
+              aria-expanded={paidExpanded}
+              on:click={() => (paidExpanded = !paidExpanded)}
+              on:keydown={(e: KeyboardEvent) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  paidExpanded = !paidExpanded;
+                }
+              }}
+            >
               <span class="bills-section-icon icon-paid" aria-hidden="true">↑</span>
               <span class="bills-section-title">付款明细</span>
               <span class="bills-section-count muted">({selectedMember.paid_bills.length})</span>
+              <span class="collapse-icon" aria-hidden="true">{paidExpanded ? '▼' : '▶'}</span>
             </h4>
             {#if selectedMember.paid_bills.length === 0}
               <p class="muted empty-hint">没有付过账单</p>
-            {:else}
+            {:else if paidExpanded}
               <ul class="bill-sublist">
                 {#each selectedMember.paid_bills as b, i (b.bill_id)}
                   <li
@@ -469,6 +487,10 @@
                     </div>
                     <div class="row2 muted">
                       <span class="bill-sub-date">{fmtDate(b.occurred_at)}</span>
+                      {#if b.participant_count}
+                        <span class="sep" aria-hidden="true">·</span>
+                        <span class="participant-count">👤 {b.participant_count}人</span>
+                      {/if}
                     </div>
                   </li>
                 {/each}
@@ -478,14 +500,28 @@
 
           <!-- T10: 消费明细 section with sticky header -->
           <div class="bills-section bills-section-consumed">
-            <h4 class="bills-section-head section-header">
+            <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
+            <h4
+              class="bills-section-head section-header"
+              role="button"
+              tabindex="0"
+              aria-expanded={consumedExpanded}
+              on:click={() => (consumedExpanded = !consumedExpanded)}
+              on:keydown={(e: KeyboardEvent) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  consumedExpanded = !consumedExpanded;
+                }
+              }}
+            >
               <span class="bills-section-icon icon-consumed" aria-hidden="true">↓</span>
               <span class="bills-section-title">消费明细</span>
               <span class="bills-section-count muted">({selectedMember.consumed_bills.length})</span>
+              <span class="collapse-icon" aria-hidden="true">{consumedExpanded ? '▼' : '▶'}</span>
             </h4>
             {#if selectedMember.consumed_bills.length === 0}
               <p class="muted empty-hint">没有被分摊的账单</p>
-            {:else}
+            {:else if consumedExpanded}
               <ul class="bill-sublist">
                 {#each selectedMember.consumed_bills as b, i (b.bill_id)}
                   {@const tags = fmtConsumedTags(b)}
@@ -506,14 +542,16 @@
                     </div>
                     <div class="row2 muted">
                       <span class="bill-sub-date">{fmtDate(b.occurred_at)}</span>
+                      {#if b.participant_count}
+                        <span class="sep" aria-hidden="true">·</span>
+                        <span class="participant-count">👤 {b.participant_count}人</span>
+                      {/if}
                       {#if tags.excl}
                         <span class="sep" aria-hidden="true">·</span>
                         <span class="tag exclusive-tag">独占 {tags.excl}</span>
                       {/if}
                       <span class="sep" aria-hidden="true">·</span>
                       <span class="tag shared-tag">共享 {tags.shared}</span>
-                      <span class="sep" aria-hidden="true">·</span>
-                      <span class="bill-total">账单总 {tags.total}</span>
                     </div>
                   </li>
                 {/each}
@@ -823,7 +861,24 @@
     color: var(--gray-900);
     background: transparent;
   }
-  .bills-section-icon {
+  /* === v0.3.16 #1: clickable section header + collapse icon === */
+  .bills-section-head[role="button"] {
+    cursor: pointer;
+    user-select: none;
+  }
+  .bills-section-head[role="button"]:focus-visible {
+    outline: 2px solid var(--accent-500);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  .collapse-icon {
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--gray-400);
+    line-height: 1;
+  }
+
+    .bills-section-icon {
     flex: 0 0 auto;
     width: 20px;
     height: 20px;
@@ -889,7 +944,8 @@
   .bill-sub-date { font-variant-numeric: tabular-nums; }
   .exclusive-tag { color: var(--accent-500); font-weight: 500; }
   .shared-tag { color: var(--gray-500); }
-  .bill-total { color: var(--gray-400); }
+  /* v0.3.16 #3: 人数 chip in row2 */
+  .participant-count { color: var(--gray-500); font-size: var(--font-size-xs, 12px); }
   .sep { color: var(--gray-400); }
 
   /* === Sprint 3 T13: loading 骨架样式 === */
