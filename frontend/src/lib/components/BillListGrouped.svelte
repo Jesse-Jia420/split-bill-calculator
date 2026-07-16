@@ -22,6 +22,7 @@
    * - v0.1.2 反馈修 5 Commit 2 (bd0cf89) — bill item 重构 + swipe
    */
   import { onMount, tick } from 'svelte';
+  import { writable, get, type Writable } from 'svelte/store';
   import { goto } from '$app/navigation';
   import { fly } from 'svelte/transition';
   import { formatMoney, formatDate } from '$lib/utils/format';
@@ -64,11 +65,23 @@
    */
   let collapsed: Record<string, boolean> = {};
 
-  let dragOffset: Record<number, number> = {};
-  let swipeOffset: Record<number, number> = {};
-  let isDragging: Record<number, boolean> = {};
-  let openSwipeBillId: number | null = null;
+  // v0.3.16 #13 (PO msg 23:56 续): swipe 相关 state 必须改 Svelte 5 runes $state()
+  // 才能让 {@const leftProgress/rightProgress} 的 derived 重算 — 否则 plain let
+  // 在 Svelte 5 legacy 编译下没自动包 mutable_source, getRowOffset() 读这些 state
+  // 时被 $.untrack() 包, derived 不重算, --swipe-clip-* CSS var 永远是 0, clip-path
+  // 永远 inset(0px), 按钮永远不出。
+  //
+  // ⚠️ 但 $state() 不能用在 legacy 模式组件里 (会触发 auto-detection 进 runes mode,
+  // 然后 export let 全报错); 所以这 4 个 state 改用 writable store — 同样的
+  // reactivity, 不需要迁整个组件到 runes mode。其他 state (defaultOpenDates,
+  // collapsed) 不动 — 它们不影响 swipe 动画。
+  const dragOffsetStore: Writable<Record<number, number>> = writable({});
+  const swipeOffsetStore: Writable<Record<number, number>> = writable({});
+  const isDraggingStore: Writable<Record<number, boolean>> = writable({});
+  const openSwipeBillIdStore: Writable<number | null> = writable(null);
 
+  // dragBillId/dragStartX/dragStartY/dragLastX/dragAxis 只在 event handler 用,
+  // 不进 template 表达式, plain let 即可 (不需要 reactivity)。
   let dragBillId: number | null = null;
   let dragStartX = 0;
   let dragStartY = 0;
@@ -202,8 +215,10 @@
   // ===== swipe logic =====
 
   function getRowOffset(billId: number): number {
-    if (isDragging[billId]) return dragOffset[billId] ?? 0;
-    return swipeOffset[billId] ?? 0;
+    const dragging = get(isDraggingStore)[billId];
+    const dragVal = get(dragOffsetStore)[billId] ?? 0;
+    const swipeVal = get(swipeOffsetStore)[billId] ?? 0;
+    return dragging ? dragVal : swipeVal;
   }
 
   function startDrag(billId: number, clientX: number, clientY: number) {
@@ -212,13 +227,14 @@
     dragStartY = clientY;
     dragLastX = clientX;
     dragAxis = null;
-    if (openSwipeBillId !== null && openSwipeBillId !== billId) {
-      swipeOffset = { ...swipeOffset, [openSwipeBillId]: 0 };
-      openSwipeBillId = null;
+    const curOpen = get(openSwipeBillIdStore);
+    if (curOpen !== null && curOpen !== billId) {
+      swipeOffsetStore.update((o) => ({ ...o, [curOpen]: 0 }));
+      openSwipeBillIdStore.set(null);
     }
-    const baseOffset = swipeOffset[billId] ?? 0;
-    dragOffset = { ...dragOffset, [billId]: baseOffset };
-    isDragging = { ...isDragging, [billId]: true };
+    const baseOffset = get(swipeOffsetStore)[billId] ?? 0;
+    dragOffsetStore.update((o) => ({ ...o, [billId]: baseOffset }));
+    isDraggingStore.update((o) => ({ ...o, [billId]: true }));
   }
 
   function moveDrag(billId: number, clientX: number, clientY: number, e?: MouseEvent | TouchEvent) {
@@ -238,37 +254,36 @@
 
     if (dragAxis === 'v') return;
 
-    if (Math.abs(dx) < TAP_THRESHOLD && (swipeOffset[billId] ?? 0) === 0) {
+    if (Math.abs(dx) < TAP_THRESHOLD && (get(swipeOffsetStore)[billId] ?? 0) === 0) {
       return;
     }
 
     dragLastX = clientX;
 
-    let next = (swipeOffset[billId] ?? 0) + (clientX - dragStartX);
+    let next = (get(swipeOffsetStore)[billId] ?? 0) + (clientX - dragStartX);
     if (next > 100) next = 100;
     if (next < -100) next = -100;
 
-    dragOffset = { ...dragOffset, [billId]: next };
-    dragOffset = dragOffset;
+    dragOffsetStore.update((o) => ({ ...o, [billId]: next }));
   }
 
   function endDrag(billId: number) {
     if (dragBillId !== billId) {
       return;
     }
-    const finalOffset = dragOffset[billId] ?? 0;
+    const finalOffset = get(dragOffsetStore)[billId] ?? 0;
 
     if (Math.abs(finalOffset) >= SWIPE_THRESHOLD) {
       const snap = finalOffset > 0 ? ACTION_WIDTH : -ACTION_WIDTH;
-      swipeOffset = { ...swipeOffset, [billId]: snap };
-      openSwipeBillId = billId;
+      swipeOffsetStore.update((o) => ({ ...o, [billId]: snap }));
+      openSwipeBillIdStore.set(billId);
     } else {
-      swipeOffset = { ...swipeOffset, [billId]: 0 };
-      if (openSwipeBillId === billId) openSwipeBillId = null;
+      swipeOffsetStore.update((o) => ({ ...o, [billId]: 0 }));
+      if (get(openSwipeBillIdStore) === billId) openSwipeBillIdStore.set(null);
     }
 
-    isDragging = { ...isDragging, [billId]: false };
-    dragOffset = { ...dragOffset, [billId]: 0 };
+    isDraggingStore.update((o) => ({ ...o, [billId]: false }));
+    dragOffsetStore.update((o) => ({ ...o, [billId]: 0 }));
     dragBillId = null;
     dragAxis = null;
     dragStartX = 0;
@@ -278,9 +293,9 @@
 
   function cancelDrag(billId: number) {
     if (dragBillId === billId) {
-      swipeOffset = { ...swipeOffset, [billId]: 0 };
-      isDragging = { ...isDragging, [billId]: false };
-      dragOffset = { ...dragOffset, [billId]: 0 };
+      swipeOffsetStore.update((o) => ({ ...o, [billId]: 0 }));
+      isDraggingStore.update((o) => ({ ...o, [billId]: false }));
+      dragOffsetStore.update((o) => ({ ...o, [billId]: 0 }));
       dragBillId = null;
       dragAxis = null;
     }
@@ -323,30 +338,31 @@
   }
 
   function onRowTap(e: MouseEvent | TouchEvent) {
-    if (openSwipeBillId !== null) {
+    const curOpen = get(openSwipeBillIdStore);
+    if (curOpen !== null) {
       const target = e.target as HTMLElement;
       if (!target.closest('.bill-swipe-action')) {
-        swipeOffset = { ...swipeOffset, [openSwipeBillId]: 0 };
-        openSwipeBillId = null;
+        swipeOffsetStore.update((o) => ({ ...o, [curOpen]: 0 }));
+        openSwipeBillIdStore.set(null);
         e.preventDefault();
         e.stopPropagation();
-          }
+      }
     }
   }
 
   async function onSwipeEdit(billId: number, e: MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
-    swipeOffset = { ...swipeOffset, [billId]: 0 };
-    if (openSwipeBillId === billId) openSwipeBillId = null;
+    swipeOffsetStore.update((o) => ({ ...o, [billId]: 0 }));
+    if (get(openSwipeBillIdStore) === billId) openSwipeBillIdStore.set(null);
     await tick();
     goto(`/sessions/${sessionId}/bills/${billId}/edit`);
   }
   async function onSwipeDelete(billId: number, e: MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
-    swipeOffset = { ...swipeOffset, [billId]: 0 };
-    if (openSwipeBillId === billId) openSwipeBillId = null;
+    swipeOffsetStore.update((o) => ({ ...o, [billId]: 0 }));
+    if (get(openSwipeBillIdStore) === billId) openSwipeBillIdStore.set(null);
     await tick();
     if (onDelete) {
       void onDelete(billId);
@@ -354,9 +370,10 @@
   }
 
   function closeAllSwipes() {
-    if (openSwipeBillId !== null) {
-      swipeOffset = { ...swipeOffset, [openSwipeBillId]: 0 };
-      openSwipeBillId = null;
+    const curOpen = get(openSwipeBillIdStore);
+    if (curOpen !== null) {
+      swipeOffsetStore.update((o) => ({ ...o, [curOpen]: 0 }));
+      openSwipeBillIdStore.set(null);
     }
   }
 
@@ -478,8 +495,12 @@
                     {@const share = yourShare(b)}
                     <!-- v0.3.16 #11 (PO msg 21:07): swipe 动画重做 — bill info 不动,
                          按钮随 --swipe-progress 从 0 → 80px clip-path 展开 -->
-                    {@const leftProgress = Math.max(0, Math.min(1, getRowOffset(b.id) / 80))}
-                    {@const rightProgress = Math.max(0, Math.min(1, -getRowOffset(b.id) / 80))}
+                    <!-- v0.3.16 #13 (PO msg 23:56 续): 改用 $store auto-subscription
+                         直接读 store 值, 让 derived 重算。Svelte 5 legacy 模式组件
+                         里 $state() 不可用, 用 writable<>() 替代。 -->
+                    {@const rowOffset = $isDraggingStore[b.id] ? ($dragOffsetStore[b.id] ?? 0) : ($swipeOffsetStore[b.id] ?? 0)}
+                    {@const leftProgress = Math.max(0, Math.min(1, rowOffset / 80))}
+                    {@const rightProgress = Math.max(0, Math.min(1, -rowOffset / 80))}
                     <li
                       class="bill-swipe-wrap"
                       in:fly={{ y: 8, duration: 220, delay: Math.min(bi * 25, 200) }}
@@ -513,7 +534,7 @@
                       <div
                         class="bill-row bill-info-layer"
                         style="--swipe-clip-left: {leftProgress}; --swipe-clip-right: {rightProgress};"
-                        class:swiping={!!isDragging[b.id]}
+                        class:swiping={!!$isDraggingStore[b.id]}
                         role="group"
                         aria-label="账单: {b.description || '(无说明)'}"
                         on:touchstart={(e) => onTouchStart(b.id, e)}

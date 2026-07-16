@@ -1,24 +1,29 @@
 /**
- * TEST-v0.3.16 #12 — Bill swipe button reveal hotfix.
+ * TEST-v0.3.16 #13 — Bill swipe button reveal reactivity hotfix.
  *
- * 根因 (PO msg 2026-07-16 23:56):
- *   .bill-info-layer z-index:1 + 背景 white + full width
- *   → 完全盖住 z-index:0 的按钮。
- *   Master 用 JS 强制 width:80px/opacity:1, 按钮仍看不见。
+ * 根因 (PO msg 2026-07-16 23:56 续):
+ *   #12 hotfix (clip-path layering) 没真正修复 PO 的 bug, 因为 swipe state
+ *   (dragOffset/swipeOffset/isDragging/openSwipeBillId) 在 BillListGrouped.svelte
+ *   用 plain `let`, Svelte 5 legacy 编译下没自动包 mutable_source,
+ *   {@const leftProgress/rightProgress} 通过 getRowOffset() 读这些 state 时被
+ *   $.untrack() 包, derived 不重算, --swipe-clip-* CSS var 永远是 0, clip-path
+ *   永远 inset(0px), 按钮永远不出。
  *
- * 修法:
- *   .bill-info-layer 加 clip-path: inset(0 calc(rightP*86px) 0 calc(leftP*86px))
- *   86 = 80(button) + 6(edge offset)
+ * 修法 (Coder):
+ *   把 4 个影响 swipe 动画的 state 从 plain let 改 Svelte writable<>() store
+ *   (Svelte 5 legacy 模式组件不能用 $state() runes — 会触发 auto-detection 进
+ *   runes mode, 然后 export let 全报错)。其他 state (defaultOpenDates, collapsed)
+ *   不动, 不影响 swipe。
  *
  * 验证方法:
- *   1. 强制设置 --swipe-clip-{left,right} CSS var 和按钮 --swipe-progress/width/opacity
- *      (绕开 swipe 状态 reactivity, 这是 Svelte 5 legacy 编译的 pre-existing bug,
- *       不是 #12 hotfix 的范围)。
- *   2. 验证 clip-path 计算结果含正确的 inset px 值。
- *   3. 截图保存到 SCREENSHOTS_DIR/v0316-12-swipe-{delete,edit}.png
- *   4. image 工具肉眼确认按钮确实可见。
+ *   1. 用真 Playwright mouse drag (mousedown → mousemove → mouseup) 模拟 swipe,
+ *      不再 forceSwipeState 绕开 reactivity bug。
+ *   2. mid-drag 检查 --swipe-clip-* > 0 (证明 reactivity 生效, 不是 fix 前永远 0)。
+ *   3. mouseup 后检查 snap 到 ±80px, clip-path inset 86px, 按钮 width≥80px opacity>0。
+ *   4. 截图存到 SCREENSHOTS_DIR/v0316-13-swipe-{delete,edit}.png。
+ *   5. image 工具肉眼确认按钮真的露出来 (不是 inset(0px))。
  *
- * 注意: 默认情况下 day groups 是 collapsed,需要先点开 summary 才能看到 row。
+ * 注意: 默认情况下 day groups 是 collapsed, 需要先点开 summary 才能看到 row。
  */
 import { test, expect, type Page } from "@playwright/test";
 import path from "node:path";
@@ -84,8 +89,10 @@ async function expandAllDayGroups(page: Page): Promise<void> {
   }
 }
 
-/** 找第一个在 viewport 内的 bill row */
-async function getFirstVisibleRowInfo(page: Page) {
+/** 找第一个在 viewport 内的 bill row 的中心点 (用于 mouse drag 起点) */
+async function getFirstVisibleRowCenter(
+  page: Page,
+): Promise<{ x: number; y: number; width: number } | null> {
   return page.evaluate(() => {
     const wraps = [...document.querySelectorAll(".bill-swipe-wrap")];
     const inView = wraps.find((w) => {
@@ -93,81 +100,89 @@ async function getFirstVisibleRowInfo(page: Page) {
       return rect.y >= 50 && rect.y < window.innerHeight - 50;
     });
     if (!inView) return null;
-    const layer = inView.querySelector(".bill-info-layer") as HTMLElement | null;
-    const delBtn = inView.querySelector(".bill-swipe-action-right") as HTMLElement | null;
-    const editBtn = inView.querySelector(".bill-swipe-action-left") as HTMLElement | null;
+    const layer = inView.querySelector(".bill-info-layer") as HTMLElement;
+    const rect = layer.getBoundingClientRect();
     return {
-      layer,
-      delBtn,
-      editBtn,
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2,
+      width: rect.width,
     };
   });
 }
 
 /**
- * 强制模拟 swipe-revealed 状态 (绕开 swipe 状态 reactivity —
- * Svelte 5 legacy 编译下 plain `let dragOffset/swipeOffset` 没自动包 mutable_source,
- * 这是 pre-existing bug 不在 #12 范围)。
- * Master 在 PO 报告时也是用同样方法验证 z-index 问题是 root cause。
+ * v0.3.16 #13: 用真 mouse drag 模拟 swipe (绕开 #12 的 forceSwipeState fallback)。
+ * 走 mousedown → 8 帧 mousemove (steps 1 each, 20ms apart) → mouseup, 模拟真用户。
+ * 总 drag 距离 100px (well over 60px threshold, 触发 snap 到 ±80px)。
  */
-async function forceSwipeState(
+async function realMouseSwipe(
   page: Page,
   direction: "left" | "right",
 ): Promise<void> {
-  await page.evaluate((d) => {
+  const start = await getFirstVisibleRowCenter(page);
+  if (!start) throw new Error("找不到 viewport 内的 bill row");
+  const startX = start.x;
+  const startY = start.y;
+  const delta = direction === "left" ? -100 : 100;
+  const endX = startX + delta;
+
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  // 8 帧 mousemove, 模拟真用户拖动
+  for (let i = 1; i <= 8; i++) {
+    const x = startX + delta * (i / 8);
+    await page.mouse.move(x, startY, { steps: 1 });
+    await page.waitForTimeout(20);
+  }
+  // 等 Svelte store 更新 + 浏览器 paint
+  await page.waitForTimeout(80);
+}
+
+/**
+ * 诊断第一个可见 bill row 的 swipe 状态。
+ * 返回 { layerStyle, layerClipPath, clipLeft/clipRight, delBtnWidth/Opacity, editBtnWidth/Opacity }
+ */
+async function diagFirstVisibleRow(page: Page) {
+  return page.evaluate(() => {
     const wraps = [...document.querySelectorAll(".bill-swipe-wrap")];
     const inView = wraps.find((w) => {
       const rect = w.getBoundingClientRect();
       return rect.y >= 50 && rect.y < window.innerHeight - 50;
     });
-    if (!inView) throw new Error("找不到可见 bill row");
+    if (!inView) return null;
     const layer = inView.querySelector(".bill-info-layer") as HTMLElement;
     const delBtn = inView.querySelector(".bill-swipe-action-right") as HTMLElement;
     const editBtn = inView.querySelector(".bill-swipe-action-left") as HTMLElement;
-
-    if (d === "left") {
-      // 左滑 → 右按钮 (delete) 露出来
-      layer.style.setProperty("--swipe-clip-left", "0");
-      layer.style.setProperty("--swipe-clip-right", "1");
-      delBtn.style.setProperty("--swipe-progress", "1");
-      delBtn.style.width = "80px";
-      delBtn.style.opacity = "1";
-      delBtn.setAttribute("aria-hidden", "false");
-      editBtn.style.setProperty("--swipe-progress", "0");
-      editBtn.style.width = "0px";
-      editBtn.style.opacity = "0";
-      editBtn.setAttribute("aria-hidden", "true");
-    } else {
-      // 右滑 → 左按钮 (edit) 露出来
-      layer.style.setProperty("--swipe-clip-left", "1");
-      layer.style.setProperty("--swipe-clip-right", "0");
-      editBtn.style.setProperty("--swipe-progress", "1");
-      editBtn.style.width = "80px";
-      editBtn.style.opacity = "1";
-      editBtn.setAttribute("aria-hidden", "false");
-      delBtn.style.setProperty("--swipe-progress", "0");
-      delBtn.style.width = "0px";
-      delBtn.style.opacity = "0";
-      delBtn.setAttribute("aria-hidden", "true");
-    }
-  }, direction);
-  await page.waitForTimeout(450); // 等 clip-path transition
+    return {
+      layerStyle: layer.getAttribute("style"),
+      layerClipPath: getComputedStyle(layer).clipPath,
+      clipLeft: layer.style.getPropertyValue("--swipe-clip-left"),
+      clipRight: layer.style.getPropertyValue("--swipe-clip-right"),
+      delBtnWidth: getComputedStyle(delBtn).width,
+      delBtnOpacity: getComputedStyle(delBtn).opacity,
+      delBtnAriaHidden: delBtn.getAttribute("aria-hidden"),
+      delBtnPointerEvents: getComputedStyle(delBtn).pointerEvents,
+      editBtnWidth: getComputedStyle(editBtn).width,
+      editBtnOpacity: getComputedStyle(editBtn).opacity,
+      editBtnAriaHidden: editBtn.getAttribute("aria-hidden"),
+      editBtnPointerEvents: getComputedStyle(editBtn).pointerEvents,
+    };
+  });
 }
 
-test.describe("v0.3.16 #12 swipe 按钮露出来", () => {
+test.describe("v0.3.16 #13 swipe state reactivity (真 mouse drag, 不 forceSwipeState)", () => {
   let sessionId: number;
 
   test.beforeAll(() => {
     sessionId = findThailandSessionId();
   });
 
-  test("左滑 → 「删除」按钮 visible (clip-path inset 右侧 86px)", async ({
+
+  test("左滑 → mid-drag --swipe-clip-right > 0 (reactivity 修复), mouseup snap 到 86px inset", async ({
     browser,
   }) => {
     const ctx = await browser.newContext({
       viewport: { width: 390, height: 844 },
-      hasTouch: true,
-      isMobile: true,
       locale: "zh-CN",
     });
     const page = await ctx.newPage();
@@ -176,47 +191,60 @@ test.describe("v0.3.16 #12 swipe 按钮露出来", () => {
     await page.waitForLoadState("networkidle");
     await expandAllDayGroups(page);
 
-    const info = await getFirstVisibleRowInfo(page);
-    expect(info?.layer, "first visible row's .bill-info-layer").not.toBeNull();
-
     await page.evaluate(() => {
       const wrap = document.querySelector(".bill-swipe-wrap");
       if (wrap) wrap.scrollIntoView({ block: "center" });
     });
     await page.waitForTimeout(300);
 
-    await forceSwipeState(page, "left");
+    // 1. before drag: --swipe-clip-* 应该都是 0
+    const before = await diagFirstVisibleRow(page);
+    expect(before).not.toBeNull();
+    expect(parseFloat(before!.clipLeft)).toBe(0);
+    expect(parseFloat(before!.clipRight)).toBe(0);
 
-    await page.screenshot({
-      path: path.join(SCREENSHOTS_DIR, "v0316-12-swipe-delete.png"),
-      fullPage: false,
-    });
+    // 2. 触发 mousedown, 然后 mid-drag 检查 (mouse 还按着不放)
+    const start = await getFirstVisibleRowCenter(page);
+    expect(start).not.toBeNull();
+    await page.mouse.move(start!.x, start!.y);
+    await page.mouse.down();
+    // 单步 -100px 直接到 -100px (避免中间 frame 复杂)
+    await page.mouse.move(start!.x - 100, start!.y, { steps: 8 });
+    await page.waitForTimeout(80);
 
-    const diag = await page.evaluate(() => {
-      const wraps = [...document.querySelectorAll(".bill-swipe-wrap")];
-      const inView = wraps.find((w) => {
-        const rect = w.getBoundingClientRect();
-        return rect.y >= 50 && rect.y < window.innerHeight - 50;
-      });
-      if (!inView) return null;
-      const layer = inView.querySelector(".bill-info-layer") as HTMLElement;
-      const delBtn = inView.querySelector(".bill-swipe-action-right") as HTMLElement;
+    const mid = await diagFirstVisibleRow(page);
+    // v0.3.16 #13: 关键断言 — mid-drag 时 --swipe-clip-right 必须 > 0
+    // (修复前永远 = 0, 因为 plain let 没 reactive)
+    // eslint-disable-next-line no-console
+    const midClipRight = parseFloat(mid!.clipRight);
+    expect(midClipRight, "mid-drag --swipe-clip-right 必须 > 0 (reactivity 修复)").toBeGreaterThan(0);
+    expect(midClipRight, "mid-drag --swipe-clip-right 必须 <= 1").toBeLessThanOrEqual(1);
+
+    // 3. mouseup, snap 到 -80px (因为 abs(-100) >= 60)
+    await page.mouse.up();
+    await page.waitForTimeout(500); // 等 snap + clip-path transition
+
+    const after = await diagFirstVisibleRow(page);
+    const targetAtCursor = await page.evaluate(({ x, y }) => {
+      const el = document.elementFromPoint(x, y);
       return {
-        layerClipLeft: layer.style.getPropertyValue("--swipe-clip-left"),
-        layerClipRight: layer.style.getPropertyValue("--swipe-clip-right"),
-        layerClipPath: getComputedStyle(layer).clipPath,
-        delBtnWidth: getComputedStyle(delBtn).width,
-        delBtnOpacity: getComputedStyle(delBtn).opacity,
+        tagName: el?.tagName,
+        className: el?.className,
+        ariaLabel: el?.getAttribute("aria-label"),
+        insideBillSwipeWrap: !!el?.closest(".bill-swipe-wrap"),
       };
-    });
+    }, { x: start!.x - 100, y: start!.y });
+    // eslint-disable-next-line no-console
+    // eslint-disable-next-line no-console
 
-    // 断言 CSS vars 已设置
-    expect(parseFloat(diag!.layerClipRight)).toBe(1);
-    expect(parseFloat(diag!.layerClipLeft)).toBe(0);
-    // 断言 clip-path 计算结果 inset 右侧 86px (form: inset(top right bottom left))
-    expect(diag!.layerClipPath).toContain("86px");
-    // 解析 inset() 检查 right inset 是 86px
-    const m = diag!.layerClipPath.match(/inset\(\s*([0-9.]+px)\s+([0-9.]+px)\s+([0-9.]+px)\s+([0-9.]+px)\s*\)/);
+    // 4. mouseup 后断言
+    expect(parseFloat(after!.clipRight)).toBe(1);
+    expect(parseFloat(after!.clipLeft)).toBe(0);
+    expect(after!.layerClipPath).toContain("86px");
+
+    const m = after!.layerClipPath.match(
+      /inset\(\s*([0-9.]+px)\s+([0-9.]+px)\s+([0-9.]+px)\s+([0-9.]+px)\s*\)/,
+    );
     expect(m, "clip-path 必须是 inset() 形式").not.toBeNull();
     if (m) {
       const [, top, right, bottom, left] = m;
@@ -225,20 +253,22 @@ test.describe("v0.3.16 #12 swipe 按钮露出来", () => {
       expect(bottom).toBe("0px");
       expect(left).toBe("0px");
     }
-    // 删除按钮可见
-    expect(parseFloat(diag!.delBtnWidth)).toBeGreaterThanOrEqual(80);
-    expect(parseFloat(diag!.delBtnOpacity)).toBeGreaterThan(0);
+    expect(parseFloat(after!.delBtnWidth)).toBeGreaterThanOrEqual(80);
+    expect(parseFloat(after!.delBtnOpacity)).toBeGreaterThan(0);
+
+    await page.screenshot({
+      path: path.join(SCREENSHOTS_DIR, "v0316-13-swipe-delete.png"),
+      fullPage: false,
+    });
 
     await ctx.close();
   });
 
-  test("右滑 → 「编辑」按钮 visible (clip-path inset 左侧 86px)", async ({
+  test("右滑 → mid-drag --swipe-clip-left > 0, mouseup snap 到 86px inset 左", async ({
     browser,
   }) => {
     const ctx = await browser.newContext({
       viewport: { width: 390, height: 844 },
-      hasTouch: true,
-      isMobile: true,
       locale: "zh-CN",
     });
     const page = await ctx.newPage();
@@ -253,35 +283,43 @@ test.describe("v0.3.16 #12 swipe 按钮露出来", () => {
     });
     await page.waitForTimeout(300);
 
-    await forceSwipeState(page, "right");
+    const before = await diagFirstVisibleRow(page);
+    expect(before).not.toBeNull();
+    expect(parseFloat(before!.clipLeft)).toBe(0);
+    expect(parseFloat(before!.clipRight)).toBe(0);
 
-    await page.screenshot({
-      path: path.join(SCREENSHOTS_DIR, "v0316-12-swipe-edit.png"),
-      fullPage: false,
-    });
+    const start = await getFirstVisibleRowCenter(page);
+    expect(start).not.toBeNull();
+    await page.mouse.move(start!.x, start!.y);
+    await page.mouse.down();
+    // 4 帧中间状态 (+50px)
+    for (let i = 1; i <= 4; i++) {
+      await page.mouse.move(start!.x + 100 * (i / 8), start!.y, { steps: 1 });
+      await page.waitForTimeout(20);
+    }
+    await page.waitForTimeout(80);
 
-    const diag = await page.evaluate(() => {
-      const wraps = [...document.querySelectorAll(".bill-swipe-wrap")];
-      const inView = wraps.find((w) => {
-        const rect = w.getBoundingClientRect();
-        return rect.y >= 50 && rect.y < window.innerHeight - 50;
-      });
-      if (!inView) return null;
-      const layer = inView.querySelector(".bill-info-layer") as HTMLElement;
-      const editBtn = inView.querySelector(".bill-swipe-action-left") as HTMLElement;
-      return {
-        layerClipLeft: layer.style.getPropertyValue("--swipe-clip-left"),
-        layerClipRight: layer.style.getPropertyValue("--swipe-clip-right"),
-        layerClipPath: getComputedStyle(layer).clipPath,
-        editBtnWidth: getComputedStyle(editBtn).width,
-        editBtnOpacity: getComputedStyle(editBtn).opacity,
-      };
-    });
+    const mid = await diagFirstVisibleRow(page);
+    const midClipLeft = parseFloat(mid!.clipLeft);
+    expect(midClipLeft, "mid-drag --swipe-clip-left 必须 > 0 (reactivity 修复)").toBeGreaterThan(0);
+    expect(midClipLeft).toBeLessThanOrEqual(1);
 
-    expect(parseFloat(diag!.layerClipLeft)).toBe(1);
-    expect(parseFloat(diag!.layerClipRight)).toBe(0);
-    expect(diag!.layerClipPath).toContain("86px");
-    const m = diag!.layerClipPath.match(/inset\(\s*([0-9.]+px)\s+([0-9.]+px)\s+([0-9.]+px)\s+([0-9.]+px)\s*\)/);
+    // 继续 drag 到 +100px 后 mouseup
+    for (let i = 5; i <= 8; i++) {
+      await page.mouse.move(start!.x + 100 * (i / 8), start!.y, { steps: 1 });
+      await page.waitForTimeout(20);
+    }
+    await page.mouse.up();
+    await page.waitForTimeout(500);
+
+    const after = await diagFirstVisibleRow(page);
+
+    expect(parseFloat(after!.clipLeft)).toBe(1);
+    expect(parseFloat(after!.clipRight)).toBe(0);
+    expect(after!.layerClipPath).toContain("86px");
+    const m = after!.layerClipPath.match(
+      /inset\(\s*([0-9.]+px)\s+([0-9.]+px)\s+([0-9.]+px)\s+([0-9.]+px)\s*\)/,
+    );
     expect(m).not.toBeNull();
     if (m) {
       const [, top, right, bottom, left] = m;
@@ -290,8 +328,13 @@ test.describe("v0.3.16 #12 swipe 按钮露出来", () => {
       expect(bottom).toBe("0px");
       expect(left).toBe("86px");
     }
-    expect(parseFloat(diag!.editBtnWidth)).toBeGreaterThanOrEqual(80);
-    expect(parseFloat(diag!.editBtnOpacity)).toBeGreaterThan(0);
+    expect(parseFloat(after!.editBtnWidth)).toBeGreaterThanOrEqual(80);
+    expect(parseFloat(after!.editBtnOpacity)).toBeGreaterThan(0);
+
+    await page.screenshot({
+      path: path.join(SCREENSHOTS_DIR, "v0316-13-swipe-edit.png"),
+      fullPage: false,
+    });
 
     await ctx.close();
   });
