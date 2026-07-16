@@ -111,7 +111,7 @@
     if (isJoinFlow) {
       pageTitle = `嗨 ${me.display_name}，请登录`;
     } else {
-      pageTitle = `嗨 ${me.display_name}，完成登录即可永久保存 session`;
+      pageTitle = `嗨 ${me.display_name}，完成登录即可永久保存账本`;
     }
   }
 

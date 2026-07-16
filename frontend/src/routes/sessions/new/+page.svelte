@@ -157,7 +157,7 @@
 </script>
 
 <svelte:head>
-  <title>新建 session</title>
+  <title>新建账本</title>
 </svelte:head>
 
 {#if loading}

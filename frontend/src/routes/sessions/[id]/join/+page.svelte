@@ -65,7 +65,7 @@
     const sid = sessionId;
     if (!sid) {
       // v0.3.15 (PO #4807): 错误统一走 Toast
-      toast.error('无效的 session');
+      toast.error('无效的 账本');
       loading = false;
       return;
     }
@@ -217,23 +217,23 @@
 </script>
 
 <section>
-  <h2>加入 session</h2>
+  <h2>加入账本</h2>
 
   {#if loading}
     <p>正在加载…</p>
   {:else}
     {#if invite}
       <p class="muted">
-        来自 <strong>{invite.inviter_display_name}</strong> 的 session:
+        来自 <strong>{invite.inviter_display_name}</strong> 的账本:
         <strong>{invite.session_name}</strong>
       </p>
     {:else if session}
       <p class="muted">
-        Session: <strong>{session.name}</strong>
+        账本: <strong>{session.name}</strong>
       </p>
     {:else if preview}
       <p class="muted">
-        Session: <strong>{preview.name}</strong>
+        账本: <strong>{preview.name}</strong>
       </p>
     {/if}
 

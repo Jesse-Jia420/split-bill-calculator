@@ -15,6 +15,7 @@
    */
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { Wallet } from 'lucide-svelte';
   import { user } from '$stores/user';
   import { FRONTEND_VERSION } from '$lib/version';
 
@@ -74,7 +75,7 @@
     <!-- Centered content -->
     <div class="hero">
       <div class="brand-row">
-        <span class="brand-icon">💰</span>
+        <span class="brand-icon"><Wallet size={32} strokeWidth={1.75} /></span>
         <span class="brand-name">Split Bill</span>
       </div>
 
@@ -91,7 +92,7 @@
           onclick={handleStartUsing}
           disabled={busy}
         >
-          {busy ? '创建中…' : ($user ? '进入我的session' : '直接开始使用')}
+          {busy ? '创建中…' : ($user ? '进入我的账本' : '直接开始使用')}
         </button>
 
         {#if !$user}
@@ -127,11 +128,13 @@
     object-position: center;
   }
 
-  /* Dark overlay for text readability */
+  /* Dark overlay for text readability.
+     v0.3.17 #16 hotfix: 0.55 -> 0.42 (PO msg 03:00), 让玻璃按钮 .glass-pill
+     半透明白背景更清晰看见背景图, 玻璃质感更明显。 */
   .overlay {
     position: absolute;
     inset: 0;
-    background: rgba(0, 0, 0, 0.55);
+    background: rgba(0, 0, 0, 0.42);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -164,9 +167,15 @@
     margin-bottom: 1.5rem;
   }
 
+  /* v0.3.17 #16 hotfix: emoji -> Lucide Wallet icon
+     - 内联 SVG, line-height 1 + display inline-flex 让 SVG 跟 brand-name baseline 对齐
+     - color: #fff 跟 .brand-name 同色, 保持视觉一致 */
   .brand-icon {
-    font-size: 2rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     line-height: 1;
+    color: #fff;
   }
 
   .brand-name {
@@ -208,26 +217,54 @@
     align-items: stretch;
   }
 
-  .btn-primary {
+  /* v0.3.17 #16 hotfix: 纯色 -> 玻璃 pill
+     - 主按钮: 实色蓝 + glass-pill (半透明白底 + backdrop blur)
+     - ghost: 浅白 + glass-pill (更透, 看见背景图)
+     - 玻璃让暗 overlay 0.55 -> 0.42 后背景图更可见 */
+  .btn-primary,
+  .btn-ghost {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 52px;
     padding: 0 1.5rem;
-    background: #3b82f6;
-    border: none;
     border-radius: 9999px;
+    cursor: pointer;
+    transition: background 0.18s, transform 0.1s, box-shadow 0.18s;
+    text-decoration: none;
+    letter-spacing: 0.01em;
+    font-family: inherit;
+  }
+
+  /* 主按钮: 实色蓝 + glass-pill 玻璃化 */
+  .btn-primary {
+    min-height: 52px;
+    background: linear-gradient(
+      135deg,
+      rgba(59, 130, 246, 0.85) 0%,
+      rgba(99, 102, 241, 0.78) 100%
+    );
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    backdrop-filter: saturate(200%) blur(20px);
+    -webkit-backdrop-filter: saturate(200%) blur(20px);
     color: #fff;
     font-size: 1rem;
     font-weight: 600;
-    cursor: pointer;
-    transition: background 0.15s, transform 0.1s;
-    text-decoration: none;
-    letter-spacing: 0.01em;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.4),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.08),
+      0 6px 20px rgba(59, 130, 246, 0.35);
   }
 
   .btn-primary:hover:not(:disabled) {
-    background: #2563eb;
+    background: linear-gradient(
+      135deg,
+      rgba(59, 130, 246, 0.95) 0%,
+      rgba(99, 102, 241, 0.9) 100%
+    );
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.5),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.1),
+      0 8px 24px rgba(59, 130, 246, 0.45);
   }
 
   .btn-primary:active:not(:disabled) {
@@ -239,28 +276,44 @@
     cursor: not-allowed;
   }
 
+  /* Ghost: 浅玻璃白 (跟 app.css .glass-pill 同参数, rgba 提到 0.22/0.18
+     让深色 overlay 也能看见背景图纹理)。 */
   .btn-ghost {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
     min-height: 48px;
-    padding: 0 1.5rem;
-    background: rgba(255, 255, 255, 0.15);
-    border: 1.5px solid rgba(255, 255, 255, 0.5);
-    border-radius: 9999px;
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.22) 0%,
+      rgba(255, 255, 255, 0.14) 100%
+    );
+    border: 1.5px solid rgba(255, 255, 255, 0.45);
+    backdrop-filter: saturate(180%) blur(16px);
+    -webkit-backdrop-filter: saturate(180%) blur(16px);
     color: #fff;
     font-size: 0.9375rem;
     font-weight: 500;
-    cursor: pointer;
-    transition: background 0.15s, border-color 0.15s;
-    text-decoration: none;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      0 4px 14px rgba(0, 0, 0, 0.18);
   }
 
   .btn-ghost:hover {
-    background: rgba(255, 255, 255, 0.25);
-    border-color: rgba(255, 255, 255, 0.75);
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.32) 0%,
+      rgba(255, 255, 255, 0.22) 100%
+    );
+    border-color: rgba(255, 255, 255, 0.7);
     text-decoration: none;
     color: #fff;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.45),
+      0 6px 18px rgba(0, 0, 0, 0.22);
+  }
+
+  /* Safari iOS < 18 fallback (无 backdrop-filter) */
+  @supports not (backdrop-filter: blur(1px)) {
+    .btn-primary { background: rgba(59, 130, 246, 0.9); }
+    .btn-ghost { background: rgba(255, 255, 255, 0.22); }
   }
 
   .hint {

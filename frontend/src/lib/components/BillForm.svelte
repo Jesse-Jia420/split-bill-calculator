@@ -542,7 +542,7 @@
          原 .smart-dates 是独立 segment; 现在跟 datetime-local input 视觉关联. -->
     {#if smartDateChips.length > 0 && !isEdit}
       <div class="quick-dates-inline" aria-label="快速日期">
-        <span class="muted hint">首笔 session — 快速选择日期:</span>
+        <span class="muted hint">首笔账本 — 快速选择日期:</span>
         <div class="chips">
           {#each smartDateChips as chip}
             <button

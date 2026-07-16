@@ -386,7 +386,7 @@
 
   function handleDeleteMemberClick(m: { id: number; display_name: string }) {
     // placeholder — 无 BE endpoint 可调,disabled 已阻止触发
-    const proceed = confirm(`确认把 ${m.display_name} 从这个 session 移除?\n\n(v0.2 待 BE 支持,当前不可用)`);
+    const proceed = confirm(`确认把 ${m.display_name} 从这个账本移除?\n\n(v0.2 待 BE 支持,当前不可用)`);
     if (!proceed) return;
     toast.error('移除成员 (v0.2 待 BE 支持): 当前不可用');
   }
@@ -454,7 +454,7 @@
           <EmptyState
             icon="users"
             title="还没有成员"
-            description="分享邀请链接,邀请朋友加入这个 session。"
+            description="分享邀请链接,邀请朋友加入这个账本。"
             ctaLabel={copyingInvite ? '已复制' : '复制邀请链接'}
             onCtaClick={copyInviteLink}
           />
