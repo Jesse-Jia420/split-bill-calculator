@@ -182,9 +182,10 @@
       {/if}
     </div>
 
-    <!-- v0.3.15 §3.15.2 #6 v2 (PO msg #4772): 左下圆形 FAB 返回按钮 -->
+    <!-- v0.3.15 §3.15.2 #6 v2 (PO msg #4772): 左下圆形 FAB 返回按钮
+         v0.3.16 #9 (PO msg 20:01): 加 .glass-pill 玻璃化 (跟 bills/new + bills/edit 同形态) -->
     <a
-      class="fab fab-left"
+      class="fab fab-left glass-pill"
       href="/sessions/{sessionId}"
       aria-label="返回"
       in:fly={{ y: 60, duration: 400, delay: 200 }}
@@ -195,7 +196,10 @@
 </section>
 
 <style>
-  /* v0.3.15 §3.15.2 #6 v2 (PO msg #4772): 左下圆形 FAB (跟 bills/new + bills/edit 同形态) */
+  /* v0.3.15 §3.15.2 #6 v2 (PO msg #4772): 左下圆形 FAB (跟 bills/new + bills/edit 同形态)
+   * v0.3.16 #9 (PO msg 20:01): 加 .glass-pill 玻璃化 — bg/box-shadow/border/color/icon
+   *   由 .glass-pill 提供 (全局 app.css)。.fab 保留 border-radius: 50% + position fixed。
+   *   .fab 写在 .glass-pill 之后 → 同 specificity 时 .fab 后定义覆盖 .glass-pill。 */
   .fab {
     position: fixed;
     bottom: 24px;
@@ -204,24 +208,21 @@
     border-radius: 50%;
     display: grid;
     place-items: center;
-    background: var(--accent-500);
-    color: #fff;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+    /* glass-pill 提供 bg / box-shadow / border / backdrop-filter / color (var(--accent-700, #4338ca))
+       这里只补 z-index + position fixed + 圆形保持 + transition */
     z-index: 100;
     text-decoration: none;
     border: none;
     cursor: pointer;
     padding: 0;
-    transition: transform 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+    transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease, color 150ms ease;
   }
   .fab-left { left: 24px; }
-  .fab:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22);
-    background: var(--accent-700);
-  }
+  /* .fab:hover 不再写 background/box-shadow — 由 .glass-pill:hover 全局处理 */
+  .fab:hover { transform: translateY(-2px); }
   .fab:active { transform: scale(0.96); }
   .fab:focus-visible {
+    /* 玻璃上白色 outline + indigo 实心 ring, focus 状态显眼 */
     outline: 2px solid #fff;
     outline-offset: 2px;
     box-shadow: 0 0 0 4px #4f46e5;
