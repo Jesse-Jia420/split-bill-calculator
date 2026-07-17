@@ -1,4 +1,4 @@
-cript lang="ts">
+<script lang="ts">
   /**
    * v0.1.3 Sprint 2 Commit 2 (2026-07-02) — Transfer path 转账建议。
    *
