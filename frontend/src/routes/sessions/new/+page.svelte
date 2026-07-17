@@ -185,7 +185,12 @@
             autofocus />
         </div>
         <div class="step-nav">
-          <button class="btn btn-primary btn-next" onclick={goNext} disabled={!nameValid}>下一步</button>
+          <button class="fab-wiz disabled" type="button" aria-label="上一步" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          </button>
+          <button class="fab-wiz primary" type="button" aria-label="下一步" onclick={goNext} disabled={!nameValid}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </button>
         </div>
       </div>
     {/if}
@@ -212,9 +217,11 @@
           {/each}
         </div>
         <div class="step-nav">
-          <button class="btn glass-pill btn-back" onclick={() => (step = 1)}>上一步</button>
-          <button class="btn btn-primary btn-next" onclick={goNext} disabled={!nicknamesValid}>
-            {showCurrencyStep ? '下一步' : '确认创建'}
+          <button class="fab-wiz glass" type="button" aria-label="上一步" onclick={() => (step = 1)}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          </button>
+          <button class="fab-wiz primary" type="button" aria-label="下一步" onclick={goNext} disabled={!nicknamesValid}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
           </button>
         </div>
       </div>
@@ -306,10 +313,16 @@
           <p class="anon-currency-hint glass-card-soft">需要多币种？账本创建后登录即可</p>
         {/if}
 
-        <div class="step-nav" style="margin-top: 1.75rem;">
-          <button class="btn glass-pill btn-back" onclick={() => (step = 2)}>上一步</button>
-          <button class="btn btn-primary btn-confirm" onclick={handleCreate} disabled={!currencyValid || busy}>
-            {busy ? '创建中…' : '确认创建'}
+        <div class="step-nav">
+          <button class="fab-wiz glass" type="button" aria-label="上一步" onclick={() => (step = 2)}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          </button>
+          <button class="fab-wiz primary" type="button" aria-label="确认创建" onclick={handleCreate} disabled={!currencyValid || busy}>
+            {#if busy}
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-width="2.5" opacity="0.3"/><path d="M21 12a9 9 0 0 1-9 9" stroke-width="2.5" stroke-linecap="round"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/></path></svg>
+            {:else}
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>
+            {/if}
           </button>
         </div>
       </div>
@@ -328,33 +341,51 @@
   .step-title { font-size: 1.5rem; font-weight: 700; color: #171717; margin: 0 0 0.375rem; line-height: 1.2; }
   .step-hint { font-size: 0.9rem; color: #737373; margin: 0 0 1.75rem; }
   .field { margin-bottom: 1.5rem; }
-  /* input[type="text"] 已用 .glass-input 替代 — v0.3.17 #27 */
-  /* .btn-next / .btn-confirm 已用 .btn .btn-primary 替代 — v0.3.17 #27 */
+  /* v0.3.17 #32: 圆 ← → glass button (跟 system .fab 同款) — PO msg 23:14 #6027 拍板 */
   .step-nav {
     display: flex;
-    gap: 0.75rem;
-    margin-top: 1.5rem;
-    justify-content: space-between; /* v0.3.17 #28 #1+#2: 双按钮 贴左贴右对称 */
-    align-items: stretch;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 14px 14px;
   }
-  /* v0.3.17 #28.5 #9: 单按钮 case (step 1) — 靠右 + content-width 不撑满 */
-  .step-nav:has(> :only-child) {
-    justify-content: flex-end;
+  .fab-wiz {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    border: 0.5px solid rgba(99, 102, 241, 0.25);
+    padding: 0;
+    transition: transform 150ms ease, box-shadow 150ms ease;
   }
-  /* v0.3.17 #28: 双/多按钮等分 + 同高 + 同 padding + 同字号, 视觉一致 */
-  .step-nav > .btn-back,
-  .step-nav > .btn-next,
-  .step-nav > .btn-confirm {
-    flex: 1;
-    min-height: 52px;
-    padding: 0 1.25rem;
-    font-size: 1rem;
-    font-weight: 600;
-    text-align: center;
+  .fab-wiz:active { transform: scale(0.94); }
+  .fab-wiz.glass {
+    background: rgba(255, 255, 255, 0.55);
+    color: var(--accent-700, #4338ca);
   }
-  /* v0.3.17 #28.5 #9: 单按钮不撑满, 保持 pill content-width */
-  .step-nav > :only-child {
-    flex: 0 1 auto;
+  .fab-wiz.primary {
+    background: linear-gradient(135deg, #6366f1, #818cf8);
+    color: white;
+    border-color: rgba(255, 255, 255, 0.5);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.6),
+      0 6px 14px -3px rgba(99, 102, 241, 0.4),
+      0 2px 4px -1px rgba(99, 102, 241, 0.15);
+  }
+  .fab-wiz.disabled {
+    cursor: not-allowed;
+    opacity: 0.4;
+    box-shadow: none;
+  }
+  .fab-wiz svg {
+    width: 22px;
+    height: 22px;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+    stroke: currentColor;
   }
   .count-row { display: flex; align-items: center; justify-content: center; gap: 2rem; margin-bottom: 0.75rem; }
   /* .count-btn 已用 .glass-pill 替代, 圆形覆盖保持 — v0.3.17 #27 */
