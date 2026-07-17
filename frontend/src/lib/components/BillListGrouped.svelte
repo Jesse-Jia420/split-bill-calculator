@@ -821,16 +821,20 @@
 
   .bill-swipe-action {
     position: absolute;
-    top: 6px;
-    bottom: 6px;
-    /* v0.3.17 #18 hotfix (PO msg 06:18): width 公式 64→56 (圆形按钮直径)。
-         物理约束: width 跟随 progress 0→56 变, height 固定 (= row 高 - 12)。
-         progress=1 时 56×h 是真圆; progress<1 时 width<height → 视觉上是竖椭圆
-         (iOS Mail 同款, 物理不可避免)。border-radius 50% 让所有 progress 下都
-         保持"圆角感", 而 progress=1 时是完美圆形。 */
+    /* v0.3.17 #19 hotfix (PO msg 09:14 真验): 删 top:6/bottom:6 + 加 aspect-ratio:1,
+         让 width === height 永远保持 1:1。
+         之前 #18 用 top:6 + bottom:6 让按钮 height 跟 row 高度走 (~82px),
+         跟 progress→56px width 不匹配 → 视觉是 56×82 竖椭圆, 不是圆。
+         现在 top:50% + translateY(-50%) 垂直居中, aspect-ratio:1 让
+         progress=1 时是 56×56 真圆, progress<1 时也是 28×28 / 14×14 等
+         缩小版真圆 (而不是椭圆)。border-radius 50% 在方形上 = 真圆。 */
+    top: 50%;
+    transform: translateY(-50%);
     width: calc(var(--swipe-progress, 0) * 56px);
-    /* v0.3.17 #18 hotfix (PO msg 06:18): 真圆形 border-radius 50%
-         (之前是 999px 横长椭圆胶囊, 跟 64px width 组合 = 横长药丸)。 */
+    aspect-ratio: 1 / 1;
+    /* v0.3.17 #19: 真圆形 — aspect-ratio 保证 1:1, 50% border-radius 在方形上
+         就是圆 (之前 #18 也是 50%, 但 height != width 让 50% 在矩形上只能
+         切圆角, 不是圆)。 */
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -840,7 +844,8 @@
     /* v0.3.16 #14 hotfix (PO msg 02:02): z-index 提到 2, 盖在 .bill-row (z=1) 上,
        让 glass-pill 玻璃 blur 看穿到下方的 bill 文字 (meta/amount)。
        v0.3.17 #17: 玻璃饱和度降回 0.10/0.08 后, 玻璃 blur 看穿效果再次可见
-       (跟 #12 clip-path 后透明玻璃一样) — button 后面是 bill 文字, 不是 day 白底。*/
+       (跟 #12 clip-path 后透明玻璃一样) — button 后面是 bill 文字, 不是 day 白底。
+       v0.3.17 #19: z-index 不动 (按钮还是 absolute + 居中)。*/
     z-index: 2;
     appearance: none;
     padding: 0;
