@@ -1793,3 +1793,64 @@ seed 脚本 (`backend/scripts/seed_dev_data.py`) 已有 find-or-create 逻辑：
 - 登录态 single ↔ dual click toggle active 状态 ✓ + thumb 滑动 indicator 跟随 ✓
 - anon 双币种 disabled + .locked class ✓ + click 不切换 state + toast 提示 ✓
 - svelte-check baseline + 0 new error
+
+### §11. v0.3.17 #32-D-3 (2026-07-18) — switch toggle 加大 + settle 个人视图 同步改 switch (PO msg 00:27 #6104)
+
+**PO 反馈 (msg 00:27 #6104)**:
+1. 单一币种/双币种 switch toggle 太小, 整个页面看起来不协调 — 加大
+2. settle 个人视图 主币种汇总/原始数据 按钮换成这种 (iOS27 switch toggle)
+
+**实施**:
+
+**(1) 全局 utility 提取**: `frontend/src/app.css` 加 `.ios-switch` / `.ios-switch-option` / `.ios-switch-thumb` / `.mode-locked-hint` 类 (从 wizard step 3 复制, 加大 size):
+- `.ios-switch-option` padding: `0.5rem 1.25rem` → `0.625rem 1.5rem` (15% 增)
+- `.ios-switch-option` font-size: `0.875rem` → `0.9375rem` (15px)
+- `.ios-switch-option` min-height: `36px` → `44px` (iOS HIG tap target)
+- `.ios-switch` padding: `3px` → `4px`
+- `.ios-switch-thumb` top/left/bottom: `3px` → `4px`
+
+**(2) wizard step 3**: `frontend/src/routes/sessions/new/+page.svelte`:
+- 删 .ios-switch 全套 CSS (现在在 app.css 全局)
+- .ios-switch 全局直接用, 通过加 class `ios-switch-lg` 或直接用全局
+
+**(3) settle 个人视图**: `frontend/src/routes/sessions/[id]/settle/+page.svelte`:
+- 替换 `.view-toggle-row .mode-pill` segmented glass pill → `.ios-switch` + `.ios-switch-option` + `.ios-switch-thumb` (跟 wizard 同款)
+- 保留 disabled state (单币种 session 时「原始数据」disabled + title hint)
+- 「主币种汇总 (CNY)」/「原始数据」 option 文本保留
+
+**验收 criterion**:
+- wizard step 3 switch 加大 (option 44px+ 高) 整体协调 ✓
+- settle 个人视图 toggle 改 iOS27 switch (跟 wizard 同款) ✓
+- thumb 滑动 indicator 250ms spring (跟 wizard 同款) ✓
+- 单币种 session 「原始数据」disabled (跟原 spec 一致) ✓
+- svelte-check baseline + 0 new error
+
+### §11. v0.3.17 #32-D-3 (2026-07-18) — switch toggle 加大 + settle 个人视图 同步改 iOS27 switch (PO msg 00:27 #6104)
+
+**PO 反馈 (msg 00:27 #6104)**:
+1. 单一币种/双币种 switch 太小, 整个页面看起来不协调 — 加大
+2. settle 个人视图 主币种汇总/原始数据 按钮换成这种
+
+**实施 (3 文件同步)**:
+
+**(A) 全局 utility 提取**: `frontend/src/app.css` 新增 `.ios-switch` + `.ios-switch-option` + `.ios-switch-thumb` + `.mode-locked-hint` (从 wizard step 3 局部 CSS 复制 + 加大尺寸):
+- `.ios-switch-option` padding: `0.5rem 1.25rem` → `0.625rem 1.5rem`
+- `.ios-switch-option` font-size: `0.875rem` → `0.9375rem` (15px)
+- `.ios-switch-option` min-height: `36px` → `44px` (iOS HIG tap target)
+- `.ios-switch` padding: `3px` → `4px`
+- `.ios-switch-thumb` top/left/bottom: `3px` → `4px`
+
+**(B) wizard step 3**: `frontend/src/routes/sessions/new/+page.svelte` 删局部 .ios-switch CSS (line ~478-540, -77 lines), 利用全局 utility, template 不动
+
+**(C) settle 个人视图**: `frontend/src/routes/sessions/[id]/settle/+page.svelte` 替换 `.view-toggle-row .mode-pill` segmented → `.ios-switch` (同款 markup + thumb), 删 `.view-toggle-row` 局部 CSS (line ~238-280)
+
+**保留**:
+- 单币种 session 时「原始数据」 disabled + title hint (业务逻辑保留)
+- thumb 滑动 indicator 250ms spring transform
+- anon 双币种 .locked class (opacity 0.4 + not-allowed)
+
+**验收 criterion**:
+- wizard step 3 switch: option min-height 44px ✓, font-size 15px ✓ (Master walk 实测)
+- settle 个人视图 toggle: switchExists=true ✓, modePillExists=0 ✓, optionLabels=["主币种汇总 (CNY)", "原始数据"], min-height 44px ✓ (Master walk 实测)
+- 跨页面视觉一致 (wizard + settle 同款 toggle)
+- svelte-check baseline + 0 new error
