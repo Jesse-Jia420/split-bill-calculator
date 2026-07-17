@@ -16,26 +16,39 @@ cript lang="ts">
   }
 </script>
 
+<!-- v0.3.17 #22 hotfix (PO msg 16:32 #1): 整个 .right 区在 /auth/login 隐藏
+     · anon 用户访问 /auth/login → $user 是 null → 之前会渲染「登录」按钮
+       (指向自己, dead self-link, 视觉噪音)
+     · 已登录用户访问 /auth/login (罕见但可能) → 之前会渲染「注销登录」按钮
+       (跟登录页语义冲突, 视觉混乱)
+     · 同一个 pathname check 不管 $user 状态都隐藏, 因为登录页本身已经有
+       自己的 form 操作区, 不需要 nav 上的 auth 控件
+     · pathname 已在脚本顶部 import (`import { page } from '$app/state'`),
+       直接读 page.url.pathname
+     · 改法用 outer {#if} 包整个 .right div, 不用每个分支单独包, 因为三
+       分支 (login btn / login-以保存 / logout btn) 都不该出现在登录页 -->
 <header class="navbar">
   <a href="/" class="brand">Split Bill</a>
   <nav class="links">
     <a href="/sessions">我的账本</a>
   </nav>
-  <div class="right">
-    {#if $user}
-      <span class="email" title="{$user.email}">{$user.default_name}</span>
-      <button class="ghost btn-sm" on:click={handleLogout}>注销登录</button>
-    {:else if inSession()}
-      <a
-        href={`/auth/login?returnTo=${encodeURIComponent(page.url.pathname + page.url.search)}`}
-        class="btn-sm"
-      >
-        登录以保存
-      </a>
-    {:else}
-      <a href="/auth/login" class="btn-sm">登录</a>
-    {/if}
-  </div>
+  {#if page.url.pathname !== '/auth/login'}
+    <div class="right">
+      {#if $user}
+        <span class="email" title="{$user.email}">{$user.default_name}</span>
+        <button class="ghost btn-sm" on:click={handleLogout}>注销登录</button>
+      {:else if inSession()}
+        <a
+          href={`/auth/login?returnTo=${encodeURIComponent(page.url.pathname + page.url.search)}`}
+          class="btn-sm"
+        >
+          登录以保存
+        </a>
+      {:else}
+        <a href="/auth/login" class="btn-sm">登录</a>
+      {/if}
+    </div>
+  {/if}
 </header>
 
 <style>
