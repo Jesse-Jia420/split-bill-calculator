@@ -22,7 +22,9 @@
   // 用 string 输入框, 提交时 parseFloat. 允许中间空白态.
   let exchangeRate: string = "";
 
-  $: showCurrencyStep = $user !== null;
+  // anon 也展示 step 3 币种选择, 但限制单币种 (PO msg 19:56)
+  $: isAnon = $user === null;
+  $: showCurrencyStep = true;
 
   onMount(async () => {
     await loadUser();
@@ -68,12 +70,7 @@
     if (step === 1 && nameValid) {
       step = 2;
     } else if (step === 2) {
-      if (showCurrencyStep) {
-        step = 3; // reserved blank step
-      } else {
-        // 未登录态: step 2 → 直接 submit
-        handleCreate();
-      }
+      step = 3;
     } else if (step === 3 && showCurrencyStep) {
       step = 4;
     }
@@ -175,7 +172,6 @@
     <p class="step-label">
       {#if step === 1}第一步{/if}
       {#if step === 2}第二步{/if}
-      {#if step === 3 && showCurrencyStep}第三步{/if}
       {#if step === 3}第三步{/if}
     </p>
 
@@ -196,7 +192,7 @@
     {#if step === 2}
       <div class="step-panel">
         <h2 class="step-title">一共有多少人？</h2>
-        <p class="step-hint">包括你自己，最少 1 人</p>
+        <p class="step-hint">别担心，稍后也可添加更多成员</p>
         <div class="count-row">
           <button class="count-btn" onclick={() => adjustCount(-1)} disabled={memberCount <= 1} aria-label="减少一人">-</button>
           <span class="count-display">{memberCount}</span>
@@ -235,10 +231,12 @@
             onclick={() => { currencyMode = 'single'; secondaryCurrency = ''; exchangeRate = ''; }}>
             单一币种
           </button>
-          <button type="button" class="mode-pill" class:active={currencyMode === 'dual'}
-            onclick={() => currencyMode = 'dual'}>
-            双币种
-          </button>
+          {#if !isAnon}
+            <button type="button" class="mode-pill" class:active={currencyMode === 'dual'}
+              onclick={() => currencyMode = 'dual'}>
+              双币种
+            </button>
+          {/if}
         </div>
 
         <!-- 主币种（必选） -->
@@ -303,8 +301,12 @@
           </div>
         {/if}
 
+        {#if isAnon}
+          <p class="anon-currency-hint">需要多币种？账本创建后登录即可</p>
+        {/if}
+
         <div class="step-nav" style="margin-top: 1.75rem;">
-          <button class="btn-back" onclick={() => (step = 3)}>上一步</button>
+          <button class="btn-back" onclick={() => (step = 2)}>上一步</button>
           <button class="btn-confirm" onclick={handleCreate} disabled={!currencyValid || busy}>
             {busy ? '创建中…' : '确认创建'}
           </button>
@@ -369,4 +371,14 @@
   .exchange-rate-input:focus { outline: none; border-color: #3b82f6; }
   .exchange-rate-input::placeholder { color: #a3a3a3; }
   .exchange-rate-hint { font-size: 0.8125rem; color: #737373; margin: 0.5rem 0 0; min-height: 1.2em; }
+
+  .anon-currency-hint {
+    text-align: center;
+    font-size: 0.875rem;
+    color: var(--color-text-muted, #6b7280);
+    margin-top: 1rem;
+    padding: 0.75rem 1rem;
+    background: #f5f5f5;
+    border-radius: 0.75rem;
+  }
 </style>

@@ -140,6 +140,9 @@
       busy = false;
     }
   }
+  async function handleAnonStart() {
+    await goto('/sessions/new', { replaceState: true });
+  }
 
   /**
    * §3.11.14: After verify_code 200, try to bind the anon-acting localStorage
@@ -217,6 +220,13 @@
       <button class="primary" on:click={handleSend} disabled={busy}>
         {busy ? '发送中…' : '发送验证码'}
       </button>
+      <div class="or-divider">
+        <span>或</span>
+      </div>
+      <p class="anon-hint">不想登录？</p>
+      <button class="glass-pill anon-start" on:click={handleAnonStart}>
+        直接开始使用
+      </button>
     {:else}
       <div>
         <label class="label" for="code">验证码</label>
@@ -251,5 +261,33 @@
     color: var(--color-text-muted, #6b7280);
     font-size: 0.875rem;
     margin: 0 0 var(--space-3);
+  }
+
+  .or-divider {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 1.75rem 0 1.25rem;
+    color: var(--color-text-muted, #9ca3af);
+    font-size: 0.8125rem;
+  }
+  .or-divider::before,
+  .or-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--color-border, #e5e5e5);
+  }
+  .anon-hint {
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--color-text-muted, #6b7280);
+    margin: 0 0 0.75rem;
+  }
+  .anon-start {
+    width: 100%;
+    min-height: 52px;
+    font-size: 1rem;
+    font-weight: 600;
   }
 </style>
