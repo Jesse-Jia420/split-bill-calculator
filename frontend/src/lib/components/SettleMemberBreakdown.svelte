@@ -1150,11 +1150,30 @@
      是另一 view, 不在本次范围).
      - .glass-sheet: 稀液 32% opacity + saturate 150% + blur 16px + inset highlight, position: sticky 容器
      - .glass-chip: 浓液 62% opacity + saturate 200% + blur 20px + 1px specular + 双层 indigo drop shadow
-     - chip 浮在 sheet 上方: margin-bottom: -8px (拉 list 上 8px) + z-index: 2 (sheet 内最高) */
+     - chip 浮在 sheet 上方: margin-bottom: -8px (拉 list 上 8px) + z-index 命名空间 (chip > sheet)
+     === v0.3.17 #31-fix (PO msg 23:44 #6063): settle sticky head 滑动 list 渐消失于 head 真修 ===
+     上版 #31 加的 chip z-index 2 / sheet z-index 5 跟 #20/#21 设计意图反了 (#20 sticky h4 z=10,
+     list 在 .bills-section z=auto=0; 头在上, 明细在下). PO 反馈上滑时明细 list 越过 head —
+     实测 chip 0.62 透明 + sticky 容器边界 list 滚动到 chip 区域时 38% 穿透 (chip bg 半透明 + 
+     z-index 命名空间反了 — chip z=2 < sheet z=5 跟 "chip 浮在 sheet 上" 母体设计反了, sheet 内
+     list 跟 chip 同 stacking context 但 chip z=2 < sheet z=5 让人误读成 list 优先).
+     修法 (chip 命名空间 z > sheet 命名空间 z, 跟原 .section-header z=10 / .bills-section
+     z=auto 语义一致):
+     - .glass-sheet z-index: 5 → 1 (sheet 在 stacking 下方, list 自然在 head 下方)
+     - .bills-section-consumed.glass-sheet z-index: 6 → 2 (consumed sheet 仍略高于 paid sheet,
+       sticky 容器边界重叠时消费明细自然盖付款明细)
+     - .section-header.glass-chip z-index: 2 → 10 (chip 在 stacking 上方, head 自然盖 list)
+     - **不**给消费明细 (`.bills-section-consumed`) 特殊 z-index 11 — 两个 section (paid +
+       consumed) 同层并列, 都用 `.glass-chip` z-index 10 (PO msg 23:44 #6065 拍补)
+     - 可选: .glass-chip mask-image 顶部 16px fade 给视觉柔化 (避免 head/list 边界 sharp).
+       chip bg 0.62 + mask 顶部透明 → list 进入 chip 区域时, 顶部 16px 完全露出 (mask 透明),
+       16px 以下 chip bg 物理遮挡 (mask opaque + chip bg 0.62 实际显示 38% 透明, list 文字仍
+       隐约可见但 chip 视觉主导). 整体 "list 渐消失于 head 中" (跟 #20 当时设计意图一致, 但
+       chip 仍保留 #31 浓液 0.62 liquid glass 美学). mask 同时给 webkit 前缀覆盖 Safari. */
   .glass-sheet {
     position: sticky;
     top: 0;
-    z-index: 5;
+    z-index: 1;
     background: rgba(255, 255, 255, 0.32);
     backdrop-filter: saturate(150%) blur(16px);
     -webkit-backdrop-filter: saturate(150%) blur(16px);
@@ -1166,15 +1185,21 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.6),
       inset 0 -1px 0 rgba(0, 0, 0, 0.04);
   }
-  /* 第二个 sticky sheet (消费明细) z-index 提到 6, sticky 容器边界重叠时
-     消费明细自然盖付款明细 (sticky 边界无法避免重叠) — 跟旧 #20 #bills-section-consumed
-     .section-header { z-index: 11 } 同语义 */
-  .bills-section-consumed.glass-sheet { z-index: 6; }
+  /* 第二个 sticky sheet (消费明细) z-index 提到 2, sticky 容器边界重叠时
+     消费明细自然盖付款明细 (sticky 边界无法避免重叠) — DOM 顺序后定义优先
+     (consumed 在 paid 后面). 跟 #31-fix 的 chip 同层并列原则不冲突: chip 都 z=10,
+     视觉上没有 hierarchy, sheet z=2 只是 sticky 容器边界 stacking 必要 */
+  .bills-section-consumed.glass-sheet { z-index: 2; }
 
   /* glass-chip: 浓液浮在 sheet 顶, 取代旧 .section-header 的 sticky + 0.92 bg.
-     compound selector 提升 specificity (0,2,0) 覆盖旧 .bills-section-head (0,1,0) +
-     .bills-section-consumed .section-header { z-index: 11 } (0,2,0, 后定义胜).
-     ::before 渐变 overlay 取消 — chip 自带 bg + 双层阴影, 不再需要旧 hack 强化遮挡. */
+     compound selector 提升 specificity (0,2,0) 覆盖旧 .bills-section-head (0,1,0).
+     z-index: 10 (跟原 #20 .section-header z=10 一致, head 在 list 之上).
+     两个 section (paid + consumed) 都用这个 z-index 10 同层并列 (PO msg 23:44 #6065
+     拍补 — 消费明细和付款明细是同层级, 不分层级).
+     mask-image 顶部 16px 渐变透明: list 进入 chip 区域时, 顶部 16px mask 透明 → list 文字
+     可见 (跟 sticky 边界外的 list 视觉一致), 16px 以下 mask opaque → chip bg 0.62 物理遮挡
+     list 38% 透明. 整体 "list 渐消失于 head 中" (PO msg 23:44 #6063 设计意图).
+     ::before 渐变 overlay 取消 — chip 自带 bg + 双层阴影 + mask, 不再需要旧 hack 强化遮挡. */
   .section-header.glass-chip {
     background: rgba(255, 255, 255, 0.62);
     backdrop-filter: saturate(200%) blur(20px);
@@ -1182,7 +1207,7 @@
     border-radius: 9999px;
     padding: var(--space-2, 8px) var(--space-3, 12px);
     margin: -8px calc(-1 * var(--space-3, 12px)) -8px calc(-1 * var(--space-3, 12px));
-    z-index: 2;
+    z-index: 10;
     position: relative;
     display: flex;
     align-items: center;
@@ -1191,12 +1216,20 @@
     font-weight: 600;
     color: var(--gray-900);
     border-bottom: 0;
+    /* #31-fix: mask-image top 16px fade — list 进 chip 区域时顶部 16px 透明露出, 16px 以下
+       chip bg 0.62 物理遮挡. 视觉 "list 渐消失于 head 中" (PO msg 23:44 #6063 设计意图) */
+    mask-image: linear-gradient(180deg, transparent 0, #000 16px, #000 100%);
+    -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 16px, #000 100%);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.85),
       0 1px 2px rgba(99, 102, 241, 0.10),
       0 4px 12px rgba(99, 102, 241, 0.16),
       0 8px 24px rgba(99, 102, 241, 0.10);
   }
+  /* #31-fix (PO msg 23:44 #6065 拍补): 两个 section (paid + consumed) 同层并列,
+     都用 `.section-header.glass-chip { z-index: 10 }`, **不**给消费明细特殊 z-index 11.
+     原 #31-fix commit 误加 .bills-section-consumed .section-header.glass-chip { z-index: 11 }
+     是错的 (跟 #32-fix brief 拍板一致), 已删. */
   .section-header.glass-chip::before,
   .bills-section-head.glass-chip::before {
     content: none;
