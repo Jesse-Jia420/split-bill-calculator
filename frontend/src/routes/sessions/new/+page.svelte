@@ -4,6 +4,7 @@
   import { user } from "$stores/user";
   import { loadUser } from "$stores/user";
   import { toast } from "$stores/toast";
+  import IosSwitch from "$lib/components/IosSwitch.svelte";
 
   let step = 1;
   let sessionName = "";
@@ -66,19 +67,12 @@
     if (next >= 1 && next <= 20) memberCount = next;
   }
 
-  // v0.3.17 #32-D-2 (PO msg 23:59 #6087): iOS27 switch toggle unified entry
-  // - anon locks dual mode (toast.error prompt, no state change)
-  // - switching to single clears secondaryCurrency + exchangeRate
-  function switchCurrencyMode(mode: "single" | "dual") {
-    if (mode === "dual" && isAnon) {
-      toast.error("登录后可使用多币种");
-      return;
-    }
-    currencyMode = mode;
-    if (mode === "single") {
-      secondaryCurrency = "";
-      exchangeRate = "";
-    }
+  // v0.3.17 #32-D-4 (PO msg 01:18 #6116): IosSwitch 组件 bind:value={currencyMode},
+  // 内部处理 disabled + select 逻辑. anon 切双币种由 .locked class + :disabled 处理 (视觉够明显).
+  // 切到 single 时清空 secondaryCurrency + exchangeRate (避免 stale 数据):
+  $: if (currencyMode === "single") {
+    secondaryCurrency = "";
+    exchangeRate = "";
   }
 
   function goNext() {
@@ -249,34 +243,18 @@
         <h2 class="step-title">使用什么币种？</h2>
         <p class="step-hint">选择单币种或双币种结算</p>
 
-        <!-- v0.3.17 #32-D-2 (PO msg 23:59 #6087): iOS27 switch toggle 替代 segmented pill
-             - 滑动 indicator (.ios-switch-thumb) + 玻璃 track
-             - anon 双币种按钮 :disabled + .locked (从隐藏 → 展示但锁定)
-             - anon 切双币种走 switchCurrencyMode → toast.error (state 不切) -->
-        <div class="ios-switch" role="radiogroup" aria-label="币种模式">
-          <button type="button"
-            class="ios-switch-option"
-            class:active={currencyMode === 'single'}
-            role="radio"
-            aria-checked={currencyMode === 'single'}
-            onclick={() => switchCurrencyMode('single')}>
-            单一币种
-          </button>
-          <button type="button"
-            class="ios-switch-option"
-            class:active={currencyMode === 'dual'}
-            class:locked={isAnon}
-            role="radio"
-            aria-checked={currencyMode === 'dual'}
-            disabled={isAnon}
-            onclick={() => switchCurrencyMode('dual')}>
-            双币种
-          </button>
-          <span class="ios-switch-thumb" class:right={currencyMode === 'dual'}></span>
-        </div>
-        {#if isAnon && currencyMode === 'dual'}
-          <p class="mode-locked-hint">登录后即可使用多币种 (双币种已锁)</p>
-        {/if}
+        <!-- v0.3.17 #32-D-4 (PO msg 01:18 #6116): IosSwitch 组件 — thumb 动态宽度跟随 option 文字
+             - bind:value 双向绑定 currencyMode
+             - anon 双币种 disabled + .locked class (IosSwitch 内部处理, 不会切到 dual state)
+             - thumb width 跟随 active option 实际宽度 (动态, 主币种汇总 (CNY) 这种长 label 也对得齐) -->
+        <IosSwitch
+          ariaLabel="币种模式"
+          options={[
+            { value: 'single', label: '单一币种' },
+            { value: 'dual', label: '双币种', disabled: isAnon }
+          ]}
+          bind:value={currencyMode}
+        />
 
         <!-- 主币种（必选） -->
         <div class="currency-section">
@@ -477,10 +455,10 @@
   /* .nickname-row input 已用 .glass-input 替代 — v0.3.17 #27 */
   .muted { color: #737373; }
 
-  /* v0.3.17 #32-D-3 (PO msg 00:27 #6104): .ios-switch / .ios-switch-option /
-     .ios-switch-thumb / .mode-locked-hint 改为全局 utility (app.css),
-     本地不再定义 — 加大尺寸 (option 44px / font 15px / padding 0.625rem 1.5rem),
-     跨页面 (wizard step 3 + settle 个人视图) 视觉一致 */
+  /* v0.3.17 #32-D-4 (PO msg 01:18 #6116): .ios-switch 全套移到 IosSwitch.svelte
+     scoped style (frontend/src/lib/components/IosSwitch.svelte).
+     跨页面 (wizard step 3 + settle 个人视图) 共用同一组件, thumb 宽度跟随
+     active option 实际宽度 (动态, 不再固定 50%). */
 
   /* §3.11.10: currency step styles */
   .currency-section { margin-bottom: 1.25rem; }

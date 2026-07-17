@@ -40,6 +40,7 @@
   import SettleTransferPath from '$components/SettleTransferPath.svelte';
   import SettleMemberBreakdown from '$components/SettleMemberBreakdown.svelte';
   import SessionCurrencyBadge from '$components/SessionCurrencyBadge.svelte';
+  import IosSwitch from '$lib/components/IosSwitch.svelte';
   import { user } from '$stores/user';
   import { ArrowLeft } from 'lucide-svelte';
   import { toast } from '$stores/toast';
@@ -154,35 +155,19 @@
           padding 0.625rem 1.5rem). 行为不变 (主币种汇总 vs 原始数据),
           跨页面视觉一致 (wizard step 3 跟 settle 个人视图 同款 toggle).
         -->
-        <div class="ios-switch" role="radiogroup" aria-label="结算视图">
-          <button
-            type="button"
-            role="radio"
-            class="ios-switch-option"
-            class:active={viewMode === 'primary'}
-            aria-checked={viewMode === 'primary'}
-            on:click={() => (viewMode = 'primary')}
-          >
-            主币种汇总 ({session.primary_currency})
-          </button>
-          <button
-            type="button"
-            role="radio"
-            class="ios-switch-option"
-            class:active={viewMode === 'split'}
-            aria-checked={viewMode === 'split'}
-            disabled={!session.currencies || session.currencies.length < 2}
-            title={
-              session.currencies && session.currencies.length < 2
-                ? '该账本只有一种币种'
-                : ''
-            }
-            on:click={() => (viewMode = 'split')}
-          >
-            原始数据
-          </button>
-          <span class="ios-switch-thumb" class:right={viewMode === 'split'}></span>
-        </div>
+        <!-- v0.3.17 #32-D-4 (PO msg 01:18 #6116): IosSwitch 组件 — thumb 动态宽度跟随 option 文字
+             主币种汇总 (CNY) vs 原始数据 — thumb width 跟随 active option 实际宽度
+             (主币种汇总 label 长 ~120-140px, 原始数据 label 短 ~60-80px, thumb 差异明显)
+             跟 wizard step 3 currency-mode 同一组件, 跨页面视觉一致.
+             单币种 session: "原始数据" disabled (locked, 不会切到 split state). -->
+        <IosSwitch
+          ariaLabel="结算视图"
+          options={[
+            { value: 'primary', label: `主币种汇总 (${session.primary_currency})` },
+            { value: 'split', label: '原始数据', disabled: !session.currencies || session.currencies.length < 2 }
+          ]}
+          bind:value={viewMode}
+        />
         <div in:slide={{ duration: 200 }}>
           <SettleMemberBreakdown {session} currentUserId={$user?.user_id ?? null} {viewMode} />
         </div>
@@ -239,9 +224,10 @@
     .fab-left { left: 16px; }
   }
 
-  /* v0.3.17 #32-D-3 (PO msg 00:27 #6104): .view-toggle-row + .mode-pill
-     改为 .ios-switch (全局 app.css utility), 跟 wizard step 3 同款.
-     本地不再定义 layout / pill 样式. */
+  /* v0.3.17 #32-D-4 (PO msg 01:18 #6116): .ios-switch 全套移到 IosSwitch.svelte
+     scoped style (frontend/src/lib/components/IosSwitch.svelte).
+     跨页面 (wizard step 3 + settle 个人视图) 共用同一组件, thumb 宽度跟随
+     active option 实际宽度 (动态, 不再固定 50%). */
 
 
   .tab-bar {

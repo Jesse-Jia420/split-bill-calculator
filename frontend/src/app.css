@@ -466,98 +466,10 @@ button.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
 .mode-pill.active:hover,
 .currency-pill.active:hover {
   background: linear-gradient(135deg, rgba(59, 130, 246, 0.95) 0%, rgba(99, 102, 241, 0.9) 100%) !important;
-}
 
-
-/* ============================================================
- * v0.3.17 #32-D-3 (PO msg 00:27 #6104): iOS27 switch toggle 全局 utility (加大版)
- * ------------------------------------------------------------
- * 跟 wizard step 3 + settle 个人视图 toggle 共用 — 加大尺寸 (option 44px tap target)
- * - .ios-switch = 玻璃 track (blur 14px + saturate 180% + 0.5px 蓝紫描边)
- * - .ios-switch-thumb = 滑动 indicator (紫渐变 + 投影, transform 250ms spring)
- * - .ios-switch-option = 文字选项 (active 时反白)
- * - .ios-switch-option.locked = anon 单边锁定态 (opacity 0.4 + not-allowed)
- * - .mode-locked-hint = 锁定态下方提示文字
- *
- * 用法:
- *   <div class="ios-switch" role="radiogroup">
- *     <button class="ios-switch-option" class:active={a==='x'} onclick={...}>X</button>
- *     <button class="ios-switch-option" class:active={a==='y'} onclick={...}>Y</button>
- *     <span class="ios-switch-thumb" class:right={a==='y'}></span>
- *   </div>
- *
- * 加大点 (vs wizard step 3 旧 36px):
- * - padding: 3px → 4px
- * - option padding: 0.5rem 1.25rem → 0.625rem 1.5rem
- * - option font-size: 0.875rem (14px) → 0.9375rem (15px)
- * - option min-height: 36px → 44px (iOS HIG tap target)
- * - thumb: 跟随 padding/inset 同步调整
- * ============================================================ */
-.ios-switch {
-  position: relative;
-  display: flex;
-  background: rgba(255, 255, 255, 0.5);
-  -webkit-backdrop-filter: blur(14px) saturate(180%);
-  backdrop-filter: blur(14px) saturate(180%);
-  border-radius: 9999px;
-  padding: 4px;
-  border: 0.5px solid rgba(99, 102, 241, 0.18);
-  box-shadow:
-    inset 0 1px 2px rgba(0, 0, 0, 0.04),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.6);
-  margin-bottom: 1.25rem;
-  width: fit-content;
-  max-width: 100%;
-}
-.ios-switch-option {
-  flex: 1;
-  position: relative;
-  z-index: 2;
-  padding: 0.625rem 1.5rem;
-  font-size: 0.9375rem;
-  font-weight: 600;
-  color: rgba(67, 56, 202, 0.6);
-  background: transparent;
-  border: none;
-  border-radius: 9999px;
-  cursor: pointer;
-  transition: color 200ms ease;
-  min-height: 44px;
-  white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.ios-switch-option.active {
-  color: white;
-  text-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.15);
-}
-.ios-switch-option.locked {
-  cursor: not-allowed;
-  opacity: 0.4;
-}
-.ios-switch-thumb {
-  position: absolute;
-  top: 4px;
-  left: 4px;
-  bottom: 4px;
-  width: calc(50% - 4px);
-  background: linear-gradient(135deg, #6366f1, #818cf8);
-  border-radius: 9999px;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.4),
-    0 2px 4px rgba(99, 102, 241, 0.3);
-  transition: transform 250ms cubic-bezier(0.4, 0.0, 0.2, 1);
-  z-index: 1;
-  pointer-events: none;
-}
-.ios-switch-thumb.right {
-  transform: translateX(100%);
-}
-.mode-locked-hint {
-  margin: -0.5rem 0 0.75rem;
-  font-size: 0.75rem;
-  color: rgba(67, 56, 202, 0.55);
-  text-align: center;
-  font-weight: 500;
+/* v0.3.17 #32-D-4 (PO msg 01:18 #6116): .ios-switch 全套 utility 移到
+ * frontend/src/lib/components/IosSwitch.svelte (scoped style).
+ * 原因: thumb 宽度需跟随 active option 实际宽度 (动态), 用 inline style +
+ * getBoundingClientRect 测量, scoped component 更合适 (避免 specificity 冲突).
+ */
 }
