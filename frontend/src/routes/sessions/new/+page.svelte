@@ -477,76 +477,10 @@
   /* .nickname-row input 已用 .glass-input 替代 — v0.3.17 #27 */
   .muted { color: #737373; }
 
-  /* v0.3.17 #32-D-2 (PO msg 23:59 #6087): currency mode 改 iOS27 switch toggle
-     - .ios-switch = 玻璃 track (blur 14px + 饱和 180% + 0.5px 蓝紫描边)
-     - .ios-switch-thumb = 滑动 indicator (紫渐变 + 投影, transform 250ms spring)
-     - .ios-switch-option = 文字选项 (active 时反白)
-     - .locked = anon 双币种锁定态 (opacity 0.4 + not-allowed) */
-  .ios-switch {
-    position: relative;
-    display: flex;
-    background: rgba(255, 255, 255, 0.5);
-    -webkit-backdrop-filter: blur(14px) saturate(180%);
-    backdrop-filter: blur(14px) saturate(180%);
-    border-radius: 9999px;
-    padding: 3px;
-    border: 0.5px solid rgba(99, 102, 241, 0.18);
-    box-shadow:
-      inset 0 1px 2px rgba(0, 0, 0, 0.04),
-      inset 0 -1px 0 rgba(255, 255, 255, 0.6);
-    margin-bottom: 1.25rem;
-    width: fit-content;
-    max-width: 100%;
-  }
-  .ios-switch-option {
-    flex: 1;
-    position: relative;
-    z-index: 2;
-    padding: 0.5rem 1.25rem;
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: rgba(67, 56, 202, 0.6);
-    background: transparent;
-    border: none;
-    border-radius: 9999px;
-    cursor: pointer;
-    transition: color 200ms ease;
-    min-height: 36px;
-    white-space: nowrap;
-  }
-  .ios-switch-option.active {
-    color: white;
-    text-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.15);
-  }
-  .ios-switch-option.locked {
-    cursor: not-allowed;
-    opacity: 0.4;
-  }
-  .ios-switch-thumb {
-    position: absolute;
-    top: 3px;
-    left: 3px;
-    bottom: 3px;
-    width: calc(50% - 3px);
-    background: linear-gradient(135deg, #6366f1, #818cf8);
-    border-radius: 9999px;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.4),
-      0 2px 4px rgba(99, 102, 241, 0.3);
-    transition: transform 250ms cubic-bezier(0.4, 0.0, 0.2, 1);
-    z-index: 1;
-    pointer-events: none;
-  }
-  .ios-switch-thumb.right {
-    transform: translateX(100%);
-  }
-  .mode-locked-hint {
-    margin: -0.5rem 0 0.75rem;
-    font-size: 0.75rem;
-    color: rgba(67, 56, 202, 0.55);
-    text-align: center;
-    font-weight: 500;
-  }
+  /* v0.3.17 #32-D-3 (PO msg 00:27 #6104): .ios-switch / .ios-switch-option /
+     .ios-switch-thumb / .mode-locked-hint 改为全局 utility (app.css),
+     本地不再定义 — 加大尺寸 (option 44px / font 15px / padding 0.625rem 1.5rem),
+     跨页面 (wizard step 3 + settle 个人视图) 视觉一致 */
 
   /* §3.11.10: currency step styles */
   .currency-section { margin-bottom: 1.25rem; }
