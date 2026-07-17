@@ -1438,3 +1438,70 @@ seed 脚本 (`backend/scripts/seed_dev_data.py`) 已有 find-or-create 逻辑：
   * 包含 #28 基础 6 项 + SessionCurrencyBadge 字节修复 + 本轮 #8+#9 polish
   * commit message: `v0.3.17 #28: 9 项 polish — wizard 按钮大小/排布/3 dots + count-btn active + NavBar + 修 SessionCurrencyBadge 注释字节丢失 + wizard 三步 next 同位`
   * 强制 push origin/main (amend 链第 2 次, 把 placeholder commit efb34c8 替换)
+  * 兼容性: `:has()` Chrome 105+ / Safari 15.4+ / Firefox 121+, 主项目 vite + svelte 5 OK.
+  * 效果 (3 步 next/confirm 按钮右边缘 X 一致):
+    * step 1: 358.0px (单按钮 case, flex-end + content-width)
+    * step 2: 358.0px (双按钮 case, space-between + flex 1)
+    * step 3: 358.0px (双按钮 case, space-between + flex 1)
+    * Δ=0.0px (完美对齐, 都贴 wizard content 区右边 = wizard 右 - 16px padding)
+* **svelte-check**: 7 errors baseline (同 #28), 0 new error from #8+#9
+* **真机 walk**: 7/7 PASS (#28-1, #28-2, #28-3, #28-4, #28-5, #28-6, #28-8, #28-9)
+* **再次 amend commit** `efb34c8` → 新 commit message: `v0.3.17 #28: 9 项 polish — wizard 按钮大小/排布/3 dots + count-btn active + NavBar + 修 SessionCurrencyBadge 注释字节丢失 + wizard 三步 next 同位`
+* **强制 push** (amend 链第 2 次)
+
+### §11. v0.3.17 #30 (2026-07-17) — iOS app-shell 化 + NavBar 玻璃对齐 + view toggle 玻璃化 (PO msg 14:28 #5957)
+
+**触发 (PO msg 14:28 #5957)**:
+> "比如目前 wizard 里, 内容只有不到一屏, 但屏幕却还是可以下滑"
+
+**根因**:
+- `+layout.svelte` 里 `<main class="page">` 用了 `min-height: calc(100vh - 56px)`, 但 body 本身没锁 overflow
+- iOS Safari 会触发 rubber-band / overscroll bounce, 即使内容 < 100vh 也能拖动 body
+- 修法: iOS app-shell 化 — html/body lock overflow + position: fixed + 100dvh; main 改 flex:1 + overflow-y:auto 内层滚
+
+**实施 (3 项合并)**:
+
+* **#1 NavBar 「我的账本」样式对齐「注销登录」** (`lib/components/NavBar.svelte`):
+  * 现状: 「我的账本」是 `<a class="glass-pill links-item">` (蓝紫淡玻璃); 「注销登录」是 `<button class="ghost btn-sm">` (白玻璃 + .btn-sm 同形态)
+  * 视觉分裂: 两者看着不属于同一组件 — 一个蓝紫玻璃 + 一个白玻璃, 整组 nav 不一致
+  * 改法: 「我的账本」class 改为 `btn-sm links-item`, 跟「注销登录」共用 `.btn-sm` 玻璃参数
+  * .links-item 保留 nav link 语义定位 (flex item), 视觉参数全部继承 .btn-sm
+  * 顺带删 `.links a` 独立样式 (color: var(--color-text-muted) 会覆盖 .btn-sm 颜色, 升级后多余)
+
+* **#2 SessionDetail settle view toggle 玻璃化** (`routes/sessions/[id]/settle/+page.svelte`):
+  * 现状: `.view-switch` + `.view-switch-btn` 灰底白 chip 旧视觉 (v0.2.2), 跟全站玻璃语言不统一
+  * 改法: 升级为 `.view-toggle-row` + `.mode-pill` 玻璃分段控件
+  * 复用 wizard step 3 currency-mode-row 同语言 (v0.3.17 #27 玻璃化):
+    * inactive = 全局 `.glass-pill` 浅蓝紫玻璃 + `.mode-pill` layout
+    * active = 全局 `.btn-primary` 实色蓝紫玻璃 (`.mode-pill.active` 已在 app.css 全局定义)
+  * ARIA / 行为不变 (role=radiogroup, 主币种汇总 vs 原始数据 切换)
+  * CSS specificity: `.view-toggle-row .mode-pill` 跟 `.mode-pill` 全局定义同 specificity 时后定义优先 (settle +page.svelte 局部 CSS 后于 app.css 全局)
+
+* **#3 全产品 iOS app-shell 化** (PO msg 14:28 #5957):
+  * 3a `app.css` (开头) — html/body 锁外层 + 100dvh:
+    * `overflow: hidden; overscroll-behavior: none; position: fixed; inset: 0; touch-action: manipulation`
+    * body `display: flex; flex-direction: column; min-height: 100dvh; max-height: 100dvh`
+    * 100dvh = dynamic viewport height, 适配 iOS Safari 地址栏收起/展开
+  * 3b `routes/+layout.svelte` — main 改 flex 滚动容器:
+    * `.page { flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; overscroll-behavior-y: contain; min-height: 0 }`
+    * `min-height: 0` 关键 — flex item 默认 `min-height: auto` 会撑破父容器
+    * 包一层 `.page-inner` 单独管 padding, 避免 scrollbar 被 padding 挤压
+    * 旧 `min-height: calc(100vh - 56px)` 删 — body 已锁, 不需要这个补偿
+  * 3c `lib/components/NavBar.svelte` — 加 `padding-top: calc(var(--space-3) + env(safe-area-inset-top, 0px))`, 适配 iOS 全面屏刘海/灵动岛
+  * 3d `lib/components/Footer.svelte` — 加 `padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px))`, 适配 iOS 全面屏 home indicator
+  * 3e `routes/+page.svelte` (landing) — **不动** (已有自己的 body lock onMount, 兼容)
+  * Toast 位置: `<Toast>` 用 `position: fixed; bottom: 80px`, 不受 body lock 影响 (fixed 锚 viewport 而非 body), 保持现状
+  * 各页面 min-height: `+error.svelte` 保留 `min-height: 100vh` (错误页内容独立居中, main 滚 OK); 其他页面**不**动
+
+**验证**:
+
+* **svelte-check**: 7 errors / 21 warnings — **同 #28 baseline, 0 new error** (baseline 7 errors 全是历史 byte corruption / TS 类型断言, 不在本次范围)
+* **真机 walk** (`scripts/cbc_v317_30_walk.js`): **8/8 PASS**
+  * #30-1 「我的账本」+「注销登录」 min-height 一致 (44px) + border-radius 一致 (9999px)
+  * #30-1 NOTE: border-color 不同 (.ghost 白玻璃覆盖), 设计接受 (登出按钮更弱化)
+  * #30-2 .view-toggle-row + 主币种汇总/原始数据 mode-pill 在场, active 用 .btn-primary linear-gradient 玻璃
+  * #30-3 body overflow=hidden, html overflow=hidden, main overflow-y=auto
+  * #30-3 body display=flex, flex-direction=column, main flex-grow=1
+  * #30-3 关键: 模拟 iOS swipe-down, body.scrollY 始终 = 0 (不可拖动)
+  * #30-3 sessions 列表 main.scrollTop 0→0 (内容 < 一屏, 无可滚内容, 符合预期)
+  * #30-3 landing .bg-wrapper 仍在 (全屏背景图完整)

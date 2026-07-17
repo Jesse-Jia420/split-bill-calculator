@@ -122,9 +122,30 @@
  * ============================================================ */
 *, *::before, *::after { box-sizing: border-box; }
 
+/* ============================================================
+ * v0.3.17 #30 (PO msg 14:28 #5957): iOS app-shell 化 — 锁外层滚
+ * ------------------------------------------------------------
+ * 根因: 之前 body 没有锁 overflow, iOS Safari 会触发 rubber-band /
+ *   overscroll bounce, 即使内容 < 100vh 也能拖动 body.
+ * 修法: html/body 锁 overflow + position: fixed + 100dvh (dynamic
+ *   viewport height, 适配 iOS 地址栏). body 改 flex column, 让
+ *   <NavBar> 顶部 + <Footer> 底部固定, <main.page> 自动中间 flex:1
+ *   滚动 (见 +layout.svelte). 内层滚由 .page overflow-y: auto 控制,
+ *   外层 body 完全锁死.
+ * 反模式: 不在 app.html viewport meta 加 maximum-scale=1 (已存在,
+ *   不重复). 不改各页面 min-height (landing 保留 100dvh OK).
+ * ============================================================ */
 html, body {
+  height: 100%;
   margin: 0;
   padding: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+  position: fixed; /* 防止 iOS Safari 整体拖动 */
+  inset: 0;
+  width: 100%;
+  touch-action: manipulation;
   background: var(--gray-50);
   color: var(--gray-800);
   font-family: var(--font-family);
@@ -134,6 +155,14 @@ html, body {
   -moz-osx-font-smoothing: grayscale;
   /* Inter character variants: 'cv11' = tabular figures. */
   font-feature-settings: 'cv11', 'ss01', 'ss03';
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  /* 100dvh = dynamic viewport height, 适配 iOS Safari 地址栏 */
+  min-height: 100dvh;
+  max-height: 100dvh;
 }
 
 a { color: var(--accent-500); text-decoration: none; transition: color var(--transition-fast); }
