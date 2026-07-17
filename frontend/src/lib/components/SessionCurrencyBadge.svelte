@@ -1,4 +1,4 @@
-<!--
+--
   SessionCurrencyBadge.svelte — v0.3.16 #6 currency meta redesign (PO msg 18:16 CST 拍板)
   形态: Designer 方案 A — Compact pill row
         - 单行胶囊 `CNY ⇄ THB · 1 CNY = 4.6512` (主币种 chip 蓝色 accent, 副币种 chip 灰底)
@@ -327,30 +327,53 @@
     flex-shrink: 0;
   }
 
+  /* v0.3.17 #21 (PO msg 13:51 item 5): 汇率 bar 编辑态重构。
+     原版 .rate-input border 1px + padding 1px 5px + border-radius 4px (硬 rect)
+     跟胶囊 pill 风格脱节, 编辑时整个 pill-row 高度突变 (从 ~32px 跳 ~40px),
+     "很丑" (PO msg)。
+     修法 (跟 pill 同高 + 玻璃感):
+       - height 固定 20px (line-height 18 + padding 0), 跟 rate-button 18px text 同高,
+         pill-row 高度不变
+       - border-radius: 999px (跟 pill 一致), border 改成跟 pill 同款 accent 0.30
+       - bg 改成 rgba(255,255,255,0.65) (跟 pill 玻璃同款半透明白)
+       - inset highlight box-shadow (跟 pill 同款内高光)
+       - focus 时 outline 不用双层 (border 自身加焦点感 + box-shadow ring) */
   .edit-host {
     display: inline-flex;
-    align-items: baseline;
+    align-items: center;
     gap: 4px;
+    line-height: 1;
   }
   .rate-input {
     appearance: none;
-    background: var(--color-bg, #fff);
-    border: 1px solid var(--accent-500);
-    border-radius: 4px;
-    padding: 1px 5px;
+    height: 20px;
+    line-height: 18px;
+    padding: 0 8px;
+    background: rgba(255, 255, 255, 0.65);
+    border: 1px solid rgba(99, 102, 241, 0.30);
+    border-radius: 999px;
     font-size: 12px;
     font-family: inherit;
     font-variant-numeric: tabular-nums;
     color: var(--gray-900);
     min-width: 4em;
     max-width: 10em;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.7),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.04);
+    transition: border-color 150ms ease, box-shadow 150ms ease;
   }
   .rate-input:focus {
-    outline: 2px solid var(--accent-500);
-    outline-offset: 1px;
+    outline: none;
+    border-color: rgba(99, 102, 241, 0.55);
+    background: rgba(255, 255, 255, 0.85);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.8),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.05),
+      0 0 0 3px rgba(99, 102, 241, 0.15);
   }
   .rate-input:disabled {
-    background: var(--gray-100);
+    background: rgba(255, 255, 255, 0.4);
     color: var(--gray-500);
     cursor: wait;
   }

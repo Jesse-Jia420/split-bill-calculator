@@ -1,4 +1,4 @@
-<script lang="ts">
+cript lang="ts">
   /**
    * v0.1.3 Sprint 2 Commit 2 (2026-07-02) — Transfer path 转账建议。
    *
@@ -229,16 +229,30 @@
   .transfer-li {
     list-style: none;
   }
+  /* v0.3.17 #21 (PO msg 13:51 item 3): transfer-card 玻璃化统一 (Liquid Glass)
+     跟全站 member-chip / swipe button / fab / 登录按钮同语言 (iOS 27 glass-pill)。
+     保留原有 static layout (无 click / hover), 只换 surface 视觉。 */
   .transfer-card {
     display: flex;
     align-items: center;
     gap: var(--space-3);
-    background: white;
-    border: 1px solid var(--gray-200);
-    border-radius: var(--radius-lg);
     padding: var(--space-4);
-    box-shadow: var(--shadow-sm);
-    /* v0.2.1 T06 砍掉 (2026-07-03) — 转账卡片静态展示, 无 click / hover / press */
+    border-radius: var(--radius-lg, 12px);
+    background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.65) 0%,
+      rgba(255, 255, 255, 0.45) 100%
+    );
+    backdrop-filter: saturate(180%) blur(16px);
+    -webkit-backdrop-filter: saturate(180%) blur(16px);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.7),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.04),
+      0 1px 4px rgba(99, 102, 241, 0.06);
+    border: 1px solid rgba(99, 102, 241, 0.10);
+  }
+  @supports not (backdrop-filter: blur(1px)) {
+    .transfer-card { background: rgba(255, 255, 255, 0.92); }
   }
   /* `.transfer-li` items are spaced by gap on .transfers-list — no extra
      per-card margin needed. */
