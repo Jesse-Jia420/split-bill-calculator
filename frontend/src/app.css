@@ -304,3 +304,138 @@ a.glass-pill:hover {
   border-color: rgba(99, 102, 241, 0.22);
   color: var(--accent-800, #3730a3);
 }
+
+/* ============================================================
+ * v0.3.17 #27 全站玻璃输入 (.glass-input)
+ * ------------------------------------------------------------
+ * PO msg 20:30 #5891 + msg 20:55 #5912 — login + wizard 全玻璃化.
+ * 浅半透明灰白底 + 1.5px 玻璃描边 + saturate 180% blur 12px.
+ * 跟全站 .glass-pill 同蓝紫 accent 系列, 不引入新的视觉语系.
+ * ============================================================ */
+.glass-input {
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: saturate(180%) blur(12px);
+  -webkit-backdrop-filter: saturate(180%) blur(12px);
+  border: 1.5px solid rgba(99, 102, 241, 0.18);
+  border-radius: 14px;
+  padding: 14px 16px;
+  color: #171717;
+  font-size: 16px;
+  min-height: 52px;
+  font-family: inherit;
+  transition: border-color 150ms ease, box-shadow 150ms ease, background 150ms ease;
+  box-sizing: border-box;
+  width: 100%;
+}
+.glass-input:focus {
+  outline: none;
+  border-color: rgba(99, 102, 241, 0.55);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
+}
+.glass-input::placeholder { color: #a3a3a3; }
+.glass-input:disabled { opacity: 0.55; cursor: not-allowed; }
+.glass-input.is-error {
+  border-color: rgba(244, 63, 94, 0.55);
+  box-shadow: 0 0 0 4px rgba(244, 63, 94, 0.12);
+}
+
+/* ============================================================
+ * v0.3.17 #27 wizard 进度点 (.dot) — 全局化
+ * ------------------------------------------------------------
+ * 原 .dot 只在 routes/sessions/new/+page.svelte 局部定义 (e5e5e5/3b82f6/93c5fd).
+ * 现在升级为蓝紫 accent 玻璃风, 复用 .glass-input 同源视觉.
+ * ============================================================ */
+.progress .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.18);
+  backdrop-filter: saturate(180%) blur(8px);
+  -webkit-backdrop-filter: saturate(180%) blur(8px);
+  transition: background 300ms ease, transform 300ms ease;
+}
+.progress .dot.active {
+  background: rgba(99, 102, 241, 0.55);
+  border-color: rgba(99, 102, 241, 0.55);
+}
+.progress .dot.done {
+  background: rgba(165, 180, 252, 0.7);
+  border-color: rgba(165, 180, 252, 0.8);
+  transform: scale(0.85);
+}
+
+/* ============================================================
+ * v0.3.17 #27 全局 .btn-primary (实色蓝紫玻璃)
+ * ------------------------------------------------------------
+ * 原 .btn-primary 只在 routes/+page.svelte (landing) 局部定义.
+ * 复用参数提到全局, 供 login / wizard 等页面也用.
+ * ============================================================ */
+.btn.btn-primary,
+button.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  padding: 0 1.5rem;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.85) 0%, rgba(99, 102, 241, 0.78) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  backdrop-filter: saturate(200%) blur(20px);
+  -webkit-backdrop-filter: saturate(200%) blur(20px);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  font-family: inherit;
+  text-decoration: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.08),
+    0 6px 20px rgba(59, 130, 246, 0.35);
+  transition: background 180ms ease, transform 100ms ease, box-shadow 180ms ease;
+}
+.btn.btn-primary:hover:not(:disabled),
+button.btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.95) 0%, rgba(99, 102, 241, 0.9) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.1),
+    0 8px 24px rgba(59, 130, 246, 0.45);
+}
+.btn.btn-primary:active:not(:disabled),
+button.btn-primary:active:not(:disabled) { transform: scale(0.98); }
+.btn.btn-primary:disabled,
+button.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+@supports not (backdrop-filter: blur(1px)) {
+  .btn.btn-primary,
+  button.btn-primary {
+    background: rgba(59, 130, 246, 0.9);
+  }
+}
+
+/* ============================================================
+ * v0.3.17 #27 选项 active 态 (.mode-pill.active / .currency-pill.active)
+ * ------------------------------------------------------------
+ * HTML 用 class:active 切换, 需要独立 CSS 复用 .btn-primary 视觉.
+ * 跟 .btn-primary 同参数 (实色蓝紫玻璃), 让 active 选项跟主按钮形成视觉对位.
+ * ============================================================ */
+.mode-pill.active,
+.currency-pill.active {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.85) 0%, rgba(99, 102, 241, 0.78) 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+  color: #fff !important;
+  font-weight: 600;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.08),
+    0 4px 14px rgba(59, 130, 246, 0.3);
+}
+.mode-pill.active:hover,
+.currency-pill.active:hover {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.95) 0%, rgba(99, 102, 241, 0.9) 100%) !important;
+}
+
