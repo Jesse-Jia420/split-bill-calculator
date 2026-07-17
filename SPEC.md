@@ -1854,3 +1854,57 @@ seed 脚本 (`backend/scripts/seed_dev_data.py`) 已有 find-or-create 逻辑：
 - settle 个人视图 toggle: switchExists=true ✓, modePillExists=0 ✓, optionLabels=["主币种汇总 (CNY)", "原始数据"], min-height 44px ✓ (Master walk 实测)
 - 跨页面视觉一致 (wizard + settle 同款 toggle)
 - svelte-check baseline + 0 new error
+
+### §11. v0.3.17 #32-D-4 (2026-07-18) — version bump + switch thumb 动态宽度跟随 option 文字 (PO msg 01:18 #6116 拍板)
+
+**PO 反馈 (msg 01:18 #6116)** 3 条:
+0. version.ts 还停在 4773e6d (旧 commit 0ed9376 的 bump), 不是最新 origin/main (1f5e4b3) — bump 到新短 hash, 解决生产 footer 版本号不一致
+1. switch toggle 左右两 option 文字长度不一致, 选中块 (thumb) 宽度应该跟随选中 option 实际宽度 — 当前 thumb 固定 50% 宽度跨整个右半边视觉不平衡
+2. (单独 follow-up) 整体 app responsive — 先跟 PO 对齐范围, 不在本 #32-D-4 范围
+
+**实施**:
+
+**(A) version bump**:
+- `frontend/src/lib/version.ts`: `FRONTEND_VERSION = "4773e6d"` → 改成新 commit short hash (实施后用最终 commit short hash)
+
+**(B) 抽 `IosSwitch` 组件** (新文件 `frontend/src/lib/components/IosSwitch.svelte`):
+- Props: `options: { value, label, disabled? }[]`, `value` (bindable), `on:change`
+- 内部: `bind:this={switchEl}`, `requestAnimationFrame` measure 选中 option 的 `getBoundingClientRect()`, 算出 thumb `width` + `x` 偏移
+- `ResizeObserver` 监听 switch container resize (含 responsive breakpoint 变化), 重新 measure
+- `transition: width 250ms cubic-bezier + transform 250ms cubic-bezier` — thumb 滑动 + 宽度变化都 smooth
+- Accessibility: `role="radiogroup"`, 每个 option `role="radio" aria-checked`, disabled option `disabled + .locked class` (opacity 0.4 + not-allowed cursor)
+
+**(C) 更新 app.css** `.ios-switch-thumb`:
+- 删固定 `width: calc(50% - 4px)` (现在 width 由 JS 动态 set)
+- 保留 `position: absolute; top/left/bottom: 4px`
+- 加 `transition: width 250ms cubic-bezier(0.4, 0.0, 0.2, 1), transform 250ms cubic-bezier(0.4, 0.0, 0.2, 1)`
+- width / translateX 由 IosSwitch 组件 inline style set
+
+**(D) wizard step 3 + settle 个人视图 改用 IosSwitch 组件**:
+- `frontend/src/routes/sessions/new/+page.svelte`: line ~256-275 markup 替换为 `<IosSwitch options=[{value,label},...] bind:value={currencyMode} disabled={isAnon ? 'dual' : null} />`
+- `frontend/src/routes/sessions/[id]/settle/+page.svelte`: line ~157-184 markup 替换为 `<IosSwitch options=[{value:'primary', label:`主币种汇总 (${session.primary_currency})`}, {value:'split', label:'原始数据'}] bind:value={viewMode} disabled={!session.currencies || session.currencies.length < 2 ? 'split' : null} />`
+
+**验收 criterion**:
+- version.ts 改成新 commit short hash (生产 footer 显示新 hash) ✓
+- switch thumb 宽度跟随选中 option 实际宽度 (主币种汇总 (CNY) 比 原始数据 长, thumb 在「主币种汇总」active 时明显比「原始数据」active 时宽) ✓
+- thumb 切换时 width + transform 都 smooth (250ms cubic-bezier) ✓
+- 跨页面 wizard + settle 用同一个组件, 视觉一致 ✓
+- disabled option 不响应 click ✓
+- ResizeObserver 处理 window resize / orientation change ✓
+- svelte-check baseline + 0 new error
+
+### §11. v0.3.17 #33 (2026-07-18) — join session page 玻璃化重构 (PO msg 01:34 #6139)
+
+**PO 反馈 (msg 01:34 #6139)**: 「加入账本页面也要玻璃化重构」 — 跟 v0.3.17 #27 全玻璃化 polish 一致
+
+**目标 page**: `frontend/src/routes/sessions/[id]/join/+page.svelte` (匿名 user 通过 invite link 加入账本的 wizard)
+
+**实施**: 复用现有 liquid glass utility classes (跟 system 一致):
+- `.glass-pill` / `.glass-card-soft` / `.glass-input` / `.btn-sm` / `.fab` 等全局 utility (已 ship #27 / #30 / #32-D)
+- 不引入新 design token
+- 跟全站 iOS27 glass language 一致
+
+**验收 criterion**:
+- join page 标题 / input / button / cards 全 liquid glass 视觉 (跟 settle / wizard / sessions list 一致)
+- 不破坏现有功能 (anon claim member + 设置 nickname + 跳转到 session)
+- svelte-check baseline + 0 new error
