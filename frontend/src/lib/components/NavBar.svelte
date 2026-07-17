@@ -31,7 +31,12 @@
   <a href="/" class="brand">Split Bill</a>
   {#if !['/auth/login', '/sessions/new'].includes(page.url.pathname) && $user}
     <nav class="links">
-      <a href="/sessions" class="glass-pill links-item">我的账本</a>
+      <!-- v0.3.17 #30: 「我的账本」class 改为 btn-sm links-item, 跟「注销登录」
+           共用 .btn-sm 玻璃参数 (PO msg 14:28)。视觉同族 (同色 + 同描边 + 同 hover)。
+           原 .glass-pill 蓝紫淡玻璃 ≠ 注销登录 .ghost 白玻璃, 两个按钮看着不属于
+           一个组件。统一用 .btn-sm 后, 整组 nav 视觉一致。.links-item 保留以维持
+           nav link 的语义定位 (flex 布局项), 但视觉参数全部继承 .btn-sm。 -->
+      <a href="/sessions" class="btn-sm links-item">我的账本</a>
     </nav>
   {/if}
   {#if page.url.pathname !== '/auth/login'}
@@ -58,7 +63,10 @@
     display: flex;
     align-items: center;
     gap: var(--space-3);
-    padding: var(--space-3) var(--space-4);
+    /* v0.3.17 #30 (PO msg 14:28): 加 env(safe-area-inset-top) — iOS 全面屏
+       刘海/灵动岛区域不挡 brand 文字。body 已 lock 外层滚 (见 app.css),
+       .navbar 是 body flex column 第一项, 始终贴顶。 */
+    padding: calc(var(--space-3) + env(safe-area-inset-top, 0px)) var(--space-4) var(--space-3);
     border-bottom: 1px solid var(--color-border);
     background: var(--color-surface);
     flex-wrap: wrap;
@@ -71,12 +79,12 @@
   }
   .brand:hover { color: var(--color-accent); }
   .links { flex: 1; display: flex; gap: var(--space-3); }
-  .links a {
-    color: var(--color-text-muted);
-    min-height: var(--touch-target);
-    display: inline-flex;
-    align-items: center;
-  }
+  /* v0.3.17 #30 (PO msg 14:28): 删 .links a 独立样式 — 之前给 <a class="glass-pill">
+     提供 fallback layout, 现在「我的账本」已经升级为 .btn-sm, 自己的 display /
+     min-height / align-items / color 全由 .btn-sm 提供。
+     保留 .links a 选择器为空规则会触发 svelte-check unused-selector 警告,
+     干脆整块删掉。 */
+  .links a { display: inline-flex; align-items: center; } /* 仅保留 layout 兜底 */
   .right {
     display: flex;
     align-items: center;

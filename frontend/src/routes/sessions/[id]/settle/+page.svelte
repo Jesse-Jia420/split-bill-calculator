@@ -147,12 +147,18 @@
         <!--
           个人视图 tab: radio 只在此处出现 (PO 拍板 C1+D1 — 主币种
           汇总 vs 原始数据 的切换对个人视图才有意义)。
+
+          v0.3.17 #30 (PO msg 14:28): 升级为 mode-pill 玻璃分段控件 —
+          跟 wizard step 3 currency-mode-row 同语言 (v0.3.17 #27 玻璃化)
+          inactive = 全局 .glass-pill 浅蓝紫玻璃, active = 全局 .btn-primary
+          实色蓝紫玻璃. 整组 toggle 视觉跟 wizard step 3 的「单币 / 双币」段同款。
+          行为不变 (主币种汇总 vs 原始数据), 仅 UI 玻璃化。
         -->
-        <div class="view-switch" role="radiogroup" aria-label="结算视图">
+        <div class="view-toggle-row" role="radiogroup" aria-label="结算视图">
           <button
             type="button"
             role="radio"
-            class="view-switch-btn"
+            class="mode-pill glass-pill"
             class:active={viewMode === 'primary'}
             aria-checked={viewMode === 'primary'}
             on:click={() => (viewMode = 'primary')}
@@ -162,7 +168,7 @@
           <button
             type="button"
             role="radio"
-            class="view-switch-btn"
+            class="mode-pill glass-pill"
             class:active={viewMode === 'split'}
             aria-checked={viewMode === 'split'}
             disabled={!session.currencies || session.currencies.length < 2}
@@ -232,38 +238,31 @@
     .fab-left { left: 16px; }
   }
 
-  /* v0.2.2 (T11): view-mode toggle (hotfix #4 — only used by the
-     personal view tab now, but kept as a page-level style for the
-     shared pill design). */
-  .view-switch {
-    display: inline-flex;
-    gap: 0.25rem;
-    background: var(--gray-100, #f3f4f6);
-    border-radius: 999px;
-    padding: 0.25rem;
-    margin: var(--space-2) 0;
+  /* v0.3.17 #30 (PO msg 14:28): view-toggle 玻璃化。
+   * 复用 wizard step 3 的 .mode-pill + 全局 .glass-pill / .btn-primary 视觉语言
+   * (v0.3.17 #27 引入). .mode-pill 全局 CSS 在 app.css 定义 (active 用实色玻璃).
+   * 这里只补 layout: flex + gap, 让两个 pill 平分宽度。
+   *
+   * 旧 .view-switch / .view-switch-btn 块整个删除 — 灰底白 chip 旧视觉跟全站
+   * 玻璃语言不统一, 弃用. */
+  .view-toggle-row {
+    display: flex;
+    gap: 0.5rem;
+    margin: var(--space-2) 0 var(--space-3);
   }
-  .view-switch-btn {
-    background: transparent;
-    border: none;
-    padding: 0.4rem 0.9rem;
-    border-radius: 999px;
-    font-size: 0.875rem;
-    cursor: pointer;
-    color: var(--gray-700, #374151);
+  .view-toggle-row .mode-pill {
+    flex: 1;
+    min-height: 44px;
+    padding: 0.625rem 1rem;
+    font-size: 0.9rem;
     font-weight: 500;
-    transition: background 0.15s ease;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
-  .view-switch-btn:hover:not(:disabled) {
-    background: rgba(99, 102, 241, 0.08);
-  }
-  .view-switch-btn.active {
-    background: white;
-    color: var(--color-text);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
-  }
-  .view-switch-btn:disabled {
-    opacity: 0.5;
+  .view-toggle-row .mode-pill:disabled {
+    opacity: 0.45;
     cursor: not-allowed;
   }
 
