@@ -1314,3 +1314,32 @@ seed 脚本 (`backend/scripts/seed_dev_data.py`) 已有 find-or-create 逻辑：
 * 修 step 3 返回按钮 bug (step=3 → step=2, 之前原地踏步)
 * 修 step 标签重复（showCurrencyStep 永久 true 导致两行同时匹配）
 * 修 goNext step 2: 简化逻辑（showCurrencyStep 永远 true）
+
+### §11. v0.3.17 #27 (2026-07-17) — login + wizard 全玻璃化 + Toast 玻璃化
+* **登录页** (routes/auth/login/+page.svelte):
+  * email/code 输入框 → `.glass-input` (半透白底 + 1.5px 玻璃描边蓝紫 + saturate 180% blur 12px)
+  * 主按钮 "发送验证码" / "验证并登录" → `.btn .btn-primary` (实色蓝紫玻璃, 全局化复用 landing 参数)
+  * "重新发送" 按钮 → `.btn .glass-pill` (蓝紫淡玻璃)
+  * "不想登录?" / "直接开始使用" 按钮保留上轮 `.glass-pill .anon-start` (上轮 #26 已加)
+  * 所有 `toast.error()` 调用加显式 `4000ms` 参数 (验证码类需用户读完, 不改全局 store 默认 2000ms)
+* **Wizard** (routes/sessions/new/+page.svelte):
+  * session-name / nickname / exchange-rate 输入框 → `.glass-input`
+  * 下一步 / 确认创建按钮 → `.btn .btn-primary`
+  * 上一步按钮 → `.btn .glass-pill`
+  * +/- 圆形 count-btn → `.glass-pill .count-btn` (56×56 圆形 + 玻璃参数, border-radius 50% 覆盖)
+  * mode-pill / currency-pill 默认态 → `.glass-pill`; active 态复用 `.btn .btn-primary`
+  * 进度点 `.dot` → app.css 全局化 `.progress .dot` (蓝紫 accent 玻璃, 避开 SessionCard `.dot` 文本冲突)
+  * anon-currency-hint 玻璃卡化 (半透白底 + 1.5px 描边蓝紫 + 14px 圆角 + saturate 180% blur 12px)
+* **Toast** (lib/components/Toast.svelte):
+  * 3 variant 统一 pill (border-radius 999px) + 玻璃参数 (saturate 200% blur 20px + 1.5px 白边 + inset highlight)
+  * 渐变背景: success emerald / error rose→red / info blue→indigo
+  * Icon 改 inline Lucide SVG (check / circle-alert / info, 12px stroke 3, 18px 圆底 rgba 255,255,255,0.25)
+  * 动画: fly y=28 duration 280 cubicOut (跟 tokens glass_base.animation 一致)
+  * 位置 bottom 80px center 不变 (避开 FAB)
+* **app.css** 全局新加:
+  * `.glass-input` 系列 (.glass-input / .glass-input:focus / .glass-input::placeholder / .glass-input:disabled / .glass-input.is-error)
+  * `.progress .dot` 系列 (默认 / active / done, 蓝紫 accent 玻璃)
+  * `.btn .btn-primary` / `button.btn-primary` 全局化 (复用 landing 实色蓝紫玻璃, 原 landing scoped 仍优先)
+* **不动**:
+  * `lib/stores/toast.ts` 全局默认 2000ms 不改 (调用约定 success=2000 / info=3000 / error=4000 显式传参)
+  * SessionCard.svelte (`.dot` 文本分隔符, 全局 `.progress .dot` 限定选择器避碰)

@@ -119,7 +119,7 @@
     if (busy) return;
     const trimmed = email.trim();
     if (!trimmed || !trimmed.includes('@')) {
-      toast.error('请输入有效邮箱');
+      toast.error('请输入有效邮箱', 4000);
       return;
     }
     busy = true;
@@ -130,11 +130,11 @@
     } catch (e: any) {
       const code = e?.code ?? '';
       if (code === 'rate limit exceeded') {
-        toast.error('请求过于频繁,请稍后再试');
+        toast.error('请求过于频繁,请稍后再试', 4000);
       } else if (code === 'invalid email format') {
-        toast.error('邮箱格式不正确');
+        toast.error('邮箱格式不正确', 4000);
       } else {
-        toast.error(e?.message ?? '发送失败');
+        toast.error(e?.message ?? '发送失败', 4000);
       }
     } finally {
       busy = false;
@@ -170,7 +170,7 @@
     if (busy) return;
     const trimmed = code.trim();
     if (!/^\d{6}$/.test(trimmed)) {
-      toast.error('验证码是 6 位数字');
+      toast.error('验证码是 6 位数字', 4000);
       return;
     }
     busy = true;
@@ -183,9 +183,9 @@
     } catch (e: any) {
       const c = e?.code ?? '';
       if (c === 'invalid or expired code') {
-        toast.error('验证码无效或已过期');
+        toast.error('验证码无效或已过期', 4000);
       } else {
-        toast.error(e?.message ?? '验证失败');
+        toast.error(e?.message ?? '验证失败', 4000);
       }
     } finally {
       busy = false;
@@ -208,6 +208,7 @@
       <label class="label" for="email">邮箱</label>
       <input
         id="email"
+        class="glass-input"
         type="email"
         bind:value={email}
         placeholder="you@example.com"
@@ -217,7 +218,7 @@
     </div>
 
     {#if step === 'send'}
-      <button class="primary" on:click={handleSend} disabled={busy}>
+      <button class="btn btn-primary" on:click={handleSend} disabled={busy}>
         {busy ? '发送中…' : '发送验证码'}
       </button>
       <div class="or-divider">
@@ -232,6 +233,7 @@
         <label class="label" for="code">验证码</label>
         <input
           id="code"
+          class="glass-input"
           type="text"
           inputmode="numeric"
           maxlength="6"
@@ -241,10 +243,10 @@
         />
       </div>
       <div class="row" style="gap: var(--space-2);">
-        <button class="primary" on:click={handleVerify} disabled={busy}>
+        <button class="btn btn-primary" on:click={handleVerify} disabled={busy}>
           {busy ? '验证中…' : '验证并登录'}
         </button>
-        <button class="ghost" on:click={() => { step = 'send'; code = ''; }} disabled={busy}>
+        <button class="btn glass-pill" on:click={() => { step = 'send'; code = ''; }} disabled={busy}>
           重新发送
         </button>
       </div>

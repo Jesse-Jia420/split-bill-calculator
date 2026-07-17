@@ -180,12 +180,12 @@
         <h2 class="step-title">给你的账本起个名字</h2>
         <p class="step-hint">比如：曼谷之旅 2026 / 毕业聚餐 / 合租记账</p>
         <div class="field">
-          <input id="session-name" type="text" bind:value={sessionName}
+          <input id="session-name" class="glass-input" type="text" bind:value={sessionName}
             placeholder="比如：曼谷之旅 2026" maxlength="200"
             onkeydown={(e) => e.key === "Enter" && nameValid && goNext()}
             autofocus />
         </div>
-        <button class="btn-next" onclick={goNext} disabled={!nameValid}>下一步</button>
+        <button class="btn btn-primary btn-next" onclick={goNext} disabled={!nameValid}>下一步</button>
       </div>
     {/if}
 
@@ -194,16 +194,16 @@
         <h2 class="step-title">一共有多少人？</h2>
         <p class="step-hint">别担心，稍后也可添加更多成员</p>
         <div class="count-row">
-          <button class="count-btn" onclick={() => adjustCount(-1)} disabled={memberCount <= 1} aria-label="减少一人">-</button>
+          <button class="glass-pill count-btn" onclick={() => adjustCount(-1)} disabled={memberCount <= 1} aria-label="减少一人">-</button>
           <span class="count-display">{memberCount}</span>
-          <button class="count-btn" onclick={() => adjustCount(1)} disabled={memberCount >= 20} aria-label="增加一人">+</button>
+          <button class="glass-pill count-btn" onclick={() => adjustCount(1)} disabled={memberCount >= 20} aria-label="增加一人">+</button>
         </div>
         <p class="count-hint">{memberCount} 人</p>
         <div class="nickname-list" style="margin-top: 1.5rem;">
           {#each nicknames as nick, i (i)}
             <div class="nickname-row">
               <span class="nick-label">{i === 0 ? "你" : "同伴 " + i}</span>
-              <input type="text" bind:value={nicknames[i]}
+              <input class="glass-input" type="text" bind:value={nicknames[i]}
                 placeholder={i === 0 ? "你的名字" : "同伴 " + i + " 的名字"}
                 maxlength="50"
                 onkeydown={(e) => e.key === "Enter" && i === nicknames.length - 1 && nicknamesValid && goNext()} />
@@ -211,8 +211,8 @@
           {/each}
         </div>
         <div class="step-nav">
-          <button class="btn-back" onclick={() => (step = 1)}>上一步</button>
-          <button class="btn-next" onclick={goNext} disabled={!nicknamesValid}>
+          <button class="btn glass-pill btn-back" onclick={() => (step = 1)}>上一步</button>
+          <button class="btn btn-primary btn-next" onclick={goNext} disabled={!nicknamesValid}>
             {showCurrencyStep ? '下一步' : '确认创建'}
           </button>
         </div>
@@ -227,12 +227,12 @@
 
         <!-- 模式切换：单币 vs 双币 -->
         <div class="currency-mode-row" role="radiogroup" aria-label="币种模式">
-          <button type="button" class="mode-pill" class:active={currencyMode === 'single'}
+          <button type="button" class="glass-pill mode-pill" class:active={currencyMode === 'single'}
             onclick={() => { currencyMode = 'single'; secondaryCurrency = ''; exchangeRate = ''; }}>
             单一币种
           </button>
           {#if !isAnon}
-            <button type="button" class="mode-pill" class:active={currencyMode === 'dual'}
+            <button type="button" class="glass-pill mode-pill" class:active={currencyMode === 'dual'}
               onclick={() => currencyMode = 'dual'}>
               双币种
             </button>
@@ -244,7 +244,7 @@
           <label class="currency-label">主币种（必选）</label>
           <div class="currency-pills">
             {#each ["CNY", "USD", "EUR", "JPY", "THB"] as ccy}
-              <button type="button" class="currency-pill" class:active={primaryCurrency === ccy}
+              <button type="button" class="glass-pill currency-pill" class:active={primaryCurrency === ccy}
                 onclick={() => {
                   // 主币种切换 → 清空副币种 + 汇率 (币种对换了 rate 没意义).
                   primaryCurrency = ccy;
@@ -264,7 +264,7 @@
             <div class="currency-pills">
               {#each ["CNY", "USD", "EUR", "JPY", "THB"] as ccy}
                 {#if ccy !== primaryCurrency}
-                  <button type="button" class="currency-pill" class:active={secondaryCurrency === ccy}
+                  <button type="button" class="glass-pill currency-pill" class:active={secondaryCurrency === ccy}
                     onclick={() => secondaryCurrency = ccy}>
                     {ccy}
                   </button>
@@ -282,12 +282,12 @@
             </label>
             <input
               id="exchange-rate-input"
+              class="glass-input"
               type="number"
               step="any"
               min="0"
               bind:value={exchangeRate}
               placeholder="例如 0.14"
-              class="exchange-rate-input"
             />
             <p class="exchange-rate-hint">
               {#if !secondaryCurrency}
@@ -302,12 +302,12 @@
         {/if}
 
         {#if isAnon}
-          <p class="anon-currency-hint">需要多币种？账本创建后登录即可</p>
+          <p class="anon-currency-hint glass-card-soft">需要多币种？账本创建后登录即可</p>
         {/if}
 
         <div class="step-nav" style="margin-top: 1.75rem;">
-          <button class="btn-back" onclick={() => (step = 2)}>上一步</button>
-          <button class="btn-confirm" onclick={handleCreate} disabled={!currencyValid || busy}>
+          <button class="btn glass-pill btn-back" onclick={() => (step = 2)}>上一步</button>
+          <button class="btn btn-primary btn-confirm" onclick={handleCreate} disabled={!currencyValid || busy}>
             {busy ? '创建中…' : '确认创建'}
           </button>
         </div>
@@ -320,65 +320,59 @@
   .loading-screen { display: flex; align-items: center; justify-content: center; min-height: 50vh; }
   .wizard { max-width: 480px; margin: 0 auto; padding: 1.5rem 1rem; }
   .progress { display: flex; justify-content: center; gap: 0.5rem; margin-bottom: 1.25rem; }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: #e5e5e5; transition: background 0.3s, transform 0.3s; }
-  .dot.active { background: #3b82f6; }
-  .dot.done { background: #93c5fd; transform: scale(0.85); }
+  /* .dot 系列已迁到 app.css 全局 (.progress .dot) — v0.3.17 #27 */
   .step-label { text-align: center; font-size: 0.8125rem; color: #737373; margin-bottom: 1.5rem; text-transform: uppercase; letter-spacing: 0.08em; }
   .step-panel { animation: slideIn 0.3s ease-out both; }
   @keyframes slideIn { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: translateX(0); } }
   .step-title { font-size: 1.5rem; font-weight: 700; color: #171717; margin: 0 0 0.375rem; line-height: 1.2; }
   .step-hint { font-size: 0.9rem; color: #737373; margin: 0 0 1.75rem; }
   .field { margin-bottom: 1.5rem; }
-  input[type="text"] { width: 100%; padding: 0.875rem 1rem; border: 2px solid #e5e5e5; border-radius: 0.75rem; font-size: 1rem; background: #fff; transition: border-color 0.15s; box-sizing: border-box; }
-  input[type="text"]:focus { outline: none; border-color: #3b82f6; }
-  input[type="text"]::placeholder { color: #a3a3a3; }
-  .btn-next, .btn-confirm { display: inline-flex; align-items: center; justify-content: center; width: 100%; min-height: 52px; padding: 0 1.5rem; background: #3b82f6; border: none; border-radius: 9999px; color: #fff; font-size: 1rem; font-weight: 600; cursor: pointer; transition: background 0.15s, transform 0.1s; letter-spacing: 0.01em; }
-  .btn-next:hover:not(:disabled), .btn-confirm:hover:not(:disabled) { background: #2563eb; }
-  .btn-next:active:not(:disabled), .btn-confirm:active:not(:disabled) { transform: scale(0.98); }
-  .btn-next:disabled, .btn-confirm:disabled { opacity: 0.5; cursor: not-allowed; }
+  /* input[type="text"] 已用 .glass-input 替代 — v0.3.17 #27 */
+  /* .btn-next / .btn-confirm 已用 .btn .btn-primary 替代 — v0.3.17 #27 */
   .step-nav { display: flex; gap: 0.75rem; margin-top: 1.5rem; }
-  .step-nav .btn-next, .step-nav .btn-confirm { flex: 1; }
-  .btn-back { display: inline-flex; align-items: center; justify-content: center; min-height: 52px; padding: 0 1.25rem; background: #fff; border: 2px solid #e5e5e5; border-radius: 9999px; color: #525252; font-size: 1rem; font-weight: 500; cursor: pointer; transition: border-color 0.15s, color 0.15s; }
-  .btn-back:hover { border-color: #a3a3a3; color: #262626; }
+  /* .step-nav .btn-next / .btn-confirm flex 1 由 .btn-primary 自然继承 (display: inline-flex 已是 block-level by 父 flex) */
+  /* .btn-back 已用 .glass-pill 替代 — v0.3.17 #27 */
   .count-row { display: flex; align-items: center; justify-content: center; gap: 2rem; margin-bottom: 0.75rem; }
-  .count-btn { width: 56px; height: 56px; border-radius: 50%; border: 2px solid #e5e5e5; background: #fff; color: #262626; font-size: 1.5rem; font-weight: 600; cursor: pointer; transition: border-color 0.15s, background 0.15s; display: flex; align-items: center; justify-content: center; }
-  .count-btn:hover:not(:disabled) { border-color: #3b82f6; background: #eff6ff; color: #3b82f6; }
-  .count-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  /* .count-btn 已用 .glass-pill 替代, 圆形覆盖保持 — v0.3.17 #27 */
+  .count-btn { width: 56px; height: 56px; border-radius: 50%; font-size: 1.5rem; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; }
+  .count-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
   .count-display { font-size: 3rem; font-weight: 700; color: #171717; min-width: 3rem; text-align: center; line-height: 1; }
   .count-hint { text-align: center; font-size: 0.9rem; color: #737373; margin: 0; }
   .nickname-list { display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 0.5rem; }
   .nickname-row { display: flex; align-items: center; gap: 0.75rem; }
   .nick-label { min-width: 52px; font-size: 0.875rem; font-weight: 600; color: #525252; }
-  .nickname-row input { flex: 1; padding: 0.75rem 1rem; border: 2px solid #e5e5e5; border-radius: 0.75rem; font-size: 1rem; background: #fff; transition: border-color 0.15s; box-sizing: border-box; }
-  .nickname-row input:focus { outline: none; border-color: #3b82f6; }
-  .nickname-row input::placeholder { color: #a3a3a3; }
+  /* .nickname-row input 已用 .glass-input 替代 — v0.3.17 #27 */
   .muted { color: #737373; }
 
   /* §3.11.10: currency step styles */
   .currency-mode-row { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
-  .mode-pill { flex: 1; padding: 0.625rem 1rem; border: 2px solid #e5e5e5; border-radius: 9999px; background: #fff; color: #525252; font-size: 0.9rem; font-weight: 500; cursor: pointer; transition: border-color 0.15s, background 0.15s, color 0.15s; }
-  .mode-pill:hover { border-color: #3b82f6; color: #3b82f6; }
-  .mode-pill.active { border-color: #3b82f6; background: #eff6ff; color: #3b82f6; font-weight: 600; }
+  /* .mode-pill 已用 .glass-pill 替代 (默认) / .btn-primary 替代 (active) — v0.3.17 #27 */
+  .mode-pill { flex: 1; min-height: 44px; padding: 0.625rem 1rem; font-size: 0.9rem; font-weight: 500; cursor: pointer; }
   .currency-section { margin-bottom: 1.25rem; }
   .currency-label { display: block; font-size: 0.8125rem; font-weight: 600; color: #525252; margin-bottom: 0.625rem; text-transform: uppercase; letter-spacing: 0.06em; }
   .currency-pills { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-  .currency-pill { padding: 0.5rem 1rem; border: 2px solid #e5e5e5; border-radius: 9999px; background: #fff; color: #525252; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: border-color 0.15s, background 0.15s, color 0.15s; }
-  .currency-pill:hover { border-color: #3b82f6; color: #3b82f6; }
-  .currency-pill.active { border-color: #3b82f6; background: #3b82f6; color: #fff; font-weight: 600; }
+  /* .currency-pill 已用 .glass-pill 替代 (默认) / .btn-primary 替代 (active) — v0.3.17 #27 */
+  .currency-pill { padding: 0.5rem 1rem; font-size: 0.875rem; font-weight: 500; cursor: pointer; min-height: 40px; }
 
   /* §3.11 收尾: dual mode 汇率 input 样式 */
-  .exchange-rate-input { width: 100%; padding: 0.75rem 1rem; border: 2px solid #e5e5e5; border-radius: 0.75rem; font-size: 1rem; background: #fff; transition: border-color 0.15s; box-sizing: border-box; }
-  .exchange-rate-input:focus { outline: none; border-color: #3b82f6; }
-  .exchange-rate-input::placeholder { color: #a3a3a3; }
+  /* .exchange-rate-input 已用 .glass-input 替代 — v0.3.17 #27 */
   .exchange-rate-hint { font-size: 0.8125rem; color: #737373; margin: 0.5rem 0 0; min-height: 1.2em; }
 
+  /* anon 提示玻璃卡 — v0.3.17 #27 (半透白底 + 1.5px 描边蓝紫 + 玻璃 blur) */
   .anon-currency-hint {
     text-align: center;
     font-size: 0.875rem;
-    color: var(--color-text-muted, #6b7280);
+    color: #4338ca;
     margin-top: 1rem;
-    padding: 0.75rem 1rem;
-    background: #f5f5f5;
-    border-radius: 0.75rem;
+    padding: 0.875rem 1rem;
+    background: rgba(255, 255, 255, 0.55);
+    border: 1.5px solid rgba(99, 102, 241, 0.18);
+    border-radius: 14px;
+    backdrop-filter: saturate(180%) blur(12px);
+    -webkit-backdrop-filter: saturate(180%) blur(12px);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.6),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.04),
+      0 1px 4px rgba(99, 102, 241, 0.08);
   }
 </style>
