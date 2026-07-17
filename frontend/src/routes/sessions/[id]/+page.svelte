@@ -660,14 +660,14 @@
     align-items: center;
     gap: var(--space-2);
     flex-wrap: wrap;
-    font-size: 0.875rem;
+    font-size: var(--font-size-sm);
   }
   .owner-nickname {
     font-weight: 600;
     color: var(--color-text, #171717);
   }
   .owner-email {
-    font-size: 0.8125rem;
+    font-size: var(--font-size-xs);
   }
   .owner-logout-btn {
     min-height: 32px;
@@ -676,7 +676,7 @@
     border: 1px solid var(--color-border, #e5e5e5);
     background: var(--color-surface, #fff);
     color: var(--color-text, #525252);
-    font-size: 0.8125rem;
+    font-size: var(--font-size-xs);
     font-weight: 500;
     cursor: pointer;
     transition: border-color 0.15s, color 0.15s, background 0.15s;
@@ -725,7 +725,7 @@
   }
   .members-title {
     margin: 0;
-    font-size: 1rem;
+    font-size: var(--font-size-base);
     font-weight: 600;
     display: inline-flex;
     align-items: baseline;
@@ -770,7 +770,7 @@
     align-items: center;
     justify-content: center;
     font-weight: 600;
-    font-size: 16px;
+    font-size: var(--font-size-base);
     flex-shrink: 0;
   }
   .member-info {
@@ -787,7 +787,7 @@
     min-width: 0;
   }
   .member-name {
-    font-size: 1rem;
+    font-size: var(--font-size-base);
     font-weight: 500;
     color: var(--gray-900);
     overflow: hidden;
@@ -798,7 +798,7 @@
     display: inline-block;
     background: var(--accent-500);
     color: #fff;
-    font-size: 11px;
+    font-size: clamp(0.625rem, 2.4vw, 0.6875rem);
     padding: 2px 8px;
     border-radius: 999px;
     font-weight: 500;
@@ -809,7 +809,7 @@
     display: inline-block;
     background: var(--accent-500);
     color: #fff;
-    font-size: 11px;
+    font-size: clamp(0.625rem, 2.4vw, 0.6875rem);
     padding: 2px 8px;
     border-radius: 999px;
     font-weight: 600;
@@ -821,7 +821,7 @@
     align-items: baseline;
     gap: var(--space-3, 12px);
     flex-wrap: wrap;
-    font-size: 13px;
+    font-size: var(--font-size-sm);
   }
   .member-net {
     font-variant-numeric: tabular-nums;
@@ -835,7 +835,7 @@
     color: var(--error-500);
   }
   .member-email {
-    font-size: 12px;
+    font-size: clamp(0.6875rem, 2.6vw, 0.75rem);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -846,7 +846,7 @@
     background: transparent;
     border: 0;
     color: var(--gray-500);
-    font-size: 22px;
+    font-size: clamp(1.125rem, 4.2vw, 1.375rem);
     line-height: 1;
     width: 32px;
     height: 32px;
@@ -888,7 +888,7 @@
     align-items: center;
     justify-content: center;
     font-weight: 600;
-    font-size: 13px;
+    font-size: var(--font-size-sm);
     margin-left: -8px;
     border: 2px solid var(--color-bg, white);
     box-shadow: 0 1px 2px rgba(0,0,0,0.08);
@@ -912,7 +912,7 @@
   .members-avatars-inline .avatar-mini {
     width: 26px;
     height: 26px;
-    font-size: 12px;
+    font-size: clamp(0.6875rem, 2.6vw, 0.75rem);
   }
   .avatar-mini-overflow {
     background: var(--gray-300, #d1d5db) !important;
@@ -925,7 +925,7 @@
     justify-content: center;
     width: 24px;
     height: 24px;
-    font-size: 16px;
+    font-size: var(--font-size-base);
     color: var(--gray-500);
     transition: transform 180ms ease;
     transform: rotate(-90deg);
@@ -949,10 +949,10 @@
     .member-avatar {
       width: 32px;
       height: 32px;
-      font-size: 14px;
+      font-size: var(--font-size-sm);
     }
     .member-name {
-      font-size: 14px;
+      font-size: var(--font-size-sm);
     }
     .member-remove {
       opacity: 1; /* 触摸设备 hover 不可靠,默认显示 */
@@ -960,7 +960,7 @@
     .member-email {
       /* §3.11.11+§3.11.14: 邮箱必须显示 (anon-claimed slot 登录后绑定显示邮箱).
          旧 v0.2.1 规则 display:none 是错的, 改成小字号 + 缩窄. */
-      font-size: 11px;
+      font-size: clamp(0.625rem, 2.4vw, 0.6875rem);
       max-width: 140px;
     }
   }
