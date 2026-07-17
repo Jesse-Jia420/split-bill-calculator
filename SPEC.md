@@ -1306,3 +1306,11 @@ seed 脚本 (`backend/scripts/seed_dev_data.py`) 已有 find-or-create 逻辑：
 - **反 #152**：不 DELETE + seed 清数据，seed 只补缺失 fixture。
 - **commit 不丢**：seed 默认注入，commit push 后 uvicorn 重启仍然保持 fixture 在 DB（find-or-create 防重置）。
 - **restart 不丢**：同 find-or-create 逻辑，restart 后 seed 发现 fixture 存在则跳过。
+
+### §11. v0.3.17 #26 (2026-07-17) — login anon CTA + wizard anon support
+* 登录页 step=send 加 或-divider + 不想登录？提示 + 直接开始使用按钮（跳 /sessions/new）
+* Wizard step 2 hint: 包括你自己最少1人 → 别担心稍后也可添加更多成员
+* Wizard step 3: anon 时始终显示（showCurrencyStep=true），隐藏双币按钮，加需要多币种？提示
+* 修 step 3 返回按钮 bug (step=3 → step=2, 之前原地踏步)
+* 修 step 标签重复（showCurrencyStep 永久 true 导致两行同时匹配）
+* 修 goNext step 2: 简化逻辑（showCurrencyStep 永远 true）
