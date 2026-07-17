@@ -13,6 +13,11 @@
    * 4-action matrix (join-claim endpoint):
    *   Anonymous:  claim existing unclaimed slot | add new nickname
    *   Logged-in: bind existing slot (user_id) | add new nickname (user_id)
+   *
+   * v0.3.17 #33 (PO msg 01:34 #6139 + msg 01:37 #6149 续) — join session page 玻璃化重构 + 文案 polish.
+   * 跟 v0.3.17 #27 全玻璃化 polish + #30/#31/#32 liquid glass 设计语言一致.
+   * 复用现有 utility (.glass-pill / .glass-input / .btn-primary), 不引入新 design token.
+   * #6149 PO 文案 polish: 标题「回到/加入账本」/ taken slot 描述 / 「或」字 divider / 新建昵称描述.
    */
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
@@ -216,8 +221,8 @@
   }));
 </script>
 
-<section>
-  <h2>加入账本</h2>
+<section class="join-page">
+  <h2 class="step-title">回到/加入账本</h2>
 
   {#if loading}
     <p>正在加载…</p>
@@ -248,7 +253,7 @@
             <div class="slot-list">
               {#each availableSlots as slot (slot.id)}
                 <button
-                  class="slot-btn"
+                  class="glass-pill slot-btn"
                   onclick={() => handleClaim(slot.id)}
                   disabled={busy}
                 >
@@ -264,12 +269,13 @@
           <div class="row gap">
             <input
               type="text"
+              class="glass-input"
               placeholder="你的昵称"
               bind:value={newNickname}
               maxlength="50"
               onkeydown={(e) => e.key === 'Enter' && handleAdd()}
             />
-            <button class="primary" onclick={handleAdd} disabled={busy}>
+            <button class="btn btn-primary" onclick={handleAdd} disabled={busy}>
               {busy ? '加入中…' : '加入'}
             </button>
           </div>
@@ -284,7 +290,7 @@
             <div class="slot-list">
               {#each availableSlots as slot (slot.id)}
                 <button
-                  class="slot-btn"
+                  class="glass-pill slot-btn"
                   onclick={() => handleClaim(slot.id)}
                   disabled={busy}
                 >
@@ -297,10 +303,10 @@
 
         {#if takenSlots.length > 0}
           <div>
-            <p class="label muted">已被认领的昵称</p>
+            <p class="label muted">选择昵称以回到账本</p>
             <div class="slot-list">
               {#each takenSlots as slot (slot.id)}
-                <span class="slot-btn disabled">
+                <span class="glass-pill slot-btn taken">
                   {slot.display_name}
                   {#if (slot as SessionMember).email}
                     <span class="muted">（已被 {(slot as SessionMember).email} 绑定）</span>
@@ -311,19 +317,20 @@
           </div>
         {/if}
 
-        <hr />
+        <div class="divider-with-text"><span>或</span></div>
 
         <div>
-          <p class="label">新建一个角色（昵称）</p>
+          <p class="label">新建昵称以加入账本</p>
           <div class="row gap">
             <input
               type="text"
+              class="glass-input"
               placeholder="你想叫什么名字？"
               bind:value={newNickname}
               maxlength="50"
               onkeydown={(e) => e.key === 'Enter' && handleAdd()}
             />
-            <button class="primary" onclick={handleAdd} disabled={busy}>
+            <button class="btn btn-primary" onclick={handleAdd} disabled={busy}>
               {busy ? '加入中…' : '加入'}
             </button>
           </div>
@@ -334,47 +341,82 @@
 </section>
 
 <style>
+  /* v0.3.17 #33 — join session page 玻璃化重构 (PO msg 01:34 #6139 + msg 01:37 #6149 续)
+   * 跟 v0.3.17 #27 全玻璃化 polish + #30/#31/#32 liquid glass 一致.
+   * 复用现有 .glass-pill / .glass-input / .btn-primary utility, 不引入新 design token.
+   * .step-title 同 wizard .step-title 参数 (后续如需全局化, 跟随 wizard 一起迁). */
+
+  .join-page {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 1.5rem 1rem;
+  }
+
+  /* step-title 跟 wizard step-title 同款 — v0.3.17 #33 局部加 (等 wizard 移全局时一起迁) */
+  .step-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #171717;
+    margin: 0 0 0.375rem;
+    line-height: 1.2;
+  }
+
   .slot-list {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
     margin-top: 0.5rem;
   }
+  /* slot-btn: 玻璃 pill 复用, hover/active/focus 由 .glass-pill 全局管 (#33 重构)
+   * 保留 slot-btn 作为语义 class, 仅做 layout + size 调优 (padding/font-size) */
   .slot-btn {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
     padding: 0.5rem 1rem;
-    border: 1px solid rgba(99, 102, 241, 0.3);
-    border-radius: 0.5rem;
-    background: rgba(99, 102, 241, 0.04);
-    color: #4f46e5;
     cursor: pointer;
     font-size: 0.9rem;
-    transition: background 0.15s;
-  }
-  .slot-btn:hover:not(:disabled) {
-    background: rgba(99, 102, 241, 0.1);
   }
   .slot-btn:disabled {
     cursor: not-allowed;
     opacity: 0.6;
   }
-  .slot-btn.disabled {
-    background: rgba(0, 0, 0, 0.03);
-    border-color: rgba(0, 0, 0, 0.1);
-    color: var(--color-text-muted);
+  /* taken 状态: display-only (灰显 + 中性 bg), 跟 .glass-pill 默认 accent 区分 */
+  .slot-btn.taken {
+    background: rgba(255, 255, 255, 0.45);
+    color: var(--color-text-muted, #6b7280);
+    border-color: rgba(99, 102, 241, 0.08);
     cursor: default;
+    opacity: 0.7;
   }
+  .slot-btn.taken:hover {
+    /* display-only, 不响应 hover */
+    transform: none;
+    background: rgba(255, 255, 255, 0.45);
+  }
+
   .gap {
     gap: 0.5rem;
   }
   .row {
     display: flex;
   }
-  hr {
-    border: none;
-    border-top: 1px solid rgba(0, 0, 0, 0.08);
+
+  /* v0.3.17 #33 续: 「或」字 divider — 跟全站 glass language 一致 (#6149 PO msg 01:37)
+   * 蓝紫半透 0.5px 装饰 + 中间 "或" 灰显文字 (跟 login .or-divider 同结构, 玻璃描边替换灰边) */
+  .divider-with-text {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
     margin: 1rem 0;
+    color: var(--color-text-muted, #9ca3af);
+    font-size: 0.8125rem;
+  }
+  .divider-with-text::before,
+  .divider-with-text::after {
+    content: '';
+    flex: 1;
+    height: 0.5px;
+    background: rgba(99, 102, 241, 0.18);
   }
 </style>
