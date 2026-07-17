@@ -537,9 +537,19 @@
                          按钮 width = progress × 56, aspect-ratio:1 → height 跟 width,
                          满显后延伸但 spring 阻尼, 不会出现「物理不可能的 56xN 椭圆」。
                          snap 阈值仍是 SWIPE_THRESHOLD=60: drag ≥ 60 松手 → snap 到 ±56
-                         (按钮停留满显状态), drag < 60 松手 → spring 回弹到 0。 -->
-                    {@const leftProgress = rubberBandProgress(rowOffset)}
-                    {@const rightProgress = rubberBandProgress(-rowOffset)}
+                         (按钮停留满显状态), drag < 60 松手 → spring 回弹到 0。
+                         v0.3.17 #23 hotfix (PO msg 16:32 #3, 修 #22 #22.1 rubberBand abs() bug):
+                         rubberBandProgress 内部用 Math.abs(rowOffset), 所以
+                         leftProgress(rowOffset) === rightProgress(-rowOffset),
+                         左滑时 leftProgress ≈ rightProgress ≈ 1.43, 两个按钮同时显
+                         (紫编辑 + 红删除), 用户体验混乱。
+                         修法: caller 加 sign gate — 左滑 (rowOffset<0) 只让
+                         rightProgress>0 (红删除按钮在右边缘显), 右滑 (rowOffset>0)
+                         只让 leftProgress>0 (紫编辑按钮在左边缘显)。函数本身保持
+                         abs-based 行为不变 (single source of truth), 语义 gate 放
+                         caller 端, 反 #121/#125 边界。 -->
+                    {@const leftProgress = rowOffset > 0 ? rubberBandProgress(rowOffset) : 0}
+                    {@const rightProgress = rowOffset < 0 ? rubberBandProgress(-rowOffset) : 0}
 <!-- v0.3.17 #20 hotfix (PO msg 13:12): 取消 stagger in:fly,
                          改 in:fade 80ms — toggle 展开时所有 row 同步淡入,
                          30 行不再逐行 delay 200ms, 不再「卡卡的」。
