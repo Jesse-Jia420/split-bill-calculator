@@ -1185,11 +1185,6 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.6),
       inset 0 -1px 0 rgba(0, 0, 0, 0.04);
   }
-  /* 第二个 sticky sheet (消费明细) z-index 提到 2, sticky 容器边界重叠时
-     消费明细自然盖付款明细 (sticky 边界无法避免重叠) — DOM 顺序后定义优先
-     (consumed 在 paid 后面). 跟 #31-fix 的 chip 同层并列原则不冲突: chip 都 z=10,
-     视觉上没有 hierarchy, sheet z=2 只是 sticky 容器边界 stacking 必要 */
-  .bills-section-consumed.glass-sheet { z-index: 2; }
 
   /* glass-chip: 浓液浮在 sheet 顶, 取代旧 .section-header 的 sticky + 0.92 bg.
      compound selector 提升 specificity (0,2,0) 覆盖旧 .bills-section-head (0,1,0).
