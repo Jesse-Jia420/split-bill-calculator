@@ -184,13 +184,16 @@
             onkeydown={(e) => e.key === "Enter" && nameValid && goNext()}
             autofocus />
         </div>
-        <div class="step-nav">
-          <button class="fab-wiz glass" type="button" aria-label="返回首页" onclick={() => goto(isAnon ? "/" : "/sessions")}>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-8 9 8v10a2 2 0 0 1-2 2h-3v-7h-8v7H5a2 2 0 0 1-2-2V11z"/></svg>
-          </button>
-          <button class="fab-wiz primary" type="button" aria-label="下一步" onclick={goNext} disabled={!nameValid}>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-          </button>
+        <div class="step-nav-area">
+          <div class="step-nav">
+            <button class="fab-wiz glass" type="button" aria-label="返回首页" onclick={() => goto(isAnon ? "/" : "/sessions")}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-8 9 8v10a2 2 0 0 1-2 2h-3v-7h-8v7H5a2 2 0 0 1-2-2V11z"/></svg>
+            </button>
+            <button class="fab-wiz primary" type="button" aria-label="下一步" onclick={goNext} disabled={!nameValid}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </button>
+          </div>
+          <p class="step-nav-hint">返回首页 · 添加成员</p>
         </div>
       </div>
     {/if}
@@ -216,13 +219,16 @@
             </div>
           {/each}
         </div>
-        <div class="step-nav">
-          <button class="fab-wiz glass" type="button" aria-label="上一步" onclick={() => (step = 1)}>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-          </button>
-          <button class="fab-wiz primary" type="button" aria-label="下一步" onclick={goNext} disabled={!nicknamesValid}>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-          </button>
+        <div class="step-nav-area">
+          <div class="step-nav">
+            <button class="fab-wiz glass" type="button" aria-label="上一步" onclick={() => (step = 1)}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            </button>
+            <button class="fab-wiz primary" type="button" aria-label="下一步" onclick={goNext} disabled={!nicknamesValid}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </button>
+          </div>
+          <p class="step-nav-hint">修改人数/昵称 · 选择币种</p>
         </div>
       </div>
     {/if}
@@ -313,17 +319,20 @@
           <p class="anon-currency-hint glass-card-soft">需要多币种？账本创建后登录即可</p>
         {/if}
 
-        <div class="step-nav">
-          <button class="fab-wiz glass" type="button" aria-label="上一步" onclick={() => (step = 2)}>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-          </button>
-          <button class="fab-wiz primary" type="button" aria-label="确认创建" onclick={handleCreate} disabled={!currencyValid || busy}>
-            {#if busy}
-              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-width="2.5" opacity="0.3"/><path d="M21 12a9 9 0 0 1-9 9" stroke-width="2.5" stroke-linecap="round"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/></path></svg>
-            {:else}
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>
-            {/if}
-          </button>
+        <div class="step-nav-area">
+          <div class="step-nav">
+            <button class="fab-wiz glass" type="button" aria-label="上一步" onclick={() => (step = 2)}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            </button>
+            <button class="fab-wiz primary" type="button" aria-label="确认创建" onclick={handleCreate} disabled={!currencyValid || busy}>
+              {#if busy}
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-width="2.5" opacity="0.3"/><path d="M21 12a9 9 0 0 1-9 9" stroke-width="2.5" stroke-linecap="round"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/></path></svg>
+              {:else}
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>
+              {/if}
+            </button>
+          </div>
+          <p class="step-nav-hint">修改人数/昵称 · 确认创建</p>
         </div>
       </div>
     {/if}
@@ -341,16 +350,31 @@
   .step-title { font-size: 1.5rem; font-weight: 700; color: #171717; margin: 0 0 0.375rem; line-height: 1.2; }
   .step-hint { font-size: 0.9rem; color: #737373; margin: 0 0 1.75rem; }
   .field { margin-bottom: 1.5rem; }
-  /* v0.3.17 #32: 圆 ← → glass button (跟 system .fab 同款) — PO msg 23:14 #6027 拍板 */
+  /* v0.3.17 #32-D: 圆 ← → glass button 居中布局 + 顶分割线 + 底部 hint (PO msg 23:44 #6063 拍板 D)
+     52×52 → 64×64 (iOS HIG 88pt ~80% 甜点位), 居中 (gap 56px) + area wrapper + 跨 step 上下文 hint */
+  .step-nav-area {
+    padding: 14px 14px 12px;
+    border-top: 0.5px solid rgba(99, 102, 241, 0.18);
+    background: linear-gradient(180deg, transparent 0%, rgba(238, 234, 255, 0.4) 100%);
+  }
   .step-nav {
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
-    padding: 16px 14px 14px;
+    gap: 56px;
+    margin-bottom: 10px;
+  }
+  .step-nav-hint {
+    text-align: center;
+    font-size: 0.75rem;
+    color: rgba(67, 56, 202, 0.55);
+    letter-spacing: 0.04em;
+    margin: 0;
+    min-height: 1.2em;
   }
   .fab-wiz {
-    width: 52px;
-    height: 52px;
+    width: 64px;
+    height: 64px;
     border-radius: 50%;
     display: grid;
     place-items: center;
@@ -374,8 +398,8 @@
       0 2px 4px -1px rgba(99, 102, 241, 0.15);
   }
   .fab-wiz svg {
-    width: 22px;
-    height: 22px;
+    width: 28px;
+    height: 28px;
     stroke-width: 2.5;
     stroke-linecap: round;
     stroke-linejoin: round;
