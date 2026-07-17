@@ -1,4 +1,4 @@
-<script lang="ts">
+cript lang="ts">
   import { user, logout } from '$stores/user';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
@@ -75,17 +75,64 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  /* v0.3.17 #21 (PO msg 13:51 item 3): NavBar 登录按钮 / 注销按钮玻璃化
+     跟全站 member-chip / swipe button / fab / 汇率 pill 同 Liquid Glass 语言。
+     .ghost 跟 .btn-sm 同形态, 仅 hover 不加深色 (注销按钮语义更弱)。 */
   .btn-sm {
     min-height: var(--touch-target);
     padding: var(--space-2) var(--space-3);
-    border-radius: var(--radius);
-    border: 1px solid var(--color-border);
-    background: var(--color-surface);
+    border-radius: var(--radius-full, 999px);
+    border: 1px solid rgba(99, 102, 241, 0.15);
+    background: linear-gradient(
+      135deg,
+      rgba(99, 102, 241, 0.10) 0%,
+      rgba(59, 130, 246, 0.08) 100%
+    );
+    backdrop-filter: saturate(180%) blur(16px);
+    -webkit-backdrop-filter: saturate(180%) blur(16px);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.6),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.04),
+      0 1px 3px rgba(99, 102, 241, 0.06);
     display: inline-flex;
     align-items: center;
     font-size: var(--font-size-sm);
-    color: var(--color-text);
+    color: var(--accent-700, #4338ca);
     cursor: pointer;
+    text-decoration: none;
+    transition: transform 150ms ease, background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
   }
-  .btn-sm:hover { border-color: var(--color-accent); }
+  .btn-sm:hover {
+    background: linear-gradient(
+      135deg,
+      rgba(99, 102, 241, 0.18) 0%,
+      rgba(59, 130, 246, 0.15) 100%
+    );
+    border-color: rgba(99, 102, 241, 0.22);
+    color: var(--accent-800, #3730a3);
+    transform: translateY(-1px);
+    text-decoration: none;
+  }
+  .btn-sm:active { transform: scale(0.97); }
+  @supports not (backdrop-filter: blur(1px)) {
+    .btn-sm { background: rgba(99, 102, 241, 0.18); }
+  }
+  /* .ghost: 注销按钮 — 更弱化 (白玻璃非蓝玻璃) */
+  .ghost {
+    background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.65) 0%,
+      rgba(255, 255, 255, 0.45) 100%
+    );
+    border-color: rgba(99, 102, 241, 0.10);
+    color: var(--gray-700);
+  }
+  .ghost:hover {
+    background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.85) 0%,
+      rgba(255, 255, 255, 0.65) 100%
+    );
+    color: var(--accent-700);
+  }
 </style>

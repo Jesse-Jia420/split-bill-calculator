@@ -24,7 +24,7 @@
   import { onMount, tick } from 'svelte';
   import { writable, get, type Writable } from 'svelte/store';
   import { goto } from '$app/navigation';
-  import { fly } from 'svelte/transition';
+  import { fly, fade } from "svelte/transition";
   import { Pencil, Trash2 } from 'lucide-svelte';
   import { formatMoney, formatDate } from '$lib/utils/format';
   import type { Bill } from '$api/bills';
@@ -95,6 +95,25 @@
   const ACTION_WIDTH = 56;
   const SWIPE_THRESHOLD = 60;
   const TAP_THRESHOLD = 10;
+
+  /**
+   * v0.3.17 #21 (PO msg 13:51): drag rubber band spring damping。
+   * drag 0~56px (ACTION_WIDTH): linear progress 0→1
+   * drag 56~∞: spring damping
+   *   formula: 1 + (1 - exp(-overshoot / 30)) * 0.5
+   *   overshoot=20 → 1.245, overshoot=60 → 1.43, overshoot=200 → 1.499
+   *   (永远不到 2 — iOS Mail 弹簧拉伸同款)
+   *
+   * 输入 rowOffset 可正可负, 函数取绝对值计算 progress (≥ 0)。
+   * 按钮 width = progress × ACTION_WIDTH, aspect-ratio:1 让 height = width,
+   * progress > 1 时是放大的圆形, 而非椭圆 (跟 #18/#19 aspect-ratio:1 配套)。
+   */
+  function rubberBandProgress(rowOffset: number): number {
+    const abs = Math.abs(rowOffset);
+    if (abs <= ACTION_WIDTH) return abs / ACTION_WIDTH;
+    const overshoot = abs - ACTION_WIDTH;
+    return 1 + (1 - Math.exp(-overshoot / 30)) * 0.5;
+  }
 
   function localDateKey(iso: string): string {
     const d = new Date(iso);
@@ -264,9 +283,17 @@
 
     dragLastX = clientX;
 
-    let next = (get(swipeOffsetStore)[billId] ?? 0) + (clientX - dragStartX);
-    if (next > 100) next = 100;
-    if (next < -100) next = -100;
+    // v0.3.17 #21 (PO msg 13:51): 取消硬 clamp 到 ±100, 改为 ±300。
+      // 物理上限 300 让 rubber band spring damping 接管 visual 拉伸:
+      // drag 0~56px: progress linear 0→1
+      // drag 56~∞: progress 用 spring damping 1→1.5 (永远不到 2)
+      //   formula: 1 + (1 - exp(-overshoot/30)) * 0.5
+      //   overshoot=20 → 1.245, overshoot=60 → 1.43, overshoot=200 → 1.50
+      // 按钮 width = progress × 56 → 满显后继续延伸但 spring 阻尼,
+      // aspect-ratio:1 让 height 同步 width → 大圆形 (iOS Mail 同款)
+      let next = (get(swipeOffsetStore)[billId] ?? 0) + (clientX - dragStartX);
+      if (next > 300) next = 300;
+      if (next < -300) next = -300;
 
     dragOffsetStore.update((o) => ({ ...o, [billId]: next }));
   }
@@ -503,16 +530,21 @@
                          直接读 store 值, 让 derived 重算。Svelte 5 legacy 模式组件
                          里 $state() 不可用, 用 writable<>() 替代。 -->
                     {@const rowOffset = $isDraggingStore[b.id] ? ($dragOffsetStore[b.id] ?? 0) : ($swipeOffsetStore[b.id] ?? 0)}
-                    <!-- v0.3.17 #18 hotfix (PO msg 06:18): 圆形按钮 (56px) 替换原 64px 胶囊。
-                         progress / 56: progress=1 时 width=56px = 直径 = 圆形; progress<1 时
-                         width < height → 视觉上是竖椭圆 (iOS Mail 同款, 物理不可避免, 见 #18 完成消息)。 -->
-                    {@const leftProgress = Math.max(0, Math.min(1, rowOffset / 56))}
-                    {@const rightProgress = Math.max(0, Math.min(1, -rowOffset / 56))}
-                    <!-- v0.3.17 #20 hotfix (PO msg 13:12): 取消 stagger in:fly,
+                    <!-- v0.3.17 #21 (PO msg 13:51): drag rubber band spring damping。
+                         drag 0~56px: progress linear 0→1 (按钮正常显形)
+                         drag 56~∞: progress = 1 + (1 - exp(-overshoot/30)) * 0.5
+                                    (1→1.5, 永远到不了 2 — iOS Mail 同款 spring 拉伸)
+                         按钮 width = progress × 56, aspect-ratio:1 → height 跟 width,
+                         满显后延伸但 spring 阻尼, 不会出现「物理不可能的 56xN 椭圆」。
+                         snap 阈值仍是 SWIPE_THRESHOLD=60: drag ≥ 60 松手 → snap 到 ±56
+                         (按钮停留满显状态), drag < 60 松手 → spring 回弹到 0。 -->
+                    {@const leftProgress = rubberBandProgress(rowOffset)}
+                    {@const rightProgress = rubberBandProgress(-rowOffset)}
+<!-- v0.3.17 #20 hotfix (PO msg 13:12): 取消 stagger in:fly,
                          改 in:fade 80ms — toggle 展开时所有 row 同步淡入,
                          30 行不再逐行 delay 200ms, 不再「卡卡的」。
                          首次加载由 day-body-wrap grid-template-rows 250ms 接管
-                         整体展开动画, 不损失视觉美感。 -->
+                         整体展开动画。 -->
                     <li
                       class="bill-swipe-wrap"
                       in:fade={{ duration: 80 }}
@@ -778,7 +810,7 @@
      - width 公式 64px→56px, height 公式不变 (仍 top:6 bottom:6 = 高度跟 row 走)
        物理约束: progress<1 时 width<height → 视觉上是竖椭圆 (iOS Mail 同款,
        物理不可避免, 见完成消息)
-     - 基类 .glass-pill 的玻璃背景/边框/blur 全部保留 (跟全站其它玻璃按钮同语言),
+     - 基类 .glass-pill 的玻璃背景/边框/blur 全部保留 (跟全站其它玻璃按钮同语�      ��),
        只把 border-radius 改 50% + 删 padding (圆里没文字不需内边距)
      - 基类不重复定义 — 继承 app.css .glass-pill 的 0.10/0.08 玻璃 + accent-700 字
      - --delete / --edit 玻璃色 modifier 同 #17, 不重调 */

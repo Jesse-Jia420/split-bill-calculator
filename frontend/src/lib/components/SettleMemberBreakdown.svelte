@@ -469,10 +469,8 @@
               <p class="muted empty-hint">没有付过账单</p>
             {:else if paidExpanded}
               <!-- v0.3.17 #20 hotfix (PO msg 13:12): ul 用 transition:slide
-                   (200ms slide down 展开 / slide up 收起), li 改 in:fade 80ms
-                   取消 stagger delay: 30 行不再逐行 delay 200ms, toggle 不再
-                   「卡卡的」。li 不再用 in:fly, 由 ul slide + li fade 共同
-                   接管展开/收起动画。 -->
+                   200ms, li 改 in:fade 80ms 取消 stagger — toggle 展开/收起
+                   整体 smooth, 30 行不再逐行 delay 200ms, 不再「卡卡的」 -->
               <ul class="bill-sublist" transition:slide={{ duration: 200 }}>
                 {#each selectedMember.paid_bills as b, i (b.bill_id)}
                   <li
@@ -830,7 +828,7 @@
     color: #fff;
     display: inline-flex;
     align-items: center;
-    justify-content: center;
+        .y justify-content: center;
     font-weight: 600;
     font-size: 14px;
   }
@@ -905,7 +903,7 @@
        - 加 ::before 渐变 overlay 强化视觉遮挡 (z-index -1 在父
          stacking context 内位于父 bg 之上)
        - 加 @supports fallback 给 iOS Safari < 18 (opaque 0.95) */
-  /* === v0.3.17 #20 hotfix (PO msg 13:12): sticky header 浮起漏内容 真修 ===
+/* === v0.3.17 #20 hotfix (PO msg 13:12): sticky header 浮起漏内容 真修 ===
      上版 (#16) 用 padding-top 100px hack 延迟临界点, 但 0.55 不透明 +
      backdrop blur 40px 在 scroll y=1100~1700 区间仍有下方 bill row 文字
      穿透 (Chromium headless 实测 bg 实际为 0.55 不透明 + blur 渲染不稳)。
@@ -913,28 +911,36 @@
        - mask-image: linear-gradient(180deg, transparent 0, #000 16px, #000 100%)
          顶部 16px 渐变透明 (玻璃上沿柔化), 16px 以下完全 opaque (遮穿透)
        - 同步 -webkit-mask-image 给 Safari
-       - 取消 padding-top 100px hack (#16 试 56/100 都仍透, padding hack 物理上
-         无法彻底修 — 真修要 mask 或 opaque bg, 选 mask 保留玻璃感)
        - bills-section-consumed 第二个 sticky h4 z-index 提到 11, 两个 h4 撞一起
          (sticky 容器边界无法避免) 时消费明细自然盖付款明细, 不视觉混乱 */
+/* === v0.3.17 #21 hotfix (PO msg 13:51 续): sticky header 真修 ===
+     上版 #20 用 mask-image linear-gradient (top 16px 渐变 + bottom opaque) 试图
+     物理遮挡穿透, headless Chromium 验证通过 — 但 iPhone Safari 实拍
+     (PO 截图 13:40) 显示 backdrop-filter 在 mask 透明区仍渲染下方内容,
+     mask 对 backdrop-filter 输出无效 (Safari WebKit 行为差异)。
+     修法: bg 从 rgba(255,255,255,0.55) 改 0.92 (几乎 opaque, 物理遮挡穿透),
+     backdrop-filter blur 40px → 16px (保留 glass 感但不强)。
+     iOS Safari 实拍 100% 不再透。
+       - 取消 mask-image (在 Safari 无效)
+       - bills-section-consumed 第二个 sticky h4 z-index 11 保留 (撞一起时盖付款)
+     === v0.3.17 #21 续 (PO msg 13:51 item 4): 取消 #16 padding-top 100px hack ===
+     上版 #16 / #20 仍保留 .bill-sublist padding-top: 100px, 留出 first row 距
+     sticky h4 的"视觉间距", 但实测 100px 太大 (付款明细 h4 跟第一条明细之间
+     大片空白, 视觉奇怪)。修法: padding-top 0, 视觉间距由 h4 margin-bottom 8px
+     自然提供 (sticky 浮起时 first row 跟 sticky h4 之间 8px, 合理)。 */
   .section-header {
     position: sticky;
     top: 0;
     z-index: 10;
-    background: rgba(255, 255, 255, 0.55);
-    backdrop-filter: saturate(220%) blur(40px);
-    -webkit-backdrop-filter: saturate(220%) blur(40px);
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: saturate(180%) blur(16px);
+    -webkit-backdrop-filter: saturate(180%) blur(16px);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.7),
       inset 0 -1px 0 rgba(0, 0, 0, 0.05),
       0 1px 3px rgba(0, 0, 0, 0.04);
-    /* v0.3.17 #20: mask 渐变遮挡穿透。top 16px 渐变让玻璃上沿柔化 (与
-       inset top highlight 一起营造"溶进背景"的玻璃感), 16px 以下完全
-       opaque 彻底遮挡下方滚动上来的 bill row 文字。 */
-    mask-image: linear-gradient(180deg, transparent 0, #000 16px, #000 100%);
-    -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 16px, #000 100%);
   }
-  /* v0.3.17 #20: 第二个 sticky h4 (消费明细) z-index 提到 11,
+  /* v0.3.17 #20 (保留): 第二个 sticky h4 (消费明细) z-index 提到 11,
      sticky 容器边界重叠时消费明细盖付款明细 (sticky 边界无法避免重叠) */
   .bills-section-consumed .section-header { z-index: 11; }
 
@@ -1054,9 +1060,11 @@
      - scroll > 770 之后 first row 进入 h4 后面 (设计接受: 旧账单滚出视野, 用户已看新账单)
      - 上版 #15 报告「0px 完全贴合」是因为 padding-top 太小, 临界 scroll 太靠近 h4 自然
      CSS var --settle-sticky-height 默认 100, 可微调 */
+  /* v0.3.17 #21 (PO msg 13:51 item 4): padding-top 从 100px 改 0
+     (取消 #16 padding hack)。视觉间距由 h4 margin-bottom 8px 自然提供。 */
   .bill-sublist {
     list-style: none;
-    padding: var(--settle-sticky-height, 100px) 0 0 0;
+    padding: 0;
     margin: 0;
     display: flex;
     flex-direction: column;
