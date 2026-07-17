@@ -92,7 +92,7 @@
           onclick={handleStartUsing}
           disabled={busy}
         >
-          {busy ? '创建中…' : ($user ? '进入我的账本' : '直接开始使用')}
+          {busy ? ($user ? '打开账本中…' : '创建中…') : ($user ? '进入我的账本' : '直接开始使用')}
         </button>
 
         {#if !$user}
