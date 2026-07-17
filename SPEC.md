@@ -1505,3 +1505,291 @@ seed 脚本 (`backend/scripts/seed_dev_data.py`) 已有 find-or-create 逻辑：
   * #30-3 关键: 模拟 iOS swipe-down, body.scrollY 始终 = 0 (不可拖动)
   * #30-3 sessions 列表 main.scrollTop 0→0 (内容 < 一屏, 无可滚内容, 符合预期)
   * #30-3 landing .bg-wrapper 仍在 (全屏背景图完整)
+
+### §11. v0.3.17 #31 (2026-07-17) — settle sticky section header → chip-on-sheet liquid glass (PO msg 23:13 #6027)
+
+**问题 (PO msg 23:00 #6005)**: 「付款明细这种 header 和实际的明细之间，在你的设计中看不出任何关联」
+
+**PO 设计语言约束 (msg 23:02 #6009)**: 「我们设计语言是 ios27 的玻璃」 — 在 liquid glass design 下, 关联不能用 2D 阴影/hairline, 必须用 optical refraction 区分 liquid density。
+
+**实施 (settle 个人视图 tab 里)**:
+
+* **File**: `routes/sessions/[id]/settle/+page.svelte`
+* **现状**: sticky header 跟 list 是两块独立 glass element, 视觉断层
+* **修法**: header + list 共建一片 liquid glass 母体, 两层 liquid density 区分
+  * `header.sticky-header.glass-chip` — 浓 liquid glass:
+    * `background: rgba(255,255,255,0.62)`
+    * `backdrop-filter: blur(20px) saturate(200%)`
+    * `border: 0.5px solid rgba(255,255,255,0.7)`
+    * 多层 box-shadow:
+      ```
+      inset 0 1px 0 rgba(255,255,255,0.9),              // 顶部 1px specular highlight
+      inset 0 -1px 0 rgba(99,102,241,0.06),            // 底部 1px 反向折射暗边
+      0 10px 18px -4px rgba(99,102,241,0.4),           // 双层 drop shadow 落在 sheet 上
+      0 4px 8px -2px rgba(99,102,241,0.18)
+      ```
+    * `border-radius: 14px`
+  * `list.bills-list.glass-sheet` — 稀 liquid glass:
+    * `background: rgba(255,255,255,0.32)`
+    * `backdrop-filter: blur(15px) saturate(150%)`
+    * `border: 0.5px solid rgba(255,255,255,0.45)`
+    * `box-shadow: inset 0 1px 0 rgba(255,255,255,0.7), inset 0 -1px 0 rgba(99,102,241,0.04), 0 4px 10px -3px rgba(99,102,241,0.12)`
+    * `border-radius: 14px`
+  * chip 浮在 sheet 上方 ~8px (`margin-bottom: -8px`, `z-index: 2`)
+  * 仅 apply 在「个人视图」tab 内的 sticky header (主币种汇总 + 原始数据 toggle 触发的那个 view)
+
+**验收 criterion**:
+* chip + sheet 在 iOS27 liquid glass style 下, 光学 refraction 区分 liquid density (header 像「玻璃盖」, list 是稀液 sheet)
+* 不靠 color/border 区分, 不引入新 design token
+
+### §11. v0.3.17 #32 (2026-07-17) — wizard 上一步/下一步 → 圆 ← → 玻璃 button (PO msg 23:14 #6027 拍板)
+
+**问题 (PO msg 23:05 #6010)**: wizard 各 step 的「上一步/下一步」button 不在同一位置, 大小不一致
+**PO 拍板最终方向 (msg 23:14 #6027 + #6025)**:
+* 改圆形玻璃 button (圆 52×52)
+* 跟 system 已有 `.fab` (`settle/` 返回 + `bills/new` + `bills/edit`) 同款语言
+* 位置: panel footer 左下 ← + 右下 →, 跨 step corner 一致
+* Step 3 「确认创建」按钮 icon 用 ✓ (对号) — **不**用 → (避免 ✓ 误读为勾选)
+* Step 1 左下 ← 用 disabled 占位 (按 v3 默认, PO 未反对)
+* button 跟 panel 内容自然流, **不**强制 viewport sticky 死区 (避免 PO msg 23:11 #6019 「整体页面感觉有点呆」反馈)
+* 整页协调, 跨 step button box 大小完全一致 (核心修点)
+
+**实施** (`routes/sessions/new/+page.svelte`):
+
+* 移除旧 `:only-child flex 0 1 auto + content-width pill` 规则 (来自 v0.3.17 #28.5 #9, 本次反)
+* 移除旧 `flex: 1 双 50% spread pill` (来自 v0.3.17 #28 双按钮 等分)
+* 新 step-nav layout:
+  * `step-nav` 用 flex justify-content: space-between, panel footer 跟随 panel 内容自然流
+  * 左 button (`←` 上一步) — `fab-wiz glass` 圆 52×52
+    * class: `fab-wiz glass-pill`
+    * 56×52 (跟 .fab 同款, **不**用 mb 缩进)
+    * `border-radius: 50%`
+    * 内嵌 ← icon (用 SVG 或 unicode `←` 配合 line-height + padding 视觉居中; 优先 SVG 保持视觉锐利)
+    * 颜色: `var(--accent-700, #4338ca)` 深紫主题色 (跟 .glass-pill 全局一致)
+  * 右 button (`→` 下一步 / `✓` 确认创建) — `fab-wiz primary` 圆 52×52
+    * class: `fab-wiz glass-pill primary`
+    * 52×52 圆
+    * `border-radius: 50%`
+    * `background: linear-gradient(135deg, #6366f1, #818cf8)` (跟 .btn-primary / .fab 同款)
+    * color: white
+    * `border: 0.5px solid rgba(255,255,255,0.5)` (玻璃边缘 specular)
+  * Box shadow (跟 system .fab .glass-pill 全局已有): inset highlight + drop shadow 双层
+  * Step 1 左 `←` 加 `.disabled` class (光 ghost 半透, opacity 0.4)
+  * Step 3 右 icon = `✓` (用 SVG 或 unicode), label 仍然是「下一步」→「确认创建」语义
+
+**验收 criterion**:
+* 跨 step 圆形 button 大小完全一致 (52×52)
+* 跨 step 位置: panel 内 footer 左下 + 右下, corner 一致 (绝对 y 因 panel 内容长度略有差异, 不 lock)
+* Step 1 有 disabled 灰色 ← 占位
+* Step 3 右 button = ✓ icon (不是 →)
+* 整页 panel 看起来「对角线锚点」(圆形玻璃 button 形成视觉支点), 不死板 (因为 button 跟 panel 自然流, panel 多长 button 跟到哪, 不强制 viewport sticky 死区)
+* 跟 settle 返回 FAB ↔ bills/new + FAB **同款 liquid glass 视觉语言**
+
+**iOS27 design philosophy**: 「depth through refraction, not color」— 这条贯穿整个 v0.3.17 polish 阶段 (#27 全玻璃化 / #30 app-shell / #31 chip-on-sheet / #32 圆 ← → glass)。
+
+### §11. v0.3.17 #32 补 (2026-07-17) — step 1 ← 改 home 图标 + 实际 navigate /sessions (PO msg 23:22 #6034 拍补)
+
+**PO 拍补 (msg 23:22 #6034 #6035)**: "1 对号；2 为 首页图标。实际也应该导航至首页" / 后紧跟 "只有 step1 改 home"
+
+**理解**:
+- step 2/3 左下 button 保持 #32 拍板的 ← 「上一步」(glass style, active, 回退 step 数) — 这点**不动**
+- step 1 左下 button 单独**改**:
+  * 从 disabled 占位 → active glass (跟 step 2/3 同 .glass style)
+  * icon 从 ← 箭头 → home 图标 (Lucide/Phosphor home 形状 — 房子 + 烟囱)
+  * aria-label 从 "上一步" → "返回首页"
+  * 功能 从 (noop) → navigate 至首页 (`$isAnon ? goto('/') : goto('/sessions')` — anon 退回 landing, 登录态退回 sessions list)
+
+**改动**:
+- `frontend/src/routes/sessions/new/+page.svelte` 单独改 step 1 那个 back button:
+  * 移除 `disabled` attribute 跟 `.disabled` class
+  * 改 SVG path 为 home icon
+  * 改 aria-label
+  * onclick 改 navigate (用 `import { goto } from "$app/navigation"`)
+- 其他 step (2/3) 不变
+
+**验收 criterion**:
+- step 1 左 button = home 图标 (active glass, 不是 disabled)
+- step 2/3 左 button = ← 上一步 (跟 #32 一致, **不**变)
+- click step 1 左 button (登录态) → URL = `/sessions`
+- click step 1 左 button (anon 态) → URL = `/`
+- svelte-check baseline + 0 new error
+
+### §11. v0.3.17 #32-D (2026-07-17) — wizard 圆 button layout 改 D 方案 (PO msg 23:44 #6063 拍板, Designer mockup 4 候选)
+
+**PO 反馈链 (msg 23:30 #6053)**: 「这个新的圆形上一步下一步按钮，是不是有点小，位置有点不太对。让整个页面看起来很不协调」 → spawn Designer Agent → 4 候选 mockup → **PO 拍 D**
+
+**D 方案 (Designer 推荐)**:
+- 圆 button **64×64** (跟 system .fab 同款, 但比现状 52×52 大; iOS HIG 88pt ~80% 甜点位)
+- **居中**底部排列 (不再是左右 corner)
+- **顶部细分割线** (border-top: 0.5px rgba accent on .step-nav-area)
+- **底部 hint** 上下文文本 (暴露 "上一步/下一步" 语义)
+  * Step 1: 「返回首页 · 添加成员」
+  * Step 2: 「修改人数/昵称 · 选择币种」
+  * Step 3: 「修改人数/昵称 · 确认创建」
+
+**实施**: `frontend/src/routes/sessions/new/+page.svelte`, 跟 #32 + #32-fix 同文件, 在现有 `.fab-wiz` 基础上:
+- button size: 52×52 → 64×64
+- 布局: `justify-content: space-between` → `justify-content: center; gap: 56px`
+- 加 `.step-nav-area` 容器 `border-top: 0.5px solid rgba(99,102,241,0.18)` + `background: linear-gradient(180deg, transparent, rgba(238,234,255,0.4))`
+- 加 `.step-nav-hint` element 显示 step-上下文 text (`text-align: center; font-size: 0.75rem; color: rgba(67,56,202,0.55)`)
+- SVG icon size: 22→28, 配 64 button
+
+**验收 criterion**:
+- 3 step 圆 button 64×64 (比现状大)
+- 居中布局, 跨 step 一致
+- 顶部有半透分割线
+- 底部 hint 文本按 step 上下文动态
+- step 1 左 = home 图标 (保留 #32-fix, 不退 ← 上一步)
+- svelte-check baseline + 0 new error
+
+### §11. v0.3.17 #31-fix (2026-07-17) — settle sticky head 滑动 list 渐消失于 head 真修 (PO msg 23:44 #6063 反馈)
+
+**PO 反馈 (msg 23:44 #6063)**: 「刚刚 #31 目前页面滑动有问题。当向上滑动，付款明细 head 顶在最上方，仍上滑时，付款明细的明细部分应渐渐消失于 head 中。（head 在明细上方）」
+
+**根因 (基于 git blame + read code)**:
+- #31 加的 `.glass-chip` z-index 2 + `.glass-sheet` z-index 5 — **chip z-index < sheet z-index, 跟设计意图反了**
+- 现状 chip z-index 2 < sheet z-index 5 → list 在 stacking 上方, head 在 stacking 下方, 上滑时 list 越过 head
+- 原始 v0.3.17 #20 / #21 sticky header 是 z-index 10/11 (head 在 list 之上)
+- #31 实施时 z-index 数字冲突但 Master spec 没写具体数字, 仅写 「chip 浮在 sheet 上方」 意图
+
+**PO 拍补 (msg 23:44 #6065)**: 「消费明细和付款明细是两个同层级的 section, 应该是并列关系」 — 两个 section 应该 z-index 平起平坐, **不**给消费明细特殊 z-index 11。
+
+**修法**:
+- `frontend/src/lib/components/SettleMemberBreakdown.svelte`:
+  * `.glass-chip` z-index: 2 → **10** (跟原 .section-header z-index 10 一致, head 在 list 之上)
+  * `.glass-sheet` z-index: 5 → **1** (跟原 .bills-section z-index 1 一致, list 在 head 之下)
+  * `.bills-section-consumed .glass-chip` z-index: 11 **删** (同层级并列, 不特殊)
+- 可选加 mask-image 在 head 顶部 16px fade 给视觉柔化:
+  * `mask-image: linear-gradient(180deg, transparent 0, #000 16px, #000 100%)`
+  * `-webkit-mask-image: linear-gradient(180deg, transparent 0, #000 16px, #000 100%)`
+
+**验收 criterion**:
+- 上滑时, list 第 1 行/2 行 等会渐消失于 head 底部 (而非 head 被 list 越过)
+- head 自身 sticky 在最上方 (z-index 高)
+- Master spot-check 模拟 scroll, 列表首行 y < head y 时 list first row 视觉位于 head 之下
+- svelte-check baseline + 0 new error
+### §11. v0.3.17 #landing-fix (2026-07-17) — landing page 登录后按钮文案 真修 (PO msg 23:46 #6069 拍补)
+
+**PO 反馈 (msg 23:46 #6069)**: 「还有另一个 bug: 已登录状态下, landing page 点击 进入我的账本 按钮后, 按钮变为 "创建中", 应变为 "打开账本中"」
+
+**根因** (`frontend/src/routes/+page.svelte:95`):
+```svelte
+{busy ? '创建中…' : ($user ? '进入我的账本' : '直接开始使用')}
+```
+当 busy=true 时 (anon 创建 session + claim) 显示 "创建中…". 但对已登录 user, 流程是直接 navigate 到 /sessions (不创建), 文案应该 "打开账本中…".
+
+**修法**: 1 行 template 改动, busy 时区分 anon vs 登录:
+```svelte
+{busy ? ($user ? '打开账本中…' : '创建中…') : ($user ? '进入我的账本' : '直接开始使用')}
+```
+
+**验收 criterion**:
+- anon + busy → 「创建中…」(不变)
+- 已登录 + busy → 「打开账本中…」(新)
+- 已登录 + idle → 「进入我的账本」(不变)
+- anon + idle → 「直接开始使用」(不变)
+- svelte-check baseline + 0 new error
+
+### §11. v0.3.17 #32-D-2 (2026-07-17) — wizard D 方案 4 项 polish (PO msg 23:59 #6087 拍板)
+
+**PO 反馈 4 条 (msg 23:59 #6087)**:
+
+1. **撤掉 hint**: 「上一步下一步按钮下方的文字描述去掉」 — `.step-nav-hint` element (D 方案里加的 step 上下文文本) 删
+2. **撤掉方形背景**: 「上一步下一步按钮背后的方形背景全部去掉」 — `.step-nav-area` 的 `border-top: 0.5px` + `background: linear-gradient` 都删, 按钮后面**不**要方形容器
+3. **anon step 3 dual mode 展示但锁定**: 「匿名下，第三步应同样展示双币种选项，但为锁住的状态」 — 移除 `{#if !isAnon}` 包裹双币种 pill 的条件, anon 也显示双币种 pill 但视觉锁定 (灰色, opacity 0.4, 点击无效), 同时保留 hint 文案 "需要登录后使用多币种"
+4. **currency mode 改 iOS27 switch toggle**: 「单一币种和双币种是二选一的关系，所以应该用 switch toggle 处理这里。参考 ios27」 — 当前的 2 个 `.mode-pill.glass-pill` segmented 替换为 iOS27 switch toggle 组件 (sliding indicator 样式 + 玻璃 liquid material).
+
+**实施**: `frontend/src/routes/sessions/new/+page.svelte`:
+- 删 `.step-nav-hint` element (template)
+- 删 `.step-nav-area` 容器 (template 用 `<div class="step-nav">` 直接, 无 wrapper)
+- 删 `.step-nav-area` CSS (border-top + bg gradient)
+- 单/双币种 pill 容器 (`{#if !isAnon}` 移除, anon 也展示)
+- 双币种 pill 在 anon 锁定: 加 `.locked` class (opacity 0.4, cursor not-allowed, click 阻止)
+- iOS27 switch toggle:
+  ```svelte
+  <div class="ios-switch" class:active={currencyMode === 'dual'}>
+    <div class="ios-switch-track" role="radiogroup">
+      <button class="ios-switch-thumb" type="button"
+              onclick={() => switchMode('single')}
+              class:active={currencyMode === 'single'}>
+        单一币种
+      </button>
+      <button class="ios-switch-thumb" type="button"
+              onclick={() => isAnon ? toast.error('需要登录后使用') : switchMode('dual')}
+              class:active={currencyMode === 'dual'}>
+        双币种
+      </button>
+    </div>
+    <div class="ios-switch-slider"></div>
+  </div>
+  ```
+  - `.ios-switch` liquid glass container (iOS27 segmented control 风格)
+  - `.ios-switch-slider` 滑动指示器 (跟着 active mode 移动)
+  - 双币种 anon 时 disabled (visual locked, 点击 toast 提示)
+
+**验收 criterion**:
+- 无底部 hint 文案
+- 无 step-nav-area 方形背景 (按钮直接浮在 panel 内容上, 周围 clean)
+- 已登录 step 3: 单一 + 双币种 switch toggle 都可见, 可切换
+- anon step 3: 单一 + 双币种 switch toggle 都可见, 双币种锁定 (灰显) + 切换尝试时 toast 提示登录
+- 单一币种与双币种 iOS27 switch toggle 视觉 (滑动 indicator + 玻璃材质 + 双 mode 切换)
+- svelte-check baseline + 0 new error
+
+### §11. v0.3.17 #31fix-2 (2026-07-18) — #31-fix z-index 11/2 special case 删 (PO msg 23:44 #6065 同层级并列拍补)
+
+**PO 反馈 (msg 23:44 #6065)**: 「消费明细和付款明细是两个同层级的 section，应该是并列关系」
+
+**问题**: #31-fix (commit e4f0c9c) 加了 `.bills-section-consumed .section-header.glass-chip { z-index: 11; }` 跟 `.bills-section-consumed.glass-sheet { z-index: 2; }` — 让 consumed chip 比 paid chip 高 1, consumed sheet 比 paid sheet 高 1。这跟「并列关系」拍板冲突。
+
+**修法**: 删这两行 special case, 让两个 section 都用同一个 z-index:
+- paid chip z=10, consumed chip 也 z=10 (删 consumed 11 special)
+- paid sheet z=1, consumed sheet 也 z=1 (删 consumed 2 special)
+
+两个 section 完全 parallel.
+
+**实施**: `frontend/src/lib/components/SettleMemberBreakdown.svelte` — 删 2 行 CSS rule + 可能清理相邻注释.
+
+**验收**:
+- `.bills-section-consumed .section-header.glass-chip` 不应有 z-index 11 (删掉)
+- `.bills-section-consumed.glass-sheet` 不应有 z-index 2 (删掉)
+- 2 个 section chip 都是 10, sheet 都是 1
+- svelte-check baseline + 0 new error
+
+### §11. v0.3.17 #31fix-2 (2026-07-18) — 删 #31-fix 留的 z-index 11/2 special case, 消费/付款明细同层级并列 (PO msg 23:44 #6065)
+
+**PO 拍补 (msg 23:44 #6065)**: 「消费明细和付款明细是两个同层级的 section, 应该是并列关系」
+
+**修法**:
+- `frontend/src/lib/components/SettleMemberBreakdown.svelte`:
+  * 删 `.bills-section-consumed.glass-sheet { z-index: 2; }` (consumed sheet 跟 paid sheet 一致 z-index 1)
+  * 删 `.bills-section-consumed .section-header.glass-chip { z-index: 11; }` (consumed chip 跟 paid chip 一致 z-index 10)
+
+**验收 criterion**:
+- paidChipZ === consumedChipZ === "10" ✓ (Master spot-check 实测)
+- paidSheetZ === consumedSheetZ === "1" ✓ (Master spot-check 实测)
+- 消费/付款明细 同层级并列 (sticky 容器边界重叠时不再有 z-index 强制覆盖)
+- svelte-check baseline + 0 new error
+
+### §11. v0.3.17 #32-D-2 (2026-07-18) — wizard D 方案 4 项 polish (PO msg 23:59 #6087)
+
+**PO 拍板 (msg 23:59 #6087)** 4 项修正:
+1. 撤 `.step-nav-hint` element (template 里 step 上下文文本)
+2. 撤 `.step-nav-area` wrapper + border-top + bg gradient (按钮直接浮, 不带方形背景)
+3. anon step 3 双币种从隐藏 → 展示但锁定 (移除 `{#if !isAnon}` 包裹, 双币种 button :disabled={isAnon} + .locked class + toast 提示登录)
+4. currency mode 改 iOS27 switch toggle (2 thumb + 滑动 indicator + 玻璃 track, 替代原 .mode-pill.segmented)
+
+**实施**: `frontend/src/routes/sessions/new/+page.svelte`, 跟 #32-D (commit 58c265e) 同文件, 在 D 基础上叠加:
+- 删 `.step-nav-hint` element + CSS rule
+- 删 `.step-nav-area` wrapper + CSS rule (按钮直接平级放在 panel content)
+- anon 双币种 button: `disabled={isAnon}` + `.locked` class (opacity 0.4)
+- 新 `switchCurrencyMode()` helper function (script 顶部, 统一 single/dual 切换 + anon 锁定 toast)
+- 新 `.ios-switch` + `.ios-switch-option` + `.ios-switch-thumb` + `.mode-locked-hint` CSS (iOS27 玻璃 track + 滑动 thumb + 双币种锁定 hint)
+
+**保留** (D 方案不变): 圆 button 64×64 + 居中布局 + step 1 home 图标 + SVG icon 28×28
+
+**验收 criterion**:
+- hasHint=false ✓, hasStepNavArea=false ✓ (Master spot-check 实测)
+- hasIosSwitch=true, optionCount=2, thumbPresent=true, modePillCount=0 ✓ (Master spot-check 实测)
+- 登录态 single ↔ dual click toggle active 状态 ✓ + thumb 滑动 indicator 跟随 ✓
+- anon 双币种 disabled + .locked class ✓ + click 不切换 state + toast 提示 ✓
+- svelte-check baseline + 0 new error
