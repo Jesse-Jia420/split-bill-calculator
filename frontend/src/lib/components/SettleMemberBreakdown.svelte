@@ -726,7 +726,7 @@
     align-items: center;
     justify-content: center;
     font-weight: 600;
-    font-size: 14px;
+    font-size: var(--font-size-sm);
     transition: background-color 200ms ease;
   }
   /* Inactive chip: avatar uses gray bg */
@@ -782,7 +782,7 @@
     display: inline-block;
     background: var(--accent-500);
     color: #fff;
-    font-size: 10px;
+    font-size: clamp(0.5625rem, 2.2vw, 0.625rem);
     padding: 1px 5px;
     border-radius: 999px;
     font-weight: 500;
@@ -793,7 +793,7 @@
     display: inline-block;
     background: rgba(255, 255, 255, 0.25);
     color: #fff;
-    font-size: 12px;
+    font-size: clamp(0.6875rem, 2.6vw, 0.75rem);
     font-weight: 600;
     padding: 2px 8px;
     border-radius: 999px;
@@ -813,7 +813,7 @@
   }
   .member-panel-title {
     margin: 0 0 var(--space-3, 12px);
-    font-size: 1rem;
+    font-size: var(--font-size-base);
     font-weight: 600;
     display: flex;
     align-items: center;
@@ -830,17 +830,26 @@
     align-items: center;
         .� justify-content: center;
     font-weight: 600;
-    font-size: 14px;
+    font-size: var(--font-size-sm);
   }
   .owner-badge {
     margin-left: 0;
   }
 
-  /* === T8: Hero Metric === */
+  /* === T8: Hero Metric ===
+     v0.3.17 #34 (PO msg 01:31 #6137 + 01:42 #6155): container query 窄屏
+     减小 padding (320-380px viewport: space-5 → space-4 两侧),
+     缩小 amount 字号 (font-size-3xl 已 clamp, 320px 自动缩到 32px).
+     保留 max padding 给桌面, 不引新 design token. */
   .hero {
     text-align: center;
     padding: var(--space-7, 48px) var(--space-5, 20px);
     margin-bottom: var(--space-4, 16px);
+  }
+  @container page (max-width: 380px) {
+    .hero {
+      padding: var(--space-5, 20px) var(--space-4, 16px);
+    }
   }
   .hero-net {
     font-size: var(--font-size-3xl, 40px);
@@ -1019,7 +1028,7 @@
   }
   .collapse-icon {
     margin-left: auto;
-    font-size: 10px;
+    font-size: clamp(0.5625rem, 2.2vw, 0.625rem);
     color: var(--gray-400);
     line-height: 1;
   }
@@ -1032,7 +1041,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 12px;
+    font-size: clamp(0.6875rem, 2.6vw, 0.75rem);
     font-weight: 700;
     line-height: 1;
     color: #fff;
@@ -1103,7 +1112,8 @@
     flex: 0 0 auto;
     font-variant-numeric: tabular-nums;
     font-weight: 600;
-    font-size: 1rem;
+    font-size: var(--font-size-base);
+    white-space: nowrap; /* v0.3.17 #34: PO 反馈 +4,555.70 THB 折行, nowrap 防止换行 */
   }
   .bill-sub-date { font-variant-numeric: tabular-nums; }
   .exclusive-tag { color: var(--accent-500); font-weight: 500; }
@@ -1171,8 +1181,11 @@
        隐约可见但 chip 视觉主导). 整体 "list 渐消失于 head 中" (跟 #20 当时设计意图一致, 但
        chip 仍保留 #31 浓液 0.62 liquid glass 美学). mask 同时给 webkit 前缀覆盖 Safari. */
   .glass-sheet {
-    position: sticky;
-    top: 0;
+    /* v0.3.17 #31fix-3 (PO msg 01:48 #6160 + 01:59 #6178): sheet 自身不再 sticky.
+       原 sticky top:0 让两个 sheet (paid + consumed) 都吸顶, 视觉堆叠. 改
+       position: relative (正常 flow), 由 .section-header.glass-chip 接管 sticky 行为
+       (iOS Mail inbox 模式: 只有当前 section header sticky 在 viewport 顶部). */
+    position: relative;
     z-index: 1;
     background: rgba(255, 255, 255, 0.32);
     backdrop-filter: saturate(150%) blur(16px);
@@ -1203,7 +1216,12 @@
     padding: var(--space-2, 8px) var(--space-3, 12px);
     margin: -8px calc(-1 * var(--space-3, 12px)) -8px calc(-1 * var(--space-3, 12px));
     z-index: 10;
-    position: relative;
+    /* v0.3.17 #31fix-3 (PO msg 01:48 #6160 + 01:59 #6178): chip 改 sticky top 0.
+       原 position: relative 跟 sheet 一起堆叠, 失去 sticky 语义. 现 sheet 改
+       relative 后, chip sticky within sheet — 只有当前 section 的 chip
+       吸顶, 其它 section chip 自然随内容滚出 (iOS Mail inbox 行为). */
+    position: sticky;
+    top: 0;
     display: flex;
     align-items: center;
     gap: var(--space-2, 8px);
