@@ -1908,3 +1908,33 @@ seed 脚本 (`backend/scripts/seed_dev_data.py`) 已有 find-or-create 逻辑：
 - join page 标题 / input / button / cards 全 liquid glass 视觉 (跟 settle / wizard / sessions list 一致)
 - 不破坏现有功能 (anon claim member + 设置 nickname + 跳转到 session)
 - svelte-check baseline + 0 new error
+
+### §11. v0.3.17 #34 (2026-07-18) — 整体 app responsive 策略 B 实施 + 汇率 bar wrap fix (PO msg 01:31 #6137 + 01:42 #6155)
+
+**PO 拍板 (msg 01:42 #6155)**: 「刚刚的 designer 用策略 b」
+**范围** (msg 01:31 #6137): mobile viewport 320px - 480px (iPhone SE / 标准 / Plus)
+
+**策略 B 核心 (Designer proposal §2)**:
+- 字号全 `clamp(min, vw-based, max)` (e.g. `clamp(1.25rem, 4vw, 1.5rem)`)
+- Spacing 用 container queries (每个 page `<main>` 设 container)
+- `--space-*` / `--font-size-*` token 全 clamp 化 (建立统一 sbc type scale)
+- 跟 `.glass-pill` / `.glass-sheet` 同源 iOS27 design language
+
+**额外 fix (PO msg 01:42 #6155 #1)**:
+- 汇率 bar (`SessionCurrencyBadge.svelte`) 在 390px viewport wrap 到 2 行 — flex-wrap: nowrap + font-size clamp + chip padding 缩小, 强制单行
+- 容器宽度计算: chip CNY (50px) + ⇄ (24px) + chip THB (50px) + · (12px) + "1 CNY =" (50px) + "4.65... THB" (110px) + ✏️ (24px) + gaps ≈ 320px — 在 320px viewport 仍要放, 需要压缩 chip 字号 + 减小 gap
+
+**PO msg 01:42 #6155 #2** (Master spot-check 已验证):
+- paid + consumed sticky header **CSS 完全一致** (bg/shadow/border-radius/z-index 实测对齐, 详见 scripts/v0317_31fix3_master.js)
+- Jesse 截图看的是 production 旧 build (before #31fix-2 删 z-index 2/11 special case). 当前 origin/main HEAD 实现正确.
+
+**实施**:
+- `frontend/src/app.css`: 加 `@container` queries + 字号 clamp tokens (~50 处)
+- `frontend/src/lib/components/SessionCurrencyBadge.svelte`: 汇率 bar nowrap + clamp 字号 fix
+- 各 page (`settle/+page.svelte` / `sessions/new/+page.svelte` / `sessions/+page.svelte` / `join/+page.svelte`): 应用 container queries 适配 mobile
+
+**验收 criterion**:
+- 320px / 390px / 414px viewport 全部可用 (字号 fit, 折行消除, 空白合理)
+- 汇率 bar 320/390/414 都单行 (no wrap)
+- settle page 痛点 (amount 字号过大, +4,555.70 THB 折行) fix
+- svelte-check baseline + 0 new error
