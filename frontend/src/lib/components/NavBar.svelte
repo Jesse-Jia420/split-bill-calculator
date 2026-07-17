@@ -29,9 +29,11 @@
        分支 (login btn / login-以保存 / logout btn) 都不该出现在登录页 -->
 <header class="navbar">
   <a href="/" class="brand">Split Bill</a>
-  <nav class="links">
-    <a href="/sessions">我的账本</a>
-  </nav>
+  {#if !['/auth/login', '/sessions/new'].includes(page.url.pathname) && $user}
+    <nav class="links">
+      <a href="/sessions" class="glass-pill links-item">我的账本</a>
+    </nav>
+  {/if}
   {#if page.url.pathname !== '/auth/login'}
     <div class="right">
       {#if $user}
@@ -79,6 +81,7 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
+    margin-left: auto; /* v0.3.17 #28.5 #8: .links 隐藏时 (例如 /sessions/new wizard) 也贴右 */
   }
   .email {
     color: var(--color-text-muted);

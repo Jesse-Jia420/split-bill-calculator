@@ -166,8 +166,7 @@
     <div class="progress">
       <span class="dot" class:active={step >= 1} class:done={step > 1} />
       <span class="dot" class:active={step >= 2} class:done={step > 2} />
-      <span class="dot" class:active={step >= 3 && showCurrencyStep} class:done={step > 3 && showCurrencyStep} />
-      <span class="dot" class:active={step >= 4} class:done={step > 4} />
+      <span class="dot" class:active={step >= 3} class:done={step > 3} />
     </div>
     <p class="step-label">
       {#if step === 1}第一步{/if}
@@ -185,7 +184,9 @@
             onkeydown={(e) => e.key === "Enter" && nameValid && goNext()}
             autofocus />
         </div>
-        <button class="btn btn-primary btn-next" onclick={goNext} disabled={!nameValid}>下一步</button>
+        <div class="step-nav">
+          <button class="btn btn-primary btn-next" onclick={goNext} disabled={!nameValid}>下一步</button>
+        </div>
       </div>
     {/if}
 
@@ -329,13 +330,85 @@
   .field { margin-bottom: 1.5rem; }
   /* input[type="text"] 已用 .glass-input 替代 — v0.3.17 #27 */
   /* .btn-next / .btn-confirm 已用 .btn .btn-primary 替代 — v0.3.17 #27 */
-  .step-nav { display: flex; gap: 0.75rem; margin-top: 1.5rem; }
-  /* .step-nav .btn-next / .btn-confirm flex 1 由 .btn-primary 自然继承 (display: inline-flex 已是 block-level by 父 flex) */
-  /* .btn-back 已用 .glass-pill 替代 — v0.3.17 #27 */
+  .step-nav {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+    justify-content: space-between; /* v0.3.17 #28 #1+#2: 双按钮 贴左贴右对称 */
+    align-items: stretch;
+  }
+  /* v0.3.17 #28.5 #9: 单按钮 case (step 1) — 靠右 + content-width 不撑满 */
+  .step-nav:has(> :only-child) {
+    justify-content: flex-end;
+  }
+  /* v0.3.17 #28: 双/多按钮等分 + 同高 + 同 padding + 同字号, 视觉一致 */
+  .step-nav > .btn-back,
+  .step-nav > .btn-next,
+  .step-nav > .btn-confirm {
+    flex: 1;
+    min-height: 52px;
+    padding: 0 1.25rem;
+    font-size: 1rem;
+    font-weight: 600;
+    text-align: center;
+  }
+  /* v0.3.17 #28.5 #9: 单按钮不撑满, 保持 pill content-width */
+  .step-nav > :only-child {
+    flex: 0 1 auto;
+  }
   .count-row { display: flex; align-items: center; justify-content: center; gap: 2rem; margin-bottom: 0.75rem; }
   /* .count-btn 已用 .glass-pill 替代, 圆形覆盖保持 — v0.3.17 #27 */
-  .count-btn { width: 56px; height: 56px; border-radius: 50%; font-size: 1.5rem; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; }
-  .count-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
+  .count-btn {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    font-size: 1.5rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  /* v0.3.17 #28: 显式 hover/active 回退 — 修 mobile tap 后 :hover 黏住导致背景卡 0.18 alpha
+     · 根因: app.css 全局 .glass-pill:hover { background 0.18 } 没有 @media 包裹,
+             mobile (iOS Safari) tap 后 :hover 黏住直到下次 tap, 0.18 alpha 持续生效 (用户感觉「卡住」).
+     · 修法:
+       1. hover 反馈 (0.18 / translateY -1px) 只在 hover-capable 设备 (@media hover: hover) 生效.
+       2. touch 设备 (@media hover: none) 用更高特异性 + !important 强制 idle 背景回到默认玻璃色 (0.10),
+          覆盖 app.css 全局 .glass-pill:hover 在 touch 设备上的黏住效果.
+       3. :active 短暂给深色反馈 (0.28 + scale 0.94), CSS transition 200ms 平滑过渡. */
+  .count-btn:not(:disabled) {
+    transition:
+      background 200ms ease,
+      transform 150ms ease,
+      border-color 200ms ease;
+  }
+  @media (hover: hover) {
+    .count-btn:not(:disabled):hover {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.18) 0%, rgba(59, 130, 246, 0.15) 100%) !important;
+      border-color: rgba(99, 102, 241, 0.22) !important;
+      transform: translateY(-1px);
+    }
+  }
+  /* touch 设备: idle 时强制背景回默认, 不被 .glass-pill:hover 全局规则覆盖 */
+  @media (hover: none) {
+    .count-btn:not(:disabled):not(:active) {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.10) 0%, rgba(59, 130, 246, 0.08) 100%) !important;
+      border-color: rgba(99, 102, 241, 0.15) !important;
+      transform: none !important;
+    }
+  }
+  .count-btn:not(:disabled):active {
+    transform: scale(0.94);
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.28) 0%, rgba(59, 130, 246, 0.25) 100%) !important;
+    border-color: rgba(99, 102, 241, 0.4) !important;
+  }
+  .count-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none !important;
+    background: rgba(255, 255, 255, 0.55) !important;
+    border-color: rgba(99, 102, 241, 0.18) !important;
+  }
   .count-display { font-size: 3rem; font-weight: 700; color: #171717; min-width: 3rem; text-align: center; line-height: 1; }
   .count-hint { text-align: center; font-size: 0.9rem; color: #737373; margin: 0; }
   .nickname-list { display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 0.5rem; }

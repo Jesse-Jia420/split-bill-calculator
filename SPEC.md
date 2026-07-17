@@ -1343,3 +1343,87 @@ seed 脚本 (`backend/scripts/seed_dev_data.py`) 已有 find-or-create 逻辑：
 * **不动**:
   * `lib/stores/toast.ts` 全局默认 2000ms 不改 (调用约定 success=2000 / info=3000 / error=4000 显式传参)
   * SessionCard.svelte (`.dot` 文本分隔符, 全局 `.progress .dot` 限定选择器避碰)
+
+### §11. v0.3.17 #28 (2026-07-17) — 6 项微调 (PO msg 21:51 #5923)
+
+* **#1 + #2 wizard 上一步/下一步 button 大小一致 + 排布对称** (`routes/sessions/new/+page.svelte`):
+  * `.step-nav` 加 `justify-content: space-between` + `align-items: stretch`
+  * `.step-nav > .btn-back / .btn-next / .btn-confirm` 加 `flex: 1` 等分 + `min-height: 52px` 同高 + `padding: 0 1.25rem` + `font-size: 1rem` + `font-weight: 600` + `text-align: center`
+  * 效果: step 2 / step 3 的「上一步」「下一步」「确认创建」三 button 等宽 + 等高 + 字号一致 + 贴 wizard 内容区左右两端 (gap 对称 = wizard 自身 16px padding)
+  * mobile viewport 390px: 按钮都不溢出, 无 horizontal scroll
+* **#3 wizard 进度点 4 → 3** (`routes/sessions/new/+page.svelte` template):
+  * `.progress` 里 `<span class="dot">` 从 4 个删到 3 个
+  * 第 3 个 dot 用 `class:active={step >= 3}` (因为 `showCurrencyStep` 永远 true — 见 #26)
+  * `.step-label` 段不动 (本来就只显示 step 1-3)
+* **#4 +/− count-btn 点击后回默认玻璃色** (修 mobile tap 后 `:hover` 黏住导致 0.18 alpha 卡住) (`routes/sessions/new/+page.svelte`):
+  * 根因: iOS Safari tap 后 `:hover` 黏住直到下次 tap, 全局 `.glass-pill:hover { background 0.18 }` 没有 `@media` 包裹, touch 设备 idle 也匹配 → 用户感觉「点完 button 卡住不变回默认」
+  * 修法 (3 段 CSS):
+    1. `.count-btn:not(:disabled) { transition: bg/transform/border 200/150/200ms }` 平滑过渡
+    2. `@media (hover: hover)` 限定 hover 反馈 (0.18 alpha + translateY -1px) 只在真有 hover 能力的设备生效, touch 设备不触发
+    3. `@media (hover: none)` 用更高特异性 + `!important` 强制 idle 背景回默认 (0.10 alpha), 覆盖 app.css 全局 `.glass-pill:hover` 在 touch 设备上的黏住效果
+  * `.count-btn:disabled` 维持 opacity 0.4 + cursor not-allowed + 0.55 alpha 白底
+  * desktop 验证: hover 仍显示 0.18 (设计意图保留); mobile 验证: click 后 400ms 回 0.10 默认色
+* **#5 + #6 NavBar 「我的账本」 登录/wizard 隐藏 + 已登录态 + 玻璃效果** (`lib/components/NavBar.svelte`):
+  * 原 `<nav class="links">` 是无条件渲染 (anon 也可见), PO 想让:
+    * `/auth/login` 页面 → 隐藏 (PO #22 已修 `.right`, 现在连 links 一起隐藏)
+    * `/sessions/new` wizard 页面 → 隐藏 (anon 创建账本不应被导航干扰)
+    * `/sessions/N/...` session 内 → 仍可见 (去 /sessions 列表的入口)
+  * 「我的账本」只在 **已登录态** 显示 (anon 即使在公共页面也不显示)
+  * 改法: 把 `<nav class="links">` 包到 `{#if !['/auth/login', '/sessions/new'].includes(page.url.pathname) && $user}` 里, 内含 `<a href="/sessions" class="glass-pill links-item">我的账本</a>`, 利用 app.css 全局 `.glass-pill` + `a.glass-pill` 玻璃蓝紫样式 (10%/8% alpha + 玻璃 blur + inset highlight)
+  * 路径检查 + 用户检查合一个 `{#if}`, 避免单独套空外层
+* **svelte-check**: 7 errors baseline (SettleMemberBreakdown / +layout / join / +page.svelte 全是 pre-existing), 0 new error from #28
+* **单 commit** 提交 origin/main: `v0.3.17 #28: 6 项微调 — wizard 按钮大小/排布/3 dots + count-btn active + NavBar 我的账本`
+
+### §11. v0.3.17 #28 续 (2026-07-17) — SessionCurrencyBadge.svelte `<!` 字节丢失修复 (PO msg 22:10 #5923 补 #7)
+
+* **症状**: session 详情页正文出现 `331` 大字 + `SessionCurrencyBadge.svelte — v0.3.16 #6 currency meta redesign (PO msg 18:16 CST 拍板)` 等设计笔记泄漏到页面
+* **根因**: `frontend/src/lib/components/SessionCurrencyBadge.svelte` 第 1 行 HTML 注释 `<!--` 的 `<!` 两字节丢失 (历史 v0.3.17 #21 玻璃化编辑期间字节损坏的同类遗留, 跟 #24 NavBar + #25 SettleTransferPath 同根因 — 已在 #24+#25 修了那两个文件, 这个遗漏至今才暴露).
+  * 文件首 4 字节 hex: `2d 2d 0a 20` = `--
+ ` (期望 `3c 21 2d 2d` = `<!--`)
+  * Svelte parser 看到 `--
+` 不是 `<script>` / `<style>` / `<template>` / `<!--`, 当 raw 文本处理, 渲染到页面上.
+* **修法** (`lib/components/SessionCurrencyBadge.svelte`):
+  * 前 2 字节 `--` 前插入 `<!` → `<!--`, 文件大小 +2 字节 (11793 → 11795)
+  * 用 Python 二进制读 + 写避免再触发同类字节损坏 (跟 #24+#25 一致), 不用 sed 避免跨平台行尾问题.
+  * 修复后首 4 字节 hex: `3c 21 2d 2d` = `<!--`
+* **顺手扫所有 svelte 文件** (Python 脚本 + valid prefix 白名单 `<scr` / `<sty` / `<!-` / `<tem`):
+  * `lib/components/SessionCurrencyBadge.svelte` — 同 bug, 已修
+  * `routes/sessions/[id]/bills/[billId]/edit/+page.svelte` — 首字节 `ef bf bd ef bf bd < s c r` (两个 U+FFFD 替换符), 自 v0.1.3 (commit 95996d4) 就在, 跟 `<` 字节丢失是**不同** bug, `<script lang="ts">` 仍能正确解析, 不影响渲染. **不在 #28 范围, 单独 ticket 跟踪.**
+* **验证**:
+  * 真机 walk session 详情页 `bodyText.includes('v0.3.16 #6 currency meta redesign')` = false ✓
+  * currency-meta 组件正常渲染 (`CNY ⇄ THB · 1 CNY = 4.65116279 THB` + 铅笔 icon) ✓
+  * svelte-check: 7 errors baseline (跟 #28 同), 0 new error
+* **合并到 #28 commit**:
+  * commit `2c4ad4d` → amend 成 `v0.3.17 #28: 6 项微调 + 修 SessionCurrencyBadge 注释字节丢失 bug — wizard 按钮大小/排布/3 dots + count-btn active + NavBar 我的账本`
+  * 强制 push origin/main (因为是 amend, 不是 fast-forward)
+
+### §11. v0.3.17 #28 续2 (2026-07-17) — NavBar .right 靠右 + wizard 三步 next 按钮同位 (PO msg 22:20 #5937 #8+#9)
+
+* **#8 NavBar 登录按钮 wizard 页右上角错位修复** (`lib/components/NavBar.svelte`):
+  * 根因: `.navbar` 是 flex, `.links` 用 `flex: 1` 撑开空间把 `.right` 挤到右.
+    #5+#6 改动后 `/sessions/new` 等路径 `.links` 整段不渲染, `.right` 失去挤的逻辑自然回到 `.brand` 旁边 (左对齐).
+  * 修法: `.right` 加 `margin-left: auto` — flex auto margin 把 `.right` 推到最右, 不依赖 `.links` 是否存在.
+  * 效果:
+    * 已登录态 + 任何路径: brand | 我的账本 (flex 1) | right → 仍顶右
+    * anon + `/sessions/new` wizard: brand | [links hidden] | right (登录) → 顶右 (修复)
+    * `/auth/login`: brand 单独, right 整个被外层 `{#if pathname !== '/auth/login'}` 隐藏, 不受 #8 影响
+  * 真机验证: `/sessions/new` 右 btn gap = 16.0px (navbar 自身 16px padding, = 设计意图, 不是错位)
+* **#9 wizard 三步 next/confirm 按钮同位** (`routes/sessions/new/+page.svelte`):
+  * 现状差异:
+    * step 1: `<button class="btn btn-primary btn-next">` 单按钮, 默认 inline (content-width, 左对齐)
+    * step 2/3: `.step-nav` 里 双按钮 `flex: 1 + space-between` (next 贴右)
+  * 视觉位置不一致: step 1 next 按钮靠左, step 2/3 靠右 — PO 不接受
+  * 修法 (template + CSS 两处):
+    * template: step 1 按钮包 `<div class="step-nav">` (跟 step 2/3 同结构)
+    * CSS: `.step-nav:has(> :only-child) { justify-content: flex-end }` — 单按钮 case 靠右
+    * CSS: `.step-nav > :only-child { flex: 0 1 auto }` — 单按钮不撑满, 保持 pill content-width (不会占满整个 wizard)
+  * 兼容性: `:has()` Chrome 105+ / Safari 15.4+ / Firefox 121+, 主项目 vite + svelte 5 OK.
+  * 效果 (3 步 next/confirm 按钮右边缘 X 一致):
+    * step 1: 358.0px (单按钮 case, flex-end + content-width)
+    * step 2: 358.0px (双按钮 case, space-between + flex 1)
+    * step 3: 358.0px (双按钮 case, space-between + flex 1)
+    * Δ=0.0px (完美对齐, 都贴 wizard content 区右边 = wizard 右 - 16px padding)
+* **svelte-check**: 7 errors baseline (同 #28), 0 new error from #8+#9
+* **真机 walk**: 7/7 PASS (#28-1, #28-2, #28-3, #28-4, #28-5, #28-6, #28-8, #28-9)
+* **再次 amend commit** `efb34c8` → 新 commit message: `v0.3.17 #28: 9 项 polish — wizard 按钮大小/排布/3 dots + count-btn active + NavBar + 修 SessionCurrencyBadge 注释字节丢失 + wizard 三步 next 同位`
+* **强制 push** (amend 链第 2 次)
