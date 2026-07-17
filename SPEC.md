@@ -1397,33 +1397,44 @@ seed 脚本 (`backend/scripts/seed_dev_data.py`) 已有 find-or-create 逻辑：
   * commit `2c4ad4d` → amend 成 `v0.3.17 #28: 6 项微调 + 修 SessionCurrencyBadge 注释字节丢失 bug — wizard 按钮大小/排布/3 dots + count-btn active + NavBar 我的账本`
   * 强制 push origin/main (因为是 amend, 不是 fast-forward)
 
-### §11. v0.3.17 #28 续2 (2026-07-17) — NavBar .right 靠右 + wizard 三步 next 按钮同位 (PO msg 22:20 #5937 #8+#9)
+### §11. v0.3.17 #28 续2 (2026-07-17) — NavBar .right 靠右 + wizard 三步 next 按钮同位 (PO msg 22:10 #5937 #8+#9)
 
 * **#8 NavBar 登录按钮 wizard 页右上角错位修复** (`lib/components/NavBar.svelte`):
   * 根因: `.navbar` 是 flex, `.links` 用 `flex: 1` 撑开空间把 `.right` 挤到右.
-    #5+#6 改动后 `/sessions/new` 等路径 `.links` 整段不渲染, `.right` 失去挤的逻辑自然回到 `.brand` 旁边 (左对齐).
+    #28 #5+#6 改动后 `/sessions/new` 等路径 `.links` 整段不渲染 (anon + wizard 页),
+    `.right` 失去挤的逻辑自然回到 `.brand` 旁边 (左对齐, 看起来像 navbar 不对称).
   * 修法: `.right` 加 `margin-left: auto` — flex auto margin 把 `.right` 推到最右, 不依赖 `.links` 是否存在.
-  * 效果:
-    * 已登录态 + 任何路径: brand | 我的账本 (flex 1) | right → 仍顶右
+  * 效果 (4 个场景):
+    * 已登录态 + 任何路径: brand | 我的账本 (flex 1) | right → 仍顶右 (跟改前一致)
     * anon + `/sessions/new` wizard: brand | [links hidden] | right (登录) → 顶右 (修复)
     * `/auth/login`: brand 单独, right 整个被外层 `{#if pathname !== '/auth/login'}` 隐藏, 不受 #8 影响
-  * 真机验证: `/sessions/new` 右 btn gap = 16.0px (navbar 自身 16px padding, = 设计意图, 不是错位)
-* **#9 wizard 三步 next/confirm 按钮同位** (`routes/sessions/new/+page.svelte`):
+    * anon + 其他非 wizard 页: brand | [links hidden] | right (登录) → 顶右
+  * 真机验证 (iPhone 14 viewport 390x844):
+    * `.right` computed `margin-left: 227px` (auto 算出 = 填充 .links 缺失留下的空白)
+    * `.right.rightEdge = 374px` = `navbar.right - padding-right = 390 - 16` → **完美贴 navbar content 区右端**
+    * `.brand.right = 81px` < `.right.left = 320px` → right 在 brand 右侧 (无重叠)
+* **#9 wizard 三步 next/confirm 按钮 X 同位** (`routes/sessions/new/+page.svelte`):
   * 现状差异:
     * step 1: `<button class="btn btn-primary btn-next">` 单按钮, 默认 inline (content-width, 左对齐)
-    * step 2/3: `.step-nav` 里 双按钮 `flex: 1 + space-between` (next 贴右)
-  * 视觉位置不一致: step 1 next 按钮靠左, step 2/3 靠右 — PO 不接受
+    * step 2/3: `.step-nav` 里 双按钮 `flex: 1 + space-between` (next 贴 wizard content 区右端)
+  * 视觉位置不一致: step 1 next 按钮靠 wizard 左, step 2/3 靠右 — PO 不接受 (msg 22:10 #5937)
   * 修法 (template + CSS 两处):
     * template: step 1 按钮包 `<div class="step-nav">` (跟 step 2/3 同结构)
-    * CSS: `.step-nav:has(> :only-child) { justify-content: flex-end }` — 单按钮 case 靠右
+    * CSS: `.step-nav:has(> :only-child) { justify-content: flex-end }` — 单按钮 case 容器靠右
     * CSS: `.step-nav > :only-child { flex: 0 1 auto }` — 单按钮不撑满, 保持 pill content-width (不会占满整个 wizard)
-  * 兼容性: `:has()` Chrome 105+ / Safari 15.4+ / Firefox 121+, 主项目 vite + svelte 5 OK.
-  * 效果 (3 步 next/confirm 按钮右边缘 X 一致):
-    * step 1: 358.0px (单按钮 case, flex-end + content-width)
-    * step 2: 358.0px (双按钮 case, space-between + flex 1)
-    * step 3: 358.0px (双按钮 case, space-between + flex 1)
-    * Δ=0.0px (完美对齐, 都贴 wizard content 区右边 = wizard 右 - 16px padding)
-* **svelte-check**: 7 errors baseline (同 #28), 0 new error from #8+#9
-* **真机 walk**: 7/7 PASS (#28-1, #28-2, #28-3, #28-4, #28-5, #28-6, #28-8, #28-9)
-* **再次 amend commit** `efb34c8` → 新 commit message: `v0.3.17 #28: 9 项 polish — wizard 按钮大小/排布/3 dots + count-btn active + NavBar + 修 SessionCurrencyBadge 注释字节丢失 + wizard 三步 next 同位`
-* **强制 push** (amend 链第 2 次)
+  * 兼容性: `:has()` Chrome 105+ / Safari 15.4+ / Firefox 121+, 项目用 vite + svelte 5 OK
+  * 效果 (3 步 next/confirm 按钮右边缘 X 一致, 测距 wizard content 区右端 = wizard.right - padding-right = 374 - 16 = 358):
+    * step 1: btn.rightEdge = 358.0px (单按钮 case, flex-end + content-width)
+    * step 2: btn.rightEdge = 358.0px (双按钮 case, space-between + flex 1)
+    * step 3: btn-confirm.rightEdge = 358.0px (双按钮 case, btn-confirm 替 btn-next, 位置一致)
+    * **Δ=0.0px** (完美对齐)
+* **svelte-check**: 7 errors baseline (跟 #28 同 — SettleMemberBreakdown / +layout / join / +page.svelte 全是 pre-existing), 0 new error from #8+#9
+* **真机 walk** (`scripts/cbc_v317_28_5_walk.js`): 2/2 PASS (#28.5-8 navbar login-right gap=0 from content, #28.5-9 3 步 next X Δ=0px)
+* **3 截图** (`~/.openclaw/media/browser/`):
+  * `v0317-28_5m-navbar-login-right.png` — wizard 页 navbar 登录按钮贴右 (image 工具确认: 「登录按钮在 navbar 右侧, 浅紫玻璃 pill, 中文渲染干净」)
+  * `v0317-28_5m-wizard-3steps-next.png` — 3 步 next 按钮 X 一致 (合成图, 3 张 step 子图 + 标签)
+  * `v0317-28_5m-session-detail-not-garbled.png` — session 详情页 (登录态 + Thailand, SessionCurrencyBadge 渲染「CNY ⇄ THB · 1 CNY = 4.65116279 THB」正常)
+* **合并到 #28 commit** `9195faa` (amend efb34c8):
+  * 包含 #28 基础 6 项 + SessionCurrencyBadge 字节修复 + 本轮 #8+#9 polish
+  * commit message: `v0.3.17 #28: 9 项 polish — wizard 按钮大小/排布/3 dots + count-btn active + NavBar + 修 SessionCurrencyBadge 注释字节丢失 + wizard 三步 next 同位`
+  * 强制 push origin/main (amend 链第 2 次, 把 placeholder commit efb34c8 替换)
