@@ -445,10 +445,10 @@
           </div>
 
           <!-- T10: 付款明细 section with sticky header -->
-          <div class="bills-section bills-section-paid">
+          <div class="bills-section bills-section-paid glass-sheet">
             <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
             <h4
-              class="bills-section-head section-header"
+              class="bills-section-head section-header glass-chip"
               role="button"
               tabindex="0"
               aria-expanded={paidExpanded}
@@ -521,10 +521,10 @@
           </div>
 
           <!-- T10: 消费明细 section with sticky header -->
-          <div class="bills-section bills-section-consumed">
+          <div class="bills-section bills-section-consumed glass-sheet">
             <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
             <h4
-              class="bills-section-head section-header"
+              class="bills-section-head section-header glass-chip"
               role="button"
               tabindex="0"
               aria-expanded={consumedExpanded}
@@ -1141,5 +1141,70 @@
   }
   .skeleton-list > li:last-child :global(.skeleton-bill) {
     border-bottom: none;
+  }
+
+  /* === v0.3.17 #31 (PO msg 23:13 #6027): settle sticky header chip-on-sheet liquid glass ===
+     iOS 27 liquid glass 母体: 浓液 chip (.glass-chip) 浮在稀液 sheet (.glass-sheet) 上方 8px.
+     sheet 是 sticky 容器 (取代旧 sticky h4), chip 是 sheet 顶部的浮起 label.
+     仅 apply 在个人视图 tab 的 bills-section, 不改概览 tab (settle/+page.svelte 内的 transfers 区
+     是另一 view, 不在本次范围).
+     - .glass-sheet: 稀液 32% opacity + saturate 150% + blur 16px + inset highlight, position: sticky 容器
+     - .glass-chip: 浓液 62% opacity + saturate 200% + blur 20px + 1px specular + 双层 indigo drop shadow
+     - chip 浮在 sheet 上方: margin-bottom: -8px (拉 list 上 8px) + z-index: 2 (sheet 内最高) */
+  .glass-sheet {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: rgba(255, 255, 255, 0.32);
+    backdrop-filter: saturate(150%) blur(16px);
+    -webkit-backdrop-filter: saturate(150%) blur(16px);
+    border-radius: 16px;
+    padding: var(--space-4, 16px) var(--space-3, 12px) var(--space-3, 12px);
+    border-left: 0;
+    margin-top: var(--space-5, 24px);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.6),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.04);
+  }
+  /* 第二个 sticky sheet (消费明细) z-index 提到 6, sticky 容器边界重叠时
+     消费明细自然盖付款明细 (sticky 边界无法避免重叠) — 跟旧 #20 #bills-section-consumed
+     .section-header { z-index: 11 } 同语义 */
+  .bills-section-consumed.glass-sheet { z-index: 6; }
+
+  /* glass-chip: 浓液浮在 sheet 顶, 取代旧 .section-header 的 sticky + 0.92 bg.
+     compound selector 提升 specificity (0,2,0) 覆盖旧 .bills-section-head (0,1,0) +
+     .bills-section-consumed .section-header { z-index: 11 } (0,2,0, 后定义胜).
+     ::before 渐变 overlay 取消 — chip 自带 bg + 双层阴影, 不再需要旧 hack 强化遮挡. */
+  .section-header.glass-chip {
+    background: rgba(255, 255, 255, 0.62);
+    backdrop-filter: saturate(200%) blur(20px);
+    -webkit-backdrop-filter: saturate(200%) blur(20px);
+    border-radius: 9999px;
+    padding: var(--space-2, 8px) var(--space-3, 12px);
+    margin: -8px calc(-1 * var(--space-3, 12px)) -8px calc(-1 * var(--space-3, 12px));
+    z-index: 2;
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2, 8px);
+    font-size: var(--font-size-sm, 14px);
+    font-weight: 600;
+    color: var(--gray-900);
+    border-bottom: 0;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.85),
+      0 1px 2px rgba(99, 102, 241, 0.10),
+      0 4px 12px rgba(99, 102, 241, 0.16),
+      0 8px 24px rgba(99, 102, 241, 0.10);
+  }
+  .section-header.glass-chip::before,
+  .bills-section-head.glass-chip::before {
+    content: none;
+  }
+  /* glass-chip: Safari iOS < 18 backdrop-filter fallback, 提到 0.78 opaque */
+  @supports not (backdrop-filter: blur(1px)) {
+    .section-header.glass-chip {
+      background: rgba(255, 255, 255, 0.78);
+    }
   }
 </style>
