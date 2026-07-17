@@ -185,8 +185,8 @@
             autofocus />
         </div>
         <div class="step-nav">
-          <button class="fab-wiz disabled" type="button" aria-label="上一步" disabled>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          <button class="fab-wiz glass" type="button" aria-label="返回首页" onclick={() => goto(isAnon ? "/" : "/sessions")}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-8 9 8v10a2 2 0 0 1-2 2h-3v-7h-8v7H5a2 2 0 0 1-2-2V11z"/></svg>
           </button>
           <button class="fab-wiz primary" type="button" aria-label="下一步" onclick={goNext} disabled={!nameValid}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
@@ -372,11 +372,6 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.6),
       0 6px 14px -3px rgba(99, 102, 241, 0.4),
       0 2px 4px -1px rgba(99, 102, 241, 0.15);
-  }
-  .fab-wiz.disabled {
-    cursor: not-allowed;
-    opacity: 0.4;
-    box-shadow: none;
   }
   .fab-wiz svg {
     width: 22px;
