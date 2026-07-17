@@ -1,4 +1,4 @@
-cript lang="ts">
+<script lang="ts">
   import { user, logout } from '$stores/user';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
