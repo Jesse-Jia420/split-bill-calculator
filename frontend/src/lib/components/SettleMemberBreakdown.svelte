@@ -1181,10 +1181,11 @@
        隐约可见但 chip 视觉主导). 整体 "list 渐消失于 head 中" (跟 #20 当时设计意图一致, 但
        chip 仍保留 #31 浓液 0.62 liquid glass 美学). mask 同时给 webkit 前缀覆盖 Safari. */
   .glass-sheet {
-    /* v0.3.17 #31fix-3 (PO msg 01:48 #6160 + 01:59 #6178): sheet 自身不再 sticky.
-       原 sticky top:0 让两个 sheet (paid + consumed) 都吸顶, 视觉堆叠. 改
-       position: relative (正常 flow), 由 .section-header.glass-chip 接管 sticky 行为
-       (iOS Mail inbox 模式: 只有当前 section header sticky 在 viewport 顶部). */
+    /* v0.3.17 #31fix-3 (PO msg 01:48 #6160 + 01:59 #6178; 详见 SPEC §11 #31fix-3):
+       sheet 自身不再 sticky. 原 sticky top:0 让两个 sheet (paid + consumed) 都吸顶,
+       视觉堆叠. 改 position: relative (正常 flow), 由 .section-header.glass-chip
+       接管 sticky 行为 (iOS Mail inbox 模式: 只有当前 section header sticky 在
+       viewport 顶部, 其它 section 自然随内容滚出). */
     position: relative;
     z-index: 1;
     background: rgba(255, 255, 255, 0.32);
@@ -1216,10 +1217,12 @@
     padding: var(--space-2, 8px) var(--space-3, 12px);
     margin: -8px calc(-1 * var(--space-3, 12px)) -8px calc(-1 * var(--space-3, 12px));
     z-index: 10;
-    /* v0.3.17 #31fix-3 (PO msg 01:48 #6160 + 01:59 #6178): chip 改 sticky top 0.
-       原 position: relative 跟 sheet 一起堆叠, 失去 sticky 语义. 现 sheet 改
-       relative 后, chip sticky within sheet — 只有当前 section 的 chip
-       吸顶, 其它 section chip 自然随内容滚出 (iOS Mail inbox 行为). */
+    /* v0.3.17 #31fix-3 (PO msg 01:48 #6160 + 01:59 #6178; 详见 SPEC §11 #31fix-3):
+       chip 改 sticky top 0. 原 position: relative 跟 sheet 一起堆叠, 失去 sticky
+       语义. 现 sheet 改 relative 后, chip sticky within sheet — 只有当前 section
+       的 chip 吸顶, 其它 section chip 自然随内容滚出 (iOS Mail inbox 行为).
+       关键不变量: z-index: 10 > sheet z-index: 1, chip 浮在 sheet 之上, list 滚
+       到 chip 下方时被 chip bg 0.62 物理遮挡 (顶部 16px mask 透明渐变保留视觉柔化). */
     position: sticky;
     top: 0;
     display: flex;
