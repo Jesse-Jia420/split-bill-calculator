@@ -828,7 +828,7 @@
     color: #fff;
     display: inline-flex;
     align-items: center;
-        .y justify-content: center;
+        .� justify-content: center;
     font-weight: 600;
     font-size: 14px;
   }
@@ -967,11 +967,11 @@
     font-size: var(--font-size-sm, 14px);
     font-weight: 600;
     color: var(--gray-900);
-    /* v0.3.16 #2 hotfix v2 (PO msg 17:52): Liquid Glass 加强.
-       同步降到 0.55 (与 .section-header 一致), 让 backdrop blur 40px 真正生效. */
-    background: rgba(255, 255, 255, 0.55);
-    /* Capsule feel + 双 inset highlight + bottom hairline + 软外阴影.
-       配合 ::before 渐变 overlay + @supports Safari fallback. */
+    /* v0.3.17 #21 (PO msg 13:51 续): 删 background 0.55 — 之前 .section-header 0.92
+       被同 specificity 后定义的 .bills-section-head 0.55 覆盖, 导致 sticky bg
+       仍是 0.55 透明, iPhone Safari 实拍仍穿透。现: .bills-section-head 不再
+       单独设 bg, 继承 .section-header 0.92。border-radius + box-shadow 仍保留
+       (capsule 形态 + 玻璃 inset highlight)。 */
     border-radius: 6px;
     border-bottom: 0;
     box-shadow:
@@ -997,12 +997,12 @@
     pointer-events: none;
   }
 
-  /* === v0.3.16 #2 hotfix v2: Safari iOS < 18 backdrop-filter bug fallback ===
+  /* === v0.3.17 #21: Safari iOS < 18 backdrop-filter bug fallback ===
      早期 iOS Safari 对 backdrop-filter 支持不稳, fallback 到几乎全 opaque.
-     不影响现代浏览器 (iOS 18+ / Chrome / Firefox). */
+     .section-header 已 0.92, fallback 0.95 让 iOS < 18 也物理遮挡穿透。
+     .bills-section-head 不再单独 fallback (继承 .section-header)。 */
   @supports not (backdrop-filter: blur(1px)) {
-    .section-header,
-    .bills-section-head {
+    .section-header {
       background: rgba(255, 255, 255, 0.95);
     }
   }
