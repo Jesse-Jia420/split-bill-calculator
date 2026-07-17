@@ -66,6 +66,21 @@
     if (next >= 1 && next <= 20) memberCount = next;
   }
 
+  // v0.3.17 #32-D-2 (PO msg 23:59 #6087): iOS27 switch toggle unified entry
+  // - anon locks dual mode (toast.error prompt, no state change)
+  // - switching to single clears secondaryCurrency + exchangeRate
+  function switchCurrencyMode(mode: "single" | "dual") {
+    if (mode === "dual" && isAnon) {
+      toast.error("登录后可使用多币种");
+      return;
+    }
+    currencyMode = mode;
+    if (mode === "single") {
+      secondaryCurrency = "";
+      exchangeRate = "";
+    }
+  }
+
   function goNext() {
     if (step === 1 && nameValid) {
       step = 2;
@@ -184,16 +199,14 @@
             onkeydown={(e) => e.key === "Enter" && nameValid && goNext()}
             autofocus />
         </div>
-        <div class="step-nav-area">
-          <div class="step-nav">
-            <button class="fab-wiz glass" type="button" aria-label="返回首页" onclick={() => goto(isAnon ? "/" : "/sessions")}>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-8 9 8v10a2 2 0 0 1-2 2h-3v-7h-8v7H5a2 2 0 0 1-2-2V11z"/></svg>
-            </button>
-            <button class="fab-wiz primary" type="button" aria-label="下一步" onclick={goNext} disabled={!nameValid}>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-            </button>
-          </div>
-          <p class="step-nav-hint">返回首页 · 添加成员</p>
+        <!-- v0.3.17 #32-D-2 (PO msg 23:59 #6087): 按钮直接浮, 撤 .step-nav-area wrapper + border-top + bg gradient + 跨 step 上下文 hint -->
+        <div class="step-nav">
+          <button class="fab-wiz glass" type="button" aria-label="返回首页" onclick={() => goto(isAnon ? "/" : "/sessions")}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-8 9 8v10a2 2 0 0 1-2 2h-3v-7h-8v7H5a2 2 0 0 1-2-2V11z"/></svg>
+          </button>
+          <button class="fab-wiz primary" type="button" aria-label="下一步" onclick={goNext} disabled={!nameValid}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </button>
         </div>
       </div>
     {/if}
@@ -219,16 +232,13 @@
             </div>
           {/each}
         </div>
-        <div class="step-nav-area">
-          <div class="step-nav">
-            <button class="fab-wiz glass" type="button" aria-label="上一步" onclick={() => (step = 1)}>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-            </button>
-            <button class="fab-wiz primary" type="button" aria-label="下一步" onclick={goNext} disabled={!nicknamesValid}>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-            </button>
-          </div>
-          <p class="step-nav-hint">修改人数/昵称 · 选择币种</p>
+        <div class="step-nav">
+          <button class="fab-wiz glass" type="button" aria-label="上一步" onclick={() => (step = 1)}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          </button>
+          <button class="fab-wiz primary" type="button" aria-label="下一步" onclick={goNext} disabled={!nicknamesValid}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </button>
         </div>
       </div>
     {/if}
@@ -239,19 +249,34 @@
         <h2 class="step-title">使用什么币种？</h2>
         <p class="step-hint">选择单币种或双币种结算</p>
 
-        <!-- 模式切换：单币 vs 双币 -->
-        <div class="currency-mode-row" role="radiogroup" aria-label="币种模式">
-          <button type="button" class="glass-pill mode-pill" class:active={currencyMode === 'single'}
-            onclick={() => { currencyMode = 'single'; secondaryCurrency = ''; exchangeRate = ''; }}>
+        <!-- v0.3.17 #32-D-2 (PO msg 23:59 #6087): iOS27 switch toggle 替代 segmented pill
+             - 滑动 indicator (.ios-switch-thumb) + 玻璃 track
+             - anon 双币种按钮 :disabled + .locked (从隐藏 → 展示但锁定)
+             - anon 切双币种走 switchCurrencyMode → toast.error (state 不切) -->
+        <div class="ios-switch" role="radiogroup" aria-label="币种模式">
+          <button type="button"
+            class="ios-switch-option"
+            class:active={currencyMode === 'single'}
+            role="radio"
+            aria-checked={currencyMode === 'single'}
+            onclick={() => switchCurrencyMode('single')}>
             单一币种
           </button>
-          {#if !isAnon}
-            <button type="button" class="glass-pill mode-pill" class:active={currencyMode === 'dual'}
-              onclick={() => currencyMode = 'dual'}>
-              双币种
-            </button>
-          {/if}
+          <button type="button"
+            class="ios-switch-option"
+            class:active={currencyMode === 'dual'}
+            class:locked={isAnon}
+            role="radio"
+            aria-checked={currencyMode === 'dual'}
+            disabled={isAnon}
+            onclick={() => switchCurrencyMode('dual')}>
+            双币种
+          </button>
+          <span class="ios-switch-thumb" class:right={currencyMode === 'dual'}></span>
         </div>
+        {#if isAnon && currencyMode === 'dual'}
+          <p class="mode-locked-hint">登录后即可使用多币种 (双币种已锁)</p>
+        {/if}
 
         <!-- 主币种（必选） -->
         <div class="currency-section">
@@ -319,20 +344,17 @@
           <p class="anon-currency-hint glass-card-soft">需要多币种？账本创建后登录即可</p>
         {/if}
 
-        <div class="step-nav-area">
-          <div class="step-nav">
-            <button class="fab-wiz glass" type="button" aria-label="上一步" onclick={() => (step = 2)}>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-            </button>
-            <button class="fab-wiz primary" type="button" aria-label="确认创建" onclick={handleCreate} disabled={!currencyValid || busy}>
-              {#if busy}
-                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-width="2.5" opacity="0.3"/><path d="M21 12a9 9 0 0 1-9 9" stroke-width="2.5" stroke-linecap="round"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/></path></svg>
-              {:else}
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>
-              {/if}
-            </button>
-          </div>
-          <p class="step-nav-hint">修改人数/昵称 · 确认创建</p>
+        <div class="step-nav">
+          <button class="fab-wiz glass" type="button" aria-label="上一步" onclick={() => (step = 2)}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          </button>
+          <button class="fab-wiz primary" type="button" aria-label="确认创建" onclick={handleCreate} disabled={!currencyValid || busy}>
+            {#if busy}
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-width="2.5" opacity="0.3"/><path d="M21 12a9 9 0 0 1-9 9" stroke-width="2.5" stroke-linecap="round"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/></path></svg>
+            {:else}
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>
+            {/if}
+          </button>
         </div>
       </div>
     {/if}
@@ -350,27 +372,15 @@
   .step-title { font-size: 1.5rem; font-weight: 700; color: #171717; margin: 0 0 0.375rem; line-height: 1.2; }
   .step-hint { font-size: 0.9rem; color: #737373; margin: 0 0 1.75rem; }
   .field { margin-bottom: 1.5rem; }
-  /* v0.3.17 #32-D: 圆 ← → glass button 居中布局 + 顶分割线 + 底部 hint (PO msg 23:44 #6063 拍板 D)
-     52×52 → 64×64 (iOS HIG 88pt ~80% 甜点位), 居中 (gap 56px) + area wrapper + 跨 step 上下文 hint */
-  .step-nav-area {
-    padding: 14px 14px 12px;
-    border-top: 0.5px solid rgba(99, 102, 241, 0.18);
-    background: linear-gradient(180deg, transparent 0%, rgba(238, 234, 255, 0.4) 100%);
-  }
+  /* v0.3.17 #32-D (PO msg 23:44 #6063 拍板 D): 圆 ← → glass button 64×64 + 居中 (gap 56px)
+     v0.3.17 #32-D-2 (PO msg 23:59 #6087): 撤 .step-nav-area wrapper + border-top + bg gradient
+     + 撤 .step-nav-hint 跨 step 上下文 — 按钮直接浮, 顶部留 panel 自然间距 */
   .step-nav {
     display: flex;
     justify-content: center;
     align-items: center;
     gap: 56px;
-    margin-bottom: 10px;
-  }
-  .step-nav-hint {
-    text-align: center;
-    font-size: 0.75rem;
-    color: rgba(67, 56, 202, 0.55);
-    letter-spacing: 0.04em;
-    margin: 0;
-    min-height: 1.2em;
+    margin-top: 1.25rem;
   }
   .fab-wiz {
     width: 64px;
@@ -467,10 +477,78 @@
   /* .nickname-row input 已用 .glass-input 替代 — v0.3.17 #27 */
   .muted { color: #737373; }
 
+  /* v0.3.17 #32-D-2 (PO msg 23:59 #6087): currency mode 改 iOS27 switch toggle
+     - .ios-switch = 玻璃 track (blur 14px + 饱和 180% + 0.5px 蓝紫描边)
+     - .ios-switch-thumb = 滑动 indicator (紫渐变 + 投影, transform 250ms spring)
+     - .ios-switch-option = 文字选项 (active 时反白)
+     - .locked = anon 双币种锁定态 (opacity 0.4 + not-allowed) */
+  .ios-switch {
+    position: relative;
+    display: flex;
+    background: rgba(255, 255, 255, 0.5);
+    -webkit-backdrop-filter: blur(14px) saturate(180%);
+    backdrop-filter: blur(14px) saturate(180%);
+    border-radius: 9999px;
+    padding: 3px;
+    border: 0.5px solid rgba(99, 102, 241, 0.18);
+    box-shadow:
+      inset 0 1px 2px rgba(0, 0, 0, 0.04),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.6);
+    margin-bottom: 1.25rem;
+    width: fit-content;
+    max-width: 100%;
+  }
+  .ios-switch-option {
+    flex: 1;
+    position: relative;
+    z-index: 2;
+    padding: 0.5rem 1.25rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: rgba(67, 56, 202, 0.6);
+    background: transparent;
+    border: none;
+    border-radius: 9999px;
+    cursor: pointer;
+    transition: color 200ms ease;
+    min-height: 36px;
+    white-space: nowrap;
+  }
+  .ios-switch-option.active {
+    color: white;
+    text-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.15);
+  }
+  .ios-switch-option.locked {
+    cursor: not-allowed;
+    opacity: 0.4;
+  }
+  .ios-switch-thumb {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    bottom: 3px;
+    width: calc(50% - 3px);
+    background: linear-gradient(135deg, #6366f1, #818cf8);
+    border-radius: 9999px;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.4),
+      0 2px 4px rgba(99, 102, 241, 0.3);
+    transition: transform 250ms cubic-bezier(0.4, 0.0, 0.2, 1);
+    z-index: 1;
+    pointer-events: none;
+  }
+  .ios-switch-thumb.right {
+    transform: translateX(100%);
+  }
+  .mode-locked-hint {
+    margin: -0.5rem 0 0.75rem;
+    font-size: 0.75rem;
+    color: rgba(67, 56, 202, 0.55);
+    text-align: center;
+    font-weight: 500;
+  }
+
   /* §3.11.10: currency step styles */
-  .currency-mode-row { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
-  /* .mode-pill 已用 .glass-pill 替代 (默认) / .btn-primary 替代 (active) — v0.3.17 #27 */
-  .mode-pill { flex: 1; min-height: 44px; padding: 0.625rem 1rem; font-size: 0.9rem; font-weight: 500; cursor: pointer; }
   .currency-section { margin-bottom: 1.25rem; }
   .currency-label { display: block; font-size: 0.8125rem; font-weight: 600; color: #525252; margin-bottom: 0.625rem; text-transform: uppercase; letter-spacing: 0.06em; }
   .currency-pills { display: flex; flex-wrap: wrap; gap: 0.5rem; }
