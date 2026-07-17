@@ -508,9 +508,14 @@
                          width < height → 视觉上是竖椭圆 (iOS Mail 同款, 物理不可避免, 见 #18 完成消息)。 -->
                     {@const leftProgress = Math.max(0, Math.min(1, rowOffset / 56))}
                     {@const rightProgress = Math.max(0, Math.min(1, -rowOffset / 56))}
+                    <!-- v0.3.17 #20 hotfix (PO msg 13:12): 取消 stagger in:fly,
+                         改 in:fade 80ms — toggle 展开时所有 row 同步淡入,
+                         30 行不再逐行 delay 200ms, 不再「卡卡的」。
+                         首次加载由 day-body-wrap grid-template-rows 250ms 接管
+                         整体展开动画, 不损失视觉美感。 -->
                     <li
                       class="bill-swipe-wrap"
-                      in:fly={{ y: 8, duration: 220, delay: Math.min(bi * 25, 200) }}
+                      in:fade={{ duration: 80 }}
                     >
                       {#if onDelete}
                         <button

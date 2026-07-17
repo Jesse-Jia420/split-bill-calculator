@@ -33,7 +33,7 @@
    * - 失败时 members=[] + selectedMemberId=null, 让模板走"还没成员"占位
    */
   import { onMount, tick } from 'svelte';
-  import { scale, fly, fade } from 'svelte/transition';
+  import { scale, fly, fade, slide } from 'svelte/transition';
   import { getSettle } from '$api/settle';
   import { formatMoney, formatDate } from '$lib/utils/format';
   import { tweenNumber } from '$lib/utils/tween';
@@ -468,11 +468,16 @@
             {#if selectedMember.paid_bills.length === 0}
               <p class="muted empty-hint">没有付过账单</p>
             {:else if paidExpanded}
-              <ul class="bill-sublist">
+              <!-- v0.3.17 #20 hotfix (PO msg 13:12): ul 用 transition:slide
+                   (200ms slide down 展开 / slide up 收起), li 改 in:fade 80ms
+                   取消 stagger delay: 30 行不再逐行 delay 200ms, toggle 不再
+                   「卡卡的」。li 不再用 in:fly, 由 ul slide + li fade 共同
+                   接管展开/收起动画。 -->
+              <ul class="bill-sublist" transition:slide={{ duration: 200 }}>
                 {#each selectedMember.paid_bills as b, i (b.bill_id)}
                   <li
                     class="bill-subrow"
-                    in:fly={{ y: 6, duration: 200, delay: Math.min(i * 25, 200) }}
+                    in:fade={{ duration: 80 }}
                   >
                     <div class="row1">
                       <span class="bill-sub-desc">{b.description || '(无说明)'}</span>
@@ -541,12 +546,12 @@
             {#if selectedMember.consumed_bills.length === 0}
               <p class="muted empty-hint">没有被分摊的账单</p>
             {:else if consumedExpanded}
-              <ul class="bill-sublist">
+              <ul class="bill-sublist" transition:slide={{ duration: 200 }}>
                 {#each selectedMember.consumed_bills as b, i (b.bill_id)}
                   {@const tags = fmtConsumedTags(b)}
                   <li
                     class="bill-subrow"
-                    in:fly={{ y: 6, duration: 200, delay: Math.min(i * 25, 200) }}
+                    in:fade={{ duration: 80 }}
                   >
                     <div class="row1">
                       <span class="bill-sub-desc">{b.description || '(无说明)'}</span>
@@ -900,6 +905,18 @@
        - 加 ::before 渐变 overlay 强化视觉遮挡 (z-index -1 在父
          stacking context 内位于父 bg 之上)
        - 加 @supports fallback 给 iOS Safari < 18 (opaque 0.95) */
+  /* === v0.3.17 #20 hotfix (PO msg 13:12): sticky header 浮起漏内容 真修 ===
+     上版 (#16) 用 padding-top 100px hack 延迟临界点, 但 0.55 不透明 +
+     backdrop blur 40px 在 scroll y=1100~1700 区间仍有下方 bill row 文字
+     穿透 (Chromium headless 实测 bg 实际为 0.55 不透明 + blur 渲染不稳)。
+     修法 (mask-image 物理遮挡穿透):
+       - mask-image: linear-gradient(180deg, transparent 0, #000 16px, #000 100%)
+         顶部 16px 渐变透明 (玻璃上沿柔化), 16px 以下完全 opaque (遮穿透)
+       - 同步 -webkit-mask-image 给 Safari
+       - 取消 padding-top 100px hack (#16 试 56/100 都仍透, padding hack 物理上
+         无法彻底修 — 真修要 mask 或 opaque bg, 选 mask 保留玻璃感)
+       - bills-section-consumed 第二个 sticky h4 z-index 提到 11, 两个 h4 撞一起
+         (sticky 容器边界无法避免) 时消费明细自然盖付款明细, 不视觉混乱 */
   .section-header {
     position: sticky;
     top: 0;
@@ -911,7 +928,15 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.7),
       inset 0 -1px 0 rgba(0, 0, 0, 0.05),
       0 1px 3px rgba(0, 0, 0, 0.04);
+    /* v0.3.17 #20: mask 渐变遮挡穿透。top 16px 渐变让玻璃上沿柔化 (与
+       inset top highlight 一起营造"溶进背景"的玻璃感), 16px 以下完全
+       opaque 彻底遮挡下方滚动上来的 bill row 文字。 */
+    mask-image: linear-gradient(180deg, transparent 0, #000 16px, #000 100%);
+    -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 16px, #000 100%);
   }
+  /* v0.3.17 #20: 第二个 sticky h4 (消费明细) z-index 提到 11,
+     sticky 容器边界重叠时消费明细盖付款明细 (sticky 边界无法避免重叠) */
+  .bills-section-consumed .section-header { z-index: 11; }
 
   /* === bills section — left border visual separation === */
   .bills-section {
