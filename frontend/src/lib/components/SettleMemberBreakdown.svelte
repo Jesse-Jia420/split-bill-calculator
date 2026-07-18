@@ -783,11 +783,21 @@
      减小 padding (320-380px viewport: space-5 → space-4 两侧),
      缩小 amount 字号 (font-size-3xl 已 clamp, 320px 自动缩到 32px).
      保留 max padding 给桌面, 不引新 design token. */
+  /* v0.3.18 #44 (PO msg 17:43 #6401 拍板, 反 #41 不彻底): hero→chip 视觉间距 ~30px → ≤8px 真修.
+     v0.3.17 #41 commit message 声称 '.hero margin-bottom 12px → 4px' 但实际漏了 (df974be diff
+     只改了 .glass-sheet), 所以现 hero mb 还是 12px. 这次 v2 多处微调叠加:
+     - .hero padding 16px → 8px (上下各砍 8px, 紧凑 hero 内部)
+     - .hero margin-bottom 12px → 0 (跟 .glass-sheet margin-top 一起 collapse, 不堆叠空白)
+     - .glass-sheet margin-top 14px → 0 (同上, hero 跟 sheet 之间无 margin gap)
+     - .glass-sheet padding-top 10px → 4px (chip 视觉距离 sheet 顶边更近)
+     - .section-header.glass-chip margin-top -10px → -4px (chip pokes 4px above sheet top,
+       跟新 sheet padding-top 4px 抵消 → chip top edge = sheet top edge)
+     效果: hero content end → chip top edge 视觉间距 = 8px (hero padding-bottom 8) + 0
+     (margin collapse) + 0 (chip top = sheet top) = 8px, 符合 PO ≤8px 目标. */
   .hero {
     text-align: center;
-    /* v0.3.17 #38 (PO msg 10:56 #6263): padding 减小 48px → 16px 上下, 去掉 hero 区域大空白 */
-    padding: var(--space-4, 16px) var(--space-5, 20px);
-    margin-bottom: var(--space-3, 12px);
+    padding: var(--space-2, 8px) var(--space-5, 20px);
+    margin-bottom: 0;
   }
   /* 移除 @container page (max-width: 380px) override — 新 padding 已经合理, 不需要额外调整 */
   .hero-net {
@@ -1142,9 +1152,10 @@
     backdrop-filter: saturate(150%) blur(16px);
     -webkit-backdrop-filter: saturate(150%) blur(16px);
     border-radius: 16px;
-    padding: 10px var(--space-3, 12px) var(--space-3, 12px);
+    /* v0.3.18 #44: margin-top 14 → 0 + padding-top 10 → 4 (跟 .hero mb 0 一起 collapse) */
+    padding: 4px var(--space-3, 12px) var(--space-3, 12px);
     border-left: 0;
-    margin-top: 14px;
+    margin-top: 0;
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.6),
       inset 0 -1px 0 rgba(0, 0, 0, 0.04);
@@ -1166,7 +1177,9 @@
     border-radius: 9999px;
     /* v0.3.17 #37 (PO msg 10:55 #6262): 加倍 chip 垂直高度 ~36px → ~64-72px, 跟 row 高度 52-72px 视觉对位. padding 上下 8px → 20px (× 2.5, 原 brief 12px 写小改 20px 补足 SPEC 目标); 左右 12px → 16px (× 1.3); margin 同步 -8px → -10px 让 overlap 视觉协调. font-size sm (14px) → md (16px) +1 档. min-height: 60px 保证最小 320px viewport 也 ≥60. 保留 pill border-radius 9999px (PO 没要求改); 保留 sticky + mask-image + z-index + iOS27 玻璃参数. */
     padding: var(--space-5, 20px) var(--space-4, 16px);
-    margin: -10px calc(-1 * var(--space-3, 12px)) -10px calc(-1 * var(--space-3, 12px));
+    /* v0.3.18 #44: margin-top -10 → -4 (跟新 .glass-sheet padding-top 4px 抵消,
+       chip top edge = sheet top edge, 视觉上 chip "贴在" sheet 顶边) */
+    margin: -4px calc(-1 * var(--space-3, 12px)) -10px calc(-1 * var(--space-3, 12px));
     min-height: 60px;
     z-index: 10;
     /* v0.3.17 #31fix-3 (PO msg 01:48 #6160 + 01:59 #6178; 详见 SPEC §11 #31fix-3):

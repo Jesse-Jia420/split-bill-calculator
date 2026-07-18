@@ -270,9 +270,18 @@
    *   v0.3.17 #40 (PO msg 16:24): 整 bar 高度太宽 + 编辑/普通态高度不一致真修.
    *   - padding 6px → 4px (上下各 4px = 8px, 比原 12px 省 4px).
    *   - gap Row 1 → Row 2 2px (原 4px), 更紧凑的视觉 unit.
-   *   - 加 `gap: 2px` 取代 .rate-row margin-top: 4px — 统一管理 Row 间 spacing.
+   *   - 加 gap: 2px 取代 .rate-row margin-top: 4px — 统一管理 Row 间 spacing.
    *   - min-height 保证最小 unit 高度 (44px) iOS tap target 还合理.
-   *   - 单币种 .currency-pill-row--single 不动 (已经 fit-content 一行不需改). */
+   *   - 单币种 .currency-pill-row--single 不动 (已经 fit-content 一行不需改).
+   *
+   *   v0.3.18 #43 (PO msg 17:43 #6401 拍板, 反 #40 不彻底): 整 bar 高度压到 ~40px 真修.
+   *   - padding 4px → 2px (上下各 2px = 4px, 比 v1 #40 再省 4px).
+   *   - font-size clamp → 12px 固定 (Row 1 主币种 副币种 12px 已够读).
+   *   - Row 1 + Row 2 都 min-height: 16px (之前 Row 1 无 min-height 跟 Row 2 20px 不齐).
+   *   - Row 1 line-height 1.4 → 1.2 (跟 Row 2 同高 16, 视觉 unit 一致).
+   *   - rate-input height 20 → 16, line-height 18 → 14 (跟 Row 2 同高).
+   *   - rate-button min-height 20 → 16, 加 line-height 14 (跟 rate-input 内容视觉同高).
+   *   实测 (414x896): BAR ~40px (was 48.8px), normal/edit 两态 16px 同高. */
   .currency-bar {
     display: flex;
     flex-direction: column;
@@ -282,9 +291,9 @@
     width: fit-content;
     max-width: calc(100% - 32px);
     margin: 8px auto;
-    padding: 4px clamp(10px, 3vw, 16px);
-    font-size: clamp(0.6875rem, 2.6vw, 0.8125rem);
-    line-height: 1.4;
+    padding: 2px clamp(8px, 3vw, 14px);
+    font-size: 12px;
+    line-height: 1.2;
     color: var(--gray-700);
     overflow: hidden;
 
@@ -315,6 +324,7 @@
   /* v0.3.17 #36fix: 内部 .currency-pill-row (Row 1 — 货币对) 退化为分隔行.
    *   不再有 bg / border-radius / border — 跟外层 .currency-bar 共享同一玻璃基底.
    *   仅通过 width: 100% 撑满 bar, 内部 3 chip 居中. */
+  /* v0.3.18 #43: min-height 16px 跟 .rate-row 对齐, 保证两行视觉同高 unit */
   .currency-pill-row {
     display: flex;
     justify-content: center;
@@ -322,6 +332,7 @@
     flex-wrap: nowrap;
     gap: clamp(4px, 1.5vw, 8px);
     width: 100%;
+    min-height: 16px;
     padding: 0;
     margin: 0;
   }
@@ -365,7 +376,11 @@
    *   (rate-button text-only ~14px) 高度不一致真修.
    *   - min-height: 20px 让普通态撑到跟编辑态一样高 (rate-input height 20px).
    *   - align-items: baseline → center, vertical 居中 (text-only 跟 input 不同 baseline).
-   *   - margin-top: 0 (原 4px), 改用 .currency-bar `gap: 2px` 统一 Row 间距. */
+   *   - margin-top: 0 (原 4px), 改用 .currency-bar gap: 2px 统一 Row 间距.
+   *
+   *   v0.3.18 #43 (PO msg 17:43 拍板, 反 #40 不彻底): min-height 20 → 16 (跟 Row 1 同高).
+   *   - font-size clamp → 11px 固定 (跟 Row 1 12px 形成视觉层级, 副标题感保留).
+   *   - line-height 1.2 (继承 .currency-bar), 跟 Row 1 line-height 一致, 两行同高 unit. */
   .rate-row {
     display: flex;
     justify-content: center;
@@ -373,10 +388,11 @@
     flex-wrap: wrap;
     gap: clamp(4px, 1.5vw, 8px);
     width: 100%;
-    min-height: 20px;
+    min-height: 16px;
+    line-height: 1.2;
     padding: 0;
     margin: 0;
-    font-size: clamp(0.625rem, 2.4vw, 0.75rem);
+    font-size: 11px;
     color: var(--gray-600);
   }
 
@@ -405,10 +421,12 @@
     flex-shrink: 0;
   }
 
+  /* v0.3.18 #43: align-items baseline → center (跟 .rate-button 单独块的 center 对齐,
+     保证 .rate-value (普通不可编辑态) 内容跟 .rate-input 视觉同高, 切 normal/edit 时不跳). */
   .rate-button,
   .rate-value {
     display: inline-flex;
-    align-items: baseline;
+    align-items: center;
     gap: 0;
     font-variant-numeric: tabular-nums;
     color: var(--gray-900);
@@ -416,6 +434,11 @@
     flex-shrink: 0;
   }
 
+  /* v0.3.18 #43: 加 min-height 16px + line-height 14 (覆盖全局 button min-height 44px).
+     v0.3.17 #40 commit message 声称加了但实际漏了 — 当时没改, 导致 rate-button 仍继承全局
+     base button 的 min-height: var(--touch-target) = 44px, 普通态 bar 撑高到 ~71px (vs 编辑态 49px).
+     这次真修: min-height 16 跟 .rate-row + .rate-input 对齐, line-height 14 跟 .rate-input 一致,
+     保证 rate-button 内容跟 rate-input 内容视觉同高 — 编辑态/普通态切换 pill 高度不变. */
   .rate-button {
     appearance: none;
     background: transparent;
@@ -428,6 +451,8 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
+    min-height: 16px;
+    line-height: 14px;
   }
   .rate-button:hover .rate-num {
     color: var(--accent-700, #4338ca);
@@ -463,10 +488,11 @@
     gap: 4px;
     line-height: 1;
   }
+  /* v0.3.18 #43: height 20 → 16, line-height 18 → 14 (跟 Row 2 min-height 16 对齐) */
   .rate-input {
     appearance: none;
-    height: 20px;
-    line-height: 18px;
+    height: 16px;
+    line-height: 14px;
     padding: 0 8px;
     background: rgba(255, 255, 255, 0.65);
     border: 1px solid rgba(99, 102, 241, 0.30);
