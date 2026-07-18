@@ -64,8 +64,22 @@ class Bill(Base):
     )
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     # v0.3.1: nullable for anonymous bill creation (members with user_id=NULL).
+    # NOTE: ``created_by`` is preserved for UI display ("recorded by X")
+    # but is **no longer** the gate for PATCH/DELETE ownership — that role
+    # moved to ``created_by_session_member_id`` below (#36fix3).
     created_by: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    # v0.3.17 #36fix3 (PO msg 14:53): session-member-level creator
+    # pointer. Distinct from ``created_by`` (which is user-level and
+    # NULL for anonymous members); this column always reflects the
+    # session-member row that minted the bill regardless of login
+    # state. Drives the owner check in
+    # ``bills.py::update_bill`` / ``delete_bill``.
+    created_by_session_member_id: Mapped[int | None] = mapped_column(
+        ForeignKey("session_members.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -75,6 +89,15 @@ class Bill(Base):
     session: Mapped["Session"] = relationship(back_populates="bills")
     payer: Mapped["SessionMember"] = relationship(foreign_keys=[payer_id])
     creator: Mapped["User"] = relationship(foreign_keys=[created_by])
+    # v0.3.17 #36fix3: session-member-level creator (nullable because
+    # pre-migration rows may briefly be NULL before the migration
+    # backfill UPDATE runs; the ON DELETE SET NULL clause means a
+    # future member removal leaves a bill with no creator pointer,
+    # in which case no one can edit it — that's the conservative
+    # "no-one-can-edit-a-orphan" behaviour).
+    creator_sm: Mapped["SessionMember"] = relationship(
+        foreign_keys=[created_by_session_member_id]
+    )
     participants: Mapped[list["BillParticipant"]] = relationship(
         back_populates="bill", cascade="all, delete-orphan"
     )

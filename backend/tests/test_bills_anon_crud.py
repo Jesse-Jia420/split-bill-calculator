@@ -613,3 +613,245 @@ def test_fixme_regression_ui_two_buttons_in_bills_section_head() -> None:
         await expect(page.locator('a:has-text("查看结算")')).toBeVisible()
         await expect(page.locator('a:has-text("个人账单")')).toBeVisible()
     """
+
+# ---------------------------------------------------------------------------
+# §3.13.17 #36fix3 (PO msg 14:53): anonymous owner-only PATCH / DELETE
+# ---------------------------------------------------------------------------
+#
+# The new ownership check uses ``bills.created_by_session_member_id``
+# (session-member-level) instead of ``bills.created_by`` (user-level)
+# so anonymous creators can still PATCH/DELETE their own bills.
+#
+# Three new cases pin the contract:
+#   1. anon creator PATCH → 200 (happy path for anon)
+#   2. logged-in B cannot PATCH anon A's bill → 403
+#   3. anon B (different secret) cannot PATCH anon A's bill → 403
+#
+# These are deliberately layered on top of the existing §3.12 anon
+# CRUD tests, which only verify the auth / cookie plumbing — they
+# never asserted "ownership after auth" until now.
+# ---------------------------------------------------------------------------
+
+
+def test_anonymous_creator_can_update_own_bill_returns_200(client: TestClient) -> None:
+    """§3.13.17 #36fix3: anon creator PATCHing their own bill must
+    succeed (200). Pre-#36fix3 the only ownership check was via
+    ``bills.created_by`` (user-level) which is NULL for anon creators —
+    so anon creators were already locked out. The new
+    ``created_by_session_member_id`` column fixes this: the row is
+    keyed by ``sm.id`` (which anon members DO have), so the owner check
+    passes for anon A's own bills.
+    """
+    _reset_db()
+    sid, owner_mid, anon_secret, anon_mid = _make_session_with_owner_and_anon()
+    anon_client = TestClient(app)
+
+    # Anon A creates a bill with their own secret.
+    body = _bill_body(
+        payer_member_id=anon_mid,
+        member_ids=[owner_mid, anon_mid],
+        amount=66.0,
+        description="anon creator original",
+    )
+    r = anon_client.post(
+        f"/sessions/{sid}/bills",
+        json=body,
+        headers={"X-Nickname-Secret": anon_secret},
+    )
+    assert r.status_code == 201, r.text
+    bid = r.json()["id"]
+    # The new column MUST echo back the creator's sm.id.
+    assert r.json()["created_by_session_member_id"] == anon_mid
+    # The user-level column stays NULL (anon has no user_id).
+    assert r.json()["created_by"] is None
+
+    # Anon A edits their own bill with the same secret → 200.
+    r = anon_client.patch(
+        f"/sessions/{sid}/bills/{bid}",
+        json={"amount": 88.0},
+        headers={"X-Nickname-Secret": anon_secret},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["amount"] == 88.0
+    # created_by_session_member_id must NOT have moved (immutable).
+    assert r.json()["created_by_session_member_id"] == anon_mid
+
+
+def test_other_member_cannot_update_anonymous_bill_returns_403(client: TestClient) -> None:
+    """§3.13.17 #36fix3: logged-in Bob cannot PATCH a bill created by
+    anon A. The owner check rejects with 403 + structured detail
+    (current_sm_id == bob's, creator_sm_id == anon A's).
+    """
+    _reset_db()
+    sid, owner_mid, anon_secret, anon_mid = _make_session_with_owner_and_anon()
+
+    # Anon A mints a bill first.
+    anon_client = TestClient(app)
+    body = _bill_body(
+        payer_member_id=anon_mid,
+        member_ids=[owner_mid, anon_mid],
+        amount=12.0,
+        description="anon A's bill",
+    )
+    r = anon_client.post(
+        f"/sessions/{sid}/bills",
+        json=body,
+        headers={"X-Nickname-Secret": anon_secret},
+    )
+    assert r.status_code == 201
+    bid = r.json()["id"]
+    assert r.json()["created_by_session_member_id"] == anon_mid
+
+    # Bob logs in (a different session member) and tries to PATCH it.
+    bob_client, _ = _login_as("bob@anon-bills.local")
+    # Bob needs to be a member of the session to even pass auth — add him.
+    db = SessionLocal()
+    try:
+        bob_user = db.query(User).filter_by(email="bob@anon-bills.local").one()
+        from app.db.models.session_members import SessionMember as _SM, SessionRole as _SR
+        bob_sm = _SM(
+            session_id=sid,
+            user_id=bob_user.id,
+            display_name="Bob",
+            role=_SR.MEMBER.value,
+            is_anon=False,
+            claimed_at=datetime.now(timezone.utc),
+        )
+        db.add(bob_sm)
+        db.commit()
+        db.refresh(bob_sm)
+        bob_sm_id = bob_sm.id
+    finally:
+        db.close()
+
+    r = bob_client.patch(
+        f"/sessions/{sid}/bills/{bid}",
+        json={"amount": 999.0},
+    )
+    assert r.status_code == 403, r.text
+    detail = r.json()["detail"]
+    assert detail["error"] == "bill_not_owned_by_current_member"
+    assert detail["bill_id"] == bid
+    assert detail["current_sm_id"] == bob_sm_id
+    assert detail["creator_sm_id"] == anon_mid
+
+
+def test_other_anon_cannot_update_anonymous_bill_returns_403(client: TestClient) -> None:
+    """§3.13.17 #36fix3: anon B (different secret) cannot PATCH anon A's
+    bill. Anon-to-anon cross-tenant attack: the v0.3.2 secret check
+    passes (B has a valid secret for B's row), but the owner check
+    must reject because B's ``sm.id`` doesn't match A's creator pointer.
+    """
+    _reset_db()
+    sid, owner_mid, anon_a_secret, anon_a_mid = _make_session_with_owner_and_anon()
+
+    # Add a second anon member to the same session.
+    anon_b_secret = secrets.token_hex(32)
+    db = SessionLocal()
+    try:
+        anon_b_sm = SessionMember(
+            session_id=sid,
+            user_id=None,
+            display_name="ee",
+            role=SessionRole.MEMBER.value,
+            is_anon=True,
+            nickname_secret=anon_b_secret,
+            claimed_at=datetime.now(timezone.utc),
+        )
+        db.add(anon_b_sm)
+        db.commit()
+        db.refresh(anon_b_sm)
+        anon_b_mid = anon_b_sm.id
+    finally:
+        db.close()
+
+    # Anon A mints a bill.
+    anon_a_client = TestClient(app)
+    body = _bill_body(
+        payer_member_id=anon_a_mid,
+        member_ids=[owner_mid, anon_a_mid, anon_b_mid],
+        amount=20.0,
+        description="anon A's lunch",
+    )
+    r = anon_a_client.post(
+        f"/sessions/{sid}/bills",
+        json=body,
+        headers={"X-Nickname-Secret": anon_a_secret},
+    )
+    assert r.status_code == 201
+    bid = r.json()["id"]
+
+    # Anon B tries to PATCH with their own (valid) secret → 403.
+    anon_b_client = TestClient(app)
+    r = anon_b_client.patch(
+        f"/sessions/{sid}/bills/{bid}",
+        json={"amount": 1.0},
+        headers={"X-Nickname-Secret": anon_b_secret},
+    )
+    assert r.status_code == 403, r.text
+    detail = r.json()["detail"]
+    assert detail["error"] == "bill_not_owned_by_current_member"
+    assert detail["bill_id"] == bid
+    assert detail["current_sm_id"] == anon_b_mid
+    assert detail["creator_sm_id"] == anon_a_mid
+
+
+def test_other_anon_cannot_delete_anonymous_bill_returns_403(client: TestClient) -> None:
+    """§3.13.17 #36fix3: companion to ``test_other_anon_cannot_update_*``
+    for the DELETE path. Anon B cannot DELETE anon A's bill even
+    though B has a valid secret for B's row.
+    """
+    _reset_db()
+    sid, owner_mid, anon_a_secret, anon_a_mid = _make_session_with_owner_and_anon()
+
+    # Add anon B.
+    anon_b_secret = secrets.token_hex(32)
+    db = SessionLocal()
+    try:
+        anon_b_sm = SessionMember(
+            session_id=sid,
+            user_id=None,
+            display_name="ff",
+            role=SessionRole.MEMBER.value,
+            is_anon=True,
+            nickname_secret=anon_b_secret,
+            claimed_at=datetime.now(timezone.utc),
+        )
+        db.add(anon_b_sm)
+        db.commit()
+        db.refresh(anon_b_sm)
+    finally:
+        db.close()
+
+    # Anon A mints a bill.
+    anon_a_client = TestClient(app)
+    body = _bill_body(
+        payer_member_id=anon_a_mid,
+        member_ids=[owner_mid, anon_a_mid],
+        amount=20.0,
+        description="anon A's bill",
+    )
+    r = anon_a_client.post(
+        f"/sessions/{sid}/bills",
+        json=body,
+        headers={"X-Nickname-Secret": anon_a_secret},
+    )
+    bid = r.json()["id"]
+
+    # Anon B tries to DELETE → 403.
+    anon_b_client = TestClient(app)
+    r = anon_b_client.delete(
+        f"/sessions/{sid}/bills/{bid}",
+        headers={"X-Nickname-Secret": anon_b_secret},
+    )
+    assert r.status_code == 403, r.text
+    detail = r.json()["detail"]
+    assert detail["error"] == "bill_not_owned_by_current_member"
+    assert detail["bill_id"] == bid
+
+    # The bill must still exist (403 did NOT delete it).
+    db = SessionLocal()
+    try:
+        assert db.query(Bill).filter_by(id=bid).first() is not None
+    finally:
+        db.close()
