@@ -612,21 +612,19 @@
                           <Trash2 size={22} strokeWidth={2} aria-hidden="true" />
                         </button>
                       {/if}
-                      <button
-                        type="button"
-                        class="bill-swipe-action bill-swipe-action-left glass-pill glass-pill--edit"
-                        class:disabled={!canEdit}
-                        style="--swipe-progress: {leftProgress}"
-                        tabindex={leftProgress >= 1 && canEdit ? 0 : -1}
-                        aria-hidden={leftProgress <= 0}
-                        aria-disabled={!canEdit}
-                        aria-label={canEdit
-                          ? `编辑账单 (圆形按钮): ${b.description || '(无说明)'}`
-                          : `账单由他人创建, 不可编辑: ${b.description || '(无说明)'}`}
-                        on:click={(e) => onSwipeEdit(b.id, e)}
-                      >
-                          <Pencil size={22} strokeWidth={2} aria-hidden="true" />
-                      </button>
+                      {#if canEdit}
+                        <button
+                          type="button"
+                          class="bill-swipe-action bill-swipe-action-left glass-pill glass-pill--edit"
+                          style="--swipe-progress: {leftProgress}"
+                          tabindex={leftProgress >= 1 ? 0 : -1}
+                          aria-hidden={leftProgress <= 0}
+                          aria-label={`编辑账单 (圆形按钮): ${b.description || '(无说明)'}`}
+                          on:click={(e) => onSwipeEdit(b.id, e)}
+                        >
+                            <Pencil size={22} strokeWidth={2} aria-hidden="true" />
+                        </button>
+                      {/if}
                       <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
                       <!-- svelte-ignore a11y-no-noninteractive-element-to-interactive-role -->
                       <!-- svelte-ignore a11y-no-static-element-interactions -->
@@ -710,20 +708,34 @@
     flex-direction: column;
     gap: var(--space-3);
   }
+  /* v0.3.18 #46-A (PO msg 18:15 拍板): sheet 玻璃感加强 (方案 B + 玻璃感更强)
+     — sheet bg 0.32 → 0.55 (明显玻璃边缘)
+     — saturate 150% → 180%, blur 16 → 22px (更糊)
+     — border-radius 12px → 14px
+     — 1px 白色 inset highlight 边 (玻璃边缘隐形)
+     — 双层 shadow (外阴影 + inset highlight)
+     反 #121 自决 (没问 PO 颜色值), PO 拍板"玻璃感要更明显一点" */
   .day-group {
     /* 反馈修 6 项目 3: day group 用 surface 背景,bill row 默认透明继承,
        共享同一背景色,消除原灰色边框的"两层卡片"视觉 */
-    border: 1px solid var(--gray-200);
-    border-radius: var(--radius-md, 8px);
+    border: 1px solid rgba(255, 255, 255, 0.4);  /* inset highlight 白边 */
+    border-radius: 14px;  /* was 8px */
     /* overflow:hidden removed: T10 sticky backdrop-blur needs visible overflow */
-    background: white;
+    background: rgba(255, 255, 255, 0.55);  /* was white, now glass sheet */
+    backdrop-filter: saturate(180%) blur(22px);  /* was none on day-group */
+    -webkit-backdrop-filter: saturate(180%) blur(22px);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.6),  /* top inset highlight */
+      0 2px 12px rgba(99, 102, 241, 0.06),  /* 软外阴影 (跟全站玻璃同源) */
+      0 1px 2px rgba(0, 0, 0, 0.03);
   }
   .day-group details {
     width: 100%;
   }
 
   /* === day header 排版 ===
-     注: day-header 的 sticky / backdrop-blur 会在 Commit 2 (T10) 加,先保持纯白底。 */
+     v0.3.18 #46-A: 改 transparent, 让 sheet 玻璃透出 (sticky 浮起时仍可见).
+     sticky 浮起时 .section-header glass 接管, scroll-under 内容有 blur 遮罩. */
   .day-header {
     display: flex;
     flex-direction: column;
@@ -731,7 +743,7 @@
     cursor: pointer;
     list-style: none;
     padding: var(--space-2) var(--space-3);
-    background: white;
+    background: transparent;
     min-height: var(--touch-target, 44px);
     flex-wrap: wrap;
     position: relative;
@@ -837,16 +849,44 @@
     min-height: 0;
   }
 
-  /* === iOS Mail-style swipe wrapper & actions === */
+  /* === v0.3.18 #46-A (PO msg 18:15 拍板): 玻璃 hairline 分隔 (方案 B) ===
+     - 完全透明 row (继承 sheet glass)
+     - 取消 dashed border-bottom (灰色边线视觉脱节 sheet 玻璃)
+     - 1px 玻璃 hairline ::after: 水平方向 indigo 渐变
+       (rgba 0.18 → 0.24 → 0.18, 比 Designer 方案 B 略深,
+        跟 sheet 玻璃边缘呼应 + PO 要求"玻璃感要更明显")
+     - 加 backdrop-filter: blur(2px) (iOS separator 风格)
+     - 加 box-shadow 0 1px 1px rgba(99,102,241,0.06) (凸起感)
+     - :last-child 隐藏最后一行 hairline
+     - row padding 8px → 10px (给 hairline 视觉呼吸感) */
   .bill-swipe-wrap {
     position: relative;
     overflow: hidden;
-    border-bottom: 1px solid var(--gray-200);
     border-radius: var(--radius-md);
     background: transparent;
   }
-  .bill-swipe-wrap:last-child {
-    border-bottom: none;
+  .bill-swipe-wrap::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(99, 102, 241, 0.18) 20%,
+      rgba(99, 102, 241, 0.24) 50%,
+      rgba(99, 102, 241, 0.18) 80%,
+      transparent 100%
+    );
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    box-shadow: 0 1px 1px rgba(99, 102, 241, 0.06);
+    pointer-events: none;
+  }
+  .bill-swipe-wrap:last-child::after {
+    display: none;
   }
 
   /* v0.3.17 #18 hotfix (PO msg 06:18): 编辑/删除按钮从 64px 横长胶囊 → 56px 真圆 icon-only
@@ -1003,12 +1043,13 @@
   }
 
   /* === 反馈修 6 项目 3: .bill-row 删独立 background,默认透明继承,
-       跟 .day-group 共享同一 surface 背景色 === */
+       跟 .day-group 共享同一 surface 背景色 ===
+       v0.3.18 #46-A: padding vertical 8px → 10px (给玻璃 hairline 视觉呼吸感) */
   .bill-row {
     position: relative;
     z-index: 1;
     /* 删除 background: white — 让 day-group 背景透出 */
-    padding: var(--space-3) var(--space-4);
+    padding: 10px var(--space-4);
     /* 删除 border-bottom (已移到 .bill-swipe-wrap,避免双层) */
     transition: background-color 200ms ease;
     outline: none;

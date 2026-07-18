@@ -14,6 +14,7 @@
   import NavBar from '$components/NavBar.svelte';
   import Toast from '$components/Toast.svelte';
   import Footer from '$components/Footer.svelte';
+  import AppBackground from '$components/AppBackground.svelte';
   import { onMount } from 'svelte';
   import { fade } from 'svelte/transition';
   import { loadUser } from '$stores/user';
@@ -32,6 +33,10 @@
   });
 </script>
 
+<!-- v0.3.18 #47 (PO msg 18:15 #3): 玻璃背景图层。
+     放在 body 第一层 (NavBar 之前), z-index: -1, 不影响文档流。
+     AppBackground 内部已经 pointer-events: none + aria-hidden, 不抢交互。 -->
+<AppBackground />
 <NavBar />
 <Toast />
 <!-- v0.3.17 #30 (PO msg 14:28 #5957): <main class="page"> 改成内层滚动容器 —
