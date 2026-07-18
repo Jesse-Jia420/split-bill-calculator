@@ -386,12 +386,6 @@
           in:fade={{ duration: 150 }}
           out:fade={{ duration: 100 }}
         >
-          <h3 class="member-panel-title">
-            <span class="panel-avatar" aria-hidden="true">{avatarLetter(selectedMember.display_name)}</span>
-            <span>{selectedMember.display_name}</span>
-            {#if selectedMember.role === 'owner'}<span class="chip-badge owner-badge">owner</span>{/if}
-            {#if isMe(selectedMember.member_id)}<span class="me-badge" aria-label="当前用户">me</span>{/if}
-          </h3>
 
           <!-- T8: Hero Metric (hotfix #4 双模式) -->
           <div class="hero">
@@ -778,62 +772,10 @@
   .member-chip.selected .chip-net-line.pos { color: white; }
   .member-chip.selected .chip-net-line.neg { color: rgba(255,255,255,0.85); }
 
-  .chip-badge {
-    display: inline-block;
-    background: var(--accent-500);
-    color: #fff;
-    font-size: clamp(0.5625rem, 2.2vw, 0.625rem);
-    padding: 1px 5px;
-    border-radius: 999px;
-    font-weight: 500;
-    margin-left: 4px;
-    vertical-align: middle;
-  }
-  .me-badge {
-    display: inline-block;
-    background: rgba(255, 255, 255, 0.25);
-    color: #fff;
-    font-size: clamp(0.6875rem, 2.6vw, 0.75rem);
-    font-weight: 600;
-    padding: 2px 8px;
-    border-radius: 999px;
-    margin-left: var(--space-2, 8px);
-    letter-spacing: 0.02em;
-    line-height: 1.2;
-    vertical-align: middle;
-    text-transform: lowercase;
-    border: 1px solid rgba(255,255,255,0.4);
-  }
-  /* Selected chip: badge adapts to white text (chip-badge lives in panel-title, not chip) */
-
   /* === member panel === */
   .member-panel {
     border-top: 1px solid var(--gray-200);
     padding-top: var(--space-3, 12px);
-  }
-  .member-panel-title {
-    margin: 0 0 var(--space-3, 12px);
-    font-size: var(--font-size-base);
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    gap: var(--space-2, 8px);
-  }
-  .panel-avatar {
-    flex: 0 0 auto;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: var(--accent-500);
-    color: #fff;
-    display: inline-flex;
-    align-items: center;
-        .� justify-content: center;
-    font-weight: 600;
-    font-size: var(--font-size-sm);
-  }
-  .owner-badge {
-    margin-left: 0;
   }
 
   /* === T8: Hero Metric ===
