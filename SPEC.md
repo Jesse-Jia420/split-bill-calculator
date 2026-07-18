@@ -1962,6 +1962,36 @@ seed 脚本 (`backend/scripts/seed_dev_data.py`) 已有 find-or-create 逻辑：
 - 编辑按钮 (✏️) 跟汇率 inline 或独立 (按 design sense)
 - svelte-check baseline + 0 new error
 
+### §11. v0.3.17 #36fix2 (2026-07-18) — NavBar join page 不显示「登录以保存」按钮 (PO msg 12:57)
+
+**PO 反馈 (msg 12:57)**: 「回到/加入账本 页面, 不应该出现 登录以保存 按钮」 — 明确 join page 不该显示这个 CTA.
+
+**当前 bug**: `inSession()` regex `/^\/sessions\/\d+(\/|$)/.test(page.url.pathname)` 把 `/sessions/123/join` 也算 in-session (因为 `/sessions/123` 后是 `/`, 命中 `(\/|$)`). 未登录用户访问 join page 时, NavBar 右上错误显示「登录以保存」按钮.
+
+但 join page 流程本身支持 anon 加入 (「新建昵称以加入账本」), 不需要「先登录再保存」前提 → 「登录以保存」按钮是冗余 / 误导.
+
+**修法** (commit f0d5e61, `frontend/src/lib/components/NavBar.svelte` 单文件):
+- 加 helper `isJoinPage() = /^\/sessions\/\d+\/join/.test(page.url.pathname)`
+- 「登录以保存」分支判断从 `inSession()` → `inSession() && !isJoinPage()`
+- fallback `{:else}` → `{:else if !inSession()}` 显式条件 (三态语义更清晰: in-session 非 join / session 外 / in-session 是 join 都不命中)
+
+**完整三态**:
+- 已登录 + 任何 page (含 join) → email + 注销登录 (保留, PO 未要求改)
+- 未登录 + join page → 两个分支都不命中 → `.right` 区不渲染 auth button
+- 未登录 + session 内 (非 join) `/sessions/<id>` 或 `/sessions/<id>/bills` → 「登录以保存」 (保留原 behavior)
+- 未登录 + session 外 (`/` 或 `/sessions` 列表) → 「登录」 (保留原 behavior)
+- `/auth/login` → `.right` 整个 hidden (保留 v0.3.17 #22 fix)
+
+**验收 criterion**:
+- [x] 5 场景 playwright 自验全 PASS (loggedin-join / anon-join / anon-detail / anon-list / login-page)
+- [x] 截图 `~/.openclaw/media/browser/v0317-36fix2-{loggedin-join,anon-join,anon-detail,anon-list,login-page}.png`
+- [x] svelte-check baseline 7 errors + 22 warnings, 0 new error
+- [x] 单文件 diff (+9/-2), 没动 join page / SPEC / PRD
+
+**未来扩展注意点 (Master verify)**:
+- `inSession()` + `isJoinPage()` 二元判断在加新 session 子路由 (e.g. `/sessions/<id>/settle/settings`) 时需手动同步. 更稳健的演进方向是明确枚举合法 in-session 子路由集 (`/^\/sessions\/\d+$|^\/sessions\/\d+\/(bills|settle|members)/`), 或建一个 `getSessionPageKind(pathname)` helper.
+- anon 用户访问 `/sessions/<id>` 详情会被 BE 403 + 自动 redirect 到 `/sessions/<id>/join`. 真机上几乎不看到「登录以保存」按钮 (SSR HTML 阶段短暂时窗除外).
+
 ### §11. v0.3.17 #36fix (2026-07-18) — SessionCurrencyBadge 合并 1 个 bar 内部 2 行 (PO msg 12:45 #6287)
 
 **PO 反馈 (msg 12:45 #6287)**: 「不对, 一个 bar, 内部有两行」 — 纠正 #36 的视觉实现. #36 把 Row 1 + Row 2 做成 2 个独立 pill capsule 上下堆叠, 不符合「1 个 bar 内部两行」意图.
