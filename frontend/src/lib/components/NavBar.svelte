@@ -14,6 +14,13 @@
   function inSession(): boolean {
     return /^\/sessions\/\d+(\/|$)/.test(page.url.pathname);
   }
+  // v0.3.17 #36fix2 (PO msg 12:57): join page (/sessions/<id>/join) 流程本身
+  // 支持 anon 加入 (「新建昵称以加入账本」), 不需要 "先登录再保存" 按钮.
+  // 上面 inSession() 的 regex 命中 /sessions/123/join 因为 /sessions/123 后
+  // 是 /, 之前会错误渲染 "登录以保存". 用 isJoinPage() 排除这一支.
+  function isJoinPage(): boolean {
+    return /^\/sessions\/\d+\/join/.test(page.url.pathname);
+  }
 </script>
 
 <!-- v0.3.17 #22 hotfix (PO msg 16:32 #1): 整个 .right 区在 /auth/login 隐藏
@@ -44,14 +51,14 @@
       {#if $user}
         <span class="email" title="{$user.email}">{$user.default_name}</span>
         <button class="ghost btn-sm" on:click={handleLogout}>注销登录</button>
-      {:else if inSession()}
+      {:else if inSession() && !isJoinPage()}
         <a
           href={`/auth/login?returnTo=${encodeURIComponent(page.url.pathname + page.url.search)}`}
           class="btn-sm"
         >
           登录以保存
         </a>
-      {:else}
+      {:else if !inSession()}
         <a href="/auth/login" class="btn-sm">登录</a>
       {/if}
     </div>
