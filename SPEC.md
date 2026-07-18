@@ -2221,3 +2221,79 @@ seed 脚本 (`backend/scripts/seed_dev_data.py`) 已有 find-or-create 逻辑：
 - [x] 5 张截图存 `~/.openclaw/media/browser/v0317-{40,42}-{top,hero-to-paid,paid-list,transition,bar-edit}.png`
 - [x] svelte-check 0 new error (待 run)
 - [x] 单分支铁律 ✓ (push 4d193b5..df974be)
+
+
+### §11. v0.3.18 #49 (2026-07-18) — bills/members section 极透明化 + 冷色调背景图替换 (PO msg 21:16 #6508)
+
+**PO 反馈 (msg 21:16 #6508)**:
+1. 「账单，成员 section 变透明」 — bills section (BillListGrouped) + members section (SettleMemberBreakdown) 还要更透明
+2. 「不要这个粉色壁纸，换一个冷色调的」 — 当前 peach→rose→lavender 替换为冷色调
+
+**Master 已准备冷色调背景图**:  已被 Master 替换为 137962 字节的 cool 浅蓝 + 白 bokeh 图 (md5 ), 由 commit  直接纳入.
+
+### A. 任务 A — bills + members section 再 sweep 透明化
+
+**当前 (#48 后) 状态**:
+- : bg 0.35/0.20
+- : bg 0.18
+- : bg 0.25
+- : bg 0.35
+-  track: bg 0.25
+- : bg 0.40
+
+**新目标 (#49)**:
+- 成员 chip: 0.35/0.20 → **0.15/0.08** (几乎隐形, 只有边框 + inset highlight)
+- bills section (): 0.25 → **0.10**
+- : 0.18 → **0.10**
+- : 0.35 → **0.20**
+-  track: 0.25 → **0.12**
+- : 0.40 → **0.20** (整站 nav 几乎全透)
+- : 0.06/0.04 → **0.04/0.02**
+- : 0.30 → **0.12**
+-  (NavBar): 0.06/0.04 → **0.04/0.02**
+- : 0.35/0.20 → **0.20/0.10**
+-  (BillListGrouped): 0.50 → **0.30**
+
+**边缘 / 阴影 / inset highlight 补偿** (防止透明度提高后玻璃感稀释):
+- inset highlight 0.7 → **0.95** (玻璃上沿高光更明显)
+- border white 0.55 → **0.65** (白边更明显)
+- 外阴影 indigo 0.10-0.12 → **0.16** (略深, 玻璃感更强)
+- 重要文字 text-shadow  → **** (白色微晕更强, 防止低对比看不清)
+
+**重要文字 text-shadow 加强**:
+-  /  (settle 个人视图大金额)
+-  (settle member chip 名字)
+-  (sticky 头部 chip 标题)
+-  /  (账单列表日期 + 当日合计)
+
+### B. 任务 B — 冷色调背景图替换
+
+-  由 Master 替换为 137962 字节 cool 浅蓝 + 白 bokeh 图
+- md5: 
+- commit 时  纳入 (无重新生成)
+
+### C. 实施 (commit , 6 files, 90+/70-)
+
+**5 个组件 CSS**:
+-  —  /  极透明化
+-  —  /  /  极透明化
+-  —  track +  text-shadow
+-  —  /  /  极透明化 +  /  text-shadow
+-  —  /  极透明化 +  /  text-shadow
+
+**保留 (不动)**:
+- 选中态:  实色 accent,  实色 accent, 
+- 模板结构 / JS 逻辑
+- 已 commit 的 3 commits (08c383e / 02955cc / 752e3d3)
+- text-shadow 位置 (这次只加强)
+
+### D. 验收 criterion
+
+- [x] bills + members section 极透明 (cool tone 背景图清晰可见)
+- [x] 冷色调背景图替换 (137962 字节, md5 )
+- [x] svelte-check baseline 3 errors / 22 warnings, 0 new error (跟 #48 一致)
+- [x] 真机 walk: 4 截图存 
+  - cool tone 背景图清晰可见
+  - bills / members sections 几乎全透 (border + inset highlight + text-shadow 补偿)
+  - 文字仍可读
+- [x] 单分支铁律: origin 仅有 main (committed , push 08c383e..fb4d572)
