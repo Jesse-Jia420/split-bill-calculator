@@ -120,18 +120,18 @@
   .ios-switch {
     position: relative;
     display: flex;
-    /* v0.3.18 #48 (PO msg 19:10 #6489): bg 0.5 → 0.25 (× 0.5 透明化 sweep)
-       让 peach→rose→lavender 背景图透过来. thumb 实色不动 (已是实色 accent).
-       border 0.18 → 0.25 (边缘补偿). */
-    background: rgba(255, 255, 255, 0.25);
+    /* v0.3.18 #49 (PO msg 21:16 #6508 极透明化 sweep): bg 0.25 → 0.12
+       跟 .glass-pill / .btn-sm 同透度, 整站开关 track 几乎全透.
+       border 0.25 → 0.32 (边缘补偿). thumb 实色不动 (已是实色 accent). */
+    background: rgba(255, 255, 255, 0.12);
     -webkit-backdrop-filter: blur(14px) saturate(180%);
     backdrop-filter: blur(14px) saturate(180%);
     border-radius: 9999px;
     padding: 4px;
-    border: 0.5px solid rgba(99, 102, 241, 0.25);
+    border: 0.5px solid rgba(99, 102, 241, 0.32);
     box-shadow:
       inset 0 1px 2px rgba(0, 0, 0, 0.04),
-      inset 0 -1px 0 rgba(255, 255, 255, 0.7);
+      inset 0 -1px 0 rgba(255, 255, 255, 0.95);
     /* v0.3.17 #39 (PO msg 16:24): 整组居中 — settle 页 IosSwitch
        放在 .card 容器内, 之前 width: fit-content 但没 auto margin
        → 默认左对齐, 留 60% 右边空白. 改 margin-left/right: auto
@@ -162,7 +162,8 @@
   }
   .ios-switch-option.active {
     color: white;
-    text-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.15);
+    /* v0.3.18 #49: 激活态 option 文字白色微晕加强 (防止 track 透明后文字对比度降低) */
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
   }
   .ios-switch-option.locked {
     cursor: not-allowed;

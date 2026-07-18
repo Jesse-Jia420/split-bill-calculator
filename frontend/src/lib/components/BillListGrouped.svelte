@@ -719,19 +719,24 @@
      v0.3.18 #48 (PO msg 19:10 #6489 全站透明化 sweep): bg 0.55 → 0.25 (× 0.45)
      让 peach→rose→lavender 背景图透过来. border 0.4 → 0.55 (边缘补偿).
      inset highlight 0.6 → 0.7 (玻璃上沿高光微加强). 外阴影 indigo 0.06 → 0.10.
-     saturate/blur/radius 保留 #46-A 已加强值 (不破坏 #46-A 已落地的玻璃感). */
+     saturate/blur/radius 保留 #46-A 已加强值 (不破坏 #46-A 已落地的玻璃感).
+     ===
+     v0.3.18 #49 (PO msg 21:16 #6508 极透明化 sweep, 账单 section 也要更透明):
+     bg 0.25 → 0.10 (跟 .glass-sheet 同透度, day group 几乎全透).
+     border 0.55 → 0.65 (白边更明显). inset highlight 0.7 → 0.95 (玻璃上沿更明显).
+     外阴影 indigo 0.10 → 0.16 (玻璃感更强). */
   .day-group {
     /* 反馈修 6 项目 3: day group 用 surface 背景,bill row 默认透明继承,
        共享同一背景色,消除原灰色边框的"两层卡片"视觉 */
-    border: 1px solid rgba(255, 255, 255, 0.55);  /* inset highlight 白边 */
+    border: 1px solid rgba(255, 255, 255, 0.65);  /* v0.3.18 #49: 0.55 → 0.65 白边更明显 */
     border-radius: 14px;  /* was 8px */
     /* overflow:hidden removed: T10 sticky backdrop-blur needs visible overflow */
-    background: rgba(255, 255, 255, 0.25);  /* v0.3.18 #48: 0.55 → 0.25 (透明化 sweep) */
+    background: rgba(255, 255, 255, 0.10);  /* v0.3.18 #49: 0.25 → 0.10 (极透明化) */
     backdrop-filter: saturate(180%) blur(22px);  /* was none on day-group */
     -webkit-backdrop-filter: saturate(180%) blur(22px);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.7),  /* top inset highlight */
-      0 2px 12px rgba(99, 102, 241, 0.10),  /* v0.3.18 #48: 外阴影 0.06 → 0.10 (跟全站玻璃同源) */
+      inset 0 1px 0 rgba(255, 255, 255, 0.95),  /* v0.3.18 #49: top inset highlight 0.7 → 0.95 */
+      0 2px 12px rgba(99, 102, 241, 0.16),  /* v0.3.18 #49: 外阴影 0.10 → 0.16 */
       0 1px 2px rgba(0, 0, 0, 0.03);
   }
   .day-group details {
@@ -763,12 +768,14 @@
 
   /* T10: Sticky section header with glassmorphism
      v0.3.18 #48 (PO msg 19:10 #6489): bg 0.85 → 0.50 (× 0.59 透明化)
-     sticky 浮起时仍透背景图, 但够浓液保证文字可读. 保留 blur 12px (iOS27 standard) */
+     sticky 浮起时仍透背景图, 但够浓液保证文字可读. 保留 blur 12px (iOS27 standard)
+     v0.3.18 #49 (PO msg 21:16 #6508 极透明化 sweep): bg 0.50 → 0.30
+     sticky 浮起时仍透背景图, 但够浓液保证文字可读. */
   .section-header {
     position: sticky;
     top: 0;
     z-index: 10;
-    background: rgba(255, 255, 255, 0.50);
+    background: rgba(255, 255, 255, 0.30);
     backdrop-filter: saturate(180%) blur(12px);
     -webkit-backdrop-filter: saturate(180%) blur(12px);
     border-bottom: 1px solid var(--gray-200);
@@ -811,6 +818,8 @@
     font-size: 1rem;
     font-variant-numeric: tabular-nums;
     flex: 0 0 auto;
+    /* v0.3.18 #49: 日期白色微晕 (防止透明化后文字对比度降低) */
+    text-shadow: 0 1px 3px rgba(255, 255, 255, 0.8);
   }
   .day-total {
     font-weight: 600;
@@ -819,6 +828,8 @@
     flex: 0 0 auto;
     text-align: right;
     margin-left: auto;
+    /* v0.3.18 #49: 当日合计白色微晕 (同上, 重要文字补偿) */
+    text-shadow: 0 1px 3px rgba(255, 255, 255, 0.8);
   }
   .unit {
     font-size: 10px;

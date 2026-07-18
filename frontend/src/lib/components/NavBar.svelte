@@ -75,10 +75,9 @@
        .navbar 是 body flex column 第一项, 始终贴顶。 */
     padding: calc(var(--space-3) + env(safe-area-inset-top, 0px)) var(--space-4) var(--space-3);
     border-bottom: 1px solid var(--color-border);
-    /* v0.3.18 #48 (PO msg 19:10 #6489 全站透明化 sweep): nav bg 从实色 surface
-       改为半透明白玻璃, 让 peach→rose→lavender 背景图透出, 玻璃感统一.
-       bg rgba(255,255,255,0.40) + backdrop-filter blur 18px (玻璃语言保留). */
-    background: rgba(255, 255, 255, 0.40);
+    /* v0.3.18 #49 (PO msg 21:16 #6508 极透明化 sweep): nav bg 0.40 → 0.20
+       整站 nav 几乎全透, 让冷色调背景图清晰可见. 玻璃语言保留 (blur 18px + saturate 180%). */
+    background: rgba(255, 255, 255, 0.20);
     backdrop-filter: saturate(180%) blur(18px);
     -webkit-backdrop-filter: saturate(180%) blur(18px);
     flex-wrap: wrap;
@@ -114,26 +113,26 @@
   /* v0.3.17 #21 (PO msg 13:51 item 3): NavBar 登录按钮 / 注销按钮玻璃化
      跟全站 member-chip / swipe button / fab / 汇率 pill 同 Liquid Glass 语言。
      .ghost 跟 .btn-sm 同形态, 仅 hover 不加深色 (注销按钮语义更弱)。 */
-  /* v0.3.18 #48 (PO msg 19:10 #6489 全站透明化 sweep):
-     indigo 玻璃 bg 0.10/0.08 → 0.06/0.04 (× 0.6 透明度降级, 让背景图透过来).
-     border 0.15 → 0.20 (边缘补偿). inset highlight 0.6 → 0.7 (玻璃上沿加强).
-     外阴影 indigo 0.06 → 0.10 (跟全站玻璃同源). */
+  /* v0.3.18 #49 (PO msg 21:16 #6508 极透明化 sweep):
+     bg 0.06/0.04 → 0.04/0.02 (再 × 0.67 透明, 整站 btn-sm 几乎全透).
+     border 0.20 → 0.25 (边缘补偿). inset highlight 0.7 → 0.95 (玻璃上沿加强).
+     外阴影 indigo 0.10 → 0.16 (玻璃感更强). */
   .btn-sm {
     min-height: var(--touch-target);
     padding: var(--space-2) var(--space-3);
     border-radius: var(--radius-full, 999px);
-    border: 1px solid rgba(99, 102, 241, 0.20);
+    border: 1px solid rgba(99, 102, 241, 0.25);
     background: linear-gradient(
       135deg,
-      rgba(99, 102, 241, 0.06) 0%,
-      rgba(59, 130, 246, 0.04) 100%
+      rgba(99, 102, 241, 0.04) 0%,
+      rgba(59, 130, 246, 0.02) 100%
     );
     backdrop-filter: saturate(180%) blur(16px);
     -webkit-backdrop-filter: saturate(180%) blur(16px);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.7),
+      inset 0 1px 0 rgba(255, 255, 255, 0.95),
       inset 0 -1px 0 rgba(0, 0, 0, 0.04),
-      0 1px 3px rgba(99, 102, 241, 0.10);
+      0 1px 3px rgba(99, 102, 241, 0.16);
     display: inline-flex;
     align-items: center;
     font-size: var(--font-size-sm);
@@ -143,31 +142,31 @@
     transition: transform 150ms ease, background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
   }
   .btn-sm:hover {
-    /* v0.3.18 #48: hover 0.18/0.15 → 0.12/0.09 (跟新 base 同比例降级, hover 仍比 base 略亮) */
+    /* v0.3.18 #49: hover 0.12/0.09 → 0.08/0.06 (跟 base 0.04/0.02 同比例降级, hover 仍略亮) */
     background: linear-gradient(
       135deg,
-      rgba(99, 102, 241, 0.12) 0%,
-      rgba(59, 130, 246, 0.09) 100%
+      rgba(99, 102, 241, 0.08) 0%,
+      rgba(59, 130, 246, 0.06) 100%
     );
-    border-color: rgba(99, 102, 241, 0.28);
+    border-color: rgba(99, 102, 241, 0.32);
     color: var(--accent-800, #3730a3);
     transform: translateY(-1px);
     text-decoration: none;
   }
   .btn-sm:active { transform: scale(0.97); }
   @supports not (backdrop-filter: blur(1px)) {
-    /* v0.3.18 #48: fallback 0.18 → 0.12 (跟新 base 同比例降级) */
-    .btn-sm { background: rgba(99, 102, 241, 0.12); }
+    /* v0.3.18 #49: fallback 0.12 → 0.08 (跟新 base 0.04/0.02 同比例降级) */
+    .btn-sm { background: rgba(99, 102, 241, 0.08); }
   }
   /* .ghost: 注销按钮 — 更弱化 (白玻璃非蓝玻璃)
-     v0.3.18 #48: bg 0.65/0.45 → 0.35/0.20 (× 0.5 透明度降级, 跟 .btn-sm 同源). */
+     v0.3.18 #49: bg 0.35/0.20 → 0.20/0.10 (跟 .btn-sm 同比例降级). border 0.15 → 0.20. */
   .ghost {
     background: linear-gradient(
       135deg,
-      rgba(255, 255, 255, 0.35) 0%,
-      rgba(255, 255, 255, 0.20) 100%
+      rgba(255, 255, 255, 0.20) 0%,
+      rgba(255, 255, 255, 0.10) 100%
     );
-    border-color: rgba(99, 102, 241, 0.15);
+    border-color: rgba(99, 102, 241, 0.20);
     color: var(--gray-700);
   }
   /* v0.3.18 #48: hover 0.85/0.65 → 0.50/0.35 (跟新 base 同比例降级) */
