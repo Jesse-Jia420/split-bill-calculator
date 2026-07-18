@@ -612,19 +612,28 @@
                           <Trash2 size={22} strokeWidth={2} aria-hidden="true" />
                         </button>
                       {/if}
-                      {#if canEdit}
-                        <button
-                          type="button"
-                          class="bill-swipe-action bill-swipe-action-left glass-pill glass-pill--edit"
-                          style="--swipe-progress: {leftProgress}"
-                          tabindex={leftProgress >= 1 ? 0 : -1}
-                          aria-hidden={leftProgress <= 0}
-                          aria-label={`编辑账单 (圆形按钮): ${b.description || '(无说明)'}`}
-                          on:click={(e) => onSwipeEdit(b.id, e)}
-                        >
-                            <Pencil size={22} strokeWidth={2} aria-hidden="true" />
-                        </button>
-                      {/if}
+                      <!-- v0.3.18 #52 (PO msg 00:53 #6533 "右滑置灰的编辑不见了"):
+                           跟删除按钮对称 — 不再用 {#if canEdit} 完全隐藏,
+                           改成永远渲染 + class:disabled={!canEdit} 视觉置灰.
+                           这样非 owner 账单右滑时也能看到灰色编辑按钮,
+                           用户能理解"这账单是别人创建的, 不能编辑".
+                           JS onSwipeEdit 已有 billCanEdit guard (defense-in-depth).
+                           aria-label disabled variant 走"账单由他人创建, 不可编辑"文案. -->
+                      <button
+                        type="button"
+                        class="bill-swipe-action bill-swipe-action-left glass-pill glass-pill--edit"
+                        class:disabled={!canEdit}
+                        style="--swipe-progress: {leftProgress}"
+                        tabindex={leftProgress >= 1 && canEdit ? 0 : -1}
+                        aria-hidden={leftProgress <= 0}
+                        aria-disabled={!canEdit}
+                        aria-label={canEdit
+                          ? `编辑账单 (圆形按钮): ${b.description || '(无说明)'}`
+                          : `账单由他人创建, 不可编辑: ${b.description || '(无说明)'}`}
+                        on:click={(e) => onSwipeEdit(b.id, e)}
+                      >
+                          <Pencil size={22} strokeWidth={2} aria-hidden="true" />
+                      </button>
                       <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
                       <!-- svelte-ignore a11y-no-noninteractive-element-to-interactive-role -->
                       <!-- svelte-ignore a11y-no-static-element-interactions -->
