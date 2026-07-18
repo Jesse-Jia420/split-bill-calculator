@@ -1039,14 +1039,31 @@
      short-circuit as defense-in-depth (see onSwipeEdit / onSwipeDelete).
      specificity: (0,2,0) for .bill-swipe-action.disabled — matches
      the glass-pill--delete/--edit modifiers (0,2,1) cleanly so the
-     modifier rules don't override opacity/pointer-events. */
+     modifier rules don't override opacity/pointer-events.
+
+     v0.3.18 #51 (PO msg 23:17 #6526 截图红线 #2): 上面实现有 bug —
+     opacity: 0.4 !important 强行覆盖了基类 opacity: var(--swipe-progress)
+     的默认值 0, 结果非 owner 账单**默认状态下删除按钮就显示在屏幕上
+     (opacity 0.4 visible)**, 违背"滑动时才显示"的需求 (commit 752e3d3
+     #46-B 的初衷).
+     修法:
+       - opacity 改为 calc(var(--swipe-progress, 0) * 0.4), 跟 progress
+         联动: progress=0 (默认) → opacity 0 (隐形), progress=1 (滑动到位)
+         → opacity 0.4 (灰色, 视觉提示"能滑出但不能点").
+       - calc() 表达式 specificity (0,4,0) 高于基类 (0,2,1) 的 var(...),
+         自然胜出, !important 不再需要.
+       - pointer-events / cursor / filter 保持不变 (交互层仍 inert). */
   .bill-swipe-action.disabled {
-    opacity: 0.4 !important; /* override --swipe-progress opacity */
-    cursor: not-allowed !important;
-    pointer-events: none !important;
+    opacity: calc(var(--swipe-progress, 0) * 0.4);
+    cursor: not-allowed;
+    pointer-events: none;
     filter: grayscale(40%);
   }
-  /* 同样禁掉 hover/focus 反馈,避免误导用户以为能点 */
+  /* 同样禁掉 hover/focus 反馈,避免误导用户以为能点。
+     v0.3.18 #51: 仍保留 !important — glass-pill--delete/--edit 自己的
+     :hover rule (line 953/973) specificity (0,2,1) 高于这里 (0,2,0),
+     不加 !important 会被那两个 modifier 覆盖回来, 误导用户以为能点.
+     想完全干掉 hover 反馈必须 !important. */
   .bill-swipe-action.disabled:hover {
     background: linear-gradient(
       135deg,
