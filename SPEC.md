@@ -2172,3 +2172,52 @@ seed 脚本 (`backend/scripts/seed_dev_data.py`) 已有 find-or-create 逻辑：
 - [x] 切 member (点 chip "Ju") → layout 同样, hero 内容更新但无 panel-title
 - [x] svelte-check 0 new error (baseline 7 + 22 保留)
 - [x] 单分支铁律 ✓
+
+### §11. v0.3.17 #39-#41 (2026-07-18) — settle 个人视图 3 处紧凑化 (PO msg 16:24 #6330 拍板)
+
+**PO 反馈 (msg 16:24)**: settle 个人视图 3 处 layout 问题 — (1) 主币种汇总/原始数据 胶囊左对齐应该居中, (2) 汇率 bar 垂直太宽 + 编辑态和普通态不一致, (3) 付款明细上方空白太多.
+
+#### #39: IosSwitch 胶囊居中
+- 文件: `frontend/src/lib/components/IosSwitch.svelte` (line 132)
+- 修改: `.ios-switch { margin-bottom: 1.25rem }` → `margin: 0 auto 1.25rem`
+- 根因: IosSwitch `width: fit-content` 但没 auto margin → block parent 内默认左对齐, 留 60% 右边空白
+- 修法: `margin: 0 auto` 让 fit-content + block parent 居中 (同 .currency-bar pattern)
+- 实测 (414×896): toggle 中心 206.8px vs card 中心 207px → 居中 ✓
+- 不影响: wizard step 3 不用 IosSwitch 组件 (currency-mode-row 是另一组件), 跨页面不受影响
+
+#### #40: 汇率 bar 垂直高度统一 (BAR 73px → 48.8px, 编辑/普通一致)
+- 文件: `frontend/src/lib/components/SessionCurrencyBadge.svelte` (3 处 CSS)
+- 修改:
+  - `.currency-bar` padding `6px clamp(10px, 3vw, 16px)` → `4px clamp(10px, 3vw, 16px)`, 加 `gap: 2px` 取代原 `.rate-row margin-top: 4px`
+  - `.rate-row` 加 `min-height: 20px` + `flex-wrap: nowrap` + `overflow: hidden`, `margin: 0`
+  - `.rate-button` / `.rate-value` / `.currency-rate-label` 加 `flex-shrink: 1` + `min-width: 0`
+  - **关键真修**: `.rate-button` 加 `min-height: 20px` 覆盖全局 base button 的 `min-height: 44px` (iOS tap target, app.css line 200)
+- 根因: 普通态的 `.rate-button` 继承全局 button 的 min-height 44px, 撑高整个 rate-row (44px) + bar (~73px), 编辑态 rate-input 高度 20px → 编辑态 bar (~49px). 两态差 24px.
+- 实测 (414×896): BAR 48.8px (normal) = 48.8px (edit) ✓ (修前: normal 73px, edit 49px)
+
+#### #41: 付款明细上方空白优化 (hero→chip collapsed margin 24px → 12px)
+- 文件: `frontend/src/lib/components/SettleMemberBreakdown.svelte` (2 处 CSS)
+- 修改:
+  - `.hero` `margin-bottom: var(--space-3, 12px)` → `4px` (让 sheet margin-top 胜出 margin collapse)
+  - `.glass-sheet` `margin-top: var(--space-5, 24px)` → `12px` + padding-top `var(--space-4, 16px)` → `10px` (chip 拉上去 negative -10px, chip 视觉上"贴在 sheet 顶边")
+- 根因: hero mb 12 + sheet mt 24 = 36px 堆叠空白 (margin collapse 后 24px). PO 截图指 "中间空 24px 太散".
+- 实测 (414×896): hero→chip gap 12px (修前 24px) ✓
+
+**实施** (commit df974be, 3 文件 36+/8-):
+- `frontend/src/lib/components/IosSwitch.svelte`
+- `frontend/src/lib/components/SessionCurrencyBadge.svelte`
+- `frontend/src/lib/components/SettleMemberBreakdown.svelte`
+
+**保留 (不动)**:
+- chip (`#37` 加倍高度 60px+) — 不动, #41 只缩 margin-top, chip 高度保留
+- `.bills-section-head` border-radius + box-shadow — 保留
+- `.glass-sheet` 32% bg + blur 16px + saturate 150% — 保留
+- `.glass-chip` mask-image 顶部 16px fade — 保留
+
+**验收 criterion**:
+- [x] toggle 居中 (toggle 中心 206.8 vs card 中心 207)
+- [x] BAR 48.8px normal = 48.8px edit (修前 73 vs 49)
+- [x] hero→chip gap 12px (修前 24px)
+- [x] 5 张截图存 `~/.openclaw/media/browser/v0317-{40,42}-{top,hero-to-paid,paid-list,transition,bar-edit}.png`
+- [x] svelte-check 0 new error (待 run)
+- [x] 单分支铁律 ✓ (push 4d193b5..df974be)
