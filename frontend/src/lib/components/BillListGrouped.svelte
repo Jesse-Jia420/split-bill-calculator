@@ -725,19 +725,27 @@
      bg 0.25 → 0.10 (跟 .glass-sheet 同透度, day group 几乎全透).
      border 0.55 → 0.65 (白边更明显). inset highlight 0.7 → 0.95 (玻璃上沿更明显).
      外阴影 indigo 0.10 → 0.16 (玻璃感更强). */
+  /* === v0.3.18 #50 (PO msg 22:12 #6523 极透明化 v2): #49 边缘补偿过头,
+     section 还是看起来"白纸+文字", 再降一档几乎全透 ===
+     - bg 0.10 → 0.04 (几乎完全透明, 只剩 4% 白底提示"这块是 section")
+     - border 0.65 → 0.18 (白边几乎消失)
+     - inset highlight 0.95 → 0.20 (玻璃上沿大幅淡化, 不再像"白框卡片")
+     - 外阴影 indigo 0.16 → 0.04 + black 0.03 → 0.02 (section 不再像"浮起的卡片")
+     - bg image 透出来极其明显 (跟 .member-chip / .glass-sheet / .glass-chip 同语言)
+     - text-shadow 由 chip 内文字继承 / day header 文字留给 0.30 inset 同款 1px 高光 */
   .day-group {
     /* 反馈修 6 项目 3: day group 用 surface 背景,bill row 默认透明继承,
        共享同一背景色,消除原灰色边框的"两层卡片"视觉 */
-    border: 1px solid rgba(255, 255, 255, 0.65);  /* v0.3.18 #49: 0.55 → 0.65 白边更明显 */
+    border: 1px solid rgba(255, 255, 255, 0.18);  /* v0.3.18 #50: 0.65 → 0.18 白边几乎消失 */
     border-radius: 14px;  /* was 8px */
     /* overflow:hidden removed: T10 sticky backdrop-blur needs visible overflow */
-    background: rgba(255, 255, 255, 0.10);  /* v0.3.18 #49: 0.25 → 0.10 (极透明化) */
+    background: rgba(255, 255, 255, 0.04);  /* v0.3.18 #50: 0.10 → 0.04 极透 (靠文字 + hairline 提示 section 边界) */
     backdrop-filter: saturate(180%) blur(22px);  /* was none on day-group */
     -webkit-backdrop-filter: saturate(180%) blur(22px);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.95),  /* v0.3.18 #49: top inset highlight 0.7 → 0.95 */
-      0 2px 12px rgba(99, 102, 241, 0.16),  /* v0.3.18 #49: 外阴影 0.10 → 0.16 */
-      0 1px 2px rgba(0, 0, 0, 0.03);
+      inset 0 1px 0 rgba(255, 255, 255, 0.20),  /* v0.3.18 #50: inset high light 0.95 → 0.20 大幅淡化 */
+      0 1px 4px rgba(99, 102, 241, 0.04),  /* v0.3.18 #50: 外阴影 0.16 → 0.04 section 不再"浮起" */
+      0 1px 1px rgba(0, 0, 0, 0.02);  /* v0.3.18 #50: 黑色阴影 0.03 → 0.02 */
   }
   .day-group details {
     width: 100%;
