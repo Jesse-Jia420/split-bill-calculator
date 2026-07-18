@@ -1127,16 +1127,24 @@
        sheet 自身不再 sticky. 原 sticky top:0 让两个 sheet (paid + consumed) 都吸顶,
        视觉堆叠. 改 position: relative (正常 flow), 由 .section-header.glass-chip
        接管 sticky 行为 (iOS Mail inbox 模式: 只有当前 section header sticky 在
-       viewport 顶部, 其它 section 自然随内容滚出). */
+       viewport 顶部, 其它 section 自然随内容滚出).
+       ===
+       v0.3.17 #41 (PO msg 16:24): 付款明细上方空白太多真修.
+       - margin-top 24px → 14px (上面 hero 跟 sheet 之间 10px 间隔, 跟 #38 hero
+         padding-bottom 16px 自然呼应, 不再堆叠 24+12=36 大空白).
+       - padding-top 16px → 10px (chip 拉上去 negative -10px, 留 0 给 chip,
+         chip 视觉上"贴在 sheet 顶边", 取代原 "chip 浮在 sheet 10px 上" 留白).
+       效果: hero end → chip start gap 从 ~26px 减到 ~14px, chip end → first row
+       gap 从 ~6px 减到 ~0px (chip 跟 first row 视觉相邻, 不再"隔着 16px 空白"). */
     position: relative;
     z-index: 1;
     background: rgba(255, 255, 255, 0.32);
     backdrop-filter: saturate(150%) blur(16px);
     -webkit-backdrop-filter: saturate(150%) blur(16px);
     border-radius: 16px;
-    padding: var(--space-4, 16px) var(--space-3, 12px) var(--space-3, 12px);
+    padding: 10px var(--space-3, 12px) var(--space-3, 12px);
     border-left: 0;
-    margin-top: var(--space-5, 24px);
+    margin-top: 14px;
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.6),
       inset 0 -1px 0 rgba(0, 0, 0, 0.04);
