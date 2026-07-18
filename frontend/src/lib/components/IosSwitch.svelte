@@ -183,4 +183,22 @@
     z-index: 1;
     pointer-events: none;
   }
+
+  /* v0.3.18 #42 (PO msg 17:43 #6401 拍板, 反 #39 不彻底):
+     settle 页 320px viewport IosSwitch 文字 overflow card 右边界 + 整体不居中真修.
+     - .ios-switch-option padding 10px 24px → 8px 14px (窄屏压 padding 让两 option 不挤出去)
+     - font-size 15px → 13px (压字号让 '主币种汇总 (CNY)' 这种长 label 不撑破)
+     - min-height 44px → 36px (iOS tap target 30pt 底线, 窄屏允许 shrink)
+     - @container page (max-width: 360px) — 跟 v0.3.17 #34 responsive 策略 B 同套
+       (container queries + clamp tokens), 不引 hardcoded viewport breakpoint
+     不破坏 414 / desktop: @container 块只在 page 内宽 ≤360 时才生效
+     wizard step 3 用同一组件, 但 label 短 ('单一币种' / '双币种') 即使 320px 也 fit,
+     这条 override 不影响 wizard. */
+  @container page (max-width: 360px) {
+    .ios-switch-option {
+      padding: 0.5rem 0.875rem;
+      font-size: 0.8125rem;
+      min-height: 36px;
+    }
+  }
 </style>
