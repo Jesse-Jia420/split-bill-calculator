@@ -1938,3 +1938,85 @@ seed 脚本 (`backend/scripts/seed_dev_data.py`) 已有 find-or-create 逻辑：
 - 汇率 bar 320/390/414 都单行 (no wrap)
 - settle page 痛点 (amount 字号过大, +4,555.70 THB 折行) fix
 - svelte-check baseline + 0 new error
+
+### §11. v0.3.17 #36 (2026-07-18) — SessionCurrencyBadge 汇率 bar 改成 2 行布局 (PO msg 10:54)
+
+**PO 反馈 (msg 10:54)**: 「汇率 bar 改动, 货币一行, 汇率另起一行」 — 明确 2 行设计意图 (不是 nowrap fix, 是 layout 重设).
+
+**当前**: 单行 `flex` `flex-wrap: nowrap` + clamp 字号 (commit 7e74c72 #34). 在 320px 仍单行但视觉挤.
+
+**目标 layout** (2 行明确):
+- Row 1: `[CNY] ⇄ [THB]` — 货币对 (跟原 currency-chip-row 同结构, 居中)
+- Row 2: `1 CNY = 4.65... THB` + 编辑按钮 — 汇率 + 编辑, 居中, font-size 小一号
+
+**实施**:
+- File: `frontend/src/lib/components/SessionCurrencyBadge.svelte` (单文件)
+- `variant="settle"` 时 multi-currency 改 2 行 layout: 上 `currency-pill-row` (保持), 下 新 `.rate-row` 装 `currency-rate-label + rate-value + edit button`
+- `variant="detail"` + single-currency 保持不变 (单 chip)
+- 复用现有 utility (`.currency-chip` / `.glass-pill` / `backdrop-filter`) + `#34` clamp tokens
+
+**验收 criterion**:
+- 320/390/414 三个 viewport 全部显示 2 行 layout (货币 row + 汇率 row)
+- Row 1 居中 (or 左对齐跟内容一致), Row 2 居中 (or 跟 Row 1 对位)
+- 汇率字号小 (e.g. 0.8125rem) 视觉副标题感
+- 编辑按钮 (✏️) 跟汇率 inline 或独立 (按 design sense)
+- svelte-check baseline + 0 new error
+
+### §11. v0.3.17 #37 (2026-07-18) — settle sticky section header 高度加倍 (PO msg 10:55 #6262)
+
+**PO 反馈 (msg 10:55 #6262)**: 「付款明细和消费明细垂直宽度加倍」 — 直接拍板方向: header 垂直高度从当前 36px 加倍.
+
+**当前 (commit f9f62bd)**: `.section-header.glass-chip` 高度 ~36px (padding `var(--space-2, 8px)` + 文字 ~14px + border).
+
+**目标**: header 垂直高度 ~64-72px (加倍).
+
+**实施**:
+- File: `frontend/src/lib/components/SettleMemberBreakdown.svelte`
+- `.section-header.glass-chip` 调整:
+  * `padding`: `var(--space-2, 8px) var(--space-3, 12px)` → `var(--space-3, 12px) var(--space-4, 16px)` (垂直 padding 加倍)
+  * `font-size`: `var(--font-size-sm, 14px)` → `var(--font-size-md, 16px)` (文字加大一档)
+  * `min-height`: 不强制 (依赖 padding + font-size 算出来 ~64px)
+  * `border-radius`: 9999px → 16px 或保留 9999px (保持 pill 视觉) — PO 没说改, 保留
+- `.bills-section-icon` 20×20 → 24×24 (跟 chip 高度协调)
+- `.bills-section-count` font-size +0.5rem
+- `.collapse-icon` 同步加大
+- 复用 #34 clamp tokens (320/390/414 viewport 自适应)
+- iOS27 liquid glass 保留 (chip-on-sheet, bg 0.62 + saturate 200% blur 20px + drop shadow 多层)
+
+**保留**:
+- sticky 行为 (#31fix-3 iOS Mail inbox)
+- mask-image (顶部 16px 渐变, row 渐消失于 head)
+- z-index (chip 10 > sheet 1)
+- chip float -8px overlap
+
+**验收 criterion**:
+- chip 实际高度 ~64-72px (实测 + Jesse 视觉验收)
+- 320/390/414 三 viewport 都视觉对位
+- sticky behavior 不破坏 (iOS Mail inbox 仍工作)
+- svelte-check baseline + 0 new error
+
+### §11. v0.3.17 #38 (2026-07-18) — settle personal view 去掉 hero 区域空白 (PO msg 10:56 #6263)
+
+**PO 反馈 (msg 10:56 #6263)**: 「这个区域空白太多, 去掉」 — 截图红圈标的是 .member-panel-title (Q avatar + name) 跟 .hero (大金额) 之间的空白.
+
+**根因** (Master verify 文件 line 844-855):
+- `.hero { padding: var(--space-7, 48px) var(--space-5, 20px); margin-bottom: var(--space-4, 16px); }` — **48px 上下 padding** 是元凶
+- @container page (max-width: 380px) 窄屏 padding 已降到 20px, 但 414px viewport 不触发, 仍 48px
+- `.member-panel-title { margin-bottom: var(--space-3, 12px); }` — 12px 底 margin
+- 总间距 = 12 (title margin) + 48 (hero top padding) = **60px 空白** vs 内容只占 ~40px, 视觉断带
+
+**修法** (`frontend/src/lib/components/SettleMemberBreakdown.svelte`):
+- `.hero` padding: `var(--space-7, 48px) var(--space-5, 20px)` → `var(--space-4, 16px) var(--space-5, 20px)` (垂直 48px → 16px)
+- `.hero` margin-bottom: `var(--space-4, 16px)` → `var(--space-3, 12px)` (略减)
+- 移除 @container page (max-width: 380px) override (因为新 padding 已经合理)
+
+**保留**:
+- `.hero` text-align center
+- `.hero-net` font-size + color (pos/neg/zero)
+- `.hero-meta` flex layout (consumed · paid)
+- iOS27 liquid glass material
+
+**验收 criterion**:
+- 414/390/320 三个 viewport: .member-panel-title 跟 .hero amount 间距 ~12-16px (vs 之前 60px)
+- 整页节奏紧凑, 不再有"空白太多"
+- svelte-check baseline + 0 new error
