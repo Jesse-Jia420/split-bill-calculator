@@ -120,15 +120,18 @@
   .ios-switch {
     position: relative;
     display: flex;
-    background: rgba(255, 255, 255, 0.5);
+    /* v0.3.18 #48 (PO msg 19:10 #6489): bg 0.5 → 0.25 (× 0.5 透明化 sweep)
+       让 peach→rose→lavender 背景图透过来. thumb 实色不动 (已是实色 accent).
+       border 0.18 → 0.25 (边缘补偿). */
+    background: rgba(255, 255, 255, 0.25);
     -webkit-backdrop-filter: blur(14px) saturate(180%);
     backdrop-filter: blur(14px) saturate(180%);
     border-radius: 9999px;
     padding: 4px;
-    border: 0.5px solid rgba(99, 102, 241, 0.18);
+    border: 0.5px solid rgba(99, 102, 241, 0.25);
     box-shadow:
       inset 0 1px 2px rgba(0, 0, 0, 0.04),
-      inset 0 -1px 0 rgba(255, 255, 255, 0.6);
+      inset 0 -1px 0 rgba(255, 255, 255, 0.7);
     /* v0.3.17 #39 (PO msg 16:24): 整组居中 — settle 页 IosSwitch
        放在 .card 容器内, 之前 width: fit-content 但没 auto margin
        → 默认左对齐, 留 60% 右边空白. 改 margin-left/right: auto

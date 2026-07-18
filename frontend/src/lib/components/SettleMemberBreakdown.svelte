@@ -634,14 +634,20 @@
      - 未选中: glass-pill (半透明白 + backdrop blur) — 跟 .member-tabs
        背景形成 Liquid Glass 视觉。
      - 选中: 保留实色 --accent-500 蓝 (视觉锚点不能丢, T9 设计)
-     - hover: border + color 微变, 不改 background (玻璃透出背景) */
+     - hover: border + color 微变, 不改 background (玻璃透出背景)
+     === v0.3.18 #48 (PO msg 19:10 #6489 全站透明化 sweep): 玻璃感要"透出来"
+     - bg 0.7/0.5 → 0.35/0.20 (× 0.5 透明度降级)
+     - border 0.5 → 0.55 (边缘补偿)
+     - inset highlight 0.4 → 0.7 (玻璃上沿高光加强)
+     - 外阴影 0.08 黑 → 0.10 indigo (暖色调统一)
+     - chip 文字加 text-shadow 白色微晕 (防低对比玻璃上文字看不清) */
   .member-chip {
     scroll-snap-align: start;
     flex: 0 0 auto;
     appearance: none;
-    /* Inactive base — glass-pill */
-    background: linear-gradient(180deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.5) 100%);
-    border: 1px solid rgba(255,255,255,0.5);
+    /* Inactive base — glass-pill (v0.3.18 #48 透明化) */
+    background: linear-gradient(180deg, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0.20) 100%);
+    border: 1px solid rgba(255,255,255,0.55);
     backdrop-filter: saturate(180%) blur(16px);
     -webkit-backdrop-filter: saturate(180%) blur(16px);
     border-radius: var(--radius-full);
@@ -656,9 +662,12 @@
     text-align: left;
     color: var(--gray-700);
     font: inherit;
+    /* v0.3.18 #48: inset highlight 0.4 → 0.7 (玻璃边缘补偿) + 外阴影改 indigo 0.10 */
     box-shadow:
-      inset 0 1px 0 rgba(255,255,255,0.4),
-      0 4px 12px rgba(0,0,0,0.08);
+      inset 0 1px 0 rgba(255,255,255,0.7),
+      0 4px 12px rgba(99,102,241,0.10);
+    /* v0.3.18 #48: chip 文字白色微晕 (防低对比玻璃 + PO msg #6489) */
+    text-shadow: 0 0.5px 1px rgba(255,255,255,0.6);
     transition:
       background 200ms ease,
       border-color 200ms ease,
@@ -669,7 +678,8 @@
   .member-chip:hover {
     border-color: var(--accent-500);
     color: var(--accent-700);
-    background: linear-gradient(180deg, rgba(255,255,255,0.82) 0%, rgba(255,255,255,0.62) 100%);
+    /* v0.3.18 #48: hover bg 0.82/0.62 → 0.45/0.30 (跟 base 0.35/0.20 同步降级, 仍比 base 略亮表示 hover) */
+    background: linear-gradient(180deg, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0.30) 100%);
   }
   .member-chip:active {
     transform: scale(0.97);
@@ -694,10 +704,11 @@
     border-color: var(--accent-500);
     color: white;
   }
-  /* Safari iOS < 18 fallback (无 backdrop-filter): 用 opaque 半透明白 */
+  /* Safari iOS < 18 fallback (无 backdrop-filter): 用 opaque 半透明白
+     v0.3.18 #48: 0.85 → 0.60 (跟新 base 0.35/0.20 同比例降级, 保留可读性 fallback) */
   @supports not (backdrop-filter: blur(1px)) {
     .member-chip {
-      background: rgba(255,255,255,0.85);
+      background: rgba(255,255,255,0.60);
     }
   }
   /* T9 me double ring (kept even though me badge text removed) */
@@ -1145,10 +1156,13 @@
        - padding-top 16px → 10px (chip 拉上去 negative -10px, 留 0 给 chip,
          chip 视觉上"贴在 sheet 顶边", 取代原 "chip 浮在 sheet 10px 上" 留白).
        效果: hero end → chip start gap 从 ~26px 减到 ~14px, chip end → first row
-       gap 从 ~6px 减到 ~0px (chip 跟 first row 视觉相邻, 不再"隔着 16px 空白"). */
+       gap 从 ~6px 减到 ~0px (chip 跟 first row 视觉相邻, 不再"隔着 16px 空白").
+       ===
+       v0.3.18 #48 (PO msg 19:10 #6489 全站透明化 sweep): bg 0.32 → 0.18
+       让 peach→rose→lavender 背景图透过来, 玻璃感真出. inset highlight 0.6 → 0.7 补偿. */
     position: relative;
     z-index: 1;
-    background: rgba(255, 255, 255, 0.32);
+    background: rgba(255, 255, 255, 0.18);
     backdrop-filter: saturate(150%) blur(16px);
     -webkit-backdrop-filter: saturate(150%) blur(16px);
     border-radius: 16px;
@@ -1157,7 +1171,7 @@
     border-left: 0;
     margin-top: 0;
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.6),
+      inset 0 1px 0 rgba(255, 255, 255, 0.7),
       inset 0 -1px 0 rgba(0, 0, 0, 0.04);
   }
 
@@ -1171,7 +1185,10 @@
      list 38% 透明. 整体 "list 渐消失于 head 中" (PO msg 23:44 #6063 设计意图).
      ::before 渐变 overlay 取消 — chip 自带 bg + 双层阴影 + mask, 不再需要旧 hack 强化遮挡. */
   .section-header.glass-chip {
-    background: rgba(255, 255, 255, 0.62);
+    /* v0.3.18 #48 (PO msg 19:10 #6489): bg 0.62 → 0.35 (玻璃透明化 sweep).
+       chip 仍是 chip-on-sheet 中最浓液 (chip 0.35 > sheet 0.18 > bg 图片),
+       保留 liquid density 区分. */
+    background: rgba(255, 255, 255, 0.35);
     backdrop-filter: saturate(200%) blur(20px);
     -webkit-backdrop-filter: saturate(200%) blur(20px);
     border-radius: 9999px;
@@ -1187,7 +1204,7 @@
        语义. 现 sheet 改 relative 后, chip sticky within sheet — 只有当前 section
        的 chip 吸顶, 其它 section chip 自然随内容滚出 (iOS Mail inbox 行为).
        关键不变量: z-index: 10 > sheet z-index: 1, chip 浮在 sheet 之上, list 滚
-       到 chip 下方时被 chip bg 0.62 物理遮挡 (顶部 16px mask 透明渐变保留视觉柔化). */
+       到 chip 下方时被 chip bg 物理遮挡 (顶部 16px mask 透明渐变保留视觉柔化). */
     position: sticky;
     top: 0;
     display: flex;
@@ -1199,14 +1216,17 @@
     color: var(--gray-900);
     border-bottom: 0;
     /* #31-fix: mask-image top 16px fade — list 进 chip 区域时顶部 16px 透明露出, 16px 以下
-       chip bg 0.62 物理遮挡. 视觉 "list 渐消失于 head 中" (PO msg 23:44 #6063 设计意图) */
+       chip bg 物理遮挡. 视觉 "list 渐消失于 head 中" (PO msg 23:44 #6063 设计意图) */
     mask-image: linear-gradient(180deg, transparent 0, #000 16px, #000 100%);
     -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 16px, #000 100%);
+    /* v0.3.18 #48: chip inset highlight 0.85 (已高) → 0.9 微调; chip 文字加 text-shadow 白色微晕
+       (PO 要求 "玻璃感要透出来", chip 0.35 比 0.62 透, 文字对比度降低 → 微晕补偿). */
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.85),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
       0 1px 2px rgba(99, 102, 241, 0.10),
       0 4px 12px rgba(99, 102, 241, 0.16),
       0 8px 24px rgba(99, 102, 241, 0.10);
+    text-shadow: 0 0.5px 1px rgba(255, 255, 255, 0.7);
   }
   /* #31-fix (PO msg 23:44 #6065 拍补): 两个 section (paid + consumed) 同层并列,
      都用 `.section-header.glass-chip { z-index: 10 }`, **不**给消费明细特殊 z-index 11.
@@ -1216,10 +1236,11 @@
   .bills-section-head.glass-chip::before {
     content: none;
   }
-  /* glass-chip: Safari iOS < 18 backdrop-filter fallback, 提到 0.78 opaque */
+  /* glass-chip: Safari iOS < 18 backdrop-filter fallback.
+   v0.3.18 #48: 0.78 → 0.50 (跟新 base 0.35 同比例降级, 仍提供 fallback opaque 可读性) */
   @supports not (backdrop-filter: blur(1px)) {
     .section-header.glass-chip {
-      background: rgba(255, 255, 255, 0.78);
+      background: rgba(255, 255, 255, 0.50);
     }
   }
 </style>
