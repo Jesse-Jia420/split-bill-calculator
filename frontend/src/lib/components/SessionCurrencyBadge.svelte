@@ -488,13 +488,15 @@
     gap: 4px;
     line-height: 1;
   }
-  /* v0.3.18 #43: height 20 → 16, line-height 18 → 14 (跟 Row 2 min-height 16 对齐) */
+  /* v0.3.18 #43: height 20 → 16, line-height 18 → 14 (跟 Row 2 min-height 16 对齐)
+     v0.3.18 #48 (PO msg 19:10 #6489): bg 0.65 → 0.35 (× 0.54 透明化)
+     让 peach→rose→lavender 背景图透过来, 玻璃感真出. */
   .rate-input {
     appearance: none;
     height: 16px;
     line-height: 14px;
     padding: 0 8px;
-    background: rgba(255, 255, 255, 0.65);
+    background: rgba(255, 255, 255, 0.35);
     border: 1px solid rgba(99, 102, 241, 0.30);
     border-radius: 999px;
     font-size: clamp(0.625rem, 2.4vw, 0.6875rem);
@@ -511,14 +513,16 @@
   .rate-input:focus {
     outline: none;
     border-color: rgba(99, 102, 241, 0.55);
-    background: rgba(255, 255, 255, 0.85);
+    /* v0.3.18 #48: focus bg 0.85 → 0.55 (跟新 base 0.35 同比例降级, focus 时仍 opaque 让用户清楚焦点) */
+    background: rgba(255, 255, 255, 0.55);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.8),
       inset 0 -1px 0 rgba(0, 0, 0, 0.05),
       0 0 0 3px rgba(99, 102, 241, 0.15);
   }
   .rate-input:disabled {
-    background: rgba(255, 255, 255, 0.4);
+    /* v0.3.18 #48: disabled 0.4 → 0.25 (跟新 base 0.35 比例降级, disabled 仍比 base 略暗) */
+    background: rgba(255, 255, 255, 0.25);
     color: var(--gray-500);
     cursor: wait;
   }

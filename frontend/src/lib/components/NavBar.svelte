@@ -75,7 +75,12 @@
        .navbar 是 body flex column 第一项, 始终贴顶。 */
     padding: calc(var(--space-3) + env(safe-area-inset-top, 0px)) var(--space-4) var(--space-3);
     border-bottom: 1px solid var(--color-border);
-    background: var(--color-surface);
+    /* v0.3.18 #48 (PO msg 19:10 #6489 全站透明化 sweep): nav bg 从实色 surface
+       改为半透明白玻璃, 让 peach→rose→lavender 背景图透出, 玻璃感统一.
+       bg rgba(255,255,255,0.40) + backdrop-filter blur 18px (玻璃语言保留). */
+    background: rgba(255, 255, 255, 0.40);
+    backdrop-filter: saturate(180%) blur(18px);
+    -webkit-backdrop-filter: saturate(180%) blur(18px);
     flex-wrap: wrap;
   }
   .brand {
@@ -109,22 +114,26 @@
   /* v0.3.17 #21 (PO msg 13:51 item 3): NavBar 登录按钮 / 注销按钮玻璃化
      跟全站 member-chip / swipe button / fab / 汇率 pill 同 Liquid Glass 语言。
      .ghost 跟 .btn-sm 同形态, 仅 hover 不加深色 (注销按钮语义更弱)。 */
+  /* v0.3.18 #48 (PO msg 19:10 #6489 全站透明化 sweep):
+     indigo 玻璃 bg 0.10/0.08 → 0.06/0.04 (× 0.6 透明度降级, 让背景图透过来).
+     border 0.15 → 0.20 (边缘补偿). inset highlight 0.6 → 0.7 (玻璃上沿加强).
+     外阴影 indigo 0.06 → 0.10 (跟全站玻璃同源). */
   .btn-sm {
     min-height: var(--touch-target);
     padding: var(--space-2) var(--space-3);
     border-radius: var(--radius-full, 999px);
-    border: 1px solid rgba(99, 102, 241, 0.15);
+    border: 1px solid rgba(99, 102, 241, 0.20);
     background: linear-gradient(
       135deg,
-      rgba(99, 102, 241, 0.10) 0%,
-      rgba(59, 130, 246, 0.08) 100%
+      rgba(99, 102, 241, 0.06) 0%,
+      rgba(59, 130, 246, 0.04) 100%
     );
     backdrop-filter: saturate(180%) blur(16px);
     -webkit-backdrop-filter: saturate(180%) blur(16px);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.6),
+      inset 0 1px 0 rgba(255, 255, 255, 0.7),
       inset 0 -1px 0 rgba(0, 0, 0, 0.04),
-      0 1px 3px rgba(99, 102, 241, 0.06);
+      0 1px 3px rgba(99, 102, 241, 0.10);
     display: inline-flex;
     align-items: center;
     font-size: var(--font-size-sm);
@@ -134,36 +143,47 @@
     transition: transform 150ms ease, background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
   }
   .btn-sm:hover {
+    /* v0.3.18 #48: hover 0.18/0.15 → 0.12/0.09 (跟新 base 同比例降级, hover 仍比 base 略亮) */
     background: linear-gradient(
       135deg,
-      rgba(99, 102, 241, 0.18) 0%,
-      rgba(59, 130, 246, 0.15) 100%
+      rgba(99, 102, 241, 0.12) 0%,
+      rgba(59, 130, 246, 0.09) 100%
     );
-    border-color: rgba(99, 102, 241, 0.22);
+    border-color: rgba(99, 102, 241, 0.28);
     color: var(--accent-800, #3730a3);
     transform: translateY(-1px);
     text-decoration: none;
   }
   .btn-sm:active { transform: scale(0.97); }
   @supports not (backdrop-filter: blur(1px)) {
-    .btn-sm { background: rgba(99, 102, 241, 0.18); }
+    /* v0.3.18 #48: fallback 0.18 → 0.12 (跟新 base 同比例降级) */
+    .btn-sm { background: rgba(99, 102, 241, 0.12); }
   }
-  /* .ghost: 注销按钮 — 更弱化 (白玻璃非蓝玻璃) */
+  /* .ghost: 注销按钮 — 更弱化 (白玻璃非蓝玻璃)
+     v0.3.18 #48: bg 0.65/0.45 → 0.35/0.20 (× 0.5 透明度降级, 跟 .btn-sm 同源). */
   .ghost {
     background: linear-gradient(
       135deg,
-      rgba(255, 255, 255, 0.65) 0%,
-      rgba(255, 255, 255, 0.45) 100%
+      rgba(255, 255, 255, 0.35) 0%,
+      rgba(255, 255, 255, 0.20) 100%
     );
-    border-color: rgba(99, 102, 241, 0.10);
+    border-color: rgba(99, 102, 241, 0.15);
     color: var(--gray-700);
   }
+  /* v0.3.18 #48: hover 0.85/0.65 → 0.50/0.35 (跟新 base 同比例降级) */
   .ghost:hover {
     background: linear-gradient(
       135deg,
-      rgba(255, 255, 255, 0.85) 0%,
-      rgba(255, 255, 255, 0.65) 100%
+      rgba(255, 255, 255, 0.50) 0%,
+      rgba(255, 255, 255, 0.35) 100%
     );
     color: var(--accent-700);
+  }
+  /* v0.3.18 #48: Safari iOS < 18 backdrop-filter fallback.
+     .navbar 0.40 → 0.70 (跟新 bg 比例 +0.30 opaque 补足 fallback 可读性).
+     .ghost 0.35/0.20 → 0.55/0.40 (同源). */
+  @supports not (backdrop-filter: blur(1px)) {
+    .navbar { background: rgba(255, 255, 255, 0.70); }
+    .ghost { background: rgba(255, 255, 255, 0.55); }
   }
 </style>

@@ -714,19 +714,24 @@
      — border-radius 12px → 14px
      — 1px 白色 inset highlight 边 (玻璃边缘隐形)
      — 双层 shadow (外阴影 + inset highlight)
-     反 #121 自决 (没问 PO 颜色值), PO 拍板"玻璃感要更明显一点" */
+     反 #121 自决 (没问 PO 颜色值), PO 拍板"玻璃感要更明显一点"
+     ===
+     v0.3.18 #48 (PO msg 19:10 #6489 全站透明化 sweep): bg 0.55 → 0.25 (× 0.45)
+     让 peach→rose→lavender 背景图透过来. border 0.4 → 0.55 (边缘补偿).
+     inset highlight 0.6 → 0.7 (玻璃上沿高光微加强). 外阴影 indigo 0.06 → 0.10.
+     saturate/blur/radius 保留 #46-A 已加强值 (不破坏 #46-A 已落地的玻璃感). */
   .day-group {
     /* 反馈修 6 项目 3: day group 用 surface 背景,bill row 默认透明继承,
        共享同一背景色,消除原灰色边框的"两层卡片"视觉 */
-    border: 1px solid rgba(255, 255, 255, 0.4);  /* inset highlight 白边 */
+    border: 1px solid rgba(255, 255, 255, 0.55);  /* inset highlight 白边 */
     border-radius: 14px;  /* was 8px */
     /* overflow:hidden removed: T10 sticky backdrop-blur needs visible overflow */
-    background: rgba(255, 255, 255, 0.55);  /* was white, now glass sheet */
+    background: rgba(255, 255, 255, 0.25);  /* v0.3.18 #48: 0.55 → 0.25 (透明化 sweep) */
     backdrop-filter: saturate(180%) blur(22px);  /* was none on day-group */
     -webkit-backdrop-filter: saturate(180%) blur(22px);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.6),  /* top inset highlight */
-      0 2px 12px rgba(99, 102, 241, 0.06),  /* 软外阴影 (跟全站玻璃同源) */
+      inset 0 1px 0 rgba(255, 255, 255, 0.7),  /* top inset highlight */
+      0 2px 12px rgba(99, 102, 241, 0.10),  /* v0.3.18 #48: 外阴影 0.06 → 0.10 (跟全站玻璃同源) */
       0 1px 2px rgba(0, 0, 0, 0.03);
   }
   .day-group details {
@@ -756,12 +761,14 @@
     outline-offset: -2px;
   }
 
-  /* T10: Sticky section header with glassmorphism */
+  /* T10: Sticky section header with glassmorphism
+     v0.3.18 #48 (PO msg 19:10 #6489): bg 0.85 → 0.50 (× 0.59 透明化)
+     sticky 浮起时仍透背景图, 但够浓液保证文字可读. 保留 blur 12px (iOS27 standard) */
   .section-header {
     position: sticky;
     top: 0;
     z-index: 10;
-    background: rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.50);
     backdrop-filter: saturate(180%) blur(12px);
     -webkit-backdrop-filter: saturate(180%) blur(12px);
     border-bottom: 1px solid var(--gray-200);
@@ -858,7 +865,11 @@
      - 加 backdrop-filter: blur(2px) (iOS separator 风格)
      - 加 box-shadow 0 1px 1px rgba(99,102,241,0.06) (凸起感)
      - :last-child 隐藏最后一行 hairline
-     - row padding 8px → 10px (给 hairline 视觉呼吸感) */
+     - row padding 8px → 10px (给 hairline 视觉呼吸感)
+     ===
+     v0.3.18 #48 (PO msg 19:10 #6489): hairline alpha 微调 0.18→0.20/0.24→0.26/0.18→0.20
+     (sheet bg 0.55→0.25 后 hairline 需要更显一点才能在透明 sheet 上看出,
+     跟新 glass 边缘呼应). shadow 0.06 → 0.08 (凸起感保留). */
   .bill-swipe-wrap {
     position: relative;
     overflow: hidden;
@@ -875,14 +886,14 @@
     background: linear-gradient(
       90deg,
       transparent 0%,
-      rgba(99, 102, 241, 0.18) 20%,
-      rgba(99, 102, 241, 0.24) 50%,
-      rgba(99, 102, 241, 0.18) 80%,
+      rgba(99, 102, 241, 0.20) 20%,
+      rgba(99, 102, 241, 0.26) 50%,
+      rgba(99, 102, 241, 0.20) 80%,
       transparent 100%
     );
     backdrop-filter: blur(2px);
     -webkit-backdrop-filter: blur(2px);
-    box-shadow: 0 1px 1px rgba(99, 102, 241, 0.06);
+    box-shadow: 0 1px 1px rgba(99, 102, 241, 0.08);
     pointer-events: none;
   }
   .bill-swipe-wrap:last-child::after {
