@@ -1962,6 +1962,33 @@ seed 脚本 (`backend/scripts/seed_dev_data.py`) 已有 find-or-create 逻辑：
 - 编辑按钮 (✏️) 跟汇率 inline 或独立 (按 design sense)
 - svelte-check baseline + 0 new error
 
+### §11. v0.3.17 #36fix (2026-07-18) — SessionCurrencyBadge 合并 1 个 bar 内部 2 行 (PO msg 12:45 #6287)
+
+**PO 反馈 (msg 12:45 #6287)**: 「不对, 一个 bar, 内部有两行」 — 纠正 #36 的视觉实现. #36 把 Row 1 + Row 2 做成 2 个独立 pill capsule 上下堆叠, 不符合「1 个 bar 内部两行」意图.
+
+**当前 (#36 commit 7e03a3e)**: Row 1 (`.currency-pill-row`) 和 Row 2 (`.rate-row`) **各自独立 pill** — 各自 border-radius 999px + fit-content 居中 + 各自 glass material (Row 1 蓝色 accent 渐变, Row 2 白色基底透明). 视觉上 = **2 个胶囊上下堆**, 不符合意图.
+
+**目标 layout** (1 bar 内部 2 行):
+- 外层 `<div class="currency-bar">`: 唯一 pill 视觉 (border-radius 999px + fit-content 居中 + iOS27 glass material 蓝色 accent 渐变)
+- 内部 `display: flex; flex-direction: column`: 装 Row 1 + Row 2
+- Row 1 (`.currency-pill-row`): 货币对 `[CNY] ⇄ [THB]` — **退化成分隔行**, 取消 own bg / border-radius / border
+- Row 2 (`.rate-row`): 汇率 `1 CNY = 4.65... THB ✏️` — **退化成分隔行**, 取消 own bg / border-radius / border
+- 视觉层次: Row 1 蓝色 accent-700 chip (主币种), Row 2 灰色副标题 — 通过字号/颜色区分, 不再通过 bg
+
+**实施** (commit ca3f58d, `frontend/src/lib/components/SessionCurrencyBadge.svelte` 单文件):
+- 双币种 case 加外层 `<div class="currency-bar">` (唯一 pill 容器, 蓝色 accent 渐变 + 玻璃 material)
+- `.currency-pill-row` / `.rate-row` 内部样式重写: 取消 `background / border-radius / border` → 只保留 flex 居中 + padding + 字号颜色
+- 单币种 case 不变 (`.currency-pill-row.currency-pill-row--single` 仍是单 chip, 1 row = 1 pill, 不需外层 wrapper)
+- 行为 / 状态 / PATCH 逻辑 / 编辑态 / data-* 属性 全部保留
+
+**验收 criterion**:
+- [x] 320 / 390 / 414 三个 viewport 全部 = **1 个 bar** 内部 **2 行内容** (CNY ⇄ THB / 1 CNY = 4.65... THB ✏️)
+- [x] Row 1 + Row 2 都是 `.currency-bar` 直接子元素 (bothRowsInsideBar)
+- [x] Row 1 / Row 2 都没有 own bg / border (退化为分隔行, 共享外层玻璃基底)
+- [x] svelte-check baseline 7 errors + 22 warnings, 0 new error
+- [x] playwright 自验 18/18 checks pass × 3 viewport (320/390/414)
+- [x] 截图 `~/.openclaw/media/browser/v0317-36fix-{bar,row1,row2,full}-{320,390,414}.png`
+
 ### §11. v0.3.17 #37 (2026-07-18) — settle sticky section header 高度加倍 (PO msg 10:55 #6262)
 
 **PO 反馈 (msg 10:55 #6262)**: 「付款明细和消费明细垂直宽度加倍」 — 直接拍板方向: header 垂直高度从当前 36px 加倍.
