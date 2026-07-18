@@ -2020,3 +2020,27 @@ seed 脚本 (`backend/scripts/seed_dev_data.py`) 已有 find-or-create 逻辑：
 - 414/390/320 三个 viewport: .member-panel-title 跟 .hero amount 间距 ~12-16px (vs 之前 60px)
 - 整页节奏紧凑, 不再有"空白太多"
 - svelte-check baseline + 0 new error
+
+### §11. v0.3.17 #37 (2026-07-18) — settle sticky section header 高度加倍 (PO msg 10:55 #6262)
+
+**实施 + 验证** (commit d5d0d342, 跟 #38 合并 push):
+- .section-header.glass-chip padding 8px 12px → 20px 16px (上下 8→20, x2.5)
+- font-size sm(14) → md(16)
+- margin -8px → -10px
+- 新增 min-height: 60px (320 viewport floor)
+- .bills-section-icon 20x20 → 24x24, font-size 12 → 14
+- .collapse-icon font-size 10 → 12
+- .bills-section-count 加显式 font-size 14px
+
+实测 (3 viewport):
+- 320px: chip 60px / row 55px / ratio 1.09
+- 390px: chip 63px / row 64px / ratio 0.98
+- 414px: chip 64px / row 66px / ratio 0.97
+跨 viewport 跟 row 视觉对位 (~1:1) - 加倍目标达成
+
+保留:
+- sticky #31fix-3 iOS Mail inbox
+- mask-image 顶部 16px 渐变 (row 渐消失于 head)
+- z-index chip 10 > sheet 1
+- iOS27 glass material
+- chip border-radius 9999px pill
