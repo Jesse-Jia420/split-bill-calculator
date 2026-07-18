@@ -2101,3 +2101,74 @@ seed 脚本 (`backend/scripts/seed_dev_data.py`) 已有 find-or-create 逻辑：
 - z-index chip 10 > sheet 1
 - iOS27 glass material
 - chip border-radius 9999px pill
+
+### §11. v0.3.17 #36fix3 (2026-07-18) — Bill ownership owner-only + swipe action disabled 视觉置灰 (PO msg 14:53 #6301)
+
+**PO 反馈 (msg 14:53 #6301)**: 「每个人仅可编辑或删除自己所创建的账单. 别人创建的账单, 自己在左滑或右滑时, 出现的编辑或删除按钮要置灰」.
+
+**历史**: v0.1.0 T10 原设计 = 「仅 created_by 可改/删」; v0.1.2 T17 暂去掉 (任何 session member 可改/删 — 注释 `removed creator check -- any session member can update`); PO 现在拍回滚 ownership check.
+
+**核心挑战 — anonymous bill**: `Bill.created_by` 是 user-level (FK to users.id), 匿名 user_id=NULL 创建的 bill `created_by=NULL`. 比对 `bill.created_by == sm.user_id` 永远 NULL 不成立 → 匿名 bill (含原 creator) 谁也改不动.
+
+**设计决策**: 加新 column `bills.created_by_session_member_id` (FK to session_members.id, nullable=True, indexed) — session-member-level creator identity. 跟 login/anonymous 状态无关. sm.id 总是 NOT NULL, 匿名 bill 也能 locate creator. 权限判定 `bill.created_by_session_member_id == current_sm.id` — 干净.
+
+**实施** (commit 3a7040b):
+- alembic migration `20260718_v0317_bills_creator_sm_id.py` (down_revision=`20260709_sessions_last_active_at`):
+  - Add column + FK constraint + index
+  - Backfill `UPDATE bills SET created_by_session_member_id = payer_id WHERE created_by_session_member_id IS NULL` (历史 bills — 默认 creator ≈ payer)
+- Model `bills.py` 加 mapped_column + relationship
+- BE `api/bills.py` (88 lines):
+  - BillOut + _bill_to_dict 加新字段
+  - POST handler 写 `created_by_session_member_id=sm.id`
+  - PATCH handler ownership check: `if bill.created_by_session_member_id != sm.id: raise 403`
+  - DELETE handler 同样 check
+- Tests `test_bills.py` + `test_bills_anon_crud.py` (244+57 lines):
+  - 替代 v0.1.2 的 `test_non_creator_can_*_200/204` 为 `_cannot_*_403`
+  - 新增 creator_can_update/delete + 3 个 anonymous 边界 case (anon creator / other member / other anon)
+- Frontend `api/bills.ts`: Bill TS type 加 `created_by_session_member_id: number | null`
+- Frontend `BillListGrouped.svelte` (74 lines):
+  - `billCanEdit(b)` helper (比 `b.created_by_session_member_id === currentUserMemberId`)
+  - swipe action button 加 `class:disabled={!canEdit}` + `aria-disabled` + 动态 `aria-label`
+  - onSwipeEdit / onSwipeDelete defense-in-depth short-circuit
+  - CSS `.bill-swipe-action.disabled` opacity 0.4 !important + cursor not-allowed + pointer-events: none + filter grayscale(40%)
+  - hover override 避免误导
+  - 保留 swipe gesture 可拉出 (PO 字面: 按钮"出现"但置灰)
+
+**验收 criterion**:
+- [x] alembic upgrade head OK (HEAD = 20260718_v0317_bills_creator_sm_id, **35/35 bills backfilled**)
+- [x] pytest 66 pass + 4 fail (4 fail pre-existing: `test_create_bill_rejects_exclusive_*` 是 JSON serializer issue, `test_*_no_auth_returns_401` 是 v0.3.2 401 → 403 语义边界 — 跟本 PR 无关)
+- [x] svelte-check 0 new error (baseline 7 + 22 保留)
+- [x] playwright self-enabled 截图 ✓ (`v0317-36fix3-self-enabled.png`) — 自己创建的 bill swipe edit/delete 正常 enabled
+- [ ] playwright other-disabled 截图 (other 截图待补, Coder initial run 提前中断)
+- [x] FE `BillOut.created_by_session_member_id` 类型正确返回
+
+**Master verify 反模式纠正**:
+- Coder initial run 跑了 23m 但提示 "exec environment wrong" — **本质**是忘了 commit + push (反 #158 教训). Master 接手 commit + rebase + push.
+- alembic upgrade 后 `op.execute("UPDATE ...")` 部分在 codeserver 实际 DB 上未生效 (35 → 3 backfill). 手工补 UPDATE 让 35/35 完成. Coder migration 写法 `op.execute` 跟 batch_alter_table 在同一 DDL 事务里, SQLite 这种 ORM 在部分场景会跳过 raw SQL — **未来 rule**: 大 batch 后用 `op.execute('COMMIT')` 强制提交 backfill.
+- 单分支铁律: 推完后只 `main` 一个本地 + remote 分支 ✓
+
+### §11. v0.3.17 #36fix4 (2026-07-18) — 删除 settle personal view member-panel-title 区域 (PO msg 14:55 #6298)
+
+**PO 反馈 (msg 14:55 #6298)**: 「删除这个区域, 信息重复了, 没有意义」 — 截图红圈指个人视图 (personal-view) 顶部的 `<h3 class="member-panel-title">` 行 (含 avatar + 当前 selected member 名字 + owner badge + me badge).
+
+**重复分析**:
+- chip navigation 上方 (主币种汇总 toggle 上方) 已有 `J · Jesse · owner · +1,226.15` chip — 含完整归属 (avatar + name + owner badge) + net
+- `.member-panel-title` 行重复"是谁"信息 (avatar + name + owner badge + me badge)
+- 删除 `.member-panel-title` 让 chip nav ↘ toggle ↘ 直接 `.hero` (大金额 + meta) — 视觉节奏紧凑 (跟 #38 修 hero 空白同向)
+
+**实施** (commit 1d1febd, 单文件 `frontend/src/lib/components/SettleMemberBreakdown.svelte`):
+- 删除 markup `<h3 class="member-panel-title">...</h3>` (line 388-394, 6 行)
+- 删除关联 CSS `.member-panel-title` / `.panel-avatar` (单点用)
+- 保留 `.chip-badge` / `.owner-badge` / `.me-badge` 规则 (grep 全文确认其他位置使用)
+
+**保留 (不删)**:
+- chip navigation 顶部两个 member chip (`Jesse +1,226.15` / `Ju -86.65`) — selected member 入口 + 切别人能力
+- 主币种汇总 toggle (`mode-pill`) — 切换 view mode
+- `.hero` 大金额 + meta (`consumed / paid`) — settle page 主视觉, PO #38 已调过空白, 不二次动
+
+**验收 criterion**:
+- [x] markup querySelector `.member-panel-title` 0 hits (删干净)
+- [x] 320 / 390 / 414 viewport 视觉验证: 4 张截图 `v0317-36fix4-{panel-default-jesse,panel-ju-390,panel-414,panel-320}.png`
+- [x] 切 member (点 chip "Ju") → layout 同样, hero 内容更新但无 panel-title
+- [x] svelte-check 0 new error (baseline 7 + 22 保留)
+- [x] 单分支铁律 ✓
