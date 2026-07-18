@@ -843,14 +843,11 @@
      保留 max padding 给桌面, 不引新 design token. */
   .hero {
     text-align: center;
-    padding: var(--space-7, 48px) var(--space-5, 20px);
-    margin-bottom: var(--space-4, 16px);
+    /* v0.3.17 #38 (PO msg 10:56 #6263): padding 减小 48px → 16px 上下, 去掉 hero 区域大空白 */
+    padding: var(--space-4, 16px) var(--space-5, 20px);
+    margin-bottom: var(--space-3, 12px);
   }
-  @container page (max-width: 380px) {
-    .hero {
-      padding: var(--space-5, 20px) var(--space-4, 16px);
-    }
-  }
+  /* 移除 @container page (max-width: 380px) override — 新 padding 已经合理, 不需要额外调整 */
   .hero-net {
     font-size: var(--font-size-3xl, 40px);
     font-weight: 600;
@@ -1026,22 +1023,24 @@
     /* Match the new capsule border-radius so focus ring doesn't pop */
     border-radius: 6px;
   }
+  /* v0.3.17 #37 (PO msg 10:55 #6262): collapse-icon 配合 chip 加倍, 12px 跟 chip 视觉协调 */
   .collapse-icon {
     margin-left: auto;
-    font-size: clamp(0.5625rem, 2.2vw, 0.625rem);
+    font-size: clamp(0.6875rem, 2.6vw, 0.75rem);
     color: var(--gray-400);
     line-height: 1;
   }
 
+  /* v0.3.17 #37 (PO msg 10:55 #6262): icon 20×20 → 24×24, 跟加倍的 chip 高度视觉对位. font-size +2px (12 → 14). */
     .bills-section-icon {
     flex: 0 0 auto;
-    width: 20px;
-    height: 20px;
+    width: 24px;
+    height: 24px;
     border-radius: 50%;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: clamp(0.6875rem, 2.6vw, 0.75rem);
+    font-size: clamp(0.8125rem, 2.8vw, 0.875rem);
     font-weight: 700;
     line-height: 1;
     color: #fff;
@@ -1049,7 +1048,8 @@
   .icon-paid { background: var(--success-500); }
   .icon-consumed { background: var(--accent-500); }
   .bills-section-title { flex: 0 0 auto; }
-  .bills-section-count { flex: 0 0 auto; font-weight: 400; }
+  /* v0.3.17 #37: count 显式 14px 跟 chip font-size-md 视觉对位 */
+  .bills-section-count { flex: 0 0 auto; font-weight: 400; font-size: var(--font-size-sm, 14px); }
   .empty-hint { margin: 0; padding: var(--space-2, 8px) 0; }
 
   /* === bill list rows === */
@@ -1214,8 +1214,10 @@
     backdrop-filter: saturate(200%) blur(20px);
     -webkit-backdrop-filter: saturate(200%) blur(20px);
     border-radius: 9999px;
-    padding: var(--space-2, 8px) var(--space-3, 12px);
-    margin: -8px calc(-1 * var(--space-3, 12px)) -8px calc(-1 * var(--space-3, 12px));
+    /* v0.3.17 #37 (PO msg 10:55 #6262): 加倍 chip 垂直高度 ~36px → ~64-72px, 跟 row 高度 52-72px 视觉对位. padding 上下 8px → 20px (× 2.5, 原 brief 12px 写小改 20px 补足 SPEC 目标); 左右 12px → 16px (× 1.3); margin 同步 -8px → -10px 让 overlap 视觉协调. font-size sm (14px) → md (16px) +1 档. min-height: 60px 保证最小 320px viewport 也 ≥60. 保留 pill border-radius 9999px (PO 没要求改); 保留 sticky + mask-image + z-index + iOS27 玻璃参数. */
+    padding: var(--space-5, 20px) var(--space-4, 16px);
+    margin: -10px calc(-1 * var(--space-3, 12px)) -10px calc(-1 * var(--space-3, 12px));
+    min-height: 60px;
     z-index: 10;
     /* v0.3.17 #31fix-3 (PO msg 01:48 #6160 + 01:59 #6178; 详见 SPEC §11 #31fix-3):
        chip 改 sticky top 0. 原 position: relative 跟 sheet 一起堆叠, 失去 sticky
@@ -1228,7 +1230,8 @@
     display: flex;
     align-items: center;
     gap: var(--space-2, 8px);
-    font-size: var(--font-size-sm, 14px);
+    /* v0.3.17 #37: sm (14px) → md (16px) +1 档 (跟加倍 chip 高度配套) */
+    font-size: var(--font-size-md, 16px);
     font-weight: 600;
     color: var(--gray-900);
     border-bottom: 0;
