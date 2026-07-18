@@ -2297,3 +2297,58 @@ seed 脚本 (`backend/scripts/seed_dev_data.py`) 已有 find-or-create 逻辑：
   - bills / members sections 几乎全透 (border + inset highlight + text-shadow 补偿)
   - 文字仍可读
 - [x] 单分支铁律: origin 仅有 main (committed , push 08c383e..fb4d572)
+
+### §11. v0.3.18 #50 (2026-07-18) — 成员/账单 section 极透明化 v2 (PO msg 22:12 #6523)
+
+**PO 反馈 (msg 22:12 #6523)**: 「成员 section 和账单 section 都变透明」 — 修 v0.3.18 #49 之后仍觉得 sections 不够透, 还要再降一档.
+
+**根因**: v0.3.18 #49 把 bills (.day-group) bg 降到 0.10 + members (.member-chip) 降到 0.15/0.08 + 边缘白边 0.65 + inset highlight 0.95, 整体还是感觉"白纸 + 文字". PO 觉得这些 section 不够透, 还要再降一档.
+
+**修法 (3 文件: BillListGrouped.svelte + SettleMemberBreakdown.svelte + app.css)**:
+
+| 元素 | before #50 | #50 | 设计意图 |
+|------|----------|------|---------|
+| `.day-group` (账单 list) bg | 0.10 | **0.04** | 几乎全透, 只靠 border + hairline 提示 section |
+| `.day-group` border | 0.65 | **0.18** | 白边几乎消失 |
+| `.day-group` inset highlight | 0.95 | **0.20** | 玻璃上沿高光大幅淡化 |
+| `.day-group` 外阴影 indigo | 0.16 | **0.04** | section 不再"浮起" |
+| `.day-group` 外阴影 black | 0.03 | **0.02** | 同降一档 |
+| `.member-chip` bg | 0.15/0.08 | **0.04/0.02** | 成员 chip 几乎全透 |
+| `.member-chip` border | 0.65 | **0.22** | 白边几乎消失 |
+| `.member-chip` inset highlight | 0.95 | **0.18** | 玻璃上沿高光大幅淡化 |
+| `.member-chip` 外阴影 indigo | 0.16 | **0.04** | chip 不再"浮起的小胶囊" |
+| `.member-chip:hover` bg | 0.22/0.15 | **0.10/0.05** | hover 仍略亮 |
+| `.glass-sheet` (settle bills 容器) bg | 0.10 | **0.05** | 极透, 但仍能跟 .glass-chip 区分浓度 |
+| `.glass-sheet` inset highlight | 0.95 | **0.20** | 玻璃上沿高光大幅淡化 |
+| `.glass-sheet` black bottom inset | 0.04 | **0.015** | 同降一档 |
+| `.glass-sheet` border-left color (paid/consumed) | 实色 | **rgba(34, 197, 94, 0.45) / rgba(99, 102, 241, 0.45)** | 保留颜色降存在感 |
+| `.section-header.glass-chip` bg | 0.20 | **0.10** | 几乎全透, 只靠文字 + inset highlight |
+| `.section-header.glass-chip` inset highlight | 1.0 | **0.30** | 玻璃上沿大幅淡化 |
+| `.section-header.glass-chip` 外阴影 3 层 indigo | 0.14/0.20/0.14 | **0.04/0.06/0.04** | 三层浓阴影同降一档 |
+| `.glass-pill` (global utility) bg | 0.06/0.04 | **0.04/0.02** | 几乎全透 |
+| `.glass-pill` border | 0.20 | **0.16** | 白边降一档 |
+| `.glass-pill` inset highlight | 0.7 | **0.45** | 玻璃上沿大幅淡化 |
+| `.glass-pill` 外阴影 indigo | 0.12 | **0.05** | 同降一档 |
+
+**保留 (反 #121/#125/#150 教训)**:
+- bg image (cool 浅蓝 137962 字节, commit in fb4d572) — 不改
+- AppBackground.svelte — 不动
+- solid color components: FAB (实色 accent), thumb (实色 accent), member-chip.selected (实色 accent) — 视觉锚点
+- 模板结构 / JS 逻辑 — 不动
+- hairline 玻璃分隔 (`::after` 伪元素) — 设计锚点, 保留
+- text-shadow (.member-chip `0 1px 3px 0.8` / .section-header.glass-chip `0 1px 3px 0.85`) — 低对比玻璃上文字唯一可读性补偿
+- Safari iOS < 18 fallback 同步降级比例 (`.glass-pill` 0.12→0.08, `.member-chip` 0.40→0.18, `.section-header.glass-chip` 0.32→0.20)
+
+**反模式预防 (5 条新增)**:
+- (a) **"白边过头" 后效应 (反 #150/#152/#121 教训)**: 上一轮 #48/#49 大幅降 bg 时同步上调 border (0.55→0.65) + inset highlight (0.7→0.95) 试图"保住玻璃感", 但 PO 实拍发现"白边+白框"比"白底"更碍眼. 这次 #50 反向操作: 一并降 border + inset highlight, 不再"补偿" — 让 glass 真正消失, 只靠 hairline + text-shadow 提示结构.
+- (b) **外阴影 indigo depth 阶梯**: `.day-group` (4px) < `.member-chip` (4px) < `.section-header.glass-chip` (12px). 三层 chip-on-sheet liquid density 区分仍保留, 但层级各自降一档 (4/12/24 → 4/12/24, 但 alpha 从 0.16/0.10/0.20 降到 0.04/0.04/0.06). 视觉上 chip 仍最"立体", member-chip 最"扁平", 跟原设计意图一致.
+- (c) **border-left 半透化策略**: 实色 (success-500 / accent-500) 改成 0.45 alpha 版本 (rgba(34, 197, 94, 0.45) / rgba(99, 102, 241, 0.45)). 之前 `.glass-sheet { border-left: 0 }` 把 stripe 完全干掉了, 现在 #50 启用回 stripe 但 alpha 降到 0.45, "保留颜色锚点但降低存在感". 设计补点 (paid = 绿, consumed = 蓝紫), sheet 本身几乎全透.
+- (d) **不动 bg image**: 反 #128/#150 — 不重做 cool-bg.jpg, 沿用 #49 137962 字节版本.
+- (e) **不动 favicon / hero amount / 全站 layout**: 仅玻璃透明度微调, 不引入新 design token, 不动 :root 变量.
+
+**svelte-check**: 期望 7 errors / 22 warnings (同 #48/#49 baseline, 0 new error — 纯 CSS 微调不动 Svelte 模板).
+
+**Master 真机 walk 待验** (Coder 不直跑 #150 真机, 留给 Master):
+- 4 截图 `~/.openclaw/media/browser/v0318-50-{bills-list-detail,settle-members,settle-bills-detail,bills-list-top}.png`
+- 验证: 冷色调 bg 透出来**极其明显**, 成员 chip + day-group + bills section 几乎只有文字/avatar/icons, 没有明显"白框"/"卡片"感.
+- DB 数据存在性 (`python3 /tmp/check_data.py` 验 sessions + bills 数未变).

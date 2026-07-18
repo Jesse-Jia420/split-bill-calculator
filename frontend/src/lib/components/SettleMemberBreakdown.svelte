@@ -640,14 +640,20 @@
      - border 0.55 → 0.65 (白边更明显, 防止透明化后玻璃感稀释)
      - inset highlight 0.7 → 0.95 (玻璃上沿高光更明显)
      - 外阴影 0.10 → 0.16 indigo (玻璃感更强)
-     - chip 文字 text-shadow 0.6 → 0.8 + 1px → 3px (白色微晕更强, 防低对比看不清) */
+     - chip 文字 text-shadow 0.6 → 0.8 + 1px → 3px (白色微晕更强, 防低对比看不清)
+     === v0.3.18 #50 (PO msg 22:12 #6523 极透明化 v2): #48/#49 后 section 仍"白纸+文字"
+     - bg 0.15/0.08 → 0.04/0.02 (chip 几乎全透, 只靠 border + 文字 + avatar 提示)
+     - border 0.65 → 0.22 (白边几乎消失, 跟 .day-group 同语言)
+     - inset highlight 0.95 → 0.18 (玻璃上沿高光大幅淡化, 不再"白框卡片")
+     - 外阴影 indigo 0.16 → 0.04 (chip 不再"浮起的小卡片")
+     - 保留 text-shadow 0 1px 3px 0.8 (唯一可读性补偿) */
   .member-chip {
     scroll-snap-align: start;
     flex: 0 0 auto;
     appearance: none;
-    /* Inactive base — glass-pill (v0.3.18 #49 极透明化 sweep, PO msg 21:16 #6508) */
-    background: linear-gradient(180deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.08) 100%);
-    border: 1px solid rgba(255,255,255,0.65);
+    /* Inactive base — glass-pill (v0.3.18 #50 极透明化 v2, PO msg 22:12 #6523) */
+    background: linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%);
+    border: 1px solid rgba(255,255,255,0.22);
     backdrop-filter: saturate(180%) blur(16px);
     -webkit-backdrop-filter: saturate(180%) blur(16px);
     border-radius: var(--radius-full);
@@ -662,11 +668,11 @@
     text-align: left;
     color: var(--gray-700);
     font: inherit;
-    /* v0.3.18 #49: inset highlight 0.7 → 0.95 + 外阴影 0.10 → 0.16 indigo */
+    /* v0.3.18 #50: inset highlight 0.95 → 0.18 + 外阴影 0.16 → 0.04 indigo */
     box-shadow:
-      inset 0 1px 0 rgba(255,255,255,0.95),
-      0 4px 12px rgba(99,102,241,0.16);
-    /* v0.3.18 #49: chip 文字白色微晕加强 (防低对比玻璃 + PO msg #6508) */
+      inset 0 1px 0 rgba(255,255,255,0.18),
+      0 4px 12px rgba(99,102,241,0.04);
+    /* v0.3.18 #49 保留: chip 文字白色微晕 (低对比玻璃上唯一可读性补偿) */
     text-shadow: 0 1px 3px rgba(255,255,255,0.8);
     transition:
       background 200ms ease,
@@ -678,8 +684,8 @@
   .member-chip:hover {
     border-color: var(--accent-500);
     color: var(--accent-700);
-    /* v0.3.18 #49: hover bg 0.45/0.30 → 0.22/0.15 (跟 base 0.15/0.08 同步降级, hover 仍略亮) */
-    background: linear-gradient(180deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.15) 100%);
+    /* v0.3.18 #50: hover bg 0.22/0.15 → 0.10/0.05 (跟新 base 0.04/0.02 同步降级, hover 仍略亮表示交互) */
+    background: linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.05) 100%);
   }
   .member-chip:active {
     transform: scale(0.97);
@@ -705,10 +711,11 @@
     color: white;
   }
   /* Safari iOS < 18 fallback (无 backdrop-filter): 用 opaque 半透明白
-     v0.3.18 #49: 0.60 → 0.40 (跟新 base 0.15/0.08 同比例降级, 保留可读性 fallback) */
+     v0.3.18 #49: 0.60 → 0.40 (跟新 base 0.15/0.08 同比例降级, 保留可读性 fallback)
+     v0.3.18 #50: 0.40 → 0.18 (跟新 base 0.04/0.02 同比例降级, 保留可读性 fallback) */
   @supports not (backdrop-filter: blur(1px)) {
     .member-chip {
-      background: rgba(255,255,255,0.40);
+      background: rgba(255,255,255,0.18);
     }
   }
   /* T9 me double ring (kept even though me badge text removed) */
@@ -926,8 +933,12 @@
     border-left: 3px solid transparent;
     border-radius: 2px;
   }
-  .bills-section-paid { border-left-color: var(--success-500); }
-  .bills-section-consumed { border-left-color: var(--accent-500); }
+  /* v0.3.18 #50 (PO msg 22:12 #6523 极透明化 v2): 颜色竖条从实色→半透色.
+     由更具体的 `.bills-section.glass-sheet` 重设 (0,2,0) 启亮 border-left 3px (上面 .glass-sheet
+     shorthand "0" 临到 .bills-section-paid / -consumed 时只覆盖 color, width 还是 .bills-section
+     原 3px). 这样 sheet 是极透明玻璃 + 颜色竖条极淡, 设计锚点保留, 存在感大降. */
+  .bills-section-paid { border-left-color: rgba(34, 197, 94, 0.45); }
+  .bills-section-consumed { border-left-color: rgba(99, 102, 241, 0.45); }
   .bills-section-head {
     margin: 0 0 var(--space-2, 8px);
     /* === v0.3.16 #2: extend sticky bg past container's padding-left (PO msg 14:54) === */
@@ -1166,20 +1177,28 @@
        ===
        v0.3.18 #49 (PO msg 21:16 #6508 极透明化 sweep): bg 0.18 → 0.10
        跟 day-group (.bill 列表) 同透度, 整站玻璃 sheet 几乎全透.
-       inset highlight 0.7 → 0.95 (玻璃上沿补偿). */
+       inset highlight 0.7 → 0.95 (玻璃上沿补偿).
+       ===
+       v0.3.18 #50 (PO msg 22:12 #6523 极透明化 v2): #49 sheet 仍"白纸+文字",
+       再降一档极透. bg 0.10 → 0.05, inset 0.95 → 0.20.
+       .bills-section-paid / .bills-section-consumed 的 border-left
+       (success-500 / accent-500 实色) 同改: alpha 0.4-0.5, 保留颜色降存在感. */
     position: relative;
     z-index: 1;
-    background: rgba(255, 255, 255, 0.10);
+    background: rgba(255, 255, 255, 0.05);
     backdrop-filter: saturate(150%) blur(16px);
     -webkit-backdrop-filter: saturate(150%) blur(16px);
     border-radius: 16px;
     /* v0.3.18 #44: margin-top 14 → 0 + padding-top 10 → 4 (跟 .hero mb 0 一起 collapse) */
     padding: 4px var(--space-3, 12px) var(--space-3, 12px);
-    border-left: 0;
+    /* v0.3.18 #50 (PO msg 22:12 #6523 极透明化 v2): 删 border-left: 0, 让 .bills-section
+       原 3px border-left + .bills-section-paid/-consumed 的半透 color (0.45 alpha) 重新
+       生效. 设计补点: 付款/消费 sheet 左侧有 3px 半透色彩条作为语义区别 (绿/蓝紫), sheet 本身
+       几乎全透. 设计锚点保留, 存在敢路 0.45 alpha 减陆. */
     margin-top: 0;
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.95),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.04);
+      inset 0 1px 0 rgba(255, 255, 255, 0.20),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.015);
   }
 
   /* glass-chip: 浓液浮在 sheet 顶, 取代旧 .section-header 的 sticky + 0.92 bg.
@@ -1194,9 +1213,13 @@
   .section-header.glass-chip {
     /* v0.3.18 #49 (PO msg 21:16 #6508 极透明化 sweep): bg 0.35 → 0.20
        跟成员 chip (0.15/0.08) 同步, 整站 section header chip 几乎全透.
-       chip 仍是 chip-on-sheet 中最浓液 (chip 0.20 > sheet 0.10 > bg 图片),
-       保留 liquid density 区分. */
-    background: rgba(255, 255, 255, 0.20);
+       ===
+       v0.3.18 #50 (PO msg 22:12 #6523 极透明化 v2): #49 chip 仍"白边+浮起", 再降一档
+       - bg 0.20 → 0.10 (chip 几乎全透, 只靠文字 + inset highlight 提示有 label)
+       - inset highlight 1.0 → 0.30 (玻璃上沿大幅淡化, 不再"白框胶囊")
+       - 外阴影 indigo: 0.14/0.20/0.14 → 0.04/0.06/0.04 (后两层浓阴影同降一档)
+       - 保留 text-shadow (重要文字仍然可读) */
+    background: rgba(255, 255, 255, 0.10);
     backdrop-filter: saturate(200%) blur(20px);
     -webkit-backdrop-filter: saturate(200%) blur(20px);
     border-radius: 9999px;
@@ -1227,14 +1250,13 @@
        chip bg 物理遮挡. 视觉 "list 渐消失于 head 中" (PO msg 23:44 #6063 设计意图) */
     mask-image: linear-gradient(180deg, transparent 0, #000 16px, #000 100%);
     -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 16px, #000 100%);
-    /* v0.3.18 #49: chip inset highlight 0.9 → 1.0 (玻璃上沿高光最浓);
-       外阴影 indigo 0.10/0.16/0.10 → 0.14/0.20/0.14 (略深, 玻璃感更强);
-       text-shadow 0.7 → 0.85 + 1px → 3px (文字对比度更强, 防止透明化后看不清). */
+    /* v0.3.18 #50: chip inset highlight 1.0 → 0.30 + 外阴影大幅降级. */
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 1.0),
-      0 1px 2px rgba(99, 102, 241, 0.14),
-      0 4px 12px rgba(99, 102, 241, 0.20),
-      0 8px 24px rgba(99, 102, 241, 0.14);
+      inset 0 1px 0 rgba(255, 255, 255, 0.30),
+      0 1px 2px rgba(99, 102, 241, 0.04),
+      0 4px 12px rgba(99, 102, 241, 0.06),
+      0 8px 24px rgba(99, 102, 241, 0.04);
+    /* v0.3.18 #49 保留: 文字白色微晕 (低对比玻璃上唯一可读性补偿) */
     text-shadow: 0 1px 3px rgba(255, 255, 255, 0.85);
   }
   /* #31-fix (PO msg 23:44 #6065 拍补): 两个 section (paid + consumed) 同层并列,
@@ -1246,10 +1268,11 @@
     content: none;
   }
   /* glass-chip: Safari iOS < 18 backdrop-filter fallback.
-   v0.3.18 #49: 0.50 → 0.32 (跟新 base 0.20 同比例降级, 仍提供 fallback opaque 可读性) */
+   v0.3.18 #49: 0.50 → 0.32 (跟新 base 0.20 同比例降级, 仍提供 fallback opaque 可读性)
+   v0.3.18 #50: 0.32 → 0.20 (跟新 base 0.10 同比例降级, 仍提供 fallback opaque 可读性) */
   @supports not (backdrop-filter: blur(1px)) {
     .section-header.glass-chip {
-      background: rgba(255, 255, 255, 0.32);
+      background: rgba(255, 255, 255, 0.20);
     }
   }
 </style>
