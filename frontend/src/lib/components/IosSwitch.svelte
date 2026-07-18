@@ -129,7 +129,12 @@
     box-shadow:
       inset 0 1px 2px rgba(0, 0, 0, 0.04),
       inset 0 -1px 0 rgba(255, 255, 255, 0.6);
-    margin-bottom: 1.25rem;
+    /* v0.3.17 #39 (PO msg 16:24): 整组居中 — settle 页 IosSwitch
+       放在 .card 容器内, 之前 width: fit-content 但没 auto margin
+       → 默认左对齐, 留 60% 右边空白. 改 margin-left/right: auto
+       让 fit-content + block parent 居中. wizard step 3 不用
+       IosSwitch 组件, 不受影响. */
+    margin: 0 auto 1.25rem;
     width: fit-content;
     max-width: 100%;
   }

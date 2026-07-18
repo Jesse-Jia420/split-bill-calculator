@@ -265,16 +265,24 @@
   /* v0.3.17 #36fix: 外层 .currency-bar (双币种 case 唯一 pill 视觉).
    *   - flex-direction column 内部装 Row 1 + Row 2, 形成「1 个胶囊里有 2 行」视觉.
    *   - fit-content 居中, 蓝色 accent 渐变 + 玻璃 material (跟原 Row 1 同款).
-   *   - 内边距偏紧, 让 Row 1 / Row 2 视觉上「贴合」成 1 个 unit. */
+   *   - 内边距偏紧, 让 Row 1 / Row 2 视觉上「贴合」成 1 个 unit.
+   *
+   *   v0.3.17 #40 (PO msg 16:24): 整 bar 高度太宽 + 编辑/普通态高度不一致真修.
+   *   - padding 6px → 4px (上下各 4px = 8px, 比原 12px 省 4px).
+   *   - gap Row 1 → Row 2 2px (原 4px), 更紧凑的视觉 unit.
+   *   - 加 `gap: 2px` 取代 .rate-row margin-top: 4px — 统一管理 Row 间 spacing.
+   *   - min-height 保证最小 unit 高度 (44px) iOS tap target 还合理.
+   *   - 单币种 .currency-pill-row--single 不动 (已经 fit-content 一行不需改). */
   .currency-bar {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: 2px;
     width: fit-content;
     max-width: calc(100% - 32px);
     margin: 8px auto;
-    padding: 6px clamp(10px, 3vw, 16px);
+    padding: 4px clamp(10px, 3vw, 16px);
     font-size: clamp(0.6875rem, 2.6vw, 0.8125rem);
     line-height: 1.4;
     color: var(--gray-700);
@@ -351,7 +359,13 @@
 
   /* v0.3.17 #36fix: 内部 .rate-row (Row 2 — 汇率 + 编辑) 同样退化为分隔行.
    *   视觉副标题感: 字号略小 (sub-clamp), 颜色 gray-600 (比 Row 1 略淡).
-   *   跟 Row 1 之间用 margin-top 4px 拉开 (无 hairline / 无 divider, 纯呼吸感). */
+   *   跟 Row 1 之间用 margin-top 4px 拉开 (无 hairline / 无 divider, 纯呼吸感).
+   *
+   *   v0.3.17 #40 (PO msg 16:24): 编辑态 (rate-input height 20px) vs 普通态
+   *   (rate-button text-only ~14px) 高度不一致真修.
+   *   - min-height: 20px 让普通态撑到跟编辑态一样高 (rate-input height 20px).
+   *   - align-items: baseline → center, vertical 居中 (text-only 跟 input 不同 baseline).
+   *   - margin-top: 0 (原 4px), 改用 .currency-bar `gap: 2px` 统一 Row 间距. */
   .rate-row {
     display: flex;
     justify-content: center;
@@ -359,8 +373,9 @@
     flex-wrap: wrap;
     gap: clamp(4px, 1.5vw, 8px);
     width: 100%;
+    min-height: 20px;
     padding: 0;
-    margin: 4px 0 0; /* 跟 Row 1 之间留 4px 呼吸 */
+    margin: 0;
     font-size: clamp(0.625rem, 2.4vw, 0.75rem);
     color: var(--gray-600);
   }
