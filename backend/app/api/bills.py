@@ -230,6 +230,14 @@ class BillOut(BaseModel):
     description: str | None
     occurred_at: str
     created_by: int | None  # v0.3.1: NULL for anonymous bill creators
+    # v0.3.17 #36fix3 (PO msg 14:53): session-member-level creator
+    # pointer. Distinct from ``created_by`` (user-level) — this column
+    # drives the owner check in update_bill / delete_bill and is what
+    # the FE compares against ``currentUserMemberId`` to decide
+    # whether to show the swipe action buttons as enabled or greyed
+    # out. NULL on pre-#36fix3 bills that no longer have a valid
+    # SessionMember row (ON DELETE SET NULL).
+    created_by_session_member_id: int | None = None
     created_at: str
     status: str
     participants: list[ParticipantOut]
@@ -516,6 +524,10 @@ def _bill_to_dict(
         "description": bill.description,
         "occurred_at": _iso(bill.occurred_at),
         "created_by": bill.created_by,
+        # v0.3.17 #36fix3: session-member-level creator pointer (see
+        # BillOut docstring). Echoed verbatim — FE compares it
+        # against currentUserMemberId for swipe button enable/disable.
+        "created_by_session_member_id": bill.created_by_session_member_id,
         "created_at": _iso(bill.created_at),
         "status": bill.status,
         # v0.2.1 T01: echo the raw expression so the edit page can
@@ -834,6 +846,13 @@ async def create_bill(
         description=payload.description,
         occurred_at=payload.occurred_at,
         created_by=sm.user_id,
+        # v0.3.17 #36fix3 (PO msg 14:53): session-member-level
+        # creator pointer. Always NOT NULL — even anonymous members
+        # have an ``sm.id`` (their secret maps to a row). This is the
+        # column the owner check compares against ``sm.id`` in
+        # update_bill / delete_bill, so it must be set at create
+        # time and never mutated afterwards.
+        created_by_session_member_id=sm.id,
         status=BillStatus.DRAFT.value,
         # v0.2.1 T01: store raw expression only when it came from the calculator.
         amount_expression=stored_expression,
@@ -891,15 +910,23 @@ async def update_bill(
     db: Annotated[Session, Depends(get_db)],
     bill_id: int = Path(..., description="Bill.id"),
 ) -> dict:
-    """Update a bill. Any session member may modify (SPEC §5, v0.1.2).
+    """Update a bill. Only the session-member-level creator may modify
+    (v0.3.17 #36fix3, reverts v0.1.2 T17 relax).
 
-    v0.1.2: relaxed from 'creator-only' to 'any member' to support
-    group editing -- e.g. someone who wasn't around when the bill
-    was recorded can fix the amount / payer / participants on the
-    group's behalf. The bill's `description` is immutable (PO
-    2026-06-30 B②i): once a description is committed it is
-    treated as historical fact. The schema rejects PATCH bodies
-    containing `description` with 422 via `extra='forbid'`.
+    v0.3.17 #36fix3 (PO msg 14:53): PO reverses the v0.1.2 T17
+    "any session member can edit" decision. The new rule is
+    "only the bill creator can PATCH / DELETE" — matching the
+    original v0.1.0 T10 semantics. The check uses the new
+    ``bills.created_by_session_member_id`` column (session-member-level)
+    rather than ``bills.created_by`` (user-level) so anonymous
+    creators can still edit their own bills (the v0.3.1 nullable
+    user_id would otherwise leave anon-created bills permanently
+    uneditable).
+
+    The bill's `description` is immutable (PO 2026-06-30 B②i): once
+    a description is committed it is treated as historical fact.
+    The schema rejects PATCH bodies containing `description` with
+    422 via `extra='forbid'`.
 
     v0.1 status defaults to 'draft', so the 'session not locked' check
     is implicitly satisfied (no lock endpoint exists in v0.1 yet).
@@ -909,7 +936,8 @@ async def update_bill(
     200: bill updated.
     400: invalid participant / amount / exclusive total.
     401: no/invalid cookie.
-    403: caller is not a session member.
+    403: caller is not the bill's creator (not the session-member-level
+         creator_sm_id), OR caller is not a session member at all.
     404: bill not found in this session.
     422: missing/over-long/invalid fields OR `description`/unknown field
          (pydantic extra='forbid').
@@ -928,7 +956,21 @@ async def update_bill(
             detail={"error": "bill not found"},
         )
 
-    # v0.1.2 (T17): removed creator check -- any session member can update.
+    # v0.3.17 #36fix3 (PO msg 14:53): owner check re-enabled (see
+    # reverse-history in v0.1.2 T17 comment). Compare session-member-
+    # level creator pointer to the current request's sm.id — this
+    # works uniformly for logged-in and anonymous members because
+    # sm.id is always NOT NULL regardless of sm.user_id.
+    if bill.created_by_session_member_id != sm.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "error": "bill_not_owned_by_current_member",
+                "bill_id": bill_id,
+                "creator_sm_id": bill.created_by_session_member_id,
+                "current_sm_id": sm.id,
+            },
+        )
 
     # Apply scalar updates first (any of these may be None).
     # v0.2.1 T01 + v0.3.1 (TEST-006 fix): when amount_expression arrives
@@ -1054,11 +1096,18 @@ async def delete_bill(
     db: Annotated[Session, Depends(get_db)],
     bill_id: int = Path(..., description="Bill.id"),
 ) -> None:
-    """Delete a bill. Any session member may delete (SPEC §5, v0.1.2).
+    """Delete a bill. Only the session-member-level creator may delete
+    (v0.3.17 #36fix3, reverts v0.1.2 T17 relax).
+
+    See ``update_bill`` for the full history of the owner check.
+    Same ``created_by_session_member_id == sm.id`` guard, raised as
+    403 with structured detail so the FE can show "账单由他人创建,
+    不可删除" instead of a generic error.
 
     204: bill deleted (participants cascade).
     401: no/invalid cookie.
-    403: caller is not a session member.
+    403: caller is not the bill's creator (not the session-member-level
+         creator_sm_id), OR caller is not a session member at all.
     404: bill not found in this session.
 
     v0.3.2 (PRD §3.12 + SPEC §3.12.C): upgraded from
@@ -1074,7 +1123,18 @@ async def delete_bill(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": "bill not found"},
         )
-    # v0.1.2 (T17): removed creator check -- any session member can delete.
+    # v0.3.17 #36fix3 (PO msg 14:53): owner check re-enabled, mirroring
+    # the PATCH handler. See update_bill for the design rationale.
+    if bill.created_by_session_member_id != sm.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "error": "bill_not_owned_by_current_member",
+                "bill_id": bill_id,
+                "creator_sm_id": bill.created_by_session_member_id,
+                "current_sm_id": sm.id,
+            },
+        )
     db.delete(bill)
     db.commit()
     return None

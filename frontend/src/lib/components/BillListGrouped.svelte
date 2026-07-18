@@ -235,6 +235,18 @@
     return b.amount / n;
   }
 
+  // v0.3.17 #36fix3 (PO msg 14:53): session-member-level ownership
+  // predicate. Drives whether the swipe action buttons render as
+  // enabled (full opacity, click triggers edit/delete) or visually
+  // disabled (opacity 0.4 + cursor: not-allowed + pointer-events: none
+  // so click does NOT fire onSwipeEdit / onSwipeDelete). The swipe
+  // gesture itself is intentionally NOT disabled — PO wants users to
+  // see the buttons appear and understand why they're inert.
+  function billCanEdit(b: Bill): boolean {
+    if (currentUserMemberId === null || currentUserMemberId === undefined) return false;
+    return b.created_by_session_member_id === currentUserMemberId;
+  }
+
   // ===== swipe logic =====
 
   function getRowOffset(billId: number): number {
@@ -384,6 +396,13 @@
   async function onSwipeEdit(billId: number, e: MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
+    // v0.3.17 #36fix3 (PO msg 14:53): defense-in-depth — even though
+    // the disabled button has ``pointer-events: none`` (CSS), if a
+    // future browser bug or programmatic click reaches here we still
+    // refuse to navigate. The owner check is the same one the BE
+    // uses; comparing on the FE avoids the wasted network round trip.
+    const bill = (bills ?? []).find((b) => b.id === billId);
+    if (!bill || !billCanEdit(bill)) return;
     swipeOffsetStore.update((o) => ({ ...o, [billId]: 0 }));
     if (get(openSwipeBillIdStore) === billId) openSwipeBillIdStore.set(null);
     await tick();
@@ -392,6 +411,9 @@
   async function onSwipeDelete(billId: number, e: MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
+    // v0.3.17 #36fix3 (PO msg 14:53): see onSwipeEdit. Same guard.
+    const bill = (bills ?? []).find((b) => b.id === billId);
+    if (!bill || !billCanEdit(bill)) return;
     swipeOffsetStore.update((o) => ({ ...o, [billId]: 0 }));
     if (get(openSwipeBillIdStore) === billId) openSwipeBillIdStore.set(null);
     await tick();
@@ -550,6 +572,15 @@
                          caller 端, 反 #121/#125 边界。 -->
                     {@const leftProgress = rowOffset > 0 ? rubberBandProgress(rowOffset) : 0}
                     {@const rightProgress = rowOffset < 0 ? rubberBandProgress(-rowOffset) : 0}
+                    <!-- v0.3.17 #36fix3 (PO msg 14:53): session-member-level
+                         ownership predicate. Drives the .disabled modifier
+                         on both swipe action buttons: when false, the CSS
+                         ``pointer-events: none`` rule kicks in and the
+                         click handlers short-circuit (see onSwipeEdit /
+                         onSwipeDelete). PO 字面 wants the buttons to still
+                         APPEAR (so users understand "this bill belongs to
+                         someone else") but be visually greyed out. -->
+                    {@const canEdit = billCanEdit(b)}
 <!-- v0.3.17 #20 hotfix (PO msg 13:12): 取消 stagger in:fly,
                          改 in:fade 80ms — toggle 展开时所有 row 同步淡入,
                          30 行不再逐行 delay 200ms, 不再「卡卡的」。
@@ -563,10 +594,14 @@
                         <button
                           type="button"
                           class="bill-swipe-action bill-swipe-action-right glass-pill glass-pill--delete"
+                          class:disabled={!canEdit}
                           style="--swipe-progress: {rightProgress}"
-                          tabindex={rightProgress >= 1 ? 0 : -1}
+                          tabindex={rightProgress >= 1 && canEdit ? 0 : -1}
                           aria-hidden={rightProgress <= 0}
-                          aria-label="删除账单 (圆形按钮): {b.description || '(无说明)'}"
+                          aria-disabled={!canEdit}
+                          aria-label={canEdit
+                            ? `删除账单 (圆形按钮): ${b.description || '(无说明)'}`
+                            : `账单由他人创建, 不可删除: ${b.description || '(无说明)'}`}
                           on:click={(e) => onSwipeDelete(b.id, e)}
                         >
                           <!-- v0.3.17 #18 hotfix (PO msg 06:18): 圆形 icon-only 按钮。
@@ -580,10 +615,14 @@
                       <button
                         type="button"
                         class="bill-swipe-action bill-swipe-action-left glass-pill glass-pill--edit"
+                        class:disabled={!canEdit}
                         style="--swipe-progress: {leftProgress}"
-                        tabindex={leftProgress >= 1 ? 0 : -1}
+                        tabindex={leftProgress >= 1 && canEdit ? 0 : -1}
                         aria-hidden={leftProgress <= 0}
-                        aria-label="编辑账单 (圆形按钮): {b.description || '(无说明)'}"
+                        aria-disabled={!canEdit}
+                        aria-label={canEdit
+                          ? `编辑账单 (圆形按钮): ${b.description || '(无说明)'}`
+                          : `账单由他人创建, 不可编辑: ${b.description || '(无说明)'}`}
                         on:click={(e) => onSwipeEdit(b.id, e)}
                       >
                           <Pencil size={22} strokeWidth={2} aria-hidden="true" />
@@ -919,6 +958,33 @@
   /* 阈值 (≥ 1) 才允许点击, 避免 0~80px 之间误触 */
   .bill-swipe-action[aria-hidden="false"] {
     pointer-events: auto;
+  }
+  /* v0.3.17 #36fix3 (PO msg 14:53): owner-only swipe actions. The
+     .disabled class is applied when the bill's
+     ``created_by_session_member_id`` does NOT match the current
+     route's ``currentUserMemberId``. PO wants the buttons to still
+     appear (so users understand "this is someone else's bill") but
+     be visually inert: opacity 0.4 + cursor not-allowed + click
+     events suppressed at the CSS layer. The JS click handlers ALSO
+     short-circuit as defense-in-depth (see onSwipeEdit / onSwipeDelete).
+     specificity: (0,2,0) for .bill-swipe-action.disabled — matches
+     the glass-pill--delete/--edit modifiers (0,2,1) cleanly so the
+     modifier rules don't override opacity/pointer-events. */
+  .bill-swipe-action.disabled {
+    opacity: 0.4 !important; /* override --swipe-progress opacity */
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+    filter: grayscale(40%);
+  }
+  /* 同样禁掉 hover/focus 反馈,避免误导用户以为能点 */
+  .bill-swipe-action.disabled:hover {
+    background: linear-gradient(
+      135deg,
+      rgba(220, 38, 38, 0.10) 0%,
+      rgba(239, 68, 68, 0.08) 100%
+    ) !important;
+    border-color: rgba(220, 38, 38, 0.22) !important;
+    color: var(--error-700, #be123c) !important;
   }
   .bill-swipe-action-left {
     left: 6px;

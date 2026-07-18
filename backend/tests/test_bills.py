@@ -666,10 +666,11 @@ class TestUpdateBill:
         # v0.2.2 (T10): a fresh snapshot should be present (USD → CNY).
         assert updated["exchange_rate_snapshot"] is not None
 
-    def test_non_creator_can_update_returns_200(self, client: TestClient) -> None:
-        # v0.1.2 (T17): any session member can update a bill -- the
-        # previous 'only the creator' 403 guard is removed. Alice creates
-        # the bill, Bob (another member) successfully edits the amount.
+    def test_non_creator_cannot_update_returns_403(self, client: TestClient) -> None:
+        # v0.3.17 #36fix3 (PO msg 14:53): owner check re-enabled. The
+        # v0.1.2 T17 "any session member can edit" relax is reversed —
+        # only the session-member-level creator can PATCH. Alice
+        # creates the bill, Bob (another member) gets 403.
         c_alice, _ = _login_as("alice@bills.local")
         sid, mids = _make_5_member_session()
         body = _bill_payload(
@@ -683,8 +684,40 @@ class TestUpdateBill:
 
         c_bob, _ = _login_as("bob@bills.local")
         r = c_bob.patch(f"/sessions/{sid}/bills/{bid}", json={"amount": 200.0})
+        assert r.status_code == 403, r.text
+        # Structured detail (used by FE for actionable error copy).
+        detail = r.json()["detail"]
+        assert detail["error"] == "bill_not_owned_by_current_member"
+        assert detail["bill_id"] == bid
+        assert detail["current_sm_id"] == mids["bob@bills.local"]
+        assert detail["creator_sm_id"] == mids["alice@bills.local"]
+
+    def test_creator_can_update_returns_200(self, client: TestClient) -> None:
+        # v0.3.17 #36fix3 (PO msg 14:53): happy path companion to
+        # ``test_non_creator_cannot_update_returns_403``. In a
+        # multi-member session the creator must still be able to
+        # PATCH their own bill. The new owner check must not break
+        # the existing creator flow (covered today only by
+        # ``test_owner_updates_amount`` which uses a single-member
+        # session).
+        c_alice, _ = _login_as("alice@bills.local")
+        sid, mids = _make_5_member_session()
+        body = _bill_payload(
+            payer_member_id=mids["alice@bills.local"],
+            member_ids=[mids["alice@bills.local"], mids["bob@bills.local"]],
+            amount=100.0,
+        )
+        r = c_alice.post(f"/sessions/{sid}/bills", json=body)
+        assert r.status_code == 201
+        bid = r.json()["id"]
+        creator_sm_id = r.json()["created_by_session_member_id"]
+        assert creator_sm_id == mids["alice@bills.local"]
+
+        # Alice (the creator) PATCHes the amount → 200.
+        r = c_alice.patch(f"/sessions/{sid}/bills/{bid}", json={"amount": 333.0})
         assert r.status_code == 200, r.text
-        assert r.json()["amount"] == 200.0
+        assert r.json()["amount"] == 333.0
+        assert r.json()["created_by_session_member_id"] == creator_sm_id
 
     def test_update_bill_cannot_change_description(self, client: TestClient) -> None:
         # v0.1.2 (T17): `description` is immutable. PATCH that includes
@@ -834,7 +867,7 @@ class TestUpdateBill:
 
 
 class TestDeleteBill:
-    def test_creator_deletes(self, client: TestClient) -> None:
+    def test_creator_can_delete_returns_204(self, client: TestClient) -> None:
         c, _ = _login_as("alice@bills.local")
         sid, mids = _make_5_member_session()
         body = _bill_payload(
@@ -859,8 +892,9 @@ class TestDeleteBill:
         finally:
             db.close()
 
-    def test_non_creator_can_delete_returns_204(self, client: TestClient) -> None:
-        # v0.1.2 (T17): any session member can delete a bill.
+    def test_non_creator_cannot_delete_returns_403(self, client: TestClient) -> None:
+        # v0.3.17 #36fix3 (PO msg 14:53): owner check re-enabled. Alice
+        # creates the bill, Bob (another member) gets 403 on DELETE.
         c_alice, _ = _login_as("alice@bills.local")
         sid, mids = _make_5_member_session()
         body = _bill_payload(
@@ -873,7 +907,12 @@ class TestDeleteBill:
 
         c_bob, _ = _login_as("bob@bills.local")
         r = c_bob.delete(f"/sessions/{sid}/bills/{bid}")
-        assert r.status_code == 204, r.text
+        assert r.status_code == 403, r.text
+        detail = r.json()["detail"]
+        assert detail["error"] == "bill_not_owned_by_current_member"
+        assert detail["bill_id"] == bid
+        assert detail["current_sm_id"] == mids["bob@bills.local"]
+        assert detail["creator_sm_id"] == mids["alice@bills.local"]
 
     def test_delete_bill_non_member_returns_403(self, client: TestClient) -> None:
         # Non-member still 403 (even though the v0.1.0 'creator-only'

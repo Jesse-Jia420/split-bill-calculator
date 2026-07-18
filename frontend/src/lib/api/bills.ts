@@ -16,6 +16,14 @@ export interface Bill {
   description: string | null;
   occurred_at: string;
   created_by: number;
+  /** v0.3.17 #36fix3 (PO msg 14:53): session-member-level creator
+   *  pointer. Distinct from ``created_by`` (user-level, NULL for anon
+   *  creators). The BillListGrouped swipe action compares this against
+   *  the route's currentMemberId to decide whether to render the
+   *  edit/delete buttons as enabled (opacity 1.0, click triggers) or
+   *  disabled (opacity 0.4, cursor not-allowed, pointer-events: none).
+   *  BE uses the same column for the PATCH / DELETE owner check. */
+  created_by_session_member_id: number | null;
   created_at: string;
   status: string;
   participants: BillParticipant[];
