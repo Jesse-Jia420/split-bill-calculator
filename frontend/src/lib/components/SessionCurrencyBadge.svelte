@@ -26,8 +26,21 @@
     - 单币种 case 不变: `.currency-pill-row.currency-pill-row--single` 仍是单 chip
       (1 个 row = 1 个 pill, 不需外层 wrapper).
   行为 / 状态 / PATCH 逻辑 / 编辑态 / data-* 属性全部保留.
+
+  v0.3.18 #53 (PO msg 10:49 #6542) — 单币种胶囊缩小 + 点击添加副币种.
+  PO 反馈「单币种时, 币种胶囊 bar 比例有问题, 缩成一个小的即可」.
+  修法:
+    * 单币种 pill 整体缩小 (padding / font-size / blur / inset highlight / box-shadow
+      全部降一档, 跟双币种 Row 1 (.currency-pill-row) 高度对齐 ~24-28px).
+    * 单币种 + owner (editable={true}) → pill 包成 `<button>`, 加 click 触发 +
+      右侧 "+" 提示 (Lucide plus icon). 点击 → 调用 onAddCurrency 回调, 由 parent
+      弹 CurrencyAddModal.
+    * 单币种 + non-owner → 保持 `<div>`, 不可点 (现有行为).
+    * 双币种 case 不变 (已经有自己的 .rate-button edit flow, 不要冲突).
+    * 新增 prop `onAddCurrency: () => void` 可选 — parent 用来接收 click 事件.
 -->
 <script lang="ts">
+  import { createEventDispatcher } from 'svelte';
   import { apiFetch, ApiError } from '$api/client';
   import type { SessionExchangeRate } from '$api/sessions';
 
@@ -41,6 +54,12 @@
   export let variant: 'detail' | 'settle' = 'detail';
   /** §3.14.2 PATCH 成功回调 (page 接到事件后 reload / 重新拉 settle) */
   export let onRateChange: ((newRate: string) => void) | undefined = undefined;
+  /** v0.3.18 #53: 单币种 + owner 点击 pill 时回调, parent 用来打开
+   *  CurrencyAddModal (modal 不在本组件内 — 避免 single-purpose modal
+   *  inflate SessionCurrencyBadge 这个核心 currency meta 组件的体量). */
+  export let onAddCurrency: (() => void) | undefined = undefined;
+
+  const dispatch = createEventDispatcher<{ addCurrency: void }>();
 
   $: is_single = currencies.length === 1;
   $: secondary_currency = currencies.find((c) => c !== primary_currency) ?? '';
@@ -55,6 +74,10 @@
 
   /** 是否展示 rate row (双币种 + 实际有 exchange_rates 数据) */
   $: show_rate = !is_single && rate_row !== null;
+
+  /** v0.3.18 #53: 单币种 + owner 时 pill 是 clickable. 双币种 case 已经有
+   *  .rate-button edit flow, 不要冲突, 显式 guard. */
+  $: single_clickable = is_single && editable;
 
   // §3.14.2 inline edit 状态
   let editing = false;
@@ -125,6 +148,18 @@
       cancelEdit();
     }
   }
+
+  /** v0.3.18 #53: 单币种 + owner click handler. 优先调用 onAddCurrency
+   *  prop (parent 提供 modal 切换状态), 也 dispatch 事件 (兼容未传
+   *  prop 的场景). */
+  function handleAddCurrencyClick() {
+    if (!single_clickable) return;
+    if (onAddCurrency) {
+      onAddCurrency();
+    } else {
+      dispatch('addCurrency');
+    }
+  }
 </script>
 
 <div
@@ -133,10 +168,45 @@
   data-sbc="currency-meta"
 >
   {#if is_single}
-    <!-- 单币种: 单 chip = 单 pill, 不需外层 bar wrapper (1 row = 1 pill 直接展示) -->
-    <div class="currency-pill-row currency-pill-row--single">
-      <span class="currency-chip primary">{primary_currency}</span>
-    </div>
+    <!-- v0.3.18 #53 (PO msg 10:49 #6542): 单币种 pill 缩小 + owner clickable.
+         单币种 + owner (single_clickable=true) → 包成 <button>, 加 + icon +
+         hover 反馈. 单币种 + non-owner → 保持 <div>, 不可点.
+         双币种 case 不变 (见下面 .currency-bar 块). -->
+    {#if single_clickable}
+      <button
+        type="button"
+        class="currency-pill-row currency-pill-row--single currency-pill-row--clickable"
+        on:click={handleAddCurrencyClick}
+        aria-label="添加副币种"
+        data-sbc="currency-pill-add-secondary"
+        data-primary={primary_currency}
+      >
+        <span class="currency-chip primary">{primary_currency}</span>
+        <span class="add-icon" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            width="12"
+            height="12"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.25"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M12 5v14" />
+            <path d="M5 12h14" />
+          </svg>
+        </span>
+      </button>
+    {:else}
+      <div
+        class="currency-pill-row currency-pill-row--single"
+        data-sbc="currency-pill-readonly"
+        data-primary={primary_currency}
+      >
+        <span class="currency-chip primary">{primary_currency}</span>
+      </div>
+    {/if}
   {:else}
     <!-- v0.3.17 #36fix (PO msg 12:45 #6287 拍板): 双币种 case 改成 1 个外层 bar 内部 2 行.
          原 #36 拆 2 个独立 pill (视觉像 2 个胶囊堆叠), 现在合并成 1 个 capsule. -->
@@ -221,36 +291,49 @@
     margin: 0 0 var(--space-3);
   }
 
-  /* v0.3.17 #36fix (PO msg 12:45 #6287 拍板): 单币种 case 保留单 chip pill 视觉
-   *   — 1 个 row = 1 个 pill, 不需外层 bar wrapper. */
+  /* v0.3.18 #53 (PO msg 10:49 #6542): 单币种 pill 缩小 (PO 反馈「比例有问题,
+   * 缩成一个小的即可」).
+   *  - padding 6px → 2px (上下), 12-18px → 8-12px (左右)
+   *  - font-size 11-13px → 10-12px
+   *  - backdrop-filter blur 20px → 12px
+   *  - inset highlight 0.6 → 0.4
+   *  - box-shadow indigo 外阴影 0.08 → 0.04
+   *  - 整体高度 ~24-28px, 跟双币种 Row 1 (.currency-pill-row) 高度对齐
+   *  - 背景色不变 (保留跟双币种一致的 indigo gradient glass language)
+   *  - 保留 border-radius 999px (pill 形状)
+   *
+   *  v0.3.18 #53 (PO msg 10:49 #6542): 单币种 + owner 时 pill 是 <button>,
+   *  跟双币种 .currency-bar (玻璃) 同款语言; hover/active 加 bg 加深 + 微缩放
+   *  让用户感知「可点」. focus-visible 也加 outline (a11y). */
   .currency-pill-row--single {
     /* 居中 + 上下 margin (跟原 .currency-pill-row 同款) */
-    display: flex;
+    display: inline-flex;
     justify-content: center;
     align-items: center;
     flex-wrap: nowrap;
-    gap: clamp(4px, 1.5vw, 8px);
-    margin: 8px auto;
-    padding: 6px clamp(12px, 3vw, 18px);
+    gap: clamp(3px, 1.2vw, 6px);
+    margin: 6px auto;
+    padding: 2px clamp(8px, 3vw, 12px);
     width: fit-content;
     max-width: calc(100% - 32px);
-    font-size: clamp(0.6875rem, 2.6vw, 0.8125rem);
+    font-size: clamp(0.625rem, 2.4vw, 0.75rem);
     line-height: 1.4;
     color: var(--gray-700);
     overflow: hidden;
+    min-height: 24px;
 
     background: linear-gradient(
       135deg,
       rgba(99, 102, 241, 0.10) 0%,
       rgba(59, 130, 246, 0.08) 100%
     );
-    backdrop-filter: saturate(200%) blur(20px);
-    -webkit-backdrop-filter: saturate(200%) blur(20px);
+    backdrop-filter: saturate(200%) blur(12px);
+    -webkit-backdrop-filter: saturate(200%) blur(12px);
 
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.6),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.04),
-      0 1px 4px rgba(99, 102, 241, 0.08);
+      inset 0 1px 0 rgba(255, 255, 255, 0.4),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.03),
+      0 1px 4px rgba(99, 102, 241, 0.04);
 
     border-radius: 999px;
     border: 1px solid rgba(99, 102, 241, 0.15);
@@ -260,6 +343,53 @@
     .currency-pill-row--single {
       background: rgba(99, 102, 241, 0.18);
     }
+  }
+
+  /* v0.3.18 #53: clickable variant — single pill rendered as a button
+   * (replaces the previous <div> for owner case). Adds cursor + hover/active
+   * feedback without changing the glass surface (so the read-only and
+   * clickable variants look almost identical at rest, only differ on hover). */
+  button.currency-pill-row--single {
+    appearance: none;
+    cursor: pointer;
+    font: inherit;
+    color: inherit;
+    transition:
+      background 150ms ease,
+      box-shadow 150ms ease,
+      transform 100ms ease;
+  }
+  button.currency-pill-row--single:hover {
+    background: linear-gradient(
+      135deg,
+      rgba(99, 102, 241, 0.16) 0%,
+      rgba(59, 130, 246, 0.13) 100%
+    );
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.55),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.04),
+      0 2px 6px rgba(99, 102, 241, 0.08);
+  }
+  button.currency-pill-row--single:active {
+    transform: scale(0.97);
+  }
+  button.currency-pill-row--single:focus-visible {
+    outline: 2px solid var(--accent-500, #3b82f6);
+    outline-offset: 2px;
+  }
+
+  /* v0.3.18 #53: "+" icon next to the primary chip — glass-tinted
+   * indigo so it visually says "click to add another". Sized to fit
+   * inside the shrunk pill (~12x12 SVG, same line-height as chip). */
+  .add-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    color: var(--accent-700, #4338ca);
+    flex-shrink: 0;
+    margin-left: 1px;
   }
 
   /* v0.3.17 #36fix: 外层 .currency-bar (双币种 case 唯一 pill 视觉).

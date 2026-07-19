@@ -40,6 +40,7 @@
   import SettleTransferPath from '$components/SettleTransferPath.svelte';
   import SettleMemberBreakdown from '$components/SettleMemberBreakdown.svelte';
   import SessionCurrencyBadge from '$components/SessionCurrencyBadge.svelte';
+  import CurrencyAddModal from '$components/CurrencyAddModal.svelte';
   import IosSwitch from '$lib/components/IosSwitch.svelte';
   import { user } from '$stores/user';
   import { ArrowLeft } from 'lucide-svelte';
@@ -48,6 +49,9 @@
   let session: SessionDetail | null = null;
   let currentMember: { id: number } | null = null;
   let loading = true;
+  // v0.3.18 #53: open/close state for the CurrencyAddModal (triggered by
+  // SessionCurrencyBadge single-pill + icon when owner).
+  let addCurrencyOpen = false;
 
   $: sessionId = Number(page.params.id);
 
@@ -109,6 +113,7 @@
       editable={memberIdToRole[currentMember?.id ?? 0] === 'owner'}
       variant="settle"
       onRateChange={() => window.location.reload()}
+      onAddCurrency={() => (addCurrencyOpen = true)}
     />
 
     <div class="tab-bar" role="tablist" aria-label="结算视图">
@@ -184,6 +189,20 @@
     >
       <ArrowLeft size={24} strokeWidth={2.4} />
     </a>
+  {/if}
+
+  <!-- v0.3.18 #53: owner-driven "add secondary currency" modal.
+       Mounted only when addCurrencyOpen=true (controlled by SessionCurrencyBadge
+       onAddCurrency click). onAdded reloads the page so the badge re-renders
+       as dual-bar (modal also dispatches close after onAdded fires). -->
+  {#if addCurrencyOpen && session}
+    <CurrencyAddModal
+      session_id={session.id}
+      primary_currency={session.primary_currency}
+      existing_currencies={session.currencies ?? []}
+      onAdded={() => window.location.reload()}
+      on:close={() => (addCurrencyOpen = false)}
+    />
   {/if}
 </section>
 

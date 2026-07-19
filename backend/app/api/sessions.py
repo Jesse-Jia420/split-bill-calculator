@@ -76,7 +76,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import get_current_user, get_optional_user
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.session_isolation import get_session_member, get_session_member_or_secret
+from app.core.session_isolation import get_session_member, get_session_member_or_secret, require_session_owner
 from app.db.models.session_exchange_rates import SessionExchangeRate
 from app.db.models.session_members import SessionMember, SessionRole
 from app.db.models.sessions import Session as SessionModel
@@ -381,6 +381,33 @@ class SessionDetail(BaseModel):
 
 class UpdateMemberRequest(BaseModel):
     display_name: str = Field(..., min_length=1, max_length=50)
+
+
+# v0.3.18 #53 (PO msg 10:49 #6542): owner-driven "add secondary currency"
+# flow. The SessionCurrencyBadge single-pill renders as a clickable +
+# icon for owner; the modal calls POST /sessions/{id}/currencies then
+# POST /sessions/{id}/exchange-rates (the latter auto-pairs forward +
+# reciprocal). This endpoint owns the "extend currencies set" half; the
+# rate-row POST is unchanged (see exchange_rates.py).
+class AddCurrencyRequest(BaseModel):
+    """v0.3.18 #53: payload for adding a secondary currency to a session.
+
+    The primary currency is locked (you can never change a session's
+    primary post-create per v0.2.2 PRD §3.7.5); only the SECONDARY slot
+    can be added. Constraint: at most 2 currencies per session.
+    """
+
+    currency: str = Field(..., min_length=1, max_length=8)
+
+    @field_validator("currency")
+    @classmethod
+    def _upper_currency(cls, v: str) -> str:
+        code = v.strip().upper()
+        if not code:
+            raise ValueError("currency code must not be blank")
+        if code not in SUPPORTED_CURRENCIES:
+            raise ValueError(f"currency '{code}' is not in SUPPORTED_CURRENCIES")
+        return code
 
 
 class UpdateMemberResponse(BaseModel):
@@ -1261,6 +1288,137 @@ async def claim_session(
         "exchange_rates": [_exchange_rate_dict(r) for r in rates],
     }
     return payload
+
+
+# ---------------------------------------------------------------------------
+# POST /sessions/{id}/currencies (v0.3.18 #53 - PO msg 10:49 #6542)
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/{session_id}/currencies",
+    response_model=SessionDetail,
+)
+async def add_session_currency(
+    payload: AddCurrencyRequest,
+    sm: Annotated[SessionMember, Depends(require_session_owner)],
+    db: Annotated[Session, Depends(get_db)],
+    session_id: int = Path(..., description="sessions.id"),
+) -> dict:
+    """v0.3.18 #53 - owner-only "add secondary currency" endpoint.
+
+    Triggered from the SessionCurrencyBadge single-pill click (when the
+    session currently has 1 currency and the caller is the owner). The
+    FE then submits a follow-up POST to /exchange-rates with the rate
+    between the new currency and the primary (the exchange_rates.py
+    endpoint auto-pairs forward + reciprocal rows).
+
+    Guards:
+      * require_session_owner -> 403 if not owner (or not a member).
+      * 404 if the session does not exist.
+      * 409 if the new currency is ALREADY in the session.currencies set
+        (idempotent error rather than silent no-op - the FE knows to
+        bail out and reload).
+      * 422 if adding would exceed 2 currencies (PRD §3.7.5 hard cap).
+
+    On success: appends the new currency to the JSON ``currencies``
+    column, commits, then returns the full SessionDetail payload so the
+    FE can drop the response into its existing session state and
+    re-render without a second round-trip (the badge will switch from
+    single-pill to dual-currency-bar after the FE's follow-up
+    /exchange-rates POST completes too).
+
+    Note: this endpoint **does not** create an exchange rate. The FE
+    makes a separate POST to /exchange-rates after this succeeds. We
+    keep the two operations decoupled so that "add currency" remains a
+    pure metadata change even if the user changes their mind about the
+    rate - they can cancel the modal between the two calls and the
+    session is left in a consistent "currency added but no rate yet"
+    state (which is fine for the FE; the next POST /exchange-rates
+    will populate the rate or 422 if the user picks a different
+    currency).
+    """
+    session = db.query(SessionModel).filter_by(id=session_id).first()
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "session not found"},
+        )
+
+    current_currencies = list(session.currencies or ["CNY"])
+
+    if payload.currency in current_currencies:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error": "currency_already_in_session",
+                "currency": payload.currency,
+                "session_currencies": current_currencies,
+            },
+        )
+    if len(current_currencies) >= 2:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "error": "max_2_currencies_per_session",
+                "current_currencies": current_currencies,
+            },
+        )
+
+    # Append + commit. Preserve the primary_currency (locked by the
+    # add-currency endpoint contract - see class docstring).
+    new_currencies = current_currencies + [payload.currency]
+    session.currencies = new_currencies
+    db.commit()
+    db.refresh(session)
+
+    # Build the same inline payload as get_session / claim_session so
+    # the FE can drop the response into its existing session state.
+    members = (
+        db.query(SessionMember, User)
+        .outerjoin(User, User.id == SessionMember.user_id)
+        .filter(SessionMember.session_id == session.id)
+        .order_by(SessionMember.joined_at.asc())
+        .all()
+    )
+    last_bill_participants = _compute_last_bill_participants(db, session.id)
+    rates = (
+        db.query(SessionExchangeRate)
+        .filter(SessionExchangeRate.session_id == session.id)
+        .order_by(
+            SessionExchangeRate.from_currency.asc(),
+            SessionExchangeRate.to_currency.asc(),
+        )
+        .all()
+    )
+
+    payload_out: dict = {
+        "id": session.id,
+        "session_code": session.session_code or "",
+        "name": session.name,
+        "owner_user_id": session.owner_user_id,
+        "owner_email": session.owner_email,
+        "members": [
+            {
+                "id": sm_row.id,
+                "user_id": sm_row.user_id,
+                "email": u.email if u else None,
+                "display_name": sm_row.display_name,
+                "role": sm_row.role,
+                "joined_at": _iso(sm_row.joined_at),
+            }
+            for sm_row, u in members
+        ],
+        "created_at": _iso(session.created_at),
+        # Owner-only invite preview (caller IS owner via dep guard).
+        "invite_token_preview": session.invite_token,
+        "invite_expires_at": _iso(session.invite_expires_at),
+        "last_bill_participants": last_bill_participants,
+        "currencies": list(session.currencies or ["CNY"]),
+        "primary_currency": session.primary_currency or "CNY",
+        "exchange_rates": [_exchange_rate_dict(r) for r in rates],
+    }
+    return payload_out
 
 
 # ---------------------------------------------------------------------------
