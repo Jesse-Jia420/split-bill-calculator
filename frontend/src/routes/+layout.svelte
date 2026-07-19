@@ -8,12 +8,14 @@
    * - 加全局 Toast 挂载点 <Toast />
    * - 不引第三方动画库,用 Svelte 内置 fade
    *
-   * §3.11.13: 加 <Footer /> 集中展示 FE/BE 版本号, NavBar 头部不再展示版本号
+   * v0.3.18 #54 (PO msg 18:10 #6569): 取消底部 Footer 区域 — 全屏体验更沉浸,
+   * 不再有 "FE: xxxx · BE: xxxx" 占用底部高度, main 滚到底能看到完整最后一行.
+   * Footer.svelte 文件保留作为 archive (含 BE /version fetch logic),
+   * 未来想恢复直接重新 import + 此处挂载即可.
    */
   import '../app.css';
   import NavBar from '$components/NavBar.svelte';
   import Toast from '$components/Toast.svelte';
-  import Footer from '$components/Footer.svelte';
   // v0.3.18 #51 (PO msg 23:17 #6526): 整站去背景图 — AppBackground 文件保留作为 archive,
   // 但不再 import / 挂载. 未来想恢复玻璃背景图直接重新 import 即可.
   // import AppBackground from '$components/AppBackground.svelte';
@@ -58,12 +60,12 @@
     <slot />
   </div>
 </main>
-<!-- §3.11.13: 版本号集中显示在底部 Footer, NavBar 头部不再展示 -->
-<Footer />
+<!-- v0.3.18 #54 (PO msg 18:10 #6569): Footer 取消. main flex:1 自动吃满
+     body column 中间剩余高度 (NavBar 上, 底部不再有 footer 占用空间). -->
 
 <style>
   /* v0.3.17 #30 (PO msg 14:28 #5957): iOS app-shell 化 — main 改内层滚
-   * - flex: 1 → 吃满 body flex column 中间剩余高度 (NavBar 上, Footer 下)
+   * - flex: 1 → 吃满 body flex column 中间剩余高度 (NavBar 上, 底部 iOS safe-area 之下)
    * - overflow-y: auto + overflow-x: hidden → 内层独立滚, 不让外层 body 滚
    * - min-height: 0 → 关键: flex item 默认 min-height: auto 会撑破父容器,
    *   加上 0 才能让 flex: 1 真的收缩. 旧版没有 min-height: 0, 当 .page-inner
