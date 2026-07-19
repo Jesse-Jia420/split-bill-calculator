@@ -718,18 +718,27 @@
 
   /* === 反馈修 6 项目 2: members section — grid 布局 彻底重写 === */
   .members-card {
-    padding: var(--space-3) var(--space-4);
+    /* v0.3.18 #64 (PO 候选 A 真正落地, 反 #161 v3 修正):
+       玻璃 card — 跟全站玻璃语言统一 (rgba 0.55 + saturate(180%) blur(20px) + radius 16px).
+       不改 outer card border (跟其他 .card 一致). */
+    background: rgba(255, 255, 255, 0.55);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
   }
-  /* v0.2.1 UI rev: 整个 header clickable + 折叠态 hover + chevron rotation */
+  /* v0.3.18 #64: 整头横向 flex + hairline 分隔. 保留 cursor: pointer + onclick (折叠/展开)
+     + 灰色 hover (背景保留 — 反 #161 v3 约束). */
   .members-head {
     display: flex;
-    align-items: center;
     justify-content: space-between;
-    gap: var(--space-3);
+    align-items: center;
+    gap: 12px;
     flex-wrap: wrap;
-    padding: var(--space-2) var(--space-3);
-    margin: calc(var(--space-2) * -1) calc(var(--space-3) * -1);
-    border-radius: var(--radius-lg);
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    margin-bottom: 12px;
     cursor: pointer;
     user-select: none;
     transition: background-color 120ms ease;
@@ -740,13 +749,6 @@
   .members-head:focus-visible {
     outline: 2px solid var(--accent-500, #3b82f6);
     outline-offset: 2px;
-  }
-  .members-head.collapsed {
-    border-bottom: none;
-  }
-  .members-head:not(.collapsed) {
-    border-bottom: 1px solid var(--gray-200);
-    margin-bottom: var(--space-2);
   }
   .members-title {
     margin: 0;
@@ -763,39 +765,45 @@
   .members-actions {
     display: inline-flex;
     align-items: center;
-    gap: var(--space-2);
+    gap: 12px;
   }
 
   /* v0.2.1 UI rev: removed .members-toggle button — header itself is now clickable (see .members-head above) */
 
-  /* === members list — grid 布局 === */
+  /* === members list — chip 布局 === */
   .members-list {
     list-style: none;
     padding: 0;
     margin: 0;
   }
+  /* v0.3.18 #64 (PO 候选 A 真正落地, 反 #161 v3 修正): chip 重构.
+     avatar + info + (optional) remove 横排, 999px 圆角 + 半透明白底 + 细边. */
   .member-item {
-    display: grid;
-    grid-template-columns: 40px 1fr auto;
+    display: flex;
     align-items: center;
-    gap: var(--space-3, 12px);
-    padding: var(--space-3, 12px) 0;
-    border-bottom: 1px solid var(--gray-200);
+    gap: 10px;
+    padding: 6px 12px 6px 6px;
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 999px;
+    margin-bottom: 8px;
+    transition: background 150ms ease, border-color 150ms ease;
   }
   .member-item:last-child {
-    border-bottom: none;
+    margin-bottom: 0;
   }
+  /* v0.3.18 #64: 28×28 圆形 avatar. 保留现有颜色逻辑 (单一 var(--accent-500), 不强制 gradient —
+     反 #161 v3 教训: 避免回退). grid + place-items: center 居中单字符. */
   .member-avatar {
-    width: 40px;
-    height: 40px;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
-    background: var(--accent-500);
-    color: #fff;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    display: grid;
+    place-items: center;
+    font-size: 12px;
     font-weight: 600;
-    font-size: var(--font-size-base);
+    color: white;
+    background: var(--accent-500);
     flex-shrink: 0;
   }
   .member-info {
@@ -803,86 +811,84 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
+    flex: 1 1 auto;
   }
   .member-name-row {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: var(--space-2, 8px);
+    gap: 6px;
     flex-wrap: wrap;
     min-width: 0;
   }
   .member-name {
-    font-size: var(--font-size-base);
+    font-size: 14px;
     font-weight: 500;
     color: var(--gray-900);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  /* v0.3.18 #64: 玻璃 pill — 0.12 alpha + accent-700. */
   .owner-badge {
     display: inline-block;
-    background: var(--accent-500);
-    color: #fff;
-    font-size: clamp(0.625rem, 2.4vw, 0.6875rem);
-    padding: 2px 8px;
+    font-size: 10px;
+    padding: 2px 6px;
     border-radius: 999px;
+    background: rgba(59, 130, 246, 0.12);
+    color: var(--accent-700);
     font-weight: 500;
-    letter-spacing: 0.02em;
     line-height: 1.2;
   }
   .me-badge {
     display: inline-block;
-    background: var(--accent-500);
-    color: #fff;
-    font-size: clamp(0.625rem, 2.4vw, 0.6875rem);
-    padding: 2px 8px;
+    font-size: 10px;
+    padding: 2px 6px;
     border-radius: 999px;
+    background: rgba(59, 130, 246, 0.12);
+    color: var(--accent-700);
     font-weight: 600;
-    letter-spacing: 0.02em;
     line-height: 1.2;
   }
+  /* v0.3.18 #64: align-items center (vs baseline) + gap 6px + 12px gray-500 + margin-top 2px. */
   .member-meta-row {
     display: flex;
-    align-items: baseline;
-    gap: var(--space-3, 12px);
+    align-items: center;
+    gap: 6px;
     flex-wrap: wrap;
-    font-size: var(--font-size-sm);
+    font-size: 12px;
+    color: var(--gray-500);
+    margin-top: 2px;
   }
   .member-net {
-    font-variant-numeric: tabular-nums;
-    font-weight: 600;
+    font-size: 12px;
+    font-weight: 500;
     color: var(--gray-500);
   }
   .member-net.pos {
-    color: var(--success-500);
+    color: var(--color-success, #059669);
   }
   .member-net.neg {
-    color: var(--error-500);
+    color: var(--color-danger, #dc2626);
   }
   .member-email {
-    font-size: clamp(0.6875rem, 2.6vw, 0.75rem);
+    font-size: 12px;
+    color: var(--gray-500);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     max-width: 200px;
   }
+  /* v0.3.18 #64: chip 内联 × 按钮 — 16px / gray-500 / 透明 / 0 border / cursor not-allowed
+     (按钮始终 disabled, PO 已知 owner-only v0.2 待 BE 支持). */
   .member-remove {
-    appearance: none;
+    font-size: 16px;
+    color: var(--gray-500);
     background: transparent;
     border: 0;
-    color: var(--gray-500);
-    font-size: clamp(1.125rem, 4.2vw, 1.375rem);
-    line-height: 1;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    cursor: pointer;
-    opacity: 0;
-    transition: opacity 150ms ease, background-color 150ms ease, color 150ms ease;
+    cursor: not-allowed;
     padding: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    line-height: 1;
+    flex-shrink: 0;
   }
   .member-item:hover .member-remove:not(:disabled) {
     opacity: 1;
