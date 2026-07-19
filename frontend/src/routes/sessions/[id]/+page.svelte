@@ -1051,13 +1051,13 @@
        (跟 bills/new/edit/settle 的 .fab 一致)。 */
   .fab {
     position: fixed;
-    right: 24px;
-    bottom: 24px;
-    width: 56px;
-    height: 56px;
+    right: 28px;
+    bottom: 28px;
+    width: 80px;
+    height: 80px;
     border-radius: 50%;        /* 圆形覆盖 .glass-pill 的 999px */
     /* 删 color: #fff — 由 .glass-pill 提供 var(--accent-700, #4338ca) 深紫主题色 */
-    font-size: 28px;
+    font-size: 36px;
     font-weight: 300;
     line-height: 1;
     z-index: 50;
@@ -1066,7 +1066,7 @@
     display: grid;            /* 改 grid */
     place-items: center;      /* 完美居中 */
     padding: 0;
-    padding-bottom: 2px;      /* 视觉补偿: + 在 Inter 里偏上, 下移 2px 视觉居中 */
+    padding-bottom: 3px;      /* 视觉补偿: + 在 Inter 里偏上, 下移 2px 视觉居中 */
     text-decoration: none;
     transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease, color 150ms ease;
   }
@@ -1084,8 +1084,8 @@
   }
   @media (max-width: 600px) {
     .fab {
-      right: 16px;
-      bottom: 16px;
+      right: 20px;
+      bottom: 20px;
     }
   }
 
