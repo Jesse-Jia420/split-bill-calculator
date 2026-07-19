@@ -42,6 +42,7 @@
   import BillListGrouped from '$components/BillListGrouped.svelte';
   import EmptyState from '$components/EmptyState.svelte';
   import SessionCurrencyBadge from '$components/SessionCurrencyBadge.svelte';
+  import CurrencyAddModal from '$components/CurrencyAddModal.svelte';
   import { getSessionWithSecret } from '$api/sessions';
   import { user, loadUser } from '$stores/user';
   import { toast } from '$stores/toast';
@@ -52,6 +53,9 @@
   let session = $state<SessionDetail | null>(null);
   let bills = $state<Bill[]>([]);
   let loading = $state(true);
+  // v0.3.18 #53: open/close state for the CurrencyAddModal (triggered by
+  // SessionCurrencyBadge single-pill + icon when owner).
+  let addCurrencyOpen = $state(false);
 
   let memberIdToName = $state<Record<number, string>>({});
   let memberIdToNet = $state<Record<number, number>>({});
@@ -409,6 +413,7 @@
         editable={isOwner}
         variant="detail"
         onRateChange={() => window.location.reload()}
+        onAddCurrency={() => (addCurrencyOpen = true)}
       />
     {/if}
 
@@ -643,6 +648,20 @@
       aria-label="新建账单"
       in:fly={{ y: 60, duration: 400, delay: 200 }}
     >+</a>
+  {/if}
+
+  <!-- v0.3.18 #53: owner-driven "add secondary currency" modal.
+       Mounted only when addCurrencyOpen=true (controlled by SessionCurrencyBadge
+       onAddCurrency click). onAdded reloads the page so the badge re-renders
+       as dual-bar (modal also dispatches close after onAdded fires). -->
+  {#if addCurrencyOpen && session}
+    <CurrencyAddModal
+      session_id={session.id}
+      primary_currency={session.primary_currency}
+      existing_currencies={session.currencies}
+      onAdded={() => window.location.reload()}
+      on:close={() => (addCurrencyOpen = false)}
+    />
   {/if}
 </section>
 

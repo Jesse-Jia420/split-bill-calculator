@@ -277,3 +277,26 @@ export async function bindActingMember(
     body: JSON.stringify(payload),
   });
 }
+
+/**
+ * v0.3.18 #53 (PO msg 10:49 #6542): owner-driven "add secondary currency"
+ * flow. Called from CurrencyAddModal when the user picks the new currency;
+ * the modal follows up with `createExchangeRate` to wire up the rate row.
+ *
+ * The primary currency is locked (per v0.2.2 PRD \u00a73.7.5) and cannot be
+ * changed via this endpoint - only a SECONDARY currency may be appended.
+ * If the session already has 2 currencies, the BE returns 422.
+ *
+ * Returns the updated SessionDetail payload (same shape as `getSession`)
+ * so the FE can drop the response into its existing session state and
+ * re-render the SessionCurrencyBadge from single-pill to dual-bar.
+ */
+export async function addSessionCurrency(
+  sessionId: number,
+  payload: { currency: string }
+): Promise<SessionDetail> {
+  return apiFetch<SessionDetail>(`/sessions/${sessionId}/currencies`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
