@@ -305,21 +305,15 @@
    *  v0.3.18 #53 (PO msg 10:49 #6542): 单币种 + owner 时 pill 是 <button>,
    *  跟双币种 .currency-bar (玻璃) 同款语言; hover/active 加 bg 加深 + 微缩放
    *  让用户感知「可点」. focus-visible 也加 outline (a11y). */
-  /* v0.3.18 #60 batch2 (PO #6839) 单币种 pill 美化:
-   *  - 渐变起点透明度 0.10 → 0.18 (色块感更明显)
-   *  - 模糊度 blur(12) → blur(18) (更湿润)
-   *  - inset 高光 0.4 → 0.5 + 加 0.10 alpha 下方投影让 pill "浮起"
-   *  - border 0.15 → 0.22 (深一档对比)
-   *  - padding 2/8-12 → 10/12-16 (现状 padding 明显 < 8/12, 加大到 10/16)
-   * 形态仍 pill (border-radius: 999px) */
   .currency-pill-row--single {
+    /* 居中 + 上下 margin (跟原 .currency-pill-row 同款) */
     display: inline-flex;
     justify-content: center;
     align-items: center;
     flex-wrap: nowrap;
     gap: clamp(3px, 1.2vw, 6px);
     margin: 6px auto;
-    padding: 10px clamp(12px, 3vw, 16px);
+    padding: 2px clamp(8px, 3vw, 12px);
     width: fit-content;
     max-width: calc(100% - 32px);
     font-size: clamp(0.625rem, 2.4vw, 0.75rem);
@@ -330,20 +324,19 @@
 
     background: linear-gradient(
       135deg,
-      rgba(99, 102, 241, 0.18) 0%,
+      rgba(99, 102, 241, 0.10) 0%,
       rgba(59, 130, 246, 0.08) 100%
     );
-    backdrop-filter: saturate(200%) blur(18px);
-    -webkit-backdrop-filter: saturate(200%) blur(18px);
+    backdrop-filter: saturate(200%) blur(12px);
+    -webkit-backdrop-filter: saturate(200%) blur(12px);
 
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.4),
       inset 0 -1px 0 rgba(0, 0, 0, 0.03),
-      0 1px 4px rgba(99, 102, 241, 0.04),
-      0 2px 8px rgba(99, 102, 241, 0.10);
+      0 1px 4px rgba(99, 102, 241, 0.04);
 
     border-radius: 999px;
-    border: 1px solid rgba(99, 102, 241, 0.22);
+    border: 1px solid rgba(99, 102, 241, 0.15);
   }
 
   @supports not (backdrop-filter: blur(1px)) {
