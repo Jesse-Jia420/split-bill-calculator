@@ -1,0 +1,67 @@
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+.npm/
+.next/
+build/
+.turbo/
+.svelte-kit/
+*.tsbuildinfo
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Tests / docs (prod 镜像不需要)
+tests/
+test/
+*.test.*
+*.spec.*
+README.md
+docs/
+PRD.md
+SPEC.md
+UAT.md
+HANDOVER_*.md
+v0*.md
+*.bak
+
+# Sandbox 调试
+__mockup__/
+screenshots/
+*.png
+*.jpg
+*.gif
+*.mp4
+
+# DB (bind mount, 不要 bake 进 image)
+backend/data/*.db
+backend/data/*.db-journal
+backend/data/*.db-wal
+backend/data/*.db-shm
+backend/data/*.bak
+backend/data/*.bak-*
+
+# Env (用 secret mount 注入)
+.env
+.env.local
+*.env.local
