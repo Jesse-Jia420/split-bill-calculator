@@ -86,10 +86,6 @@
     return trimmed ? trimmed.charAt(0).toUpperCase() : '?';
   }
 
-  /** T6: 生成时间走 formatDate({ full: true })。 */
-  function fmtGenerated(iso: string): string {
-    return formatDate(iso, { full: true });
-  }
 </script>
 
 <div>
@@ -169,9 +165,7 @@
         {/each}
       </ul>
     {/if}
-    <p class="hint" style="margin-top: var(--space-3);">
-      生成时间: {fmtGenerated(data.generated_at)}
-    </p>
+
   {:else}
     <!-- v0.3.15 (PO #4807): 失败后 data=null, 显示"暂无数据"占位让用户能切 tab / 刷新重试 -->
     <p class="muted">暂无结算数据,请稍后再试。</p>
