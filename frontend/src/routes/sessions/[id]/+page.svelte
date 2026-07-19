@@ -639,17 +639,15 @@
       </div>
     {/if}
 
-    <!-- v0.3.18 (PO 批评 #6820): 右下圆形 FAB '+' 改成底部 sticky bar
-         「+ 新建账单」, 按钮高度 ≥ 56px, 右对齐 (跟 BillForm sticky bar
-         同一形态). PO 反馈"我要的是按钮变大 (sticky bar 形态), 不是圆形 FAB".
-         v0.3.16 #8 (PO msg 19:26): 玻璃化 — bg/box-shadow/border 由 .glass-pill
-         提供, button 保留 layout + 右对齐. -->
-    <div class="bills-action-bar sticky-bottom">
-      <a class="glass-pill btn primary btn-new-bill" href="/sessions/{session.id}/bills/new">
-        <span class="btn-new-bill-plus" aria-hidden="true">+</span>
-        <span>新建账单</span>
-      </a>
-    </div>
+    <!-- FAB: 200ms 后从下方 60px 飞入
+         v0.3.16 #8 (PO msg 19:26): 加 .glass-pill 玻璃化 (保留 50% 圆形 + 白色 + icon) -->
+    <a
+      class="fab glass-pill"
+      href="/sessions/{session.id}/bills/new"
+      title="新建账单"
+      aria-label="新建账单"
+      in:fly={{ y: 60, duration: 400, delay: 200 }}
+    >+</a>
   {/if}
 
   <!-- v0.3.18 #53: owner-driven "add secondary currency" modal.
@@ -1041,64 +1039,53 @@
     }
   }
 
-  /* === 底部 sticky bar 「+ 新建账单」 ===
-     v0.3.18 (PO 批评 #6820): 之前是右下圆形 FAB (56×56 + 玻璃 + 飞入).
-     现在改回底部 sticky bar 形态, 按钮高度 ≥ 56px (PO 反馈"调大一点").
-     右对齐 (不抢账单列表视觉), 但 mobile viewport 改成全宽 thumb-reach 友好.
-     v0.3.16 #8 (PO msg 19:26): 玻璃化 — bg/box-shadow/border 由 .glass-pill 提供.
-     v0.3.16 #10 (PO msg 20:38): 按钮主色 — 由 .glass-pill 提供 var(--accent-700, #4338ca). */
-  .bills-action-bar.sticky-bottom {
-    position: sticky;
-    bottom: 0;
-    display: flex;
-    justify-content: flex-end;            /* 右对齐 */
-    align-items: center;
-    gap: var(--space-3, 12px);
-    /* 撑满 .bills-card 宽度 (跟 BillForm 底部 sticky bar 同款负 margin hack) */
-    margin: var(--space-4, 16px) calc(var(--space-4, 16px) * -1) calc(var(--space-4, 16px) * -1);
-    padding: var(--space-3, 12px) var(--space-4, 16px);
-    background: var(--bg-surface, #fff);
-    border-top: 1px solid var(--gray-200, #e5e7eb);
-    z-index: 10;
-  }
-  .btn-new-bill {
-    /* v0.3.18 (PO 批评 #6820): 按钮高度 ≥ 56px (PO 反馈"调大一点") */
-    min-height: 56px;
-    padding: 0 24px;
-    font-size: var(--font-size-base, 16px);
-    font-weight: 600;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    border-radius: 9999px;       /* pill 形态跟 wizard 主按钮同款 */
-    text-decoration: none;
-    border: 0;
+  /* === FAB ===
+     v0.1.4 round 2 改动 2: `+` 居中对齐修复。
+     原因: Inter font 里 `+` baseline 偏上 (mathematical center ≠ optical center),
+     用 grid + place-items: center 完美居中, 再 padding-bottom: 2px 视觉补偿,
+     让 `+` 在圆形按钮里看起来完全居中。
+     v0.3.16 #8 (PO msg 19:26): 加 .glass-pill 玻璃化 — bg/box-shadow/border 由
+       .glass-pill 提供。
+     v0.3.16 #10 (PO msg 20:38): FAB icon 改主题色 — 删 color: #fff (`+` 白色在浅紫
+       玻璃上看不清),改由 .glass-pill 提供 var(--accent-700, #4338ca) 深紫主题色
+       (跟 bills/new/edit/settle 的 .fab 一致)。 */
+  .fab {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;        /* 圆形覆盖 .glass-pill 的 999px */
+    /* 删 color: #fff — 由 .glass-pill 提供 var(--accent-700, #4338ca) 深紫主题色 */
+    font-size: 28px;
+    font-weight: 300;
+    line-height: 1;
+    z-index: 50;
     cursor: pointer;
+    border: 0;
+    display: grid;            /* 改 grid */
+    place-items: center;      /* 完美居中 */
+    padding: 0;
+    padding-bottom: 2px;      /* 视觉补偿: + 在 Inter 里偏上, 下移 2px 视觉居中 */
+    text-decoration: none;
     transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease, color 150ms ease;
   }
-  .btn-new-bill:hover { transform: translateY(-2px); text-decoration: none; }
-  .btn-new-bill:active { transform: scale(0.96); }
-  .btn-new-bill:focus-visible {
+  /* .fab:hover 不再写 color — 由 .glass-pill:hover 全局处理 (icon 颜色保持主题色) */
+  .fab:hover {
+    transform: translateY(-2px);
+    text-decoration: none;
+  }
+  .fab:active {
+    transform: scale(0.96);
+  }
+  .fab:focus-visible {
     outline: 2px solid #fff;
     outline-offset: 2px;
   }
-  .btn-new-bill-plus {
-    /* Inter font `+` 偏上, 下移 2px 视觉补偿 (跟原 FAB 同样修正) */
-    font-size: 22px;
-    font-weight: 300;
-    line-height: 1;
-    padding-bottom: 2px;
-    display: inline-block;
-  }
-  /* mobile viewport (≤600px): 全宽 thumb-reach 友好 */
   @media (max-width: 600px) {
-    .bills-action-bar.sticky-bottom {
-      justify-content: stretch;
-    }
-    .btn-new-bill {
-      flex: 1;
-      min-width: 0;
-      justify-content: center;
+    .fab {
+      right: 16px;
+      bottom: 16px;
     }
   }
 
