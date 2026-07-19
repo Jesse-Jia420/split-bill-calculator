@@ -304,7 +304,15 @@
    *
    *  v0.3.18 #53 (PO msg 10:49 #6542): 单币种 + owner 时 pill 是 <button>,
    *  跟双币种 .currency-bar (玻璃) 同款语言; hover/active 加 bg 加深 + 微缩放
-   *  让用户感知「可点」. focus-visible 也加 outline (a11y). */
+   *  让用户感知「可点」. focus-visible 也加 outline (a11y).
+   *
+   *  v0.3.18 #64 (PO #6859 拍板 CurrentResize — 单币种 pill 仅调整大小, 形态不动):
+   *    - padding 6px 12px → 10px 18px (变大让 chip 视觉权重跟双币种 .currency-bar 平衡).
+   *    - font-size 13px → 15px (跟双币种 .currency-bar 12px 形成层级但更显眼).
+   *    - min-height 24px → 36px (iOS touch target 友好, 接近 44pt).
+   *    - border 1px → 1.5px solid (跟外阴影 0.06 配合, 边缘更清晰).
+   *    - outer shadow 0 1px 4px rgba(99,102,241,0.04) → 0 2px 8px rgba(99,102,241,0.06).
+   *    - **不**改: gradient 角度 + alpha + saturate + blur + border-radius + 点击行为. */
   .currency-pill-row--single {
     /* 居中 + 上下 margin (跟原 .currency-pill-row 同款) */
     display: inline-flex;
@@ -313,14 +321,14 @@
     flex-wrap: nowrap;
     gap: clamp(3px, 1.2vw, 6px);
     margin: 6px auto;
-    padding: 2px clamp(8px, 3vw, 12px);
+    padding: 10px 18px;
     width: fit-content;
     max-width: calc(100% - 32px);
-    font-size: clamp(0.625rem, 2.4vw, 0.75rem);
+    font-size: 15px;
     line-height: 1.4;
     color: var(--gray-700);
     overflow: hidden;
-    min-height: 24px;
+    min-height: 36px;
 
     background: linear-gradient(
       135deg,
@@ -333,10 +341,10 @@
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.4),
       inset 0 -1px 0 rgba(0, 0, 0, 0.03),
-      0 1px 4px rgba(99, 102, 241, 0.04);
+      0 2px 8px rgba(99, 102, 241, 0.06);
 
     border-radius: 999px;
-    border: 1px solid rgba(99, 102, 241, 0.15);
+    border: 1.5px solid rgba(99, 102, 241, 0.15);
   }
 
   @supports not (backdrop-filter: blur(1px)) {
