@@ -600,7 +600,13 @@
 </div>
 
 <style>
-  /* === T9: Chip Redesign — filled pill === */
+  /* === T9: Chip Redesign — filled pill ===
+     v0.3.18 #55 (PO msg 21:44 #6588): 成员选择器横向滚动 fade 边距调整.
+     - 右边 ::after width 32px → 20px (PO 反馈"模糊的 margin 值调小一点",
+       32 太大遮住半个 chip, 视觉上像缺了一块)
+     - 加左边 ::before 20px 对称 fade (PO 反馈"给左侧也加上对称的处理方式"),
+       之前只有右边, 现在两侧对称 — 滚到中间时 chip 在 fade 中渐隐, 暗示还有更多
+     - mask 不用 (Safari iOS < 18 兼容问题跟 #31-fix 一样) */
   .member-tabs-wrapper {
     position: relative;
   }
@@ -610,8 +616,19 @@
     right: 0;
     top: 0;
     bottom: 0;
-    width: 32px;
+    width: 20px;
     background: linear-gradient(to right, transparent, white);
+    pointer-events: none;
+    z-index: 1;
+  }
+  .member-tabs-wrapper::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 20px;
+    background: linear-gradient(to left, transparent, white);
     pointer-events: none;
     z-index: 1;
   }

@@ -43,7 +43,7 @@
   import CurrencyAddModal from '$components/CurrencyAddModal.svelte';
   import IosSwitch from '$lib/components/IosSwitch.svelte';
   import { user } from '$stores/user';
-  import { ArrowLeft } from 'lucide-svelte';
+  import { ArrowLeft, Receipt, Save } from 'lucide-svelte';
   import { toast } from '$stores/toast';
 
   let session: SessionDetail | null = null;
@@ -179,15 +179,41 @@
       {/if}
     </div>
 
-    <!-- v0.3.15 §3.15.2 #6 v2 (PO msg #4772): 左下圆形 FAB 返回按钮
-         v0.3.16 #9 (PO msg 20:01): 加 .glass-pill 玻璃化 (跟 bills/new + bills/edit 同形态) -->
+    <!-- v0.3.18 #55 (PO msg 21:44 #6588): settle 页底部 fixed 区从单返回 FAB
+         升级为 3 按钮 (返回 + 账单 + 保存), 都增大 56×56 → 64×64 (PO 反馈
+         "都适当增大一些").
+
+         布局 (跟 bills/new 同款 iOS27 glass-pill 语言):
+         - 左下 fab-left 24px: 返回 (ArrowLeft) → 跳 /sessions/{id} 详情
+         - 右下 fab-right 24px: 账单 (Receipt) → 跳 /sessions/{id} 详情 (看账单 list)
+         - 右下偏左 fab-right-inner 96px: 保存 (Save) → 跳 /sessions/{id}/bills/new
+           新建账单 (语义: 在 settle 看完结算后, 快速加一笔新账单)
+
+         三个按钮同形态 (64×64 圆 + glass-pill + indigo accent), 区别只在 icon.
+         fly 动画 stagger delay 200/250/300 让三个按钮依次浮起. -->
     <a
       class="fab fab-left glass-pill"
       href="/sessions/{sessionId}"
       aria-label="返回"
       in:fly={{ y: 60, duration: 400, delay: 200 }}
     >
-      <ArrowLeft size={24} strokeWidth={2.4} />
+      <ArrowLeft size={26} strokeWidth={2.4} />
+    </a>
+    <a
+      class="fab fab-right glass-pill"
+      href="/sessions/{sessionId}"
+      aria-label="账单"
+      in:fly={{ y: 60, duration: 400, delay: 250 }}
+    >
+      <Receipt size={26} strokeWidth={2.2} />
+    </a>
+    <a
+      class="fab fab-right-inner glass-pill"
+      href="/sessions/{sessionId}/bills/new"
+      aria-label="保存"
+      in:fly={{ y: 60, duration: 400, delay: 300 }}
+    >
+      <Save size={26} strokeWidth={2.2} />
     </a>
   {/if}
 
@@ -214,8 +240,10 @@
   .fab {
     position: fixed;
     bottom: 24px;
-    width: 56px;
-    height: 56px;
+    /* v0.3.18 #55 (PO msg 21:44 #6588): 56 → 64 (PO 反馈"都适当增大一些",
+       56 在 iOS 全面屏 bottom 24+safe-area 视觉偏小, 64 跟 row 内容视觉对位更好). */
+    width: 64px;
+    height: 64px;
     border-radius: 50%;
     display: grid;
     place-items: center;
@@ -229,6 +257,10 @@
     transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease, color 150ms ease;
   }
   .fab-left { left: 24px; }
+  .fab-right { right: 24px; }
+  /* v0.3.18 #55: 保存按钮位置 — 右下 FAB 左边 96px (64+gap 8+24 edge = 96).
+     三个按钮间距 = 64+8 = 72px gap, 视觉不重叠. */
+  .fab-right-inner { right: 96px; }
   /* .fab:hover 不再写 background/box-shadow — 由 .glass-pill:hover 全局处理 */
   .fab:hover { transform: translateY(-2px); }
   .fab:active { transform: scale(0.96); }
