@@ -1,4 +1,4 @@
-��<script lang="ts">
+<script lang="ts">
   /**
    * v0.1.2 (PO 2026-07-01 fix #3): edit-bill page.
    *
