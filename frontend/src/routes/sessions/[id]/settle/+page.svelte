@@ -23,9 +23,28 @@
    * 个人视图 viewMode 仅保留「主币种汇总」一个选项
    * (SettleMemberBreakdown 内部 split 分支保留 — v0.3.17 #32 维护)。
    *
+   * v0.3.18 #63 (PO msg #6842 第 3 条, 2026-07-20): IosSwitch 同一行左侧加
+   * 圆形 FAB 返回按钮 (ArrowLeft → /sessions/{id} session 详情)。
+   * - 位置: settle 页 IosSwitch (activeTab 概览/个人视图 toggle) 同行左侧
+   * - 形态: 圆形 FAB (.back-btn border-radius:50%), 直径 = IosSwitch 高度
+   *   (desktop 52px = IosSwitch padding 4×2 + option min-height 44;
+   *    narrow viewport ≤600px 44px 同步 option 36px min-height 降级)
+   * - 玻璃化: 复用 .glass-pill 全局 token (饱和度 200% / blur 20px /
+   *   蓝紫描边 / inset highlight / 紫蓝 hover 加深), 跟 IosSwitch track
+   *   同款 iOS27 玻璃语系
+   * - 对齐: row flex (display:flex + justify-content:space-between) —
+   *   .back-btn 左对齐页面元素左边缘, IosSwitch margin-left:auto 右对齐
+   *   (覆盖组件 scoped 的 `margin: 0 auto 1.25rem` 居中)
+   * - 形态约束: 不改圆形 FAB + IosSwitch 形态, 不加 sticky bar,
+   *   不加新 FAB, 不动 v0.3.18 #55/#56/#57 范围, 不动 v0.3.17 #19/#20/#21/#30,
+   *   不动 a941bac 已删的按源币种 section + 3 FAB
+   * - 行为: 点击跳 /sessions/{sessionId} (session 详情, 跟 v0.3.15 #6 v2
+   *   原左下 fab 一致)
+   *
    * 沿用:
-   * - v0.3.15 §3.15.2 #6 v2 (PO msg #4772): 返回按钮原本是左下圆形 FAB, 现已删除
-   *   (见 #60)。BackButton.svelte 组件保留 (最小改动原则, 反 #121)。
+   * - v0.3.15 §3.15.2 #6 v2 (PO msg #4772): 返回按钮原本是左下圆形 FAB,
+   *   #60 已删除 (navbar 承担), #63 改为 inline 在 IosSwitch 行左侧.
+   *   BackButton.svelte 组件保留 (最小改动原则, 反 #121).
    *
    * 注:
    * - 该页本身没有金额 / 日期 format 调用 (SettleTransferPath / SettleMemberBreakdown
@@ -48,6 +67,7 @@
   import CurrencyAddModal from '$components/CurrencyAddModal.svelte';
   import IosSwitch from '$lib/components/IosSwitch.svelte';
   import { user } from '$stores/user';
+  import { ArrowLeft } from 'lucide-svelte';
   import { toast } from '$stores/toast';
 
   let session: SessionDetail | null = null;
@@ -122,15 +142,28 @@
 
     <!-- v0.3.18 #57 (PO msg 23:51 #6727): .tab-bar 玻璃化 → IosSwitch (方案 A iOS Segmented).
          跟个人视图内部 viewMode IosSwitch 完全同款, 整 settle 页一组 iOS27 segmented family.
-         IosSwitch 组件已 commit 44c1b40 + 0952078 + c8ae8606, 跨页面 wizard step 3 共用. -->
-    <IosSwitch
-      ariaLabel="结算视图"
-      options={[
-        { value: 'overview', label: '概览' },
-        { value: 'personal', label: '个人视图' }
-      ]}
-      bind:value={activeTab}
-    />
+         IosSwitch 组件已 commit 44c1b40 + 0952078 + c8ae8606, 跨页面 wizard step 3 共用.
+
+         v0.3.18 #63 (PO msg #6842 第 3 条): IosSwitch 同行左侧加 .back-btn 圆形 FAB 返回按钮
+         (ArrowLeft → /sessions/{sessionId}). row flex 让 .back-btn 左对齐页面元素左边缘,
+         IosSwitch 右对齐页面元素右边缘 (覆盖组件 scoped `margin: 0 auto 1.25rem` 居中). -->
+    <div class="settle-toggle-row">
+      <a
+        class="back-btn glass-pill"
+        href="/sessions/{sessionId}"
+        aria-label="返回账单列表"
+      >
+        <ArrowLeft size={20} strokeWidth={2.4} />
+      </a>
+      <IosSwitch
+        ariaLabel="结算视图"
+        options={[
+          { value: 'overview', label: '概览' },
+          { value: 'personal', label: '个人视图' }
+        ]}
+        bind:value={activeTab}
+      />
+    </div>
 
     <div class="card">
       {#if activeTab === 'overview'}
@@ -157,7 +190,10 @@
              主币种汇总 (CNY) vs 原始数据 — thumb width 跟随 active option 实际宽度
              (主币种汇总 label 长 ~120-140px, 原始数据 label 短 ~60-80px, thumb 差异明显)
              跟 wizard step 3 currency-mode 同一组件, 跨页面视觉一致.
-             单币种 session: "原始数据" disabled (locked, 不会切到 split state). -->
+             单币种 session: "原始数据" disabled (locked, 不会切到 split state).
+             v0.3.18 #60 删 "原始数据" option, 只剩 主币种汇总 (SettleMemberBreakdown 内部
+             split 分支保留 — v0.3.17 #32 维护)。#63 不动这个内部 IosSwitch (PO 字面改 #57
+             那个 activeTab IosSwitch)。 -->
         <IosSwitch
           ariaLabel="结算视图"
           options={[
@@ -193,6 +229,66 @@
      scoped style (frontend/src/lib/components/IosSwitch.svelte).
      跨页面 (wizard step 3 + settle 个人视图) 共用同一组件, thumb 宽度跟随
      active option 实际宽度 (动态, 不再固定 50%). */
+
+  /* v0.3.18 #63 (PO msg #6842 第 3 条): IosSwitch 同一行水平 row flex layout.
+   * - .settle-toggle-row: 水平 flex, 返回按钮左对齐页面元素左边缘,
+   *   IosSwitch 右对齐页面元素右边缘 (gap 12px).
+   * - .back-btn: 圆形 FAB, 直径 = IosSwitch 总高
+   *   (padding 4×2 + option min-height 44 = 52px desktop,
+   *    narrow viewport 8px+36px = 44px 同步降级).
+   *   形态跟原 v0.3.15 #6 v2 .fab 同款 (border-radius:50% + display:grid
+   *   + place-items:center + text-decoration:none + 紫蓝 hover/active/focus),
+   *   玻璃化 token 由 .glass-pill 全局提供 (app.css — bg 渐变 indigo→blue
+   *   saturate 200% / blur 20px / inset highlight + 蓝紫描边).
+   * - .settle-toggle-row :global(.ios-switch) 覆盖 IosSwitch 组件 scoped 的
+   *   `margin: 0 auto 1.25rem` 居中 — 在 row 内不再 auto-center, 由 flex
+   *   布局 (margin-left:auto) 决定位置.
+   * 不动 IosSwitch 组件本身 (反 #63 字面要求 — 只在 settle 页消费侧布局). */
+  .settle-toggle-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 1.25rem;
+  }
+  .settle-toggle-row :global(.ios-switch) {
+    /* 覆盖 IosSwitch 组件 scoped `margin: 0 auto 1.25rem` — 在 row flex 内
+       不再 auto-center, 由 margin-left:auto 让 IosSwitch 推右对齐 */
+    margin: 0;
+    margin-left: auto;
+  }
+  .back-btn {
+    flex-shrink: 0;
+    /* 直径 = IosSwitch 总高 desktop: padding 4×2 + option min-height 44 = 52px */
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    text-decoration: none;
+    cursor: pointer;
+    padding: 0;
+    border: none;
+    /* .glass-pill 全局提供 bg/box-shadow/border/color/backdrop-filter/transition.
+       这里只补 z-index/flex-shrink/形态 (圆 + grid center). */
+    transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease, color 150ms ease;
+  }
+  .back-btn:hover { transform: translateY(-2px); }
+  .back-btn:active { transform: scale(0.96); }
+  .back-btn:focus-visible {
+    /* 玻璃上白色 outline + indigo 实心 ring, focus 状态显眼 (跟原 .fab 一致) */
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px #4f46e5;
+  }
+
+  /* narrow viewport (≤600px) — 跟 IosSwitch option 36px min-height 同步降级 */
+  @media (max-width: 600px) {
+    .back-btn {
+      width: 44px;
+      height: 44px;
+    }
+  }
 
   .muted {
     color: var(--gray-500);
