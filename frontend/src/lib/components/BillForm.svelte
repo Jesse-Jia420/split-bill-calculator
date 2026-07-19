@@ -1,13 +1,17 @@
 <script lang="ts">
   /**
-   * v0.3.15 (PRD §3.15.2 #6 v2, PO msg #4752+#4763) — FAB 圆形按钮:
-   * - 父页面 `bills/new` + `bills/edit` 在 `<form>` 外加左右两个圆形 FAB:
-   *     左 = 圆形 + ArrowLeft (返回 session)
-   *     右 = 圆形 + Check (保存, 走 `form="bill-form"` 外部 submit 桥接)
-   * - 本组件只负责:
-   *     (1) `<form id="bill-form">` — 让外部 FAB save button 能 submit;
-   *     (2) 不再画 sticky bar (反 PO 拍板: 圆形 FAB 比 sticky bar 更轻量,
-   *         跟 session 主页「新建账单」FAB 同形态)。
+   * v0.3.15 (PRD §3.15.2 #6) — 底部悬浮 sticky action bar:
+   * - 「返回 session」+「保存账单」两个按钮一起 sticky 在
+   *   `<form>` 末尾, 移动端拇指热区友好。回退按钮在用户滑到尾
+   *   部之后仍能直接点 (不用回滚), 保存是 primary CTA。
+   * - 删掉了原来顶层的 `<div class="row"><button>保存</button></div>`。
+   *   父页面的「← 返回」也已经在 PRD §3.15.2 #7 里改成
+   *   本组件外的事 (由父页面 `.action-bar.sticky-bottom` 处理)。
+   *
+   * v0.3.18 (PO 批评 #6820) — 恢复 sticky bar, 不再用 FAB:
+   * - 之前 v0.3.15 #6 v2 (commit 2a8c5cd) 改成左下/右下两个圆形 FAB, PO
+   *   反馈"我要的是按钮变大 (sticky bar 形态), 不是改成圆形 FAB"
+   * - 改回 sticky bar, 但按钮高度 ≥ 56px (PO 反馈"调大一点")
    *
    * v0.3.15 (PO #4807 + Designer 报告) — 错误统一走 Toast.
    * - 删 `let formError` 状态 + form 顶部 `<div class="error">` 模板 + data-testid
@@ -19,6 +23,10 @@
   import type { Bill, ParseBillResult } from '$api/bills';
   import { evaluateExpression } from '$api/calculator';
   import { currencySymbol } from '$lib/utils/currency';
+  // v0.3.15 (PRD §3.15.2 #7): 「←」Unicode 字符在 iOS 系统字体下偶尔显示
+  // 「乱码」(PO 04:22 真机截图 #4543)。换成 lucide-svelte 的 ArrowLeft 图标,
+  // BackButton.svelte 已用 ChevronLeft, 这里统一为 ArrowLeft 走 PO 拍板。
+  import { ArrowLeft } from 'lucide-svelte';
   import { ApiError } from '$api/client';
   import { toast } from '$stores/toast';
   import AiAssistInput from './AiAssistInput.svelte';
@@ -458,10 +466,9 @@
   }
 </script>
 
-<form class="stack" id="bill-form" on:submit={handleSubmit}>
+<form class="stack" on:submit={handleSubmit}>
   <!-- v0.3.15 (PO #4807 + Designer 报告): form-level error 改走 Toast 系统,
-       不再渲染 inline 错误块. form 仍保留 padding-bottom: 96px 让最后
-       一行 member 不被左右下角 FAB 遮挡 (5-member session 测过). -->
+       不再渲染 inline 错误块. -->
   <div class="row" style="gap: var(--space-3); flex-wrap: wrap;">
     <div style="flex: 2; min-width: 140px;">
       <label class="label" for="amount">金额</label>
@@ -642,15 +649,21 @@
     {/if}
   </div>
 
-  <!-- v0.3.15 (PO #4790, P0-1): the inline error was previously rendered HERE
-       (after the participants list) which physically overlapped the bottom-left
-       back-FAB. It now lives at the TOP of the form (see above) so it never
-       collides with the page-level FABs. -->
-
-  <!-- v0.3.15 §3.15.2 #6 v2 (PO msg #4752+#4763): 父页面在 <form> 外加左右两个圆形 FAB。
-       这里**不**画 sticky bar — 圆形 FAB 由 `bills/new/+page.svelte` 和
-       `bills/[billId]/edit/+page.svelte` 在 page 层用 <a class="fab fab-left"> +
-       <button form="bill-form" class="fab fab-right"> 实现。 -->
+  <!-- v0.3.15 §3.15.2 #6: 底部悬浮 sticky action bar.
+       - 「返回 session」是 ghost link, 走浏览器 native navigation;
+       - 「保存...」 是 primary submit, 触发 <form>.
+       使用 sticky positioning 而不是 fixed, 让 bar 跟随 scroll context
+       (form card) 而不是 viewport — 这样在 modal 或 detail 页里
+       不会覆盖非相关按钮。
+       v0.3.18 (PO 批评 #6820): 按钮高度 ≥ 56px (PO 反馈"调大一点"). -->
+  <div class="action-bar sticky-bottom">
+    <a class="btn ghost" href="/sessions/{session.id}"><ArrowLeft size={18} /> 返回 session</a>
+    <button class="primary" type="submit" disabled={submitting}>
+      {submitting
+        ? '保存中…'
+        : (isEdit ? '保存修改' : '保存账单')}
+    </button>
+  </div>
 </form>
 
 <style>
@@ -921,20 +934,48 @@
     opacity: 0.55;
   }
 
-  /* v0.3.15 §3.15.2 #6 v2 (PO msg #4752+#4763): 删掉 sticky action bar 整段 CSS。
-     FAB 圆形按钮样式 (`.fab / .fab-left / .fab-right`) 移到父页面
-     `bills/new/+page.svelte` 和 `bills/[billId]/edit/+page.svelte` 的
-     `<style>` 块里 — 跟 session 主页「新建账单」FAB
-     (sessions/[id]/+page.svelte) 保持视觉一致
-     (56×56 圆形 + indigo 渐变 + 阴影)。 */
-
-  /* v0.3.15 (PO #4790, P0-1 — Designer report): reserve 96px at the
-     bottom of the form so the last member row stays scroll-clear of
-     the page-level bottom-left / bottom-right FABs (56×56 + 16px
-     inset + ~24px breathing room). Scoped: only affects the form in
-     this component, leaves the global .stack utility rule alone. */
-  .stack {
-    padding-bottom: 96px;
+  /* v0.3.15 §3.15.2 #6: sticky-bottom action bar.
+     - position: sticky 而不是 fixed; sticky 在 form card 内自然吸附底部
+       (页面滚动时 bar 在视觉上贴在 card 底部, 不脱离 card).
+     - background + 负 margin 让 bar 撑满 card 宽度, 上下边框 1px 跟表单内
+       fields 视觉上分隔。
+     v0.3.18 (PO 批评 #6820): ghost + primary 都强制 min-height: 56px (PO
+     反馈"调大一点", 跟原 56×56 FAB 视觉对位, 不再像小按钮). */
+  .action-bar.sticky-bottom {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-3, 12px);
+    margin: var(--space-4, 16px) calc(var(--space-4, 16px) * -1) calc(var(--space-4, 16px) * -1);
+    padding: var(--space-3, 12px) var(--space-4, 16px);
+    background: var(--bg-surface, #fff);
+    border-top: 1px solid var(--gray-200, #e5e7eb);
+    z-index: 10;
+  }
+  .action-bar.sticky-bottom > .btn.ghost {
+    /* ghost 按钮允许 row 拉伸, 但视觉上更柔 */
+    color: var(--gray-500, #737373);
+    /* v0.3.18 (PO 批评 #6820): 按钮高度 ≥ 56px */
+    min-height: 56px;
+    padding: 0 16px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .action-bar.sticky-bottom > button.primary {
+    /* v0.3.18 (PO 批评 #6820): 按钮高度 ≥ 56px */
+    min-height: 56px;
+    padding: 0 24px;
+    font-size: var(--font-size-base, 16px);
+  }
+  /* 保存按钮在 mobile viewport (≤480px) 全宽, 因为 thumb reach 友好 */
+  @media (max-width: 480px) {
+    .action-bar.sticky-bottom > button.primary {
+      flex: 1;
+      min-width: 0;
+    }
   }
 
 </style>
