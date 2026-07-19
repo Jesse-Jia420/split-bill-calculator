@@ -264,9 +264,10 @@
   .modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.25);
-    backdrop-filter: blur(2px);
-    -webkit-backdrop-filter: blur(2px);
+    /* v0.3.18 #60 batch2 (PO #6837): 遮罩层更暗 + 模糊度加重, 让 modal 内容更突出. */
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: saturate(180%) blur(16px);
+    -webkit-backdrop-filter: saturate(180%) blur(16px);
     z-index: 999;
     display: flex;
     align-items: center;
@@ -291,8 +292,9 @@
     display: flex;
     flex-direction: column;
     background: rgba(255, 255, 255, 0.55);
-    backdrop-filter: saturate(180%) blur(12px);
-    -webkit-backdrop-filter: saturate(180%) blur(12px);
+    /* v0.3.18 #60 batch2 (PO #6837): modal 内部玻璃模糊度加重, 跟遮罩层呼应. */
+    backdrop-filter: saturate(200%) blur(20px);
+    -webkit-backdrop-filter: saturate(200%) blur(20px);
     border: 1px solid rgba(99, 102, 241, 0.22);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.5),

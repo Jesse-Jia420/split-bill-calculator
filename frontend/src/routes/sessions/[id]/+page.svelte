@@ -448,7 +448,13 @@
         {/if}
 
         <div class="members-actions">
-          <InviteLinkButton sessionId={session.id} sessionCode={session?.session_code ?? ""} {isOwner} />
+          <InviteLinkButton
+            sessionId={session.id}
+            sessionCode={session?.session_code ?? ""}
+            {isOwner}
+            ownerEmail={session?.owner_email ?? null}
+            inviteExpiresAt={session?.invite_expires_at ?? null}
+          />
           <span class="members-chevron" class:open={membersOpen} aria-hidden="true">▾</span>
         </div>
       </header>

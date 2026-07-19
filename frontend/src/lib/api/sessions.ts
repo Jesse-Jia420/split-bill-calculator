@@ -47,6 +47,11 @@ export interface SessionDetail extends Omit<SessionSummary, 'role' | 'member_cou
   invite_token_preview?: string | null;
   /** v0.1.1: ISO 8601 invite expiration, also owner-only. */
   invite_expires_at?: string | null;
+  /** v0.3.x (PRD §3.11): mirrors owner_user_id; NULL until the anonymous
+   *  creator claims the session via the email link / login flow. Used by
+   *  the FE to render "🔐 登录以保存" CTA conditionally. v0.3.18 #60
+   *  batch2: also surfaces anon invite expiry hint under the invite button. */
+  owner_email?: string | null;
   /** v0.2.1 T02 (PRD §3.6.2): SessionMember.ids of the most recent
    *  bill's participants. Null when the session has no bills yet. */
   last_bill_participants?: number[] | null;
