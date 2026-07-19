@@ -16,11 +16,12 @@
    *   带具体单位, 主币种汇总模式下付款/消费明细行用 BE 已换算好的
    *   `*_primary` 字段。
    *
-   * v0.3.15 §3.15.2 #6 v2 (PO msg #4772): settle 页面返回按钮
-   * 改成左下圆形 FAB (Lucide ArrowLeft), 跟 bills/new + bills/edit
-   * 同形态 (56×56 圆形 + indigo 渐变 + 阴影 + bottom 24px)。
-   * 删除 inline BackButton.ghost 按钮用法; BackButton.svelte 组件
-   * 保留 (最小改动原则, 反 #121)。
+   * v0.3.18 (PO 批评 #6820): revert v0.3.15 §3.15.2 #6 v2 (commit b00afbe)
+   * + v0.3.18 #55 #2 (commit 1798508) — 取消 settle 页底部圆形 FAB,
+   * 还原 inline BackButton (顶部 ghost 链接)。
+   * PO 反馈"我要的是按钮变大 (sticky bar 形态), 不是改成圆形 FAB"。
+   * 注意: 1798508 #1 (成员 fade 对称化, SettleMemberBreakdown.svelte
+   * `.member-tabs-wrapper::before/::after` width 20px) **保留** (PO 拍对)。
    *
    * 注:
    * - 该页本身没有金额 / 日期 format 调用 (SettleTransferPath / SettleMemberBreakdown
@@ -34,16 +35,16 @@
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
-  import { slide, fly } from 'svelte/transition';
+  import { slide } from 'svelte/transition';
   import { getSessionWithSecret } from '$api/sessions';
   import type { SessionDetail } from '$api/sessions';
   import SettleTransferPath from '$components/SettleTransferPath.svelte';
   import SettleMemberBreakdown from '$components/SettleMemberBreakdown.svelte';
+  import BackButton from '$components/BackButton.svelte';
   import SessionCurrencyBadge from '$components/SessionCurrencyBadge.svelte';
   import CurrencyAddModal from '$components/CurrencyAddModal.svelte';
   import IosSwitch from '$lib/components/IosSwitch.svelte';
   import { user } from '$stores/user';
-  import { ArrowLeft, Receipt, Save } from 'lucide-svelte';
   import { toast } from '$stores/toast';
 
   let session: SessionDetail | null = null;
@@ -102,6 +103,12 @@
 </script>
 
 <section>
+  <!-- v0.3.18 (PO 批评 #6820): revert b00afbe — 还原 inline BackButton
+       (顶部 ghost 链接, 跟 session 详情页同款), 不用底部 FAB。 -->
+  <div class="row" style="margin-bottom: var(--space-3);">
+    <BackButton href="/sessions/{sessionId}" />
+  </div>
+
   {#if loading}
     <p class="muted">加载中…</p>
   {:else if session}
@@ -168,42 +175,6 @@
       {/if}
     </div>
 
-    <!-- v0.3.18 #55 (PO msg 21:44 #6588): settle 页底部 fixed 区从单返回 FAB
-         升级为 3 按钮 (返回 + 账单 + 保存), 都增大 56×56 → 64×64 (PO 反馈
-         "都适当增大一些").
-
-         布局 (跟 bills/new 同款 iOS27 glass-pill 语言):
-         - 左下 fab-left 24px: 返回 (ArrowLeft) → 跳 /sessions/{id} 详情
-         - 右下 fab-right 24px: 账单 (Receipt) → 跳 /sessions/{id} 详情 (看账单 list)
-         - 右下偏左 fab-right-inner 96px: 保存 (Save) → 跳 /sessions/{id}/bills/new
-           新建账单 (语义: 在 settle 看完结算后, 快速加一笔新账单)
-
-         三个按钮同形态 (64×64 圆 + glass-pill + indigo accent), 区别只在 icon.
-         fly 动画 stagger delay 200/250/300 让三个按钮依次浮起. -->
-    <a
-      class="fab fab-left glass-pill"
-      href="/sessions/{sessionId}"
-      aria-label="返回"
-      in:fly={{ y: 60, duration: 400, delay: 200 }}
-    >
-      <ArrowLeft size={26} strokeWidth={2.4} />
-    </a>
-    <a
-      class="fab fab-right glass-pill"
-      href="/sessions/{sessionId}"
-      aria-label="账单"
-      in:fly={{ y: 60, duration: 400, delay: 250 }}
-    >
-      <Receipt size={26} strokeWidth={2.2} />
-    </a>
-    <a
-      class="fab fab-right-inner glass-pill"
-      href="/sessions/{sessionId}/bills/new"
-      aria-label="保存"
-      in:fly={{ y: 60, duration: 400, delay: 300 }}
-    >
-      <Save size={26} strokeWidth={2.2} />
-    </a>
   {/if}
 
   <!-- v0.3.18 #53: owner-driven "add secondary currency" modal.
@@ -222,49 +193,11 @@
 </section>
 
 <style>
-  /* v0.3.15 §3.15.2 #6 v2 (PO msg #4772): 左下圆形 FAB (跟 bills/new + bills/edit 同形态)
-   * v0.3.16 #9 (PO msg 20:01): 加 .glass-pill 玻璃化 — bg/box-shadow/border/color/icon
-   *   由 .glass-pill 提供 (全局 app.css)。.fab 保留 border-radius: 50% + position fixed。
-   *   .fab 写在 .glass-pill 之后 → 同 specificity 时 .fab 后定义覆盖 .glass-pill。 */
-  .fab {
-    position: fixed;
-    bottom: 24px;
-    /* v0.3.18 #55 (PO msg 21:44 #6588): 56 → 64 (PO 反馈"都适当增大一些",
-       56 在 iOS 全面屏 bottom 24+safe-area 视觉偏小, 64 跟 row 内容视觉对位更好). */
-    width: 64px;
-    height: 64px;
-    border-radius: 50%;
-    display: grid;
-    place-items: center;
-    /* glass-pill 提供 bg / box-shadow / border / backdrop-filter / color (var(--accent-700, #4338ca))
-       这里只补 z-index + position fixed + 圆形保持 + transition */
-    z-index: 100;
-    text-decoration: none;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-    transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease, color 150ms ease;
-  }
-  .fab-left { left: 24px; }
-  .fab-right { right: 24px; }
-  /* v0.3.18 #55: 保存按钮位置 — 右下 FAB 左边 96px (64+gap 8+24 edge = 96).
-     三个按钮间距 = 64+8 = 72px gap, 视觉不重叠. */
-  .fab-right-inner { right: 96px; }
-  /* .fab:hover 不再写 background/box-shadow — 由 .glass-pill:hover 全局处理 */
-  .fab:hover { transform: translateY(-2px); }
-  .fab:active { transform: scale(0.96); }
-  .fab:focus-visible {
-    /* 玻璃上白色 outline + indigo 实心 ring, focus 状态显眼 */
-    outline: 2px solid #fff;
-    outline-offset: 2px;
-    box-shadow: 0 0 0 4px #4f46e5;
-  }
-  @media (max-width: 600px) {
-    .fab { bottom: 16px; }
-    .fab-left { left: 16px; }
-  }
+  /* v0.3.18 (PO 批评 #6820): revert b00afbe + 1798508 #2 — 取消 settle 页
+     底部圆形 FAB (.fab / .fab-left / .fab-right / .fab-right-inner 全部删除).
+     顶部 inline BackButton (见 <section> 顶部) 替代, 不在 <style> 里维护.
 
-  /* v0.3.17 #32-D-4 (PO msg 01:18 #6116): .ios-switch 全套移到 IosSwitch.svelte
+     v0.3.17 #32-D-4 (PO msg 01:18 #6116): .ios-switch 全套移到 IosSwitch.svelte
      scoped style (frontend/src/lib/components/IosSwitch.svelte).
      跨页面 (wizard step 3 + settle 个人视图) 共用同一组件, thumb 宽度跟随
      active option 实际宽度 (动态, 不再固定 50%). */
