@@ -116,28 +116,17 @@
       onAddCurrency={() => (addCurrencyOpen = true)}
     />
 
-    <div class="tab-bar" role="tablist" aria-label="结算视图">
-      <button
-        type="button"
-        role="tab"
-        class="tab"
-        class:active={activeTab === 'overview'}
-        aria-selected={activeTab === 'overview'}
-        on:click={() => (activeTab = 'overview')}
-      >
-        概览
-      </button>
-      <button
-        type="button"
-        role="tab"
-        class="tab"
-        class:active={activeTab === 'personal'}
-        aria-selected={activeTab === 'personal'}
-        on:click={() => (activeTab = 'personal')}
-      >
-        个人视图
-      </button>
-    </div>
+    <!-- v0.3.18 #57 (PO msg 23:51 #6727): .tab-bar 玻璃化 → IosSwitch (方案 A iOS Segmented).
+         跟个人视图内部 viewMode IosSwitch 完全同款, 整 settle 页一组 iOS27 segmented family.
+         IosSwitch 组件已 commit 44c1b40 + 0952078 + c8ae8606, 跨页面 wizard step 3 共用. -->
+    <IosSwitch
+      ariaLabel="结算视图"
+      options={[
+        { value: 'overview', label: '概览' },
+        { value: 'personal', label: '个人视图' }
+      ]}
+      bind:value={activeTab}
+    />
 
     <div class="card">
       {#if activeTab === 'overview'}
@@ -280,37 +269,6 @@
      跨页面 (wizard step 3 + settle 个人视图) 共用同一组件, thumb 宽度跟随
      active option 实际宽度 (动态, 不再固定 50%). */
 
-
-  .tab-bar {
-    display: flex;
-    gap: var(--space-2);
-    border-bottom: 1px solid var(--gray-200);
-    margin: var(--space-3) 0;
-  }
-  .tab {
-    background: transparent;
-    border: none;
-    border-bottom: 2px solid transparent;
-    padding: var(--space-2) var(--space-3);
-    min-height: var(--touch-target);
-    cursor: pointer;
-    color: var(--gray-500);
-    font-weight: 500;
-    transition: color 180ms ease, border-bottom-color 180ms ease, background-color 150ms ease;
-  }
-  .tab:hover:not(.active) {
-    color: var(--gray-900);
-    background: rgba(0, 0, 0, 0.025);
-  }
-  .tab.active {
-    color: var(--gray-900);
-    border-bottom-color: var(--accent-500);
-  }
-  .tab:focus-visible {
-    outline: 2px solid var(--accent-500);
-    outline-offset: 2px;
-    border-radius: var(--radius-sm, 4px);
-  }
 
   .muted {
     color: var(--gray-500);
