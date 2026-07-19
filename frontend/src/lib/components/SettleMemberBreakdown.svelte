@@ -1218,10 +1218,15 @@
        - bg 0.20 → 0.10 (chip 几乎全透, 只靠文字 + inset highlight 提示有 label)
        - inset highlight 1.0 → 0.30 (玻璃上沿大幅淡化, 不再"白框胶囊")
        - 外阴影 indigo: 0.14/0.20/0.14 → 0.04/0.06/0.04 (后两层浓阴影同降一档)
-       - 保留 text-shadow (重要文字仍然可读) */
-    background: rgba(255, 255, 255, 0.10);
-    backdrop-filter: saturate(200%) blur(20px);
-    -webkit-backdrop-filter: saturate(200%) blur(20px);
+       - 保留 text-shadow (重要文字仍然可读)
+       ===
+       v0.3.18 #54 (PO msg 18:10 #6569): 加重模糊 — 0.10 太透, 付款/消费明细 row
+       滚过 chip 时几乎贴脸穿透. bg 0.10 → 0.55 (× 5.5 浓液化),
+       blur 20 → 24 (+20%), 保留 saturate 200% (玻璃质感).
+       inset highlight / 外阴影同步略提 (玻璃感保留). */
+    background: rgba(255, 255, 255, 0.55);
+    backdrop-filter: saturate(200%) blur(24px);
+    -webkit-backdrop-filter: saturate(200%) blur(24px);
     border-radius: 9999px;
     /* v0.3.17 #37 (PO msg 10:55 #6262): 加倍 chip 垂直高度 ~36px → ~64-72px, 跟 row 高度 52-72px 视觉对位. padding 上下 8px → 20px (× 2.5, 原 brief 12px 写小改 20px 补足 SPEC 目标); 左右 12px → 16px (× 1.3); margin 同步 -8px → -10px 让 overlap 视觉协调. font-size sm (14px) → md (16px) +1 档. min-height: 60px 保证最小 320px viewport 也 ≥60. 保留 pill border-radius 9999px (PO 没要求改); 保留 sticky + mask-image + z-index + iOS27 玻璃参数. */
     padding: var(--space-5, 20px) var(--space-4, 16px);

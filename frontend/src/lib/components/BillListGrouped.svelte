@@ -787,14 +787,18 @@
      v0.3.18 #48 (PO msg 19:10 #6489): bg 0.85 → 0.50 (× 0.59 透明化)
      sticky 浮起时仍透背景图, 但够浓液保证文字可读. 保留 blur 12px (iOS27 standard)
      v0.3.18 #49 (PO msg 21:16 #6508 极透明化 sweep): bg 0.50 → 0.30
-     sticky 浮起时仍透背景图, 但够浓液保证文字可读. */
+     sticky 浮起时仍透背景图, 但够浓液保证文字可读.
+     v0.3.18 #54 (PO msg 18:10 #6569): 加重模糊 — 0.30 太透, 账单列表 row
+     滚过 sticky header 时几乎贴脸穿透. bg 0.30 → 0.65 (× 2.17 浓液化),
+     blur 12 → 20 (+67%), sticky 浮起时 row 内容被遮蔽更彻底, 文字可读性
+     提升. saturate 180% 保留 (玻璃质感). */
   .section-header {
     position: sticky;
     top: 0;
     z-index: 10;
-    background: rgba(255, 255, 255, 0.30);
-    backdrop-filter: saturate(180%) blur(12px);
-    -webkit-backdrop-filter: saturate(180%) blur(12px);
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
     border-bottom: 1px solid var(--gray-200);
   }
   .day-toggle {
