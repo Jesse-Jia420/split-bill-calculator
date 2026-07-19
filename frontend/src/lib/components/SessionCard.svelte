@@ -13,7 +13,7 @@
 </script>
 
 <a href="/sessions/{session.id}" class="card-link">
-  <div class="session-card">
+  <div class="session-card glass-pill">
     <div class="row between">
       <div class="title">{session.name}</div>
       <span class="role" class:owner={session.role === 'owner'}>
@@ -34,16 +34,10 @@
     color: inherit;
     display: block;
   }
-  .card-link:hover .session-card {
-    border-color: var(--accent-500);
-  }
-  .session-card {
-    background: white;
-    border: 1px solid var(--gray-200);
-    border-radius: var(--radius-md);
-    padding: var(--space-4);
-    transition: border-color var(--transition-fast);
-  }
+  /* v0.3.18 #60 batch2 (PO #6836): .session-card 现在挂 .glass-pill,
+   * 全局 .glass-pill 已提供 bg / border / box-shadow / backdrop-filter / hover.
+   * 因此删掉原 border/background/padding/transition 基础样式,
+   * hover 反馈走 .glass-pill:hover 默认 (translateY(-1px) + 渐变 bg 加深). */
   .title {
     font-weight: 600;
     font-size: var(--font-size-lg);

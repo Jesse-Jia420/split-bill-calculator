@@ -21,6 +21,24 @@
   export let sessionCode: string = '';
   /** True if the caller is the session owner (保留 prop,后续 v0.2 rotate 功能回归使用)。 */
   export const isOwner: boolean = false;
+  /** v0.3.18 #60 batch2 (PO #6826): sessions.owner_email — null/empty 表示 anon 创建.
+   * 为 anon 时按钮下方显示「此账本将于 X 后过期」提示. */
+  export let ownerEmail: string | null = null;
+  /** v0.3.18 #60 batch2 (PO #6826): sessions.invite_expires_at ISO string — anon 账本过期时间. */
+  export let inviteExpiresAt: string | null = null;
+
+  // v0.3.18 #60 batch2 (PO #6826): 派生 — ISO → "YYYY 年 M 月 D 日" 中文长格式.
+  $: expiresDate = inviteExpiresAt ? formatExpiresDate(inviteExpiresAt) : "";
+
+  /** v0.3.18 #60 batch2 (PO #6826): ISO → "YYYY 年 M 月 D 日". */
+  function formatExpiresDate(iso: string): string {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    const y = d.getFullYear();
+    const m = d.getMonth() + 1;
+    const day = d.getDate();
+    return y + " 年 " + m + " 月 " + day + " 日";
+  }
 
   let copied = false;
   let resetTimer: ReturnType<typeof setTimeout> | null = null;
@@ -69,7 +87,7 @@
     }
 
     if (ok) {
-      toast.success('已复制邀请链接');
+      toast.success('已复制账本链接，可用于邀请他人或回到此账本。请妥善保存！');
     } else {
       toast.info('复制失败,请手动选中链接');
     }
@@ -103,6 +121,12 @@
       <span class="btn-label">{copied ? '已复制' : '邀请'}</span>
     </span>
   </button>
+  <!-- v0.3.18 #60 batch2 (PO #6826): anon 账本过期提示. ownerEmail 为 null/empty 时显示. -->
+  {#if (ownerEmail == null || ownerEmail === '') && inviteExpiresAt}
+    <span class="hint" data-testid="invite-expires-hint">
+      此账本将于 {expiresDate} 后过期。
+    </span>
+  {/if}
 </div>
 
 <style>
