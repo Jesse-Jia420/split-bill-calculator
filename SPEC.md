@@ -2352,3 +2352,105 @@ seed 脚本 (`backend/scripts/seed_dev_data.py`) 已有 find-or-create 逻辑：
 - 4 截图 `~/.openclaw/media/browser/v0318-50-{bills-list-detail,settle-members,settle-bills-detail,bills-list-top}.png`
 - 验证: 冷色调 bg 透出来**极其明显**, 成员 chip + day-group + bills section 几乎只有文字/avatar/icons, 没有明显"白框"/"卡片"感.
 - DB 数据存在性 (`python3 /tmp/check_data.py` 验 sessions + bills 数未变).
+
+### §11. v0.3.18 #57 (2026-07-19) — settle `.tab-bar` 玻璃化 (方案 A: iOS Segmented Control)
+
+**PO 拍板**: Jesse 23:51 #6727 选方案 A (iOS Segmented Control, 跟个人视图**内部** IosSwitch 完全同款).
+
+**触发场景**: v0.3.17 #30 玻璃化了**个人视图内部** `主币种汇总 / 原始数据` toggle (改成 IosSwitch 组件), 但**顶部** `概览 / 个人视图` `.tab-bar` 仍是朴素 bottom-border tab (`color: var(--gray-500)` + `border-bottom: 2px`), 跟全站玻璃化语言 (v0.3.17 #21/#30 + v0.3.18 #48/#49 sweep) 严重不协调. Designer Agent 出 3 方案 mockup (A/B/C), PO 选 A.
+
+**目标**: `.tab-bar` 改成跟 IosSwitch **完全相同**的形态 — 玻璃 track + 紫渐变 thumb + option 反白. 整个 settle 页一组 iOS27 segmented family (tab-bar + 个人视图内部 IosSwitch).
+
+**改动文件**: `frontend/src/routes/sessions/[id]/settle/+page.svelte` (主)
+
+**改动细节**:
+
+1. **复用 IosSwitch 组件** (`frontend/src/lib/components/IosSwitch.svelte`, 跨页面共用, wizard step 3 currency-mode-row 同一组件, 已 commit `44c1b40` + `0952078` + `c8ae8606` 引入):
+   - options: `[{ value: 'overview', label: '概览' }, { value: 'personal', label: '个人视图' }]`
+   - `bind:value={activeTab}` (替代原 `activeTab` let 变量)
+   - ariaLabel: `'结算视图'`
+
+2. **移除原 `.tab-bar` / `.tab` 全部 CSS** (line 233-260 当前 `<style>` 段, 27 行 + 2 行 hover/focus):
+   - 不再需要 `.tab-bar` border-bottom / gap
+   - 不再需要 `.tab` color / padding / border-bottom / hover / active / focus-visible
+   - 视觉统一交给 IosSwitch scoped style
+
+3. **`<div class="tab-bar" role="tablist" aria-label="结算视图">` 整段替换**:
+   ```svelte
+   <IosSwitch
+     ariaLabel="结算视图"
+     options={[
+       { value: 'overview', label: '概览' },
+       { value: 'personal', label: '个人视图' }
+     ]}
+     bind:value={activeTab}
+   />
+   ```
+   - 替代 `<div class="tab-bar">...2 个 <button class="tab">...</button>...</div>`
+
+4. **margin / layout 调整**:
+   - 原 `.tab-bar` `margin: var(--space-3) 0` (上下留白) — 删
+   - IosSwitch 自带 `margin: 0 auto 1.25rem` (居中 + 下留 20px), 不需要外部 wrapper
+   - 原 `<div class="card">` (内容容器) 保留不动
+
+**视觉验证** (sbc skill 反 #150 续 #11):
+
+- 玻璃 track `bg rgba(255,255,255,0.12)` + `backdrop-filter blur(14px) saturate(180%)` + `border 0.5px rgba(99,102,241,0.32)` + inset shadow (IosSwitch 已有, 不动)
+- 紫渐变 thumb `linear-gradient(135deg, #6366f1, #818cf8)` 跟随 active option 实际宽度 (动态 measure)
+- inactive 文字 `rgba(67,56,202,0.6)`, active 文字白色 + `text-shadow: 0 1px 3px rgba(0,0,0,0.25)`
+- 整页 iOS27 segmented family — tab-bar + 个人视图内部 IosSwitch 同款
+
+**反 #119 (v0.3.18 #42 320px viewport polish 复用)**:
+- `@container page (max-width: 360px)` 块 IosSwitch 已有 (line 153-160), `.ios-switch-option` padding 8px 14px + font 13px + min-height 36px
+- 窄屏 (iPhone SE 320px) tab-bar 不撑破 card 边界
+
+**反模式 (绝对禁止)**:
+- ❌ **不**写新的 segmented 组件 — 复用 IosSwitch (跨页面一致性)
+- ❌ **不**改 IosSwitch 组件本身 (跨页面 wizard step 3 currency-mode-row 用同一组件, 不能破坏它)
+- ❌ **不**保留 `.tab-bar` / `.tab` CSS (dead code, 增维护成本)
+- ❌ **不**引新 npm 包
+
+**svelte-check 期望**: 7 errors / 22 warnings (同 #30 baseline, 0 new error — 纯组件替换不动 template 结构)
+
+**真机 walk** (Master 自验, 截图存 `~/.openclaw/media/browser/v0318-57-{settle-overview-active,settle-personal-active,settle-320px-narrow}.png`):
+- [ ] `/sessions/1/settle` (overview 默认 active) — tab-bar iOS segmented 形态 + 概览 active 紫渐变 thumb + 个人视图 inactive 浅玻璃
+- [ ] 点「个人视图」tab — thumb 滑动到右 + 个人视图 active + 概览 inactive
+- [ ] `/sessions/1/settle#personal` 直接 deep link — thumb 默认在 personal active
+- [ ] 整 settle 页 = iOS27 segmented family (tab-bar 跟 IosSwitch 视觉完全一致)
+- [ ] 320px viewport (iPhone SE) — option padding 8px 14px + font 13px 不撑破
+
+**DB 数据存在性** (sbc skill 反 #152):
+- 验证 `python3 /tmp/check_data.py` (codeserver 内) → session 1 泰国 (32 bills) + session 2 个人还在
+- **不**删 DB, **不**动 DB, 纯 FE 改动
+
+**实施状态**: 待 spawn Coder (单 commit: `feat(fe): v0.3.18 #57 — settle .tab-bar 改 IosSwitch (方案 A)`)
+
+### §11. v0.3.18 #57 (2026-07-20) — 实施细节 sync (commit c4326b1)
+
+**commit**: `c4326b1` — `feat(fe): v0.3.18 #57 — settle .tab-bar 改 IosSwitch (方案 A iOS Segmented) (PO msg 23:51 #6727)`
+**作者**: Coder Agent <coder@openclaw.local>
+**日期**: 2026-07-20 00:00:03 +0800
+**耗时**: 7m (Coder spawn 23:51 → push 00:00)
+
+**改动** (1 file, 11 insertions(+), 53 deletions(-)):
+- `frontend/src/routes/sessions/[id]/settle/+page.svelte`
+  - 删除 line 105-128 `<div class="tab-bar">...2 个 <button class="tab">...</button>...</div>` (24 行)
+  - 删除 line 233-260 `<style>` 段内 `.tab-bar` + `.tab` + `.tab:hover:not(.active)` + `.tab.active` + `.tab:focus-visible` (27 行 + 2 行)
+  - 插入 `<IosSwitch ariaLabel="结算视图" options={[{value:'overview', label:'概览'}, {value:'personal', label:'个人视图'}]} bind:value={activeTab} />` (1 行, ~20 chars)
+
+**svelte-check**: 3 errors / 24 warnings (同 #30 baseline, 0 new error — errors 全在非 settle 文件 pre-existing)
+**单分支铁律**: origin 仅 `main` ✓
+**IosSwitch 未改**: 最后一次 commit `fb4d572` (v0.3.18 #49), 跨页面 wizard step 3 currency-mode-row 同款 ✓
+**无 npm 包新增** / **无 DB 改动** / **无 BE 改动**
+
+**真机 walk** (Master 独立 verify, chromium headless 截图):
+- `/sessions/11/settle` overview active (thumb 在「概览」, 紫渐变, 「个人视图」浅玻璃)
+- `/sessions/11/settle` personal active (thumb 滑到右, 两个 IosSwitch 同款 - 顶部 tab-bar + 个人视图内部 viewMode 一组 iOS27 segmented family)
+- 320px viewport (反 #119 复用 #42 @container 查询, option padding 8px 14px + font 13px 不撑破 card)
+- `/sessions/11/settle#personal` deep link hash 路由 (thumb 默认在 personal active)
+
+**Master 验收**: ✅ push origin main, 单分支铁律, IosSwitch 跨页面一致性, 真机 walk 4 场景全过. 等 Jesse 真机拍对验收.
+
+**并发冲突注**: Master `01968a4 feat(deploy): v1.0 release prep` 跟 Coder `c4326b1` 并发 push, history 是 sequential (55ef4e3 → 01968a4 → c4326b1), 单分支铁律 OK, 无冲突.
+
+**Tester 验证待**: 等 Tester subagent `42d9eb70` 完成 e2e + svelte-check + 全站 checklist + 截图 + Telegram push.
