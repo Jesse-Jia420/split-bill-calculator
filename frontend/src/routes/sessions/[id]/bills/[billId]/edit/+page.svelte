@@ -83,7 +83,7 @@
       aria-label="返回"
       in:fly={{ y: 60, duration: 400, delay: 200 }}
     >
-      <ArrowLeft size={24} strokeWidth={2.4} />
+      <ArrowLeft size={30} strokeWidth={2.4} />
     </a>
     <button
       type="submit"
@@ -92,7 +92,7 @@
       aria-label="保存"
       in:fly={{ y: 60, duration: 400, delay: 250 }}
     >
-      <Check size={24} strokeWidth={2.8} />
+      <Check size={30} strokeWidth={2.8} />
     </button>
   {/if}
 </section>
@@ -106,9 +106,9 @@
    *   .fab 写在 .glass-pill 之后 → 同 specificity 时 .fab 后定义覆盖 .glass-pill。 */
   .fab {
     position: fixed;
-    bottom: 24px;
-    width: 56px;
-    height: 56px;
+    bottom: 28px;
+    width: 80px;
+    height: 80px;
     border-radius: 50%;
     display: grid;
     place-items: center;
@@ -121,8 +121,8 @@
     padding: 0;
     transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease, color 150ms ease;
   }
-  .fab-left { left: 24px; }
-  .fab-right { right: 24px; }
+  .fab-left { left: 28px; }
+  .fab-right { right: 28px; }
   /* .fab:hover 不再写 color — 由 .glass-pill:hover 全局处理 (icon 颜色保持主题色) */
   .fab:hover { transform: translateY(-2px); }
   .fab:active { transform: scale(0.96); }
@@ -131,8 +131,8 @@
     outline-offset: 2px;
   }
   @media (max-width: 600px) {
-    .fab { bottom: 16px; }
-    .fab-left { left: 16px; }
-    .fab-right { right: 16px; }
+    .fab { bottom: 20px; }
+    .fab-left { left: 20px; }
+    .fab-right { right: 20px; }
   }
 </style>
