@@ -16,13 +16,12 @@
    */
   import { onMount } from 'svelte';
   import type { SessionDetail } from '$api/sessions';
-  import type { Bill, ParseBillResult } from '$api/bills';
+  import type { Bill } from '$api/bills';
   import { evaluateExpression } from '$api/calculator';
   import { currencySymbol } from '$lib/utils/currency';
   import { ApiError } from '$api/client';
   import { toast } from '$stores/toast';
-  import AiAssistInput from './AiAssistInput.svelte';
-  import AmountCalculatorInput from './AmountCalculatorInput.svelte';
+    import AmountCalculatorInput from './AmountCalculatorInput.svelte';
 
   /**
    * v0.1.2 (PO 2026-07-01 fix #3): edit-page support.
@@ -103,7 +102,6 @@
   for (const m of session.members) {
     participantState[m.id] = { included: true, exclusive: false, amount: '0' };
   }
-  let showAi = false;
   let submitting = false;
   let descriptionPristine = true;
 
@@ -325,36 +323,7 @@
     }
   }
 
-  function applyAiResult(res: ParseBillResult) {
-    if (res.amount && Number(res.amount) > 0) {
-      // AI 辅助 — 用纯数字填入 expression, 计算器立刻得到金额
-      amount = Number(res.amount);
-      amountExpression = String(res.amount);
-    }
-    if (res.description) {
-      description = res.description;
-      descriptionPristine = false;
-    }
-    // resolve payer_hint
-    if (res.payer_hint && res.payer_hint !== 'self') {
-      const m = session.members.find((x) => x.display_name === res.payer_hint);
-      if (m) payerMemberId = m.id;
-    }
-    // resolve participants_hint
-    if (Array.isArray(res.participants_hint) && res.participants_hint.length) {
-      const allFlag = res.participants_hint.includes('all');
-      for (const m of session.members) {
-        const st = participantState[m.id];
-        if (!st) continue;
-        if (allFlag) {
-          st.included = true;
-        } else {
-          st.included = res.participants_hint.includes(m.display_name);
-        }
-      }
-      participantState = { ...participantState };
-    }
-  }
+
 
   function buildPayload() {
     const participants: Array<{ member_id: number; is_exclusive: boolean; exclusive_amount: number }> = [];
@@ -462,20 +431,30 @@
   <!-- v0.3.15 (PO #4807 + Designer 报告): form-level error 改走 Toast 系统,
        不再渲染 inline 错误块. form 仍保留 padding-bottom: 96px 让最后
        一行 member 不被左右下角 FAB 遮挡 (5-member session 测过). -->
-  <div class="row" style="gap: var(--space-3); flex-wrap: wrap;">
-    <div style="flex: 2; min-width: 140px;">
-      <label class="label" for="amount">金额</label>
-      <!-- v0.2.1 T01: AmountCalculatorInput replaces the bare number input.
-           Calculator preview lives inside the component; this row holds the
-           currency suffix only. -->
-      <AmountCalculatorInput
-        bind:value={amountExpression}
-        bind:evaluated={amount}
-        {currency}
-        disabled={submitting}
-        on:change={(e) => (amountExpression = e.detail)}
-        on:amountChange={(e) => (amount = e.detail)}
-      />
+  <div style="width: 100%;">
+    <label class="label" for="amount">金额</label>
+    <!-- v0.2.1 T01: AmountCalculatorInput replaces the bare number input.
+         Calculator preview lives inside the component; this row holds the
+         currency suffix only. -->
+    <AmountCalculatorInput
+      bind:value={amountExpression}
+      bind:evaluated={amount}
+      {currency}
+      disabled={submitting}
+      on:change={(e) => (amountExpression = e.detail)}
+      on:amountChange={(e) => (amount = e.detail)}
+    />
+  </div>
+
+  <div class="row" style="gap: var(--space-3);">
+    <div style="flex: 1;">
+      <label class="label" for="payer">付款人</label>
+      <select id="payer" bind:value={payerMemberId}>
+        <option value={null}>— 选择 —</option>
+        {#each session.members as m (m.id)}
+          <option value={m.id}>{m.display_name}</option>
+        {/each}
+      </select>
     </div>
     <div style="flex: 1; min-width: 100px;">
       <span class="label" id="currency-pills-label">币种</span>
@@ -498,16 +477,6 @@
         {/each}
       </div>
     </div>
-  </div>
-
-  <div>
-    <label class="label" for="payer">付款人</label>
-    <select id="payer" bind:value={payerMemberId}>
-      <option value={null}>— 选择 —</option>
-      {#each session.members as m (m.id)}
-        <option value={m.id}>{m.display_name}</option>
-      {/each}
-    </select>
   </div>
 
   <div>
@@ -561,17 +530,7 @@
       <span class="label">
         参与者 ({includedCount}/{session.members.length} 已选)
       </span>
-      {#if !isEdit}
-        <button type="button" class="ghost btn-sm" on:click={() => (showAi = !showAi)}>
-          {showAi ? '收起 AI 辅助' : 'AI 辅助'}
-        </button>
-      {/if}
-    </div>
-    {#if showAi && !isEdit}
-      <div style="margin-bottom: var(--space-3);">
-        <AiAssistInput sessionId={session.id} onResult={applyAiResult} />
-      </div>
-    {/if}
+
 
     <!-- v0.2.3 T14 (PRD §3.9.2): single tap area per row + chevron-expandable sub-row.
          Hide the whole section when the session has no members. -->
