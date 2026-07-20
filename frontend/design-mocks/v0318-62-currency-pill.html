@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>v0.3.18 #62 Task 3 — Currency Pill 单币种美化</title>
+  <style>
+    :root { --page-bg: #f2f3f7; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      background: var(--page-bg);
+      color: #171717;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+        "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      font-feature-settings: "cv11", "ss01", "ss03";
+    }
+
+    .ios-chrome {
+      width: 375px;
+      margin: 0 auto;
+      background: var(--page-bg);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .annotation {
+      padding: 10px 20px 6px;
+      font-size: 11px;
+      color: #6272a4;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+    }
+
+    .ios-statusbar {
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 22px 0 24px;
+      box-sizing: border-box;
+      font-size: 15px;
+      font-weight: 600;
+      color: #000;
+      letter-spacing: -0.2px;
+      background: transparent;
+    }
+    .ios-statusbar .time { font-variant-numeric: tabular-nums; }
+    .ios-statusbar .right { display: inline-flex; align-items: center; gap: 6px; }
+
+    .ios-homeindicator {
+      height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .ios-homeindicator::after {
+      content: "";
+      width: 134px;
+      height: 5px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.85);
+    }
+
+    .page-head {
+      padding: 8px 20px 4px;
+    }
+    .page-head .crumb {
+      font-size: 11.5px;
+      color: #64748b;
+      letter-spacing: 0.02em;
+    }
+    .page-head h1 {
+      margin: 4px 0 0;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.4px;
+      color: #111827;
+    }
+
+    .page-section { padding: 10px 16px 24px; }
+
+    .card {
+      position: relative;
+      padding: 16px 16px 14px;
+      border-radius: 18px;
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.72) 0%,
+        rgba(255, 255, 255, 0.55) 100%
+      );
+      backdrop-filter: saturate(200%) blur(20px) brightness(1.03);
+      -webkit-backdrop-filter: saturate(200%) blur(20px) brightness(1.03);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.85),
+        inset 0 -1px 0 rgba(15, 23, 42, 0.04),
+        0 1px 2px rgba(15, 23, 42, 0.04),
+        0 8px 24px rgba(15, 23, 42, 0.06),
+        0 0 0 0.5px rgba(99, 102, 241, 0.06);
+    }
+
+    .label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #94a3b8;
+      margin: 6px 0 4px;
+      padding-left: 4px;
+    }
+    .label + .swatch-row { margin-top: 4px; }
+
+    .swatch-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 14px;
+      flex-wrap: wrap;
+      padding: 14px 4px 12px;
+      justify-content: center;
+    }
+    .swatch-row + .swatch-row { border-top: 1px dashed rgba(15, 23, 42, 0.08); }
+
+    .variant {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      min-width: 76px;
+    }
+    .variant-label {
+      font-size: 10.5px;
+      color: #64748b;
+      letter-spacing: 0.02em;
+      text-align: center;
+      line-height: 1.4;
+      font-variant-numeric: tabular-nums;
+      padding: 4px 4px 2px;
+      border-top: 1px dashed rgba(15, 23, 42, 0.18);
+      width: 100%;
+    }
+
+    @media (min-width: 720px) {
+      .swatch-row { gap: 22px; }
+      .variant { min-width: 100px; }
+    }
+    @media (max-width: 340px) {
+      .swatch-row { gap: 10px; padding: 12px 0 10px; }
+      .variant { min-width: 60px; }
+      .variant-label { font-size: 9.5px; padding: 4px 2px 2px; }
+    }
+
+    /* ============================================================
+       单币种 pill — 设计稿 (v62) — "Stamped glass coin"
+       ============================================================ */
+    .pill-v62 {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px 8px 16px;
+      border-radius: 999px;
+      background: linear-gradient(
+        135deg,
+        rgba(99, 102, 241, 0.32) 0%,
+        rgba(59, 130, 246, 0.22) 100%
+      );
+      backdrop-filter: saturate(220%) blur(22px);
+      -webkit-backdrop-filter: saturate(220%) blur(22px);
+      border: 1.5px solid rgba(165, 180, 252, 0.5);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.85),
+        inset 0 -1px 0 rgba(67, 56, 202, 0.10),
+        0 4px 14px rgba(99, 102, 241, 0.32),
+        0 0 0 0.5px rgba(255, 255, 255, 0.4);
+      color: #1e1b4b;
+      line-height: 1;
+      font-size: 13.5px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.04em;
+      transition:
+        background 180ms ease,
+        box-shadow 180ms ease,
+        transform 120ms cubic-bezier(0.34, 1.56, 0.64, 1);
+      position: relative;
+      overflow: hidden;
+    }
+    .pill-v62::before {
+      content: "";
+      position: absolute;
+      top: 1px;
+      left: 6px;
+      right: 6px;
+      height: 50%;
+      border-radius: 999px;
+      background: linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.55) 0%,
+        rgba(255, 255, 255, 0) 100%
+      );
+      pointer-events: none;
+    }
+
+    .pill-v62.owner { cursor: pointer; }
+    .pill-v62.owner:hover,
+    .pill-v62.owner.is-hover {
+      background: linear-gradient(
+        135deg,
+        rgba(99, 102, 241, 0.42) 0%,
+        rgba(59, 130, 246, 0.30) 100%
+      );
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.95),
+        inset 0 -1px 0 rgba(67, 56, 202, 0.12),
+        0 6px 20px rgba(99, 102, 241, 0.42),
+        0 0 0 0.5px rgba(255, 255, 255, 0.5);
+      transform: translateY(-1px);
+    }
+    .pill-v62.owner:active { transform: scale(0.96) translateY(0); }
+    .pill-v62.owner:focus-visible {
+      outline: 2px solid #3b82f6;
+      outline-offset: 3px;
+    }
+
+    .pill-v62 .cc {
+      position: relative;
+      z-index: 1;
+      font-weight: 700;
+      color: #1e1b4b;
+    }
+
+    .pill-v62 .add {
+      position: relative;
+      z-index: 1;
+      width: 18px;
+      height: 18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #ffffff 0%, #e0e7ff 100%);
+      color: #4338ca;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.95),
+        0 1px 3px rgba(67, 56, 202, 0.32);
+      transition: background 150ms ease, transform 200ms ease;
+    }
+    .pill-v62.owner:hover .add,
+    .pill-v62.owner.is-hover .add {
+      background: linear-gradient(135deg, #ffffff 0%, #c7d2fe 100%);
+      transform: rotate(90deg);
+    }
+
+    .pill-v62.readonly {
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.72) 0%,
+        rgba(255, 255, 255, 0.52) 100%
+      );
+      border-color: rgba(148, 163, 184, 0.45);
+      color: #334155;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.85),
+        0 2px 8px rgba(15, 23, 42, 0.06),
+        0 0 0 0.5px rgba(255, 255, 255, 0.4);
+    }
+    .pill-v62.readonly .cc { color: #334155; }
+
+    /* ============================================================
+       对比: 现状 (current)
+       ============================================================ */
+    .pill-current {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 9px 14px;
+      border-radius: 999px;
+      background: linear-gradient(
+        135deg,
+        rgba(99, 102, 241, 0.18) 0%,
+        rgba(59, 130, 246, 0.08) 100%
+      );
+      backdrop-filter: saturate(200%) blur(18px);
+      -webkit-backdrop-filter: saturate(200%) blur(18px);
+      border: 1px solid rgba(99, 102, 241, 0.22);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.5),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.03),
+        0 1px 4px rgba(99, 102, 241, 0.04),
+        0 2px 8px rgba(99, 102, 241, 0.10);
+      color: #404040;
+      font-size: 12px;
+      font-weight: 500;
+      line-height: 1;
+      letter-spacing: 0.02em;
+    }
+    .pill-current .cc {
+      font-weight: 600;
+      color: #1e1b4b;
+      font-variant-numeric: tabular-nums;
+    }
+    .pill-current .add {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 13px;
+      height: 13px;
+      color: #4338ca;
+      margin-left: 1px;
+    }
+
+    /* ============================================================
+       iPad
+       ============================================================ */
+    @media (min-width: 720px) {
+      .ios-chrome { width: 768px; }
+      .page-head h1 { font-size: 26px; }
+      .page-section { padding: 12px 24px 28px; }
+      .card { padding: 22px 24px 18px; border-radius: 22px; }
+      .pill-v62 { padding: 9px 16px 9px 18px; font-size: 14.5px; }
+    }
+
+    @media (max-width: 340px) {
+      .ios-chrome { width: 320px; }
+      .page-head { padding: 6px 16px 4px; }
+      .page-head h1 { font-size: 20px; }
+      .page-section { padding: 8px 12px 20px; }
+      .card { padding: 14px; border-radius: 16px; }
+      .pill-v62 { padding: 6px 10px 6px 12px; font-size: 12.5px; }
+      .pill-v62 .add { width: 16px; height: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="ios-chrome">
+  <div class="ios-statusbar">
+    <span class="time">9:41</span>
+    <span class="right">
+      <svg width="16" height="11" viewBox="0 0 16 11" fill="currentColor" aria-hidden="true">
+        <path d="M1 7h2v3H1zM4 5h2v5H4zM7 3h2v7H7zM10 1h2v9h-2z" />
+      </svg>
+      <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1" aria-hidden="true">
+        <path d="M1 5 Q8 -1 15 5" />
+        <path d="M3 7 Q8 3 13 7" />
+        <circle cx="8" cy="9" r="1" fill="currentColor" />
+      </svg>
+      <svg width="26" height="11" viewBox="0 0 26 11" fill="none" stroke="currentColor" stroke-width="1" aria-hidden="true">
+        <rect x="0.5" y="0.5" width="22" height="10" rx="2.5" />
+        <rect x="2" y="2" width="17" height="7" rx="1.2" fill="currentColor" />
+        <rect x="23.5" y="3.5" width="2" height="4" rx="0.6" fill="currentColor" />
+      </svg>
+    </span>
+  </div>
+
+  <div class="page-head">
+    <div class="crumb">账本 › 单币种 pill 对比</div>
+    <h1>单币种胶囊 · 美化</h1>
+  </div>
+
+  <div class="annotation">↳ 现状 (PO "还是很丑") vs v62 "Stamped glass coin" 4 变体</div>
+
+  <div class="page-section">
+    <section class="card">
+
+      <div class="label">现状 (current · PO "还是很丑")</div>
+      <div class="swatch-row">
+        <div class="variant">
+          <span class="pill-current">
+            <span class="cc">CNY</span>
+            <span class="add" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+            </span>
+          </span>
+          <span class="variant-label">owner · CNY<br/>点击添加副币种</span>
+        </div>
+        <div class="variant">
+          <span class="pill-current">
+            <span class="cc">CNY</span>
+          </span>
+          <span class="variant-label">member · CNY<br/>不可点</span>
+        </div>
+        <div class="variant">
+          <span class="pill-current">
+            <span class="cc">USD</span>
+          </span>
+          <span class="variant-label">member · USD<br/>美元</span>
+        </div>
+        <div class="variant">
+          <span class="pill-current">
+            <span class="cc">THB</span>
+          </span>
+          <span class="variant-label">member · THB<br/>泰铢</span>
+        </div>
+      </div>
+
+      <div class="label">v62 新设计 — "Stamped glass coin"</div>
+      <div class="swatch-row">
+        <div class="variant">
+          <button type="button" class="pill-v62 owner" aria-label="添加副币种">
+            <span class="cc">CNY</span>
+            <span class="add" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+            </span>
+          </button>
+          <span class="variant-label">owner · CNY<br/>默认 (rest)</span>
+        </div>
+        <div class="variant">
+          <button type="button" class="pill-v62 owner is-hover" aria-label="添加副币种">
+            <span class="cc">CNY</span>
+            <span class="add" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>
+            </span>
+          </button>
+          <span class="variant-label">owner · CNY<br/>hover (× 态)</span>
+        </div>
+        <div class="variant">
+          <div class="pill-v62 readonly">
+            <span class="cc">USD</span>
+          </div>
+          <span class="variant-label">member · USD<br/>read-only</span>
+        </div>
+        <div class="variant">
+          <div class="pill-v62 readonly">
+            <span class="cc">THB</span>
+          </div>
+          <span class="variant-label">member · THB<br/>read-only</span>
+        </div>
+      </div>
+
+    </section>
+  </div>
+
+  <div class="ios-homeindicator"></div>
+</div>
+
+</body>
+</html>

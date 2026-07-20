@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>v0.3.18 #62 Task 1 — SessionCard 玻璃化</title>
+  <style>
+    :root {
+      --page-bg: #f2f3f7;
+    }
+    html, body { margin: 0; padding: 0; }
+    body {
+      background: var(--page-bg);
+      color: #171717;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+        "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      font-feature-settings: "cv11", "ss01", "ss03";
+    }
+
+    .ios-chrome {
+      width: 375px;
+      margin: 0 auto;
+      background: var(--page-bg);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .annotation {
+      padding: 10px 20px 14px;
+      font-size: 11px;
+      color: #6272a4;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+    }
+
+    .ios-statusbar {
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 22px 0 24px;
+      box-sizing: border-box;
+      font-size: 15px;
+      font-weight: 600;
+      color: #000;
+      letter-spacing: -0.2px;
+      background: transparent;
+    }
+    .ios-statusbar .time { font-variant-numeric: tabular-nums; }
+    .ios-statusbar .right { display: inline-flex; align-items: center; gap: 6px; }
+    .ios-statusbar .icon { width: 16px; height: 11px; display: inline-block; }
+
+    .ios-homeindicator {
+      height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .ios-homeindicator::after {
+      content: "";
+      width: 134px;
+      height: 5px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.85);
+    }
+
+    .page-head {
+      padding: 8px 20px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .page-head h1 {
+      margin: 0;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: #111827;
+    }
+    .page-head .add-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.4),
+        0 4px 14px rgba(59,130,246,0.32);
+      border: 1px solid rgba(255,255,255,0.35);
+    }
+
+    .showcase-stack {
+      padding: 4px 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .card-link {
+      text-decoration: none;
+      color: inherit;
+      display: block;
+    }
+
+    .session-card-v62 {
+      position: relative;
+      padding: 16px 16px 14px;
+      border-radius: 18px;
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.72) 0%,
+        rgba(255, 255, 255, 0.55) 100%
+      );
+      backdrop-filter: saturate(200%) blur(20px) brightness(1.03);
+      -webkit-backdrop-filter: saturate(200%) blur(20px) brightness(1.03);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.85),
+        inset 0 -1px 0 rgba(15, 23, 42, 0.04),
+        0 1px 2px rgba(15, 23, 42, 0.04),
+        0 8px 24px rgba(15, 23, 42, 0.06),
+        0 0 0 0.5px rgba(99, 102, 241, 0.06);
+      transition:
+        transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1),
+        background 200ms ease,
+        box-shadow 200ms ease;
+      overflow: hidden;
+    }
+
+    .session-card-v62::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 60%;
+      pointer-events: none;
+      background: linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.5) 0%,
+        rgba(255, 255, 255, 0) 100%
+      );
+      opacity: 0.6;
+    }
+
+    @media (hover: hover) {
+      .card-link:hover .session-card-v62 {
+        background: linear-gradient(
+          135deg,
+          rgba(255, 255, 255, 0.82) 0%,
+          rgba(255, 255, 255, 0.65) 100%
+        );
+        transform: translateY(-2px);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.95),
+          inset 0 -1px 0 rgba(15, 23, 42, 0.05),
+          0 2px 4px rgba(15, 23, 42, 0.05),
+          0 14px 32px rgba(15, 23, 42, 0.09),
+          0 0 0 0.5px rgba(99, 102, 241, 0.10);
+      }
+    }
+
+    .card-link:active .session-card-v62 {
+      transform: scale(0.99) translateY(0);
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.6) 0%,
+        rgba(255, 255, 255, 0.5) 100%
+      );
+    }
+
+    .sc-row1 {
+      position: relative;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .sc-title {
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: -0.2px;
+      color: #0f172a;
+      line-height: 1.35;
+      flex: 1;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .sc-role {
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 9px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      border-radius: 999px;
+      line-height: 1;
+    }
+    .sc-role.owner {
+      color: #4338ca;
+      background: linear-gradient(
+        135deg,
+        rgba(165, 180, 252, 0.45) 0%,
+        rgba(99, 102, 241, 0.25) 100%
+      );
+      border: 1px solid rgba(99, 102, 241, 0.28);
+      backdrop-filter: blur(8px);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.6),
+        0 1px 3px rgba(99, 102, 241, 0.12);
+    }
+    .sc-role.member {
+      color: #64748b;
+      background: rgba(255, 255, 255, 0.55);
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      backdrop-filter: blur(8px);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    }
+    .sc-role .dot-led {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+      opacity: 0.85;
+    }
+
+    .sc-currency {
+      position: relative;
+      margin-top: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      font-size: 11.5px;
+      font-weight: 500;
+      color: #475569;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.5);
+      border: 1px solid rgba(99, 102, 241, 0.16);
+      backdrop-filter: blur(8px);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
+    }
+    .sc-currency .arrow { color: #6366f1; font-weight: 600; }
+    .sc-currency .cc {
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: #1e293b;
+      letter-spacing: 0.02em;
+    }
+    .sc-currency .cc.primary { color: #4338ca; }
+    .sc-currency .rate {
+      margin-left: 4px;
+      padding-left: 8px;
+      border-left: 1px solid rgba(99, 102, 241, 0.18);
+      color: #64748b;
+      font-variant-numeric: tabular-nums;
+    }
+    .sc-currency .rate b { font-weight: 600; color: #1e293b; }
+
+    .sc-meta {
+      position: relative;
+      margin-top: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .sc-avatars { display: inline-flex; }
+    .sc-avatars .av {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+      color: #fff;
+      background: linear-gradient(135deg, #818cf8, #6366f1);
+      border: 2px solid #fff;
+      box-shadow: 0 1px 2px rgba(15,23,42,0.08);
+      margin-left: -8px;
+    }
+    .sc-avatars .av:first-child { margin-left: 0; }
+    .sc-avatars .av.a2 { background: linear-gradient(135deg, #f472b6, #ec4899); }
+    .sc-avatars .av.a3 { background: linear-gradient(135deg, #fbbf24, #f59e0b); }
+    .sc-avatars .av.a4 { background: linear-gradient(135deg, #34d399, #10b981); }
+    .sc-avatars .av.more {
+      background: rgba(255,255,255,0.7);
+      color: #475569;
+      font-weight: 600;
+      backdrop-filter: blur(8px);
+    }
+    .sc-meta .text {
+      font-size: 12.5px;
+      color: #64748b;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.1px;
+    }
+    .sc-meta .text b { font-weight: 600; color: #334155; }
+    .sc-meta .dot { color: #cbd5e1; }
+
+    .sc-chevron {
+      margin-left: auto;
+      width: 24px;
+      height: 24px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #94a3b8;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.5);
+      border: 1px solid rgba(15, 23, 42, 0.06);
+      backdrop-filter: blur(8px);
+    }
+
+    @media (min-width: 720px) {
+      .ios-chrome { width: 768px; }
+      .page-head h1 { font-size: 34px; }
+      .showcase-stack { padding: 4px 24px 28px; gap: 16px; }
+      .session-card-v62 { padding: 18px 20px 16px; border-radius: 22px; }
+      .sc-title { font-size: 18px; }
+      .sc-currency { font-size: 12.5px; padding: 5px 12px; }
+      .sc-meta .text { font-size: 13.5px; }
+    }
+
+    @media (max-width: 340px) {
+      .ios-chrome { width: 320px; }
+      .page-head { padding: 6px 16px 12px; }
+      .page-head h1 { font-size: 24px; }
+      .showcase-stack { padding: 4px 12px 16px; gap: 12px; }
+      .session-card-v62 { padding: 14px 14px 12px; border-radius: 16px; }
+      .sc-title { font-size: 15px; }
+      .sc-currency { font-size: 11px; }
+      .sc-role { font-size: 10.5px; padding: 3px 8px; }
+      .sc-meta .text { font-size: 11.5px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="ios-chrome" id="frame">
+  <div class="ios-statusbar">
+    <span class="time">9:41</span>
+    <span class="right">
+      <svg class="icon" viewBox="0 0 16 11" fill="currentColor" aria-hidden="true">
+        <path d="M1 7h2v3H1zM4 5h2v5H4zM7 3h2v7H7zM10 1h2v9h-2z" />
+      </svg>
+      <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1" aria-hidden="true">
+        <path d="M1 5 Q8 -1 15 5" />
+        <path d="M3 7 Q8 3 13 7" />
+        <circle cx="8" cy="9" r="1" fill="currentColor" />
+      </svg>
+      <svg width="26" height="11" viewBox="0 0 26 11" fill="none" stroke="currentColor" stroke-width="1" aria-hidden="true">
+        <rect x="0.5" y="0.5" width="22" height="10" rx="2.5" />
+        <rect x="2" y="2" width="17" height="7" rx="1.2" fill="currentColor" />
+        <rect x="23.5" y="3.5" width="2" height="4" rx="0.6" fill="currentColor" />
+      </svg>
+    </span>
+  </div>
+
+  <div class="page-head">
+    <h1>我的账本</h1>
+    <span class="add-btn">+ 新建</span>
+  </div>
+
+  <div class="annotation">↳ 3 真实场景 card · hover/active 状态在 PC 端可见</div>
+
+  <div class="showcase-stack">
+
+    <a class="card-link" href="#">
+      <article class="session-card-v62">
+        <div class="sc-row1">
+          <div class="sc-title">泰国测试账单 6.19-6.22</div>
+          <span class="sc-role owner">
+            <span class="dot-led"></span>
+            owner
+          </span>
+        </div>
+        <div class="sc-currency">
+          <span class="cc primary">CNY</span>
+          <span class="arrow">⇄</span>
+          <span class="cc">THB</span>
+          <span class="rate">1 <b>CNY</b> = <b>4.6512</b></span>
+        </div>
+        <div class="sc-meta">
+          <span class="sc-avatars">
+            <span class="av">J</span>
+            <span class="av a2">M</span>
+            <span class="av a3">小</span>
+            <span class="av a4">林</span>
+            <span class="av more">+2</span>
+          </span>
+          <span class="text"><b>6 人</b> <span class="dot">·</span> 创建于 2026-06-19</span>
+          <span class="sc-chevron" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+          </span>
+        </div>
+      </article>
+    </a>
+
+    <a class="card-link" href="#">
+      <article class="session-card-v62">
+        <div class="sc-row1">
+          <div class="sc-title">周末聚餐 AA</div>
+          <span class="sc-role member">
+            <span class="dot-led"></span>
+            member
+          </span>
+        </div>
+        <div class="sc-currency">
+          <span class="cc primary">CNY</span>
+          <span style="color:#94a3b8;font-size:10px;margin-left:2px;">only</span>
+        </div>
+        <div class="sc-meta">
+          <span class="sc-avatars">
+            <span class="av">J</span>
+            <span class="av a2">L</span>
+          </span>
+          <span class="text"><b>2 人</b> <span class="dot">·</span> 创建于 2026-07-08</span>
+          <span class="sc-chevron" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+          </span>
+        </div>
+      </article>
+    </a>
+
+    <a class="card-link" href="#">
+      <article class="session-card-v62">
+        <div class="sc-row1">
+          <div class="sc-title">2026 公司年会聚餐分摊（多部门）</div>
+          <span class="sc-role owner">
+            <span class="dot-led"></span>
+            owner
+          </span>
+        </div>
+        <div class="sc-currency">
+          <span class="cc primary">CNY</span>
+        </div>
+        <div class="sc-meta">
+          <span class="sc-avatars">
+            <span class="av">王</span>
+            <span class="av a2">L</span>
+            <span class="av a3">Z</span>
+            <span class="av a4">陈</span>
+            <span class="av more">+8</span>
+          </span>
+          <span class="text"><b>12 人</b> <span class="dot">·</span> 创建于 2026-07-15</span>
+          <span class="sc-chevron" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+          </span>
+        </div>
+      </article>
+    </a>
+
+  </div>
+
+  <div class="ios-homeindicator"></div>
+</div>
+
+</body>
+</html>

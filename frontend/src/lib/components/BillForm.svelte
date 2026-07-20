@@ -14,7 +14,7 @@
    * - 4 个 formError 赋值源 (3 客户端校验 + 1 BE 错误) → toast.error()
    * - humanizeApiError() helper 保留 (返回 string, 仍被 toast 消费)
    */
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import type { SessionDetail } from '$api/sessions';
   import type { Bill } from '$api/bills';
   import { evaluateExpression } from '$api/calculator';
@@ -102,6 +102,36 @@
   for (const m of session.members) {
     participantState[m.id] = { included: true, exclusive: false, amount: '0' };
   }
+
+  /** v0.3.20 #91 (PO msg 03:06 #7375): avatar palette — 5 色循环复用 SessionMemberList 渐变. */
+  const AVATAR_GRADIENTS = [
+    'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', // indigo → purple
+    'linear-gradient(135deg, #ec4899 0%, #f43f5e 100%)', // pink → rose
+    'linear-gradient(135deg, #10b981 0%, #14b8a6 100%)', // emerald → teal
+    'linear-gradient(135deg, #f59e0b 0%, #eab308 100%)', // amber → yellow
+    'linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%)', // blue → cyan
+  ];
+  function avatarGradient(index: number): string {
+    return AVATAR_GRADIENTS[index % AVATAR_GRADIENTS.length];
+  }
+  /**
+   * v0.3.20 #91: avatar 首字符 — 英文 1 字母大写, 中文 1 字.
+   * (mockup 用 2 字母 "Ju/Ca", 按 PO 拍板改为 1 字母 "J/C".)
+   */
+  function avatarInitial(name: string): string {
+    const trimmed = name.trim();
+    if (!trimmed) return '?';
+    const code = trimmed.codePointAt(0) ?? 0;
+    if (code > 127) return trimmed.slice(0, 1);
+    return trimmed.slice(0, 1).toUpperCase();
+  }
+
+  /**
+   * v0.3.20 #91: pill 进入 exclusive 态后, 需要自动 focus 进 input.
+   * 用 inputRefs 收集 input 元素, tick() 后 .focus() + .select().
+   */
+  let inputRefs: Record<number, HTMLInputElement | null> = {};
+
   let submitting = false;
   let descriptionPristine = true;
 
@@ -223,29 +253,16 @@
     participantState = { ...participantState };
   }
 
-  function toggleExclusive(memberId: number) {
-    if (!participantState[memberId]) return;
-    const cur = participantState[memberId];
-    if (cur.exclusive) {
-      cur.exclusive = false;
-      cur.amount = '0';
-    } else {
-      cur.exclusive = true;
-      if (!cur.amount || cur.amount === '0') cur.amount = '';
-    }
-    participantState = { ...participantState };
-  }
-
-  // v0.3.19 #84 (PO #7306 + #7082 + #7085): 单 chip 三态切换 (PO 拍板 v3 ghost link).
-  // 删 sub-row 展开方案 (反 #7085 否定), 改成 chip 原地切换:
-  //   - 默认 (amount==0, !editing): ghost 文字 "独占" (14px gray-400, 无 bg/border)
-  //   - 编辑 (editing==true): white pill + accent 描边 + ¥ + input
-  //   - 数字 (amount>0, !editing): accent pill "独占 ¥500 ✎"
+  // v0.3.20 #91 (PO msg 03:06 #7375): pill 改为两态切换 (shared 虚 ↔ exclusive 实).
+  //   - shared (默认): "个人消费 ¥" ghost 玻璃, 102×32 钉死
+  //   - exclusive (实): ¥ + input + stepper, accent 玻璃, 102×32 钉死
+  // 不再有第三个"数字 pill"态 — input 永远显示, 数字直接读 input.
+  // 点 shared → enterExclusive (focus input)
+  // 点 ¥ / pill 内非 input 区 → exitExclusive (清 invalid amount)
+  // 点 ▲▼ → stepAmount (在 exclusive 内 ±1, 不切回 shared)
   //
-  // `editingMemberId` is purely UI state — it tracks which row is in
-  // edit mode. It does NOT participate in `buildPayload`; the
-  // `exclusive` flag in `participantState` is what gets serialized.
-  let editingMemberId: number | null = null;
+  // `st.exclusive` 是 source of truth, buildPayload 直接读它.
+  // 无需 editingMemberId 之类的中间 UI 状态.
 
   /** Count of currently-included members (header summary). */
   $: includedCount = session.members.reduce(
@@ -268,32 +285,48 @@
   }
 
   /**
-   * v0.3.19 #84 (PO #7082): 进入编辑态 — chip 原地切换成 input pill.
-   * 同时把 `exclusive=true` 标记上, 让 payload 知道这行是独占金额模式.
+   * v0.3.20 #91: 进入独占态 — shared pill → exclusive pill.
+   * focus input 让用户立即可键入金额.
    */
-  function enterEditMode(memberId: number) {
+  async function enterExclusiveMode(memberId: number) {
     const st = participantState[memberId];
     if (!st) return;
-    editingMemberId = memberId;
     st.exclusive = true;
     if (!st.amount || st.amount === '0') st.amount = '';
+    participantState = { ...participantState };
+    await tick();
+    const input = inputRefs[memberId];
+    if (input) {
+      input.focus();
+      input.select();
+    }
+  }
+
+  /**
+   * v0.3.20 #91: 退出独占态 — 点击 ¥ 或 pill 内非 input 区.
+   * amount 若非法 (空 / NaN / ≤ 0) 则清零; 合法则保留以便下次进入时还在.
+   */
+  function exitExclusiveMode(memberId: number) {
+    const st = participantState[memberId];
+    if (!st) return;
+    const n = Number(st.amount);
+    st.exclusive = false;
+    if (!st.amount || st.amount === '' || !Number.isFinite(n) || n <= 0) {
+      st.amount = '0';
+    }
     participantState = { ...participantState };
   }
 
   /**
-   * v0.3.19 #84 (PO #7082 + #7085): 退出编辑态 — blur 时立即切回 pill,
-   * 不等合法值才切 (PO #7085 拍板). 若值非法 (< 0, NaN, 空) 则清值
-   * 并关掉 exclusive, 避免持久化空字符串.
+   * v0.3.20 #91: stepper 按钮 — 在 exclusive 态内 ±1 调整金额, 不切回 shared.
    */
-  function exitEditMode(memberId: number) {
+  function stepAmount(memberId: number, delta: number) {
     const st = participantState[memberId];
     if (!st) return;
-    editingMemberId = null;
     const n = Number(st.amount);
-    if (!st.amount || st.amount === '' || !Number.isFinite(n) || n <= 0) {
-      st.exclusive = false;
-      st.amount = '0';
-    }
+    const cur = Number.isFinite(n) && n > 0 ? n : 0;
+    const next = Math.max(0, cur + delta);
+    st.amount = next > 0 ? String(next) : '';
     participantState = { ...participantState };
   }
 
@@ -304,14 +337,21 @@
     for (const m of session.members) {
       const st = participantState[m.id];
       if (!st || !st.included) continue;
+      // v0.3.20 #91: amount 非法 (空 / NaN / ≤ 0) 时把 is_exclusive 也归零,
+      // 避免发 "is_exclusive=true, exclusive_amount=0" 这种自相矛盾的状态.
+      let is_exclusive = st.exclusive;
       let excl = 0;
       if (st.exclusive) {
         const n = Number(st.amount);
-        excl = Number.isFinite(n) && n > 0 ? n : 0;
+        if (Number.isFinite(n) && n > 0) {
+          excl = n;
+        } else {
+          is_exclusive = false;
+        }
       }
       participants.push({
         member_id: m.id,
-        is_exclusive: st.exclusive,
+        is_exclusive,
         exclusive_amount: excl
       });
     }
@@ -520,16 +560,15 @@
         >{allIncluded ? '清空' : '全选'}</button>
       </div>
       <ul class="ppts list" style="list-style: none; margin: 0; padding: 0;" data-testid="ppts-list">
-        {#each session.members as m (m.id)}
+        {#each session.members as m, i (m.id)}
           {@const st = participantState[m.id]}
-          {@const isEditing = editingMemberId === m.id}
-          {@const hasNumber = st?.exclusive && Number(st.amount) > 0}
           <li class="ppt-row" data-testid={`ppts-li-${m.id}`}>
-            <!-- v0.3.19 #84 (PO #7082+#7085+#7306): 单 chip 三态切换.
-                 不再展开 sub-row (反 #7085); 整个切换在 chip 原地完成.
-                 - ghost (默认): 仅 "独占" 文字, 14px gray-400, 无 bg/border
-                 - input (编辑): ¥ + input, 14px white bg + accent 描边 + 30px 焦点光晕
-                 - pill (数字): ¥500 ✎, 13px accent bg + 1px accent border -->
+            <!-- v0.3.20 #91 (PO msg 03:06 #7375): 头像 + 两态 pill (shared/exclusive).
+                 - 行 main 区: checkbox icon + 头像 (36×36 gradient + 1 字符首字母) + name.
+                   点整行 = toggle 参与 / 不参与.
+                 - pill 区 (102×32 钉死):
+                   · shared (虚): "个人消费 ¥" ghost 玻璃, 点 → 进 exclusive
+                   · exclusive (实): ¥ + input + stepper, accent 玻璃, 点 ¥ → 回 shared -->
             <button
               type="button"
               class="ppt-main"
@@ -538,42 +577,65 @@
               aria-pressed={st?.included ?? false}
             >
               <span class="ppt-check-icon" aria-hidden="true">{st?.included ? '☑' : '☐'}</span>
+              <span class="ppt-avatar" aria-hidden="true" style="background: {avatarGradient(i)};">
+                {avatarInitial(m.display_name)}
+              </span>
               <span class="ppt-name">{m.display_name}</span>
             </button>
-            {#if isEditing}
-              <div class="excl-chip excl-chip-input" data-testid={`ppts-chip-${m.id}`}>
-                <span class="excl-sym">{currencySymbol(currency)}</span>
+            {#if st?.exclusive}
+              <!-- exclusive 实态: ¥ + input + stepper, accent 玻璃 -->
+              <div
+                class="excl-pill excl-pill-exclusive"
+                role="group"
+                aria-label={`${m.display_name} 的个人消费金额`}
+                data-testid={`ppts-chip-${m.id}`}
+                data-state="exclusive"
+              >
+                <button
+                  type="button"
+                  class="pill-currency"
+                  on:click={() => exitExclusiveMode(m.id)}
+                  aria-label={`退出 ${m.display_name} 的个人消费`}
+                >{currencySymbol(currency)}</button>
                 <input
                   type="number"
                   min="0"
                   step="0.01"
-                  class="excl-input"
+                  class="pill-input"
                   bind:value={st.amount}
-                  on:blur={() => exitEditMode(m.id)}
+                  bind:this={inputRefs[m.id]}
                   placeholder="0.00"
-                  aria-label={`${m.display_name} 的独占金额`}
+                  aria-label={`${m.display_name} 的个人消费金额`}
                   data-testid={`ppts-amount-${m.id}`}
                 />
+                <span class="pill-stepper">
+                  <button
+                    type="button"
+                    class="pill-step pill-step-up"
+                    on:click={() => stepAmount(m.id, 1)}
+                    aria-label={`增加 ${m.display_name} 的个人消费`}
+                  >▲</button>
+                  <button
+                    type="button"
+                    class="pill-step pill-step-down"
+                    on:click={() => stepAmount(m.id, -1)}
+                    aria-label={`减少 ${m.display_name} 的个人消费`}
+                  >▼</button>
+                </span>
               </div>
-            {:else if hasNumber}
-              <button
-                type="button"
-                class="excl-chip excl-chip-number"
-                on:click={() => enterEditMode(m.id)}
-                aria-label={`修改 ${m.display_name} 的独占金额`}
-                data-testid={`ppts-chip-${m.id}`}
-              >
-                {currencySymbol(currency)}{st.amount}
-                <span class="excl-edit-icon" aria-hidden="true">✎</span>
-              </button>
             {:else}
+              <!-- shared 虚态: "个人消费 ¥" ghost 玻璃, 点 → 进 exclusive -->
               <button
                 type="button"
-                class="excl-chip excl-chip-ghost"
-                on:click={() => enterEditMode(m.id)}
-                aria-label={`为 ${m.display_name} 设置独占金额`}
+                class="excl-pill excl-pill-shared"
+                on:click={() => enterExclusiveMode(m.id)}
+                aria-label={`为 ${m.display_name} 设置个人消费`}
                 data-testid={`ppts-chip-${m.id}`}
-              >独占</button>
+                data-state="shared"
+              >
+                <span class="pill-label">个人消费</span>
+                <span class="pill-currency" aria-hidden="true">{currencySymbol(currency)}</span>
+              </button>
             {/if}
           </li>
         {/each}
@@ -698,6 +760,26 @@
     text-align: center;
     color: var(--accent-500, #3b82f6);
   }
+  /* v0.3.20 #91 (PO msg 03:06 #7375): 头像 — 36×36 圆形 + 5 色 palette + 1 字符首字母.
+     复用 SessionMemberList 的 5 色 AVATAR_GRADIENTS, 尺寸放大到 36×36 (比 chip 28px 大)
+     以适配 row 高度 ~60px. */
+  .ppt-avatar {
+    flex: 0 0 auto;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 14px;
+    line-height: 1;
+    letter-spacing: -0.01em;
+    box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.4);
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
   .ppt-name {
     flex: 1 1 auto;
     min-width: 0;
@@ -705,84 +787,153 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  /* v0.3.19 #84 (PO #7082 + #7085 + #7306): 单 chip 三态切换 — v3 ghost link.
-     删旧 ppt-toggle / ppt-sub-row / ppt-excl-badge 整套 (反 #7085 否定展开).
-     整个切换在 chip 原地完成 (opacity 150ms, 无 slide/rotate):
-       - ghost (默认): 仅 "独占" 文字, 14px gray-400, 无 bg/border, 12×8 padding
-       - input (编辑): white bg + accent 描边 + 焦点光晕, ¥ + input, 14px/600
-       - pill (数字): accent 浅 bg + 1px accent border, ¥500 ✎, 13px/700
-     chip 宽度允许独立变化; member name 用 flex:1 吸收剩余空间. */
-  .excl-chip {
+  /* v0.3.20 #91 (PO msg 03:06 #7375): pill 两态切换 (shared 虚 ↔ exclusive 实).
+     删 v0.3.19 #84 三态 (反 #7085 拍板): 不再有 "数字 pill" 独立态, input 永远在 exclusive 态显示.
+
+     pill 尺寸钉死: 102×32, border-radius 16px (full), flex-shrink:0.
+     两态宽高完全一致, 只视觉虚实区分 (PO 强调不许跟内容 / 状态变).
+       - shared 虚: "个人消费 ¥" ghost 玻璃, 13px gray-700 + ¥ gray-400 小一号
+       - exclusive 实: ¥ + input + stepper, accent 玻璃, focus border 加深 accent-600 */
+  .excl-pill {
+    flex: 0 0 auto;
+    width: 102px;
+    height: 32px;
+    min-width: 102px;
+    min-height: 32px;
+    border-radius: 16px;
     display: inline-flex;
     align-items: center;
-    font-weight: 600;
+    box-sizing: border-box;
+    white-space: nowrap;
+    font-family: inherit;
     cursor: pointer;
-    transition: opacity 150ms ease-out;
-    flex: 0 0 auto;
-  }
-  /* 默认 ghost — 14px / 400 / gray-400 / 仅文字 / 无 bg/border / 12×8 padding */
-  .excl-chip-ghost {
-    font-size: 14px;
-    font-weight: 400;
-    color: var(--gray-400, #a3a3a3);
-    background: transparent;
-    border: none;
-    padding: 12px 8px;
-    min-height: 38px;
-  }
-  .excl-chip-ghost:active {
-    opacity: 0.5;
-  }
-  /* 编辑 input — white bg + accent 描边 + 焦点光晕 + ¥ + input */
-  .excl-chip-input {
-    background: var(--color-bg, #fff);
-    border: 1px solid var(--accent-500, #3b82f6);
-    border-radius: 999px;
-    padding: 4px 10px;
-    font-size: 14px;
-    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.12);
-    gap: 4px;
-  }
-  .excl-sym {
-    color: var(--gray-500, #6b7280);
-    font-weight: 500;
-  }
-  .excl-input {
-    background: transparent;
-    border: none;
-    outline: none;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--gray-900, #171717);
-    width: 60px;
-    padding: 2px 0;
-    font-variant-numeric: tabular-nums;
-  }
-  .excl-input::placeholder {
-    color: var(--gray-400, #9ca3af);
+    transition: background-color 150ms ease-out, border-color 150ms ease-out, box-shadow 150ms ease-out;
+    -webkit-tap-highlight-color: transparent;
+    overflow: hidden;
   }
   @media (prefers-reduced-motion: reduce) {
-    .excl-chip {
+    .excl-pill {
       transition-duration: 0ms;
     }
   }
-  /* 数字 pill — accent 浅 bg + 1px accent border + ¥500 ✎ */
-  .excl-chip-number {
+
+  /* shared (虚) — 浅白 bg + 淡紫 border + "个人消费 ¥"
+     hover: bg 提升 0.85→0.95 + border 0.18→0.30 */
+  .excl-pill-shared {
+    background: rgba(255, 255, 255, 0.85);
+    border: 1px solid rgba(99, 102, 241, 0.18);
+    padding: 0 12px;
+    gap: 6px;
+    justify-content: space-between;
+    color: var(--gray-700, #334155);
+  }
+  .excl-pill-shared:hover {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(99, 102, 241, 0.30);
+  }
+  .excl-pill-shared:active {
+    background: rgba(99, 102, 241, 0.06);
+  }
+  .pill-label {
     font-size: 13px;
+    font-weight: 500;
+    color: var(--gray-700, #334155);
+    letter-spacing: -0.01em;
+  }
+  .excl-pill-shared .pill-currency {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--gray-400, #94a3b8);
+    letter-spacing: -0.01em;
+  }
+
+  /* exclusive (实) — 浅紫 bg + accent border + ¥ + input + stepper
+     focus: border 加深 accent-600 */
+  .excl-pill-exclusive {
+    background: rgba(99, 102, 241, 0.10);
+    border: 1px solid rgba(99, 102, 241, 0.55);
+    padding: 0 6px 0 8px;
+    gap: 2px;
+    cursor: default;
+  }
+  .excl-pill-exclusive:focus-within {
+    border-color: var(--accent-600, #4f46e5);
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+  }
+  .pill-currency {
+    flex: 0 0 auto;
+    background: transparent;
+    border: 0;
+    padding: 0 2px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--gray-500, #64748b);
+    cursor: pointer;
+    line-height: 1;
+    font-family: inherit;
+  }
+  .excl-pill-exclusive .pill-currency {
+    color: var(--accent-600, #4f46e5);
+    font-weight: 600;
+  }
+  .pill-input {
+    flex: 0 0 auto;
+    width: 40px;
+    min-width: 0;
+    background: transparent;
+    border: 0;
+    outline: 0;
+    padding: 0;
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent-600, #4f46e5);
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    font-family: inherit;
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  .pill-input::-webkit-outer-spin-button,
+  .pill-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .pill-input::placeholder {
+    color: rgba(99, 102, 241, 0.35);
+    font-weight: 500;
+  }
+  .pill-stepper {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    margin-left: 1px;
+  }
+  .pill-step {
+    width: 14px;
+    height: 13px;
+    border: 0;
+    padding: 0;
+    background: rgba(99, 102, 241, 0.10);
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent-600, #4f46e5);
+    font-size: 7px;
+    line-height: 1;
+    cursor: pointer;
     font-weight: 700;
-    color: var(--accent-700, #1d4ed8);
-    background: rgba(99, 102, 241, 0.08);
-    border: 1px solid rgba(99, 102, 241, 0.15);
-    border-radius: 999px;
-    padding: 2px 8px;
-    gap: 4px;
+    font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color 100ms ease-out;
   }
-  .excl-chip-number:active {
-    background: rgba(99, 102, 241, 0.15);
+  .pill-step:hover {
+    background: rgba(99, 102, 241, 0.22);
   }
-  .excl-edit-icon {
-    font-size: 11px;
-    opacity: 0.6;
+  .pill-step:active {
+    background: rgba(99, 102, 241, 0.35);
   }
   .btn-sm {
     min-height: 36px;

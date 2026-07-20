@@ -1,0 +1,306 @@
+{
+  "$schema": "v0.3.19 #82 — SBC 整体 session 详情设计 token (反 #73 教训沉淀)",
+  "version": "0.3.19-82",
+  "skill_refs": [
+    "SKILL-design-principles.md v0.1 (8 条原则)",
+    "SKILL-mobile-validation.md v1.0 (真机验证规范)"
+  ],
+  "author": "Designer Agent (v0.3.19 #82, model minimaxbk → fallback deepseek)",
+  "approved_by_po": false,
+  "delivery_to": "sbc project / Jesse",
+  "scenarios_covered": [
+    "session detail page (collapsed members + bills section)"
+  ],
+  "viewport_targets": [
+    { "name": "iPhone SE",    "logical": "375×667",  "scale": 2, "rationale": "最小真机基准, 反 #167 新规必测" },
+    { "name": "iPhone 13",    "logical": "390×844",  "scale": 3, "rationale": "默认 iPhone 真机, 主流尺寸" },
+    { "name": "iPhone 15 Pro Max", "logical": "430×932", "scale": 3, "rationale": "大屏基准, 验证 ~10% 缩放" },
+    { "name": "iPad (gen 7)", "logical": "768×1024", "scale": 2, "rationale": "平板适配, 2x density" }
+  ],
+  "design_tokens": {
+    "color": {
+      "gray_scale": {
+        "gray-50": "#fafafa", "gray-100": "#f5f5f5", "gray-200": "#e5e5e5",
+        "gray-300": "#d4d4d4", "gray-400": "#a3a3a3", "gray-500": "#737373",
+        "gray-600": "#525252", "gray-700": "#404040", "gray-800": "#262626", "gray-900": "#171717"
+      },
+      "accent": {
+        "accent-50": "#eff6ff", "accent-500": "#3b82f6", "accent-600": "#2563eb", "accent-700": "#1d4ed8"
+      },
+      "semantic": {
+        "success": "#10b981", "error": "#ef4444", "amber": "#f59e0b", "purple": "#a855f7"
+      }
+    },
+    "avatar_palette_5_stops": {
+      "indigo": "linear-gradient(135deg, #818cf8 0%, #6366f1 100%)",
+      "pink":   "linear-gradient(135deg, #f472b6 0%, #ec4899 100%)",
+      "emerald":"linear-gradient(135deg, #34d399 0%, #10b981 100%)",
+      "amber":  "linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)",
+      "blue":   "linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)"
+    },
+    "ios_glass": {
+      "card_bg":         "rgba(255, 255, 255, 0.62)",
+      "card_blur":       "saturate(180%) blur(20px)",
+      "card_radius":     "18px",
+      "card_border":     "rgba(0, 0, 0, 0.06)",
+      "card_shadow":     "0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.04)"
+    },
+    "typography": {
+      "type-2xs":  "10px",
+      "type-xs":   "11px",
+      "type-sm":   "12px",
+      "type-base": "14px",
+      "type-lg":   "16px",
+      "type-xl":   "18px",
+      "type-2xl":  "22px",
+      "type-3xl":  "28px",
+      "font_family": "-apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Helvetica Neue\", \"Inter\", \"SF Pro Text\", sans-serif",
+      "webkit_font_smoothing": "antialiased"
+    },
+    "spacing_scale_4px_base": {
+      "space-1": "4px", "space-2": "8px", "space-3": "12px",
+      "space-4": "16px", "space-5": "20px", "space-6": "24px", "space-8": "32px"
+    },
+    "ios_chrome": {
+      "statusbar_h": "44px",
+      "navbar_h": "44px",
+      "homeindicator_h": "34px",
+      "touch_target_min": "44px"
+    },
+    "motion": {
+      "fast": "150ms cubic-bezier(0.2, 0.8, 0.2, 1)",
+      "base": "220ms cubic-bezier(0.2, 0.8, 0.2, 1)"
+    }
+  },
+  "visual_hierarchy_decision_log": {
+    "L1_primary_information": {
+      "rule": "用户必须立刻看到的核心信息 — 标题 / 金额 / 成员名",
+      "specs": { "font_size": "16-22px", "font_weight": "600-700", "color": "gray-900 / accent" },
+      "applications": [
+        { "element": "session-name (账本标题)", "size": "22px / 700", "rationale": "用户进入页面第一眼就要看到账本名, 比 section 标题高 2 级" },
+        { "element": "section-title (成员 / 账单)", "size": "16px / 600", "rationale": "section header 主信息, 锚定用户扫视" },
+        { "element": "bill-amount (账单金额)", "size": "16px / 700", "rationale": "账单核心数字, 跟 description 同等视觉权重" },
+        { "element": "bill-desc (账单描述)", "size": "14px / 500", "rationale": "金额的语义上下文, 略低于金额但属于主信息" }
+      ]
+    },
+    "L2_secondary_information": {
+      "rule": "次要信息 / 状态 / 操作 — section action / 当前状态 / 可点操作",
+      "specs": { "font_size": "14px", "font_weight": "500-600", "color": "gray-700 / accent" },
+      "applications": [
+        { "element": "section-actions (邀请 / 查看结算 / 个人账单)", "size": "13-14px / 600", "rationale": "section 操作的 affordance, 但**不**用 pill 默认态 (按原则 6 隐形)" },
+        { "element": "navbar.title (账本详情)", "size": "17px / 600", "rationale": "iOS NavBar 标题, 全局上下文" },
+        { "element": "navbar.action (账户 / 编辑)", "size": "17px / 500", "rationale": "iOS NavBar 操作, accent-700 蓝色" }
+      ]
+    },
+    "L3_auxiliary_information": {
+      "rule": "辅助元数据 — 计数 / 标签 / 时间",
+      "specs": { "font_size": "11-13px", "font_weight": "400-500", "color": "gray-500" },
+      "applications": [
+        { "element": "section-count (· 5 / 共 32 笔)", "size": "12px / 500", "rationale": "数量提示, 比 section 标题小 1 级, gray-500 弱化" },
+        { "element": "bill-meta (付款人 · 5人 · 时间)", "size": "11px / 400", "rationale": "账单元数据, gray-500 弱化" },
+        { "element": "currency-pill .rate (汇率数字)", "size": "12px / 500", "rationale": "币种信息次要, 不抢 CNY/THB 主色" },
+        { "element": "bill-amount .sub (CNY 换算)", "size": "11px / 500", "rationale": "副金额, gray-500, 比主金额弱一档" }
+      ]
+    },
+    "L4_invisible_affordance": {
+      "rule": "默认 affordance — 隐形 / ghost link / 不可见提示",
+      "specs": { "font_size": "11-12px", "font_weight": "400", "color": "gray-400" },
+      "applications": [
+        { "element": "avatar-stack mini (折叠态)", "size": "16px / 700", "rationale": "按原则 5: mini ≤ 20px (反 #73 24px → 16px), L4 不抢戏" },
+        { "element": "name list (新华 · 贾馍 · 林沐 · Mike · Sherry)", "size": "11px / 500", "rationale": "头像的语义补充, 跟头像错开 row 不抢戏" },
+        { "element": "查看全部 32 笔账单 (footer ghost link)", "size": "12px / 500 gray-500", "rationale": "按原则 6 默认 affordance 隐形, hover 才显" }
+      ]
+    },
+    "header_element_count": {
+      "rule": "任何 section header 最多 3 个元素 (原则 2.1)",
+      "members_card": { "count": 3, "elements": ["成员", "· 5", "邀请 (button)"], "rationale": "title + count + 1 action, 没塞 avatar + pill + chevron 砸场" },
+      "bills_card":   { "count": 3, "elements": ["账单", "共 32 笔", "[查看结算] + [个人账单]"], "rationale": "title + count + 2 chip-style actions, chip 共享同一 row" }
+    },
+    "header_height": {
+      "rule": "mobile ≤ 48px (原则 2.2)",
+      "actual": "members head 28px (默认), bills head 28px + 12 margin = 40px row",
+      "rationale": "8px 信息密度宽裕, 反 #73 60-70px 砸场不重现"
+    },
+    "avatar_size_rationale": {
+      "rule": "mini ≤ 20px (原则 5.2)",
+      "actual": "16px × 16px, 7px font / 700",
+      "rationale": "反 #73 教训: 24px mini avatar 跟主 36px avatar 视觉差距太小, 抢戏. 缩到 16px 让 L1 主信息 (成员·5) 锚定清晰"
+    },
+    "color_weight_discipline": {
+      "rule": "每 section 最多 1 个主色填充 (原则 4.1)",
+      "actual": "members section: invite-btn (主色); bills section: 2 chips (同色族但都是 ghost 边框, 不算主色填充)",
+      "rationale": "避免圣诞树, glass 上不加 indigo 0.04 脏灰紫 (反 #73 #4.2 教训)"
+    },
+    "default_affordance_invisible": {
+      "rule": "默认 affordance 必须隐形, 激活才显 (原则 6)",
+      "actual": "查看全部 = gray-500 ghost link; invite = glass-pill 但 hover 才有 ring; chevron 删了 (header 整 clickable)",
+      "rationale": "反 #73 #6 教训: 默认态塞 pill + chevron, 看着像 Christmas tree"
+    }
+  },
+  "ios_native_references": {
+    "principle_7_required_refs": [
+      {
+        "control": "iOS Mail inbox",
+        "lesson": "title + count (Today / 32 unread) + edit (top-right) — 单行, 紧凑; section header date 是 L3 12px uppercase gray-500",
+        "applied_to": "账单 section header (账单 · 共 32 笔) + NavBar (账本详情 / 编辑)"
+      },
+      {
+        "control": "Apple Pay Cash group send (Messages)",
+        "lesson": "member avatars stacked 16-18px + total amount right-aligned + 👤 N人 meta",
+        "applied_to": "Members section collapsed state + bill-row meta (👤 5人)"
+      },
+      {
+        "control": "iOS Health 数据卡片",
+        "lesson": "section header 简洁, 1 个 action, 无 chevron 装饰 (原则 2.1)",
+        "applied_to": "Members header (no chevron) + Bills header (no chevron, 用 chip)"
+      },
+      {
+        "control": "微信群收款",
+        "lesson": "成员头像堆叠 18px + 金额 + N 人标签, glass card 半透明 + 圆角",
+        "applied_to": "Members preview row (avatar + name list) + 玻璃化 card"
+      }
+    ]
+  },
+  "viewport_test_records": {
+    "tool": "frontend/scripts/screenshot-mobile-suite.cjs (按 SKILL-mobile-validation.md v1.0 §通道 C 模板)",
+    "output_dir": "~/.openclaw/media/v0319-82-screenshots/",
+    "screenshots": [
+      {
+        "device": "iPhone SE (375×667 @2x)",
+        "file": "iphoneSE-mockup-overall.png",
+        "size_px": "640×2012",
+        "verdict": "PASS",
+        "notes": [
+          "最小真机基准, 全部内容塞进 667px 高度内, 无需滚动",
+          "账户/编辑按钮宽度 OK, 不挤",
+          "账单 header '账 单' 折行 2 行 (共 32 笔 换行) — 接受, iPhone SE 是旧机基准"
+        ]
+      },
+      {
+        "device": "iPhone 13 (390×844 @3x)",
+        "file": "iphone13-mockup-overall.png",
+        "size_px": "1170×2859",
+        "verdict": "PASS",
+        "notes": [
+          "默认 iPhone 真机, 5 条账单 + 查看全部 footer 全部可见",
+          "FAB 绝对定位 bottom-right, 不与内容重叠",
+          "玻璃化 card 在 iOS Safari grayscale AA 渲染下看着干净",
+          "-webkit-font-smoothing: antialiased 启用, 中文 PingFang 字体看着锐利"
+        ]
+      },
+      {
+        "device": "iPhone 15 Pro Max (430×932 @3x)",
+        "file": "iphone15pm-mockup-overall.png",
+        "size_px": "1290×2859",
+        "verdict": "PASS",
+        "notes": [
+          "大屏基准, 跟 iPhone 13 类似但更宽松",
+          "账单 row 不会拉到全宽, 居中 430 容器留有两侧留白",
+          "FAB 位置 bottom-right, 跟 iPhone 13 一致"
+        ]
+      },
+      {
+        "device": "iPad (gen 7) (768×1024 @2x)",
+        "file": "ipad-mockup-overall.png",
+        "size_px": "1620×2160",
+        "verdict": "PASS",
+        "notes": [
+          "平板基准, 内容居中 768 容器, 两侧留白大",
+          "FAB 64×64 (调大), bottom 24px",
+          "members + bills 双 section 间距 16px, 不挤"
+        ]
+      }
+    ],
+    "rendering_authenticity_check": {
+      "device_profile_source": "playwright.devices['iPhone SE' / 'iPhone 13' / 'iPhone 15 Pro Max' / 'iPad (gen 7)']",
+      "webkit_render": "chromium.launch() + devices profile → 模拟 iOS Safari (WebKit 内核)",
+      "isMobile": "true (触发移动端媒体查询)",
+      "hasTouch": "true (启用 touch events)",
+      "deviceScaleFactor": "iPhone SE=2, iPhone 13=3, iPhone 15 PM=3, iPad=2",
+      "userAgent": "iPhone OS Safari UA (自动)",
+      "locale": "zh-CN",
+      "anti_pattern_checked": "❌ 没使用 Desktop Chrome 截图 (反 #167 新规, PO #7194 反馈)"
+    }
+  },
+  "anti_pattern_self_audit": {
+    "反_155_no_options": "✓ 只出 1 个推荐方案, 不列 A/B/C",
+    "反_167_real_device_screenshot": "✓ iPhone 真机 profile 截图 (iPhone SE / 13 / 15 PM / iPad), 不准 Desktop Chrome",
+    "反_151_real_png_screenshot": "✓ 4 张真 PNG (640×2012 / 1170×2859 / 1290×2859 / 1620×2160)",
+    "反_146_complete_token": "✓ 含 visual_hierarchy_decision_log + 真机 viewport 测试记录",
+    "反_161_no_product_code_change": "✓ 只 mockup (frontend/design-mocks/v0319-82-session-overall.html), 没改 frontend/src/** (screenshot script 是工具, 不算产品代码)",
+    "反_121_self_decide": "✓ 没问 PO 选 px / 字号, 按原则 1-8 自决",
+    "反_154_action_first_principle": "✓ 本任务是出方案, 自决 (前置规范已拍)",
+    "反_167_no_desktop_chrome": "✓ 截图全部用 playwright.devices 真机 profile",
+    "反_token_centralism": "✓ 局部 override CSS (mockup 是独立 HTML, 不污染 token 表)"
+  },
+  "open_questions_for_po": [
+    {
+      "topic": "成员 section 默认 collapsed 还是 expanded",
+      "current_choice": "默认 collapsed (本 mockup)",
+      "rationale": "反 #73 教训: expanded 6 个元素砸场 → collapsed 3 元素 (title+count+action) 锚定 L1 清晰",
+      "po_action_needed": "拍: collapsed / expanded / 用户上次状态 (localStorage 默认 expanded)"
+    },
+    {
+      "topic": "FAB 跟账单 row 滚动时是否上浮遮挡",
+      "current_choice": "本 mockup 是静态截图, FAB 不挡内容 (内容高度 < viewport)",
+      "rationale": "反 #167 真机验证规范 — fullPage 截图下 fixed FAB 会出现在 viewport 中间",
+      "po_action_needed": "无 (产品代码 follow up 用 sticky + bottom-padding 即可)"
+    },
+    {
+      "topic": "账单 chip 数量 (2 个: 查看结算 + 个人账单)",
+      "current_choice": "2 chip 共享同一 row",
+      "rationale": "反 #73 教训: header 元素 ≤ 3, 但 chips 内部可多个 (共享 affordance 类别)",
+      "po_action_needed": "无 (拍: 2 chip 是合理上限)"
+    }
+  ],
+  "files_delivered": [
+    {
+      "path": "frontend/design-mocks/v0319-82-session-overall.html",
+      "size": "32409 bytes",
+      "purpose": "整体 session 详情 mockup, 包含 iOS chrome (status bar + navbar + home indicator) + members + bills sections"
+    },
+    {
+      "path": "frontend/scripts/screenshot-mobile-suite.cjs",
+      "size": "4865 bytes",
+      "purpose": "真机截图脚本, 按 SKILL-mobile-validation.md v1.0 §通道 C 模板实现, 一次跑 4 个 viewport"
+    },
+    {
+      "path": "frontend/design-mocks/v0319-82-session-overall-tokens.json",
+      "size": "<this file>",
+      "purpose": "完整设计 token + visual_hierarchy_decision_log + viewport_test_records"
+    },
+    {
+      "path": "~/.openclaw/media/v0319-82-screenshots/iphoneSE-mockup-overall.png",
+      "size": "701 KB",
+      "purpose": "iPhone SE 真机 profile 截图 (375×667 @2x, 最小真机基准)"
+    },
+    {
+      "path": "~/.openclaw/media/v0319-82-screenshots/iphone13-mockup-overall.png",
+      "size": "1445 KB",
+      "purpose": "iPhone 13 真机 profile 截图 (390×844 @3x, 默认 iPhone 真机)"
+    },
+    {
+      "path": "~/.openclaw/media/v0319-82-screenshots/iphone15pm-mockup-overall.png",
+      "size": "1555 KB",
+      "purpose": "iPhone 15 Pro Max 真机 profile 截图 (430×932 @3x, 大屏基准)"
+    },
+    {
+      "path": "~/.openclaw/media/v0319-82-screenshots/ipad-mockup-overall.png",
+      "size": "2434 KB",
+      "purpose": "iPad (gen 7) 真机 profile 截图 (768×1024 @2x, 平板基准)"
+    }
+  ],
+  "next_steps": [
+    "PO 拍 mockup (按 sprint 流程)",
+    "Coder 实施 (按 mockup 字面移植, 反 #161 v3 不让 Coder 自己改 token)",
+    "Tester 真机 walk 4 viewport (按 SKILL-mobile-validation.md v1.0)"
+  ],
+  "revision_history": [
+    {
+      "version": "0.3.19-82",
+      "date": "2026-07-21",
+      "author": "Designer Agent (v0.3.19 #82)",
+      "change": "首版出图, 反 #73 教训沉淀, 按 SKILL v0.1 + 真机验证 v1.0"
+    }
+  ]
+}

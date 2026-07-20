@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>v0.3.18 #66 — 候选 C: Hybrid 列表 + chip 选中 + amber alert expiry</title>
+<link rel="stylesheet" href="_v0318-66-shared.css">
+<style>
+  /* ==== Mockup C: Hybrid (最大改动) ====
+     保留 row 布局 (信息密度高), 但融合:
+     - amber alert banner 在 section top (独立区域, 跟 mockup #62 B 同款, 但更紧凑)
+     - avatar 改为 chip-style ring (selected 时蓝色 ring)
+     - email 不截断 (full 显示, wrap)
+     - net 字号 16px + 首位
+     - owner: 金色 avatar + 紫色 crown (跟 me 区分)
+     - 1-member: 紧凑 banner (内嵌 CTA)
+     - 320px: 隐藏 email, 只显 avatar + name + net + role
+     - 768px: 2 列 grid */
+
+  /* === Expiry alert banner (above section header) === */
+  .expiry-alert-c {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background: linear-gradient(135deg, rgba(254, 215, 170, 0.55) 0%, rgba(253, 186, 116, 0.40) 100%);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border: 1px solid rgba(245, 158, 11, 0.30);
+    border-radius: 12px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 1px 4px rgba(245, 158, 11, 0.10);
+    margin-bottom: var(--space-3);
+    font-size: var(--font-size-xs);
+    color: var(--amber-800);
+    font-weight: 600;
+  }
+  .expiry-alert-icon-c {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .expiry-alert-text-c {
+    flex: 1;
+    line-height: 1.4;
+  }
+  .expiry-alert-text-c strong { color: var(--amber-900); }
+  .expiry-alert-text-c .meta {
+    font-weight: 400;
+    color: var(--amber-700);
+    margin-left: 4px;
+  }
+
+  /* === Section header (compact, only title + invite) === */
+  .members-head-c {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: 0 0 var(--space-3) 0;
+    margin: 0 0 var(--space-3) 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  }
+  .members-title-c {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--gray-900);
+  }
+  .members-count-c {
+    font-weight: 400;
+    font-size: var(--font-size-sm);
+    color: var(--gray-500);
+    margin-left: 4px;
+  }
+  .members-actions-c {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .invite-pill-c {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(99, 102, 241, 0.10);
+    border: 1px solid rgba(99, 102, 241, 0.22);
+    color: var(--accent-700);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+  }
+
+  /* === Member list === */
+  .members-list-c {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+  .member-row-c {
+    display: grid;
+    grid-template-columns: 40px 1fr auto;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-2);
+    border-radius: 10px;
+    transition: all var(--transition-fast);
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .member-row-c:hover {
+    background: rgba(99, 102, 241, 0.04);
+    border-color: rgba(99, 102, 241, 0.10);
+  }
+  .member-row-c.is-selected {
+    background: rgba(59, 130, 246, 0.08);
+    border-color: rgba(59, 130, 246, 0.30);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.10);
+  }
+
+  /* Avatar */
+  .avatar-c {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--avatar-1);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 14px;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .avatar-c.b { background: var(--avatar-2); }
+  .avatar-c.c { background: var(--avatar-3); }
+  .avatar-c.d { background: var(--avatar-4); }
+  .avatar-c.e { background: var(--avatar-5); }
+  .avatar-c.is-owner {
+    background: linear-gradient(135deg, #fde68a, #f59e0b);
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(168, 85, 247, 0.50);
+  }
+  .avatar-c.is-me {
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(59, 130, 246, 0.55);
+  }
+  .avatar-c.is-owner.is-me {
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(59, 130, 246, 0.55), 0 0 0 6px rgba(168, 85, 247, 0.30);
+  }
+  .avatar-c .crown {
+    position: absolute;
+    top: -7px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 12px;
+    line-height: 1;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.15));
+  }
+
+  .member-info-c {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .member-name-row-c {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+  .member-name-c {
+    font-size: 14.5px;
+    font-weight: 700;
+    color: var(--gray-900);
+    line-height: 1.3;
+    /* No ellipsis — let long names wrap */
+    word-break: break-word;
+  }
+  /* owner inline dot */
+  .owner-dot-c {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 10px;
+    color: var(--accent-700);
+    font-weight: 700;
+    line-height: 1;
+  }
+  .owner-dot-c::before {
+    content: "";
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--accent-500);
+  }
+  .member-meta-c {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    font-size: var(--font-size-xs);
+    line-height: 1.4;
+  }
+  .member-net-c {
+    font-size: 14px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+  .member-net-c.pos { color: var(--success-500); }
+  .member-net-c.neg { color: var(--error-500); }
+  .member-email-c {
+    font-size: var(--font-size-xs);
+    color: var(--gray-500);
+    word-break: break-all;
+  }
+
+  .member-remove-c {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: transparent;
+    border: 0;
+    color: var(--gray-400);
+    cursor: pointer;
+    font-size: 14px;
+    opacity: 0.4;
+    transition: all var(--transition-fast);
+    flex-shrink: 0;
+  }
+  .member-row-c:hover .member-remove-c { opacity: 1; }
+  .member-remove-c:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--error-500);
+  }
+
+  /* === Solo (1-member) CTA banner === */
+  .solo-cta-c {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    background: linear-gradient(135deg, rgba(254, 215, 170, 0.30) 0%, rgba(99, 102, 241, 0.06) 100%);
+    border-radius: 12px;
+    border: 1px dashed rgba(245, 158, 11, 0.30);
+  }
+  .solo-cta-avatar-c {
+    flex-shrink: 0;
+    position: relative;
+  }
+  .solo-cta-avatar-c .avatar-c.is-owner.is-me {
+    width: 48px;
+    height: 48px;
+    font-size: 16px;
+  }
+  .solo-cta-text-c {
+    flex: 1;
+    font-size: var(--font-size-sm);
+    color: var(--gray-700);
+    line-height: 1.5;
+  }
+  .solo-cta-text-c strong { color: var(--gray-900); font-weight: 700; }
+  .solo-cta-text-c .arrow {
+    color: var(--accent-700);
+    font-weight: 700;
+    margin-left: 4px;
+  }
+
+  /* === Responsive === */
+  @media (min-width: 768px) {
+    .members-list-c {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-2) var(--space-4);
+    }
+    .member-row-c {
+      padding: var(--space-3);
+      background: rgba(255, 255, 255, 0.4);
+      border: 1px solid rgba(0, 0, 0, 0.04);
+    }
+    .solo-cta-c { grid-column: 1 / -1; }
+  }
+  @media (max-width: 360px) {
+    .member-row-c {
+      grid-template-columns: 36px 1fr 28px;
+      gap: var(--space-2);
+    }
+    .avatar-c { width: 36px; height: 36px; font-size: 13px; }
+    .member-email-c { display: none; }  /* 320px 隐藏 email, 避免挤压 */
+    .members-head-c {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--space-2);
+    }
+    .members-actions-c {
+      width: 100%;
+      justify-content: flex-end;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="bg-stage">
+<div class="phone">
+  <div class="ios-statusbar">
+    <span>9:41</span>
+    <span class="right">
+      <svg width="16" height="11" viewBox="0 0 16 11" fill="currentColor"><path d="M1 7h2v3H1zM5 5h2v5H5zM9 3h2v7H9zM13 0h2v10h-2z"/></svg>
+      <svg width="14" height="11" viewBox="0 0 14 11" fill="none" stroke="currentColor" stroke-width="1"><path d="M7 9.5C4 9.5 1 7 1 4c1.5-1 3.5-1.5 6-1.5s4.5.5 6 1.5c0 3-3 5.5-6 5.5z"/><circle cx="7" cy="4" r="1.2"/></svg>
+      <svg width="22" height="11" viewBox="0 0 22 11" fill="none" stroke="currentColor" stroke-width="1"><rect x="0.5" y="0.5" width="18" height="10" rx="2"/><rect x="2" y="2" width="15" height="7" fill="currentColor"/><rect x="20" y="3" width="1.5" height="5"/></svg>
+    </span>
+  </div>
+  <div class="navbar">
+    <span class="back-btn">‹ 账本</span>
+    <span class="title">泰国 6.19-6.22</span>
+    <span class="right">⋯</span>
+  </div>
+
+  <div class="page">
+
+    <div class="label-row-wrap"><span class="label-row">Mockup C · Hybrid 列表 + amber alert (较大改动)</span></div>
+
+    <div class="session-head">
+      <div class="session-name">泰国 6.19-6.22</div>
+      <div class="currency-badge">
+        <span class="code">CNY</span>
+        <span class="muted">·</span>
+        <span class="code">THB</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <!-- Expiry alert banner (top of card) -->
+      <div class="expiry-alert-c">
+        <div class="expiry-alert-icon-c">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <div class="expiry-alert-text-c">
+          匿名账本 <strong>2026 年 8 月 18 日</strong> 后过期
+          <span class="meta">· 数据将清除</span>
+        </div>
+      </div>
+
+      <!-- Section header (compact — no expiry here, it's in alert above) -->
+      <header class="members-head-c">
+        <span class="members-title-c">
+          成员 <span class="members-count-c">· 5</span>
+        </span>
+        <div class="members-actions-c">
+          <button class="invite-pill-c"><span>✉️</span><span>邀请</span></button>
+        </div>
+      </header>
+
+      <!-- Member list (with selected state) -->
+      <ul class="members-list-c">
+        <li class="member-row-c is-selected">
+          <div class="avatar-c is-owner is-me"><span class="crown">👑</span>杰</div>
+          <div class="member-info-c">
+            <div class="member-name-row-c">
+              <span class="member-name-c">xinhua1001</span>
+              <span class="owner-dot-c">me · owner</span>
+            </div>
+            <div class="member-meta-c">
+              <span class="member-net-c pos">+¥1,247.50</span>
+              <span class="member-email-c">demo@example.com</span>
+            </div>
+          </div>
+        </li>
+
+        <li class="member-row-c">
+          <div class="avatar-c b">小</div>
+          <div class="member-info-c">
+            <div class="member-name-row-c">
+              <span class="member-name-c">小北</span>
+            </div>
+            <div class="member-meta-c">
+              <span class="member-net-c neg">−¥358.20</span>
+              <span class="member-email-c">xiaobei@gmail.com</span>
+            </div>
+          </div>
+          <button class="member-remove-c" aria-label="移除成员 小北">×</button>
+        </li>
+
+        <li class="member-row-c">
+          <div class="avatar-c c">阿</div>
+          <div class="member-info-c">
+            <div class="member-name-row-c">
+              <span class="member-name-c">阿伟</span>
+            </div>
+            <div class="member-meta-c">
+              <span class="member-net-c pos">+¥892.00</span>
+              <span class="member-email-c">awei@163.com</span>
+            </div>
+          </div>
+          <button class="member-remove-c" aria-label="移除成员 阿伟">×</button>
+        </li>
+
+        <li class="member-row-c">
+          <div class="avatar-c d">L</div>
+          <div class="member-info-c">
+            <div class="member-name-row-c">
+              <span class="member-name-c">Luna</span>
+            </div>
+            <div class="member-meta-c">
+              <span class="member-net-c neg">−¥1,025.40</span>
+              <span class="member-email-c">luna.li@yahoo.com</span>
+            </div>
+          </div>
+          <button class="member-remove-c" aria-label="移除成员 Luna">×</button>
+        </li>
+
+        <li class="member-row-c">
+          <div class="avatar-c e">K</div>
+          <div class="member-info-c">
+            <div class="member-name-row-c">
+              <span class="member-name-c">Kai</span>
+            </div>
+            <div class="member-meta-c">
+              <span class="member-net-c pos">+¥244.10</span>
+              <span class="member-email-c">kai.zhang@gmail.com</span>
+            </div>
+          </div>
+          <button class="member-remove-c" aria-label="移除成员 Kai">×</button>
+        </li>
+      </ul>
+    </div>
+
+    <!-- Bills card preview -->
+    <div class="card bills-card">
+      <div class="bills-head">
+        <h3>账单 <span class="count">共 32 笔</span></h3>
+        <div class="bills-actions">
+          <span class="btn-pill">🧮 查看结算</span>
+          <span class="btn-pill">👤 个人账单</span>
+        </div>
+      </div>
+      <div class="bill-row">
+        <div>
+          <div class="desc">夜市大排档晚餐</div>
+          <div class="meta">6 月 21 日 · 👤 4 人 · THB 3,890</div>
+        </div>
+        <div class="amount">
+          ¥892.00
+          <span class="sub">人均 ¥223.00</span>
+        </div>
+      </div>
+      <div class="bill-row">
+        <div>
+          <div class="desc">酒店双人间</div>
+          <div class="meta">6 月 20 日 · 👤 2 人 · THB 2,400</div>
+        </div>
+        <div class="amount">
+          ¥560.00
+          <span class="sub">人均 ¥280.00</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="ios-homeindicator"></div>
+</div>
+</div>
+</body>
+</html>

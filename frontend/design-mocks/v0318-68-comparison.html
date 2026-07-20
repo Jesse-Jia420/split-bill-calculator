@@ -1,0 +1,55 @@
+<!doctype html>
+<html><head>
+<meta charset="utf-8">
+<title>账单列表时间 header · 4 方案同框对比 (375px)</title>
+<style>
+  :root { --bg: #f2f3f7; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif; -webkit-font-smoothing: antialiased; }
+  .wrap { padding: 28px 32px; }
+  h1 { font-size: 26px; font-weight: 800; color: #0f172a; margin: 0 0 4px 0; letter-spacing: -0.5px; }
+  .crumb { font-size: 12.5px; color: #64748b; margin-bottom: 24px; letter-spacing: 0.02em; font-weight: 500; }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; align-items: start; }
+  .panel { background: #fff; border: 1px solid rgba(15,23,42,0.08); border-radius: 22px; padding: 14px; box-shadow: 0 4px 16px rgba(15,23,42,0.05); overflow: hidden; }
+  .panel-label { font-size: 14px; font-weight: 800; color: #4338ca; padding: 6px 14px; background: rgba(99,102,241,0.10); border-radius: 999px; display: inline-block; margin-bottom: 12px; letter-spacing: 0.02em; }
+  .panel-label.danger { color: #b91c1c; background: rgba(254,226,226,0.65); }
+  .panel-label.gold { color: #92400e; background: rgba(254,243,199,0.85); }
+  .panel-frame { width: 100%; height: 1340px; border-radius: 14px; overflow: hidden; }
+  iframe { width: 100%; height: 100%; border: 0; display: block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="crumb">v0.3.18 #68 · PO #6865 #3 反馈: 账单列表时间 header 单/双币排版混乱</div>
+  <h1>账单列表时间 header · 4 方案同框对比 (375px)</h1>
+  <div class="grid">
+    <div class="panel">
+      <div class="panel-label danger">❌ CURRENT · 现状 (PO 觉得混乱)</div>
+      <div class="panel-frame">
+        <iframe src="http://127.0.0.1:8450/v0318-68-bills-header-CURRENT.html" frameborder="0" scrolling="no"></iframe>
+      </div>
+    </div>
+  
+    <div class="panel">
+      <div class="panel-label ">★ A · 固定 3 行 + chip (推荐)</div>
+      <div class="panel-frame">
+        <iframe src="http://127.0.0.1:8450/v0318-68-bills-header-A.html" frameborder="0" scrolling="no"></iframe>
+      </div>
+    </div>
+  
+    <div class="panel">
+      <div class="panel-label ">○ B · 主币大 + 副币 compact</div>
+      <div class="panel-frame">
+        <iframe src="http://127.0.0.1:8450/v0318-68-bills-header-B.html" frameborder="0" scrolling="no"></iframe>
+      </div>
+    </div>
+  
+    <div class="panel">
+      <div class="panel-label ">○ C · 镜像 header + chip 行</div>
+      <div class="panel-frame">
+        <iframe src="http://127.0.0.1:8450/v0318-68-bills-header-C.html" frameborder="0" scrolling="no"></iframe>
+      </div>
+    </div>
+  </div>
+</div>
+</body></html>

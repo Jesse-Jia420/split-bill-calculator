@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=414, initial-scale=1">
+<title>v0.3.18 #45 Mockup B — Glass Row (行间玻璃 hairline 分隔)</title>
+<style>
+  /* ============================================
+   * Mockup B: Glass Row (透明 row + 玻璃 hairline)
+   * 思路: row 保持透明（继承 sheet 玻璃），行间用 1px 玻璃 hairline 分隔
+   * 视觉: 跟 sheet 形成 1 个 unit, row 之间"呼吸感"分隔
+   * 优点: 保留列表密度（跟当前差不多），增加视觉层次
+   * 缺点: 视觉变化小, 可能"看不出"玻璃化
+   * ============================================ */
+
+  @font-face {
+    font-family: 'Inter Variable';
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url('https://rsms.me/inter/font-files/InterVariable.woff2?v=4.0') format('woff2-variations');
+  }
+
+  :root {
+    --gray-50: #fafafa;
+    --gray-100: #f5f5f5;
+    --gray-200: #e5e5e5;
+    --gray-300: #d4d4d4;
+    --gray-400: #a3a3a3;
+    --gray-500: #737373;
+    --gray-600: #525252;
+    --gray-700: #404040;
+    --gray-800: #262626;
+    --gray-900: #171717;
+    --accent-500: #3b82f6;
+    --accent-700: #1d4ed8;
+    --accent-800: #3730a3;
+    --success-500: #10b981;
+    --error-500: #f43f5e;
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --font-size-xs: 12px;
+    --font-size-sm: 14px;
+    --font-size-base: 16px;
+    --font-size-2xl: 32px;
+    --font-size-3xl: 40px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
+    --radius-full: 9999px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter Variable', system-ui, -apple-system, sans-serif;
+    font-feature-settings: "cv11", "ss01", "ss03";
+    color: var(--gray-900);
+    background:
+      radial-gradient(at 20% 0%, rgba(99, 102, 241, 0.10) 0%, transparent 50%),
+      radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.08) 0%, transparent 50%),
+      linear-gradient(180deg, #f8f9fc 0%, #eef1f8 100%);
+    min-height: 100vh;
+    padding: 16px 12px 32px;
+  }
+
+  .ios-status-bar {
+    width: 414px;
+    margin: 0 auto;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 28px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--gray-900);
+  }
+  .ios-status-bar .left { letter-spacing: -0.02em; }
+  .ios-status-bar .right { display: flex; align-items: center; gap: 6px; }
+  .ios-status-bar svg { display: block; }
+
+  .phone-frame { width: 414px; margin: 0 auto; }
+
+  .option-tag {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.10) 0%, rgba(59, 130, 246, 0.08) 100%);
+    backdrop-filter: saturate(200%) blur(20px);
+    -webkit-backdrop-filter: saturate(200%) blur(20px);
+    border-radius: 999px;
+    padding: 10px 18px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent-700);
+    text-align: center;
+    margin: 8px auto 12px;
+    border: 1px solid rgba(99, 102, 241, 0.18);
+    width: fit-content;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.6),
+      0 1px 4px rgba(99, 102, 241, 0.10);
+  }
+  .option-tag-desc {
+    font-size: 12px;
+    color: var(--gray-600);
+    text-align: center;
+    margin-bottom: 18px;
+    line-height: 1.55;
+    padding: 0 16px;
+  }
+
+  .mockup-card {
+    background: white;
+    border-radius: 16px;
+    padding: 0 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    overflow: hidden;
+  }
+
+  .hero { text-align: center; padding: 16px 20px 12px; }
+  .hero-net {
+    font-size: 40px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    color: var(--success-500);
+    margin-bottom: 6px;
+  }
+  .hero-meta {
+    font-size: 13px;
+    color: var(--gray-500);
+    line-height: 1.5;
+  }
+
+  /* iOS Switch */
+  .ios-switch {
+    position: relative;
+    display: flex;
+    background: rgba(255, 255, 255, 0.5);
+    -webkit-backdrop-filter: blur(14px) saturate(180%);
+    backdrop-filter: blur(14px) saturate(180%);
+    border-radius: 9999px;
+    padding: 4px;
+    border: 0.5px solid rgba(99, 102, 241, 0.18);
+    box-shadow:
+      inset 0 1px 2px rgba(0, 0, 0, 0.04),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.6);
+    width: fit-content;
+    margin: 0 auto 12px;
+  }
+  .ios-switch-option {
+    padding: 6px 18px;
+    font-size: 14px;
+    font-weight: 600;
+    color: rgba(67, 56, 202, 0.6);
+    border-radius: 9999px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    white-space: nowrap;
+    position: relative;
+    z-index: 2;
+  }
+  .ios-switch-option.active {
+    color: white;
+    text-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.15);
+  }
+  .ios-switch-thumb {
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    left: 4px;
+    width: 134px;
+    background: linear-gradient(135deg, #6366f1, #818cf8);
+    border-radius: 9999px;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.4),
+      0 2px 4px rgba(99, 102, 241, 0.3);
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  /* Member chip row */
+  .member-tabs {
+    display: flex;
+    gap: 8px;
+    padding: 4px 4px 12px;
+    overflow-x: auto;
+  }
+  .member-chip {
+    flex: 0 0 auto;
+    background: linear-gradient(180deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.5) 100%);
+    border: 1px solid rgba(255,255,255,0.5);
+    backdrop-filter: saturate(180%) blur(16px);
+    -webkit-backdrop-filter: saturate(180%) blur(16px);
+    border-radius: var(--radius-full);
+    padding: 8px 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 60px;
+    min-width: 110px;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.4),
+      0 4px 12px rgba(0,0,0,0.06);
+  }
+  .member-chip.selected {
+    background: var(--accent-500);
+    border-color: var(--accent-500);
+    color: white;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.2),
+      0 4px 12px rgba(99, 102, 241, 0.30);
+  }
+  .chip-avatar {
+    flex: 0 0 auto;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--accent-500);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .member-chip:not(.selected) .chip-avatar { background: var(--gray-400); }
+  .chip-info { display: flex; flex-direction: column; gap: 2px; }
+  .chip-name { font-weight: 500; font-size: 14px; }
+  .chip-net { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 13px; }
+  .member-chip:not(.selected) .chip-net { color: var(--gray-500); }
+  .member-chip.selected .chip-net { color: rgba(255,255,255,0.95); }
+  .chip-net.pos { color: var(--success-500); }
+  .member-chip.selected .chip-net.pos { color: white; }
+
+  /* Sheet — 略加深 0.42 (row 透明需要更明显基底) */
+  .glass-sheet {
+    position: relative;
+    background: rgba(255, 255, 255, 0.42);
+    backdrop-filter: saturate(170%) blur(20px);
+    -webkit-backdrop-filter: saturate(170%) blur(20px);
+    border-radius: 16px;
+    padding: 10px 12px 12px;
+    margin-top: 14px;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.7),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.04);
+  }
+  .glass-sheet + .glass-sheet { margin-top: 12px; }
+
+  /* Section header chip */
+  .section-chip {
+    background: rgba(255, 255, 255, 0.62);
+    backdrop-filter: saturate(200%) blur(20px);
+    -webkit-backdrop-filter: saturate(200%) blur(20px);
+    border-radius: 9999px;
+    padding: 14px 16px;
+    margin: -8px -10px -8px -10px;
+    min-height: 60px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--gray-900);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.85),
+      0 1px 2px rgba(99, 102, 241, 0.10),
+      0 4px 12px rgba(99, 102, 241, 0.16);
+  }
+  .section-chip-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .icon-paid { background: var(--success-500); }
+  .icon-consumed { background: var(--accent-500); }
+  .section-chip-title { flex: 0 0 auto; }
+  .section-chip-count { font-weight: 400; font-size: 14px; color: var(--gray-500); }
+  .section-chip-arrow { margin-left: auto; font-size: 12px; color: var(--gray-400); }
+
+  /* ============================================
+   * Option B: GLASS ROW (透明 row + 玻璃 hairline 分隔)
+   * 关键参数:
+   *   - .bill-item 完全透明, 继承 sheet glass
+   *   - 行间 1px hairline (rgba indigo 0.10) + backdrop-filter micro blur
+   *   - 保留列表密度 (跟当前 dashed 几乎一样紧凑)
+   * ============================================ */
+  .bill-list {
+    list-style: none;
+    padding: 0;
+    margin: 6px 0 0;
+    display: flex;
+    flex-direction: column;
+    /* gap 0; hairline 替代 */
+  }
+  .bill-item {
+    /* 完全透明 - 继承 sheet glass */
+    background: transparent;
+    border-radius: 0;
+    padding: 10px 0;
+    position: relative;
+    /* 不显示 border — hairline 通过 ::after 渐变叠在 row 底边 */
+  }
+  .bill-item::after {
+    /* 玻璃 hairline: 1px 高 + 顶部 subtle gradient (iOS separator 风格) */
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(99, 102, 241, 0.10) 20%,
+      rgba(99, 102, 241, 0.14) 50%,
+      rgba(99, 102, 241, 0.10) 80%,
+      transparent 100%
+    );
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    pointer-events: none;
+  }
+  .bill-item:last-child::after { display: none; }
+
+  .bill-row1 {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .bill-desc {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+    font-size: var(--font-size-base);
+    color: var(--gray-900);
+  }
+  .bill-amount {
+    flex: 0 0 auto;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    font-size: var(--font-size-base);
+    color: var(--gray-900);
+    white-space: nowrap;
+  }
+  .bill-row2 {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px;
+    font-size: var(--font-size-sm);
+    color: var(--gray-500);
+    margin-top: 2px;
+  }
+  .bill-row2-sep { color: var(--gray-400); }
+  .bill-row2-tag { font-weight: 500; color: var(--gray-500); }
+  .bill-row2-tag.exclusive { color: var(--accent-500); }
+
+  .home-indicator {
+    width: 134px;
+    height: 5px;
+    background: var(--gray-900);
+    border-radius: 9999px;
+    margin: 16px auto 8px;
+    opacity: 0.85;
+  }
+
+  .mockup-footer {
+    margin-top: 18px;
+    padding: 14px 16px;
+    background: rgba(255, 255, 255, 0.55);
+    border-radius: 12px;
+    font-size: 12px;
+    color: var(--gray-600);
+    line-height: 1.65;
+    border: 1px solid rgba(99, 102, 241, 0.10);
+  }
+  .mockup-footer strong { color: var(--gray-900); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="ios-status-bar">
+  <div class="left">9:41</div>
+  <div class="right">
+    <svg width="17" height="11" viewBox="0 0 17 11" fill="none"><rect x="0" y="7" width="3" height="4" rx="0.5" fill="currentColor"/><rect x="4.5" y="5" width="3" height="6" rx="0.5" fill="currentColor"/><rect x="9" y="3" width="3" height="8" rx="0.5" fill="currentColor"/><rect x="13.5" y="0" width="3" height="11" rx="0.5" fill="currentColor"/></svg>
+    <svg width="16" height="11" viewBox="0 0 16 11" fill="none"><path d="M8 11l2-2.2a3 3 0 0 0-4 0L8 11zm-4-4.5l1.4 1.5a5 5 0 0 1 5.2 0L12 6.5a7 7 0 0 0-8 0zM0 2.5l1.4 1.5a9 9 0 0 1 13.2 0L16 2.5a11 11 0 0 0-16 0z" fill="currentColor"/></svg>
+    <svg width="27" height="13" viewBox="0 0 27 13" fill="none"><rect x="0.5" y="0.5" width="22" height="12" rx="3" stroke="currentColor" opacity="0.35"/><rect x="2" y="2" width="19" height="9" rx="2" fill="currentColor"/><rect x="24" y="4" width="2" height="5" rx="1" fill="currentColor" opacity="0.4"/></svg>
+  </div>
+</div>
+
+<div class="phone-frame">
+
+  <div class="option-tag">方案 B — 玻璃 hairline</div>
+  <div class="option-tag-desc">
+    row 透明继承 sheet, 行间 1px 玻璃 hairline<br>
+    sheet 加深到 0.42 + saturate 170% + blur 20px (给 row 透明足够玻璃基底)
+  </div>
+
+  <div class="mockup-card">
+
+    <div class="ios-switch" style="margin: 8px auto 10px;">
+      <button class="ios-switch-option active">主币种汇总（CNY）</button>
+      <button class="ios-switch-option">原始数据</button>
+      <span class="ios-switch-thumb" style="width: 134px;"></span>
+    </div>
+
+    <div class="member-tabs">
+      <div class="member-chip selected">
+        <div class="chip-avatar">J</div>
+        <div class="chip-info">
+          <div class="chip-name">Jesse</div>
+          <div class="chip-net pos">+1,146.15 ¥</div>
+        </div>
+      </div>
+      <div class="member-chip">
+        <div class="chip-avatar">J</div>
+        <div class="chip-info">
+          <div class="chip-name">Ju</div>
+          <div class="chip-net" style="color: var(--error-500);">-66.65 ¥</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="hero">
+      <div class="hero-net">+1,146.15 CNY</div>
+      <div class="hero-meta">consumed 1,086.10 CNY · paid 2,232.25 CNY</div>
+    </div>
+
+    <!-- 付款明细 -->
+    <div class="glass-sheet">
+      <div class="section-chip">
+        <span class="section-chip-icon icon-paid">↑</span>
+        <span class="section-chip-title">付款明细</span>
+        <span class="section-chip-count">(3)</span>
+        <span class="section-chip-arrow">▼</span>
+      </div>
+
+      <ul class="bill-list">
+        <li class="bill-item">
+          <div class="bill-row1">
+            <span class="bill-desc">6.22 打车 4人 大金佛</span>
+            <span class="bill-amount">19.14 CNY</span>
+          </div>
+          <div class="bill-row2">
+            <span>20:00</span>
+            <span class="bill-row2-sep">·</span>
+            <span>👤 4人</span>
+          </div>
+        </li>
+
+        <li class="bill-item">
+          <div class="bill-row1">
+            <span class="bill-desc">6.22 午饭 4人 酒店楼下餐厅</span>
+            <span class="bill-amount">246.18 CNY</span>
+          </div>
+          <div class="bill-row2">
+            <span>20:00</span>
+            <span class="bill-row2-sep">·</span>
+            <span>👤 4人</span>
+          </div>
+        </li>
+
+        <li class="bill-item">
+          <div class="bill-row1">
+            <span class="bill-desc">6.22 晚饭 3人 路边吃饭</span>
+            <span class="bill-amount">335.40 CNY</span>
+          </div>
+          <div class="bill-row2">
+            <span>20:00</span>
+            <span class="bill-row2-sep">·</span>
+            <span>👤 3人</span>
+          </div>
+        </li>
+      </ul>
+    </div>
+
+    <!-- 消费明细 -->
+    <div class="glass-sheet">
+      <div class="section-chip">
+        <span class="section-chip-icon icon-consumed">↓</span>
+        <span class="section-chip-title">消费明细</span>
+        <span class="section-chip-count">(5)</span>
+        <span class="section-chip-arrow">▼</span>
+      </div>
+
+      <ul class="bill-list">
+        <li class="bill-item">
+          <div class="bill-row1">
+            <span class="bill-desc">6.22 打车 4人 大金佛</span>
+            <span class="bill-amount">4.79 CNY</span>
+          </div>
+          <div class="bill-row2">
+            <span>20:00</span>
+            <span class="bill-row2-sep">·</span>
+            <span>👤 4人</span>
+            <span class="bill-row2-sep">·</span>
+            <span class="bill-row2-tag">共享 4.79 CNY</span>
+          </div>
+        </li>
+
+        <li class="bill-item">
+          <div class="bill-row1">
+            <span class="bill-desc">6.22 午饭 4人 酒店楼下餐厅</span>
+            <span class="bill-amount">61.55 CNY</span>
+          </div>
+          <div class="bill-row2">
+            <span>20:00</span>
+            <span class="bill-row2-sep">·</span>
+            <span>👤 4人</span>
+            <span class="bill-row2-sep">·</span>
+            <span class="bill-row2-tag">共享 61.55 CNY</span>
+          </div>
+        </li>
+
+        <li class="bill-item">
+          <div class="bill-row1">
+            <span class="bill-desc">6.22 晚饭 3人</span>
+            <span class="bill-amount">111.80 CNY</span>
+          </div>
+          <div class="bill-row2">
+            <span>20:00</span>
+            <span class="bill-row2-sep">·</span>
+            <span>👤 3人</span>
+            <span class="bill-row2-sep">·</span>
+            <span class="bill-row2-tag">共享 111.80 CNY</span>
+          </div>
+        </li>
+
+        <li class="bill-item">
+          <div class="bill-row1">
+            <span class="bill-desc">6.22 按摩 3人 路边</span>
+            <span class="bill-amount">85.50 CNY</span>
+          </div>
+          <div class="bill-row2">
+            <span>20:00</span>
+            <span class="bill-row2-sep">·</span>
+            <span>👤 3人</span>
+            <span class="bill-row2-sep">·</span>
+            <span class="bill-row2-tag exclusive">独占 85.50 CNY</span>
+          </div>
+        </li>
+
+        <li class="bill-item">
+          <div class="bill-row1">
+            <span class="bill-desc">6.22 榴莲</span>
+            <span class="bill-amount">59.13 CNY</span>
+          </div>
+          <div class="bill-row2">
+            <span>20:00</span>
+            <span class="bill-row2-sep">·</span>
+            <span>👤 2人</span>
+            <span class="bill-row2-sep">·</span>
+            <span class="bill-row2-tag">共享 59.13 CNY</span>
+          </div>
+        </li>
+      </ul>
+    </div>
+
+  </div>
+
+  <div class="mockup-footer">
+    <strong>视觉特征：</strong>row 完全透明, 跟 sheet 形成 1 个玻璃 unit; 行间 hairline 用了 indigo 渐变 + 微 blur<br>
+    <strong>优点：</strong>保留列表密度 (跟当前几乎一样紧凑), sheet 加深玻璃感后整张列表更整体<br>
+    <strong>缺点：</strong>玻璃化"看上去"变化小, 用户可能感受不到 row 级别的玻璃感
+  </div>
+
+</div>
+
+<div class="home-indicator"></div>
+
+</body>
+</html>

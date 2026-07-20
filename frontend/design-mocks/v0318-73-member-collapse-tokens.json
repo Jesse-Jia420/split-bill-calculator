@@ -1,0 +1,253 @@
+{
+  "version": "v0.3.18-73",
+  "name": "Member Section Collapse Tokens",
+  "scope": "收起态视觉方案 (仅 new collapse tokens, 展开态 token 见 v0318-66-tokens.json, 此处不重复)",
+  "designer_agent": "DeepSeek Reasoner (subagent, depth 1/1)",
+  "task_origin": "PO #6986 — '成员 section 收起态过过 design agent 吗？目前这样是可以接受的吗？？？'",
+  "created_at": "2026-07-20T17:30:00+08:00",
+
+  "tokens_reused_from_v0318_66": {
+    "note": "以下 token 全部复用 v0318-66-member-section-tokens.json, 本文件仅新增展开/收起态专用 token. 展开态 token 不修改。",
+    "glass_bg_card": "rgba(255, 255, 255, 0.55)",
+    "glass_blur": "saturate(180%) blur(20px)",
+    "glass_radius_card": "16px",
+    "glass_border_card": "rgba(0, 0, 0, 0.06)",
+    "avatar_palette": ["indigo(#818cf8→#6366f1)", "pink(#f472b6→#ec4899)", "emerald(#34d399→#10b981)", "amber(#fbbf24→#f59e0b)", "blue(#60a5fa→#3b82f6)"],
+    "font_size_title": "15px (700)",
+    "font_size_count": "12px (400, gray-500)",
+    "font_size_expiry_pill": "11px (600)",
+    "font_size_invite_pill": "11px (600)",
+    "section_header_padding": "0 0 12px (展开态有 border-bottom)",
+    "section_header_border": "1px solid rgba(0,0,0,0.05)",
+    "expiry_pill_bg": "var(--amber-50) = #fffbeb",
+    "expiry_pill_border": "1px solid rgba(245,158,11,0.22)",
+    "expiry_pill_text": "var(--amber-700) = #b45309",
+    "invite_pill_bg": "rgba(99,102,241,0.10)",
+    "invite_pill_border": "1px solid rgba(99,102,241,0.22)",
+    "invite_pill_text": "var(--accent-700) = #1d4ed8"
+  },
+
+  "collapse_tokens": {
+    "note": "v0.3.18 #73 新增的收起态专用 token (完整, 含响应式)",
+    "_problem_summary": [
+      "现状收起态 (commit df306ca) 无 .collapsed CSS 规则 → collapsed class 无效果",
+      "现状无 chevron → 用户无法感知可折叠",
+      "现状 mini avatar 全部同色 (#3b82f6 blue) → 不匹配展开态梯度色",
+      "现状 avatar-mini 26px @2x = 52px, 但 iPad 触摸目标 < 44pt",
+      "现状 card padding 不变 → 折叠后底部多余 16px padding",
+      "现状无动画 → 折叠/展开生硬"
+    ],
+    "scheme_A": {
+      "name": "Studio 紧凑 (强烈推荐 ★★★)",
+      "description": "收起态 header 保留完整信息层级: title + count + mini 梯度色头像 + expiry pill + invite button + chevron。",
+      "collapsed_header": {
+        "display": "flex, align-items: center (非展开态的 flex-start)",
+        "padding": "4px (margin: -4px 补偿, 实现 hover 高亮扩展)",
+        "border_bottom": "none (收起时删除分割线)",
+        "margin_bottom": "0",
+        "cursor": "pointer",
+        "user_select": "none",
+        "border_radius": "8px (hover 高亮圆角)",
+        "hover_bg": "rgba(99, 102, 241, 0.04)",
+        "active_bg": "rgba(99, 102, 241, 0.08)",
+        "transition": "background-color 150ms ease-out"
+      },
+      "mini_avatar": {
+        "size": "24×24px (比现状 26px 稍小, 但 @2x=48px retina 仍清晰)",
+        "font_size": "9px (600, white)",
+        "border": "2px solid white",
+        "margin_left": "-6px (堆叠重叠)",
+        "shadow": "0 1px 2px rgba(0,0,0,0.08)",
+        "colors": ["var(--avatar-1) indigo", "var(--avatar-2) pink", "var(--avatar-3) emerald", "var(--avatar-4) amber", "var(--avatar-5) blue"],
+        "overflow_bg": "var(--gray-300) → var(--gray-700) text",
+        "overflow_font_size": "8px (700)",
+        "direction": "rtl (最后一个人在最右边, 视觉自然)"
+      },
+      "chevron": {
+        "icon": "chevron-down (12×12, stroke 2.5)",
+        "color": "var(--gray-400) = #a3a3a3",
+        "size": "20×20px (触摸容器)",
+        "expanded_transform": "rotate(180deg)",
+        "transition": "transform 220ms ease-out"
+      },
+      "collapsed_padding": {
+        "note": "收起态 card 内 header 无底部 padding, 无多余空白",
+        "card_padding_adjust": "收起态 card 的 padding-bottom 仍保持 16px, 但内部 header 高度缩减"
+      },
+      "transition_animation": {
+        "trigger": "Svelte {#if membersOpen} / transition:slide",
+        "duration": "220ms (var(--transition-base))",
+        "easing": "ease-out",
+        "body_hide": "display: none (或 transition:slide with opacity)"
+      },
+      "responsive": {
+        "320_se": {
+          "changes": [
+            "mini avatar size → 22px (font 8px, overlap -5px)",
+            "header flex-wrap → wrap (窄屏换行)"
+          ]
+        },
+        "375_default": "如上 token",
+        "768_tablet": {
+          "changes": [
+            "mini avatar size → 28px (font 10px, overlap -7px)",
+            "chevron size → 24×24px (bigger tap target)"
+          ]
+        }
+      }
+    },
+    "scheme_B": {
+      "name": "iOS 极简 (★★★ 备选)",
+      "description": "收起态只有 title + count badge + chevron。无头像预览, 无 expiry pill, 无 invite button (展开态才能操作)。最干净的 iOS 标准折叠风格。",
+      "collapsed_header": {
+        "display": "flex, align-items: center, justify-content: space-between",
+        "cursor": "pointer",
+        "user_select": "none",
+        "padding": "4px (margin: -4px)",
+        "border_bottom": "none",
+        "margin_bottom": "0",
+        "border_radius": "8px",
+        "hover_bg": "rgba(99, 102, 241, 0.04)",
+        "active_bg": "rgba(99, 102, 241, 0.08)",
+        "transition": "background-color 150ms ease-out"
+      },
+      "count_badge": {
+        "style": "rounded-full pill (999px)",
+        "min_width": "22px",
+        "height": "20px",
+        "padding": "0 7px",
+        "bg": "rgba(99, 102, 241, 0.10)",
+        "color": "var(--accent-700) = #1d4ed8",
+        "font_size": "11px",
+        "font_weight": "700",
+        "font_variant_numeric": "tabular-nums"
+      },
+      "chevron": {
+        "icon": "chevron-down (12×12, stroke 2.5)",
+        "color": "var(--gray-400)",
+        "size": "20×20px",
+        "expanded_transform": "rotate(180deg)",
+        "transition": "transform 220ms ease-out"
+      },
+      "tokens_not_inherited_in_collapse": [
+        "mini avatar previews (not shown)",
+        "expiry pill (hidden in collapse)",
+        "invite button (hidden in collapse)"
+      ],
+      "responsive": {
+        "320_se": "title font-size → 14px, count badge → font 10px, chevron → 18×18",
+        "768_tablet": "count badge → font 12px, height → 22px, chevron → 22×22"
+      },
+      "tradeoff": "收起态无 expiry pill → 用户收起来看不到过期提醒。可接受: 展开态仍然有 expiry pill, 且账单区不会受收起的 expiry 影响。"
+    }
+  },
+
+  "animation_tokens": {
+    "expand_collapse_transition": {
+      "type": "Svelte transition:slide (或自定义 grid-template-rows)",
+      "duration": "220ms ease-out",
+      "opacity": "0→1 (expand), 1→0 (collapse)",
+      "height_timing": "220ms ease-out",
+      "note": "现状无动画。建议用 Svelte {#if} + transition:slide, 或 CSS grid-template-rows 配合 overflow:hidden 实现"
+    },
+    "chevron_rotate": {
+      "type": "transform: rotate(180deg)",
+      "duration": "220ms ease-out",
+      "expanded_rotation": "0deg",
+      "collapsed_rotation": "180deg",
+      "selector": "svelte class:collapsed 切换"
+    }
+  },
+
+  "responsive_breakpoints": {
+    "320_se": {
+      "max_width": "360px",
+      "collapse_A_changes": [
+        "mini avatar → 22px, font 8px, overlap -5px",
+        "header → flex-wrap: wrap (更窄屏幕换行)"
+      ],
+      "collapse_B_changes": [
+        "title → font 14px",
+        "count badge → font 10px, height 18px",
+        "chevron → 18×18"
+      ]
+    },
+    "375_414": {
+      "default": "如上 token, mobile-first 375px"
+    },
+    "768_tablet": {
+      "min_width": "768px",
+      "collapse_A_changes": [
+        "mini avatar → 28px (font 10px, overlap -7px)",
+        "chevron → 24×24"
+      ],
+      "collapse_B_changes": [
+        "count badge → font 12px, height 22px",
+        "chevron → 22×22"
+      ]
+    }
+  },
+
+  "dark_mode_placeholder": {
+    "scope": "未来 dark mode 适配占位",
+    "collapse_header_dark_hover": "rgba(99, 102, 241, 0.12)",
+    "collapse_header_dark_active": "rgba(99, 102, 241, 0.16)",
+    "mini_avatar_dark_border": "2px solid rgba(30, 30, 35, 1)",
+    "chevron_dark_color": "var(--gray-500)"
+  },
+
+  "ios_safari_fallback": {
+    "scope": "iOS Safari <18 / WebKit backdrop-filter bug",
+    "trigger": "@supports not (backdrop-filter: blur(10px))",
+    "note": "展开态玻璃 card 退回 rgba(255,255,255,0.92). 收起态 header hover 无玻璃, 纯 background-color, 无需 fallback.",
+    "mini_avatar_border": "2px solid rgba(255,255,255,0.92) (降级后) — border 跟随 card bg"
+  },
+
+  "diff_from_v0318_66_tokens": {
+    "scope": "本文件只新增收起态专用 token。v0318-66 的展开态 token 完全不变。",
+    "added": [
+      "collapse_tokens.scheme_A (Studio 紧凑 — 推荐)",
+      "collapse_tokens.scheme_B (iOS 极简 — 备选)",
+      "animation_tokens (展开/收起动画 + chevron 旋转)",
+      "mini_avatar (梯度色 mini 头像, 24px, direction:rtl)",
+      "chevron (20px, gray-400, rotate 180deg transition)",
+      "count_badge (iOS 风格, pill, 紫色玻璃 bg)",
+      "collapsed_header (padding:4px, hover bg, border-radius:8px)"
+    ],
+    "unchanged": [
+      "所有 v0318-66 member-row-a, avatar-a, member-info-a token",
+      "所有 v0318-66 section_header token",
+      "所有 v0318-66 expiry_inline, invite_pill token",
+      "所有 v0318-66 glass card, glass blur token",
+      "所有 v0318-66 avatar palette (indigo/pink/emerald/amber/blue)",
+      "所有 v0318-66 responsive breakpoints for expanded state"
+    ],
+    "theme": "加 token 不减 token。展开态设计完全不碰。"
+  },
+
+  "deliverables": {
+    "html_mockups": [
+      "frontend/design-mocks/v0318-73-member-collapse-A.html (Studio 紧凑)",
+      "frontend/design-mocks/v0318-73-member-collapse-B.html (iOS 极简)",
+      "frontend/design-mocks/v0318-73-member-collapse-CURRENT.html (现状对比)"
+    ],
+    "token_json": "v0318-73-member-collapse-tokens.json (本文件)",
+    "screenshots": [
+      "screenshots/v0318-73-member-collapse-CURRENT-320.png",
+      "screenshots/v0318-73-member-collapse-CURRENT-375.png",
+      "screenshots/v0318-73-member-collapse-CURRENT-768.png",
+      "screenshots/v0318-73-member-collapse-A-320.png",
+      "screenshots/v0318-73-member-collapse-A-375.png",
+      "screenshots/v0318-73-member-collapse-A-768.png",
+      "screenshots/v0318-73-member-collapse-B-320.png",
+      "screenshots/v0318-73-member-collapse-B-375.png",
+      "screenshots/v0318-73-member-collapse-B-768.png"
+    ]
+  },
+  "recommendation": {
+    "pick": "A (Studio 紧凑)",
+    "reason": "方案 A 保留现状收起态的信息层级 (expiry pill + invite button), 同时修复所有问题: 加 chevron 可折叠指示 + 梯度色 mini 头像 + 紧凑 header padding + hover 高亮 + 动画。对展开态零改动, Coder diff 最小 (只改 .collapsed CSS + 加 chevron + 修正 avatar-mini 颜色)。方案 B 更干净但牺牲 expiry pill, PO 可能觉得 '太少了'。推荐 A。",
+    "rating": "★★★",
+    "scheme_B_rating": "★★ (备选, 适合极简主义)"
+  }
+}

@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>v0.3.18 #67 tone-A — 单一玻璃 (Single-Layer Glass)</title>
+  <style>
+    :root {
+      --accent-700: #1d4ed8;
+      --accent-500: #3b82f6;
+      --indigo-50: #eef2ff;
+      --indigo-100: #e0e7ff;
+      --indigo-200: #c7d2fe;
+      --indigo-500: #6366f1;
+      --indigo-700: #4338ca;
+      --gray-50: #fafafa;
+      --gray-100: #f5f5f5;
+      --gray-400: #a3a3a3;
+      --gray-500: #737373;
+      --gray-700: #404040;
+      --gray-900: #171717;
+      --space-2: 8px;
+      --transition: 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      background: linear-gradient(180deg, #f0f5ff 0%, #e0e7ff 100%);
+      color: var(--gray-900);
+      font-family: 'Inter Variable', system-ui, -apple-system, BlinkMacSystemFont,
+        'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+    }
+
+    .ios-chrome {
+      width: 375px;
+      margin: 0 auto;
+      min-height: 100vh;
+      position: relative;
+      overflow: hidden;
+    }
+    .ios-statusbar {
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 22px 0 24px;
+      font-size: 15px;
+      font-weight: 600;
+      color: #000;
+      letter-spacing: -0.2px;
+    }
+    .ios-statusbar .time { font-variant-numeric: tabular-nums; }
+    .ios-statusbar .right { display: inline-flex; align-items: center; gap: 6px; }
+    .ios-statusbar .icon { width: 16px; height: 11px; display: inline-block; }
+    .ios-homeindicator {
+      height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .ios-homeindicator::after {
+      content: "";
+      width: 134px;
+      height: 5px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.85);
+    }
+
+    .annotation {
+      padding: 6px 18px 8px;
+      font-size: 11px;
+      color: #4338ca;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      background: rgba(238, 242, 255, 0.85);
+      border-bottom: 1px solid rgba(99, 102, 241, 0.20);
+    }
+    .annotation .swatch {
+      display: inline-block;
+      width: 10px; height: 10px;
+      border-radius: 2px;
+      vertical-align: middle;
+      margin-right: 4px;
+      background: linear-gradient(135deg, rgba(255,255,255,0.85), rgba(255,255,255,0.65));
+      border: 1px solid rgba(99, 102, 241, 0.18);
+    }
+
+    .page-head {
+      padding: 8px 18px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .page-head h1 {
+      margin: 0;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: #111827;
+    }
+    .page-head .user {
+      font-size: 13px;
+      color: var(--gray-500);
+    }
+
+    .stack {
+      padding: 4px 14px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .card-link {
+      text-decoration: none;
+      color: inherit;
+      display: block;
+    }
+
+    /* ===== tone-A: 单一白色玻璃 (Single-Layer Glass) =====
+       设计意图: 去掉彩色渐变背景, 回到 v0318-62-task-1 拍板的纯白玻璃.
+       保留: 18px radius, 浮起, 微 inset highlight.
+       降低: 不再有 indigo→purple→blue 三色背景 (主要原因),
+              不再有紫色 ring, 不再有 hover translateY(-3px) 浮起过度,
+              title 颜色由 accent-700 (#1d4ed8) → gray-900 (#171717) 跟全站克制感对齐.
+       局部 accent: owner pill 保留淡 indigo 玻璃 (跟 #62 拍板一致), 其他全白. */
+    .session-card {
+      position: relative;
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.82) 0%,
+        rgba(255, 255, 255, 0.65) 100%
+      );
+      backdrop-filter: saturate(180%) blur(20px) brightness(1.02);
+      -webkit-backdrop-filter: saturate(180%) blur(20px) brightness(1.02);
+
+      border: 1px solid rgba(255, 255, 255, 0.75);
+      border-radius: 18px;
+      padding: 18px;
+
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.85),
+        inset 0 -1px 0 rgba(15, 23, 42, 0.04),
+        0 1px 2px rgba(15, 23, 42, 0.04),
+        0 6px 18px rgba(15, 23, 42, 0.05);
+
+      transition:
+        transform var(--transition),
+        box-shadow var(--transition),
+        background 200ms ease;
+      overflow: hidden;
+    }
+    .session-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 60%;
+      pointer-events: none;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0) 100%);
+      opacity: 0.55;
+    }
+
+    .card-link:hover .session-card {
+      transform: translateY(-2px);
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.92) 0%,
+        rgba(255, 255, 255, 0.78) 100%
+      );
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.95),
+        inset 0 -1px 0 rgba(15, 23, 42, 0.05),
+        0 2px 4px rgba(15, 23, 42, 0.05),
+        0 12px 28px rgba(15, 23, 42, 0.08);
+    }
+
+    .row {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--gray-900);
+      letter-spacing: -0.2px;
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .role {
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 9px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      border-radius: 999px;
+      line-height: 1;
+    }
+    .role.member {
+      color: var(--gray-500);
+      background: rgba(255, 255, 255, 0.55);
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      backdrop-filter: blur(8px);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    }
+    .role.owner {
+      color: var(--indigo-700);
+      background: linear-gradient(
+        135deg,
+        rgba(165, 180, 252, 0.45) 0%,
+        rgba(99, 102, 241, 0.22) 100%
+      );
+      border: 1px solid rgba(99, 102, 241, 0.28);
+      backdrop-filter: blur(8px);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.6),
+        0 1px 3px rgba(99, 102, 241, 0.10);
+    }
+    .role .dot-led {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+      opacity: 0.85;
+    }
+    .meta {
+      position: relative;
+      margin-top: 12px;
+      display: flex;
+      gap: var(--space-2);
+      font-size: 12.5px;
+      line-height: 1.4;
+      color: var(--gray-500);
+    }
+    .meta b { font-weight: 600; color: var(--gray-700); }
+    .dot {
+      color: #d4d4d4;
+    }
+
+    @media (min-width: 720px) {
+      .ios-chrome { width: 768px; }
+      .page-head h1 { font-size: 34px; }
+      .stack { padding: 6px 24px 32px; gap: 16px; }
+      .session-card { padding: 22px; border-radius: 22px; }
+      .title { font-size: 18px; }
+      .meta { font-size: 13.5px; }
+    }
+
+    @media (max-width: 340px) {
+      .ios-chrome { width: 320px; }
+      .page-head { padding: 6px 14px 12px; }
+      .page-head h1 { font-size: 24px; }
+      .stack { padding: 4px 10px 16px; gap: 10px; }
+      .session-card { padding: 14px; border-radius: 16px; }
+      .title { font-size: 15px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="ios-chrome" id="frame">
+  <div class="ios-statusbar">
+    <span class="time">9:41</span>
+    <span class="right">
+      <svg class="icon" viewBox="0 0 16 11" fill="currentColor" aria-hidden="true">
+        <path d="M1 7h2v3H1zM4 5h2v5H4zM7 3h2v7H7zM10 1h2v9h-2z" />
+      </svg>
+      <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1" aria-hidden="true">
+        <path d="M1 5 Q8 -1 15 5" />
+        <path d="M3 7 Q8 3 13 7" />
+        <circle cx="8" cy="9" r="1" fill="currentColor" />
+      </svg>
+      <svg width="26" height="11" viewBox="0 0 26 11" fill="none" stroke="currentColor" stroke-width="1" aria-hidden="true">
+        <rect x="0.5" y="0.5" width="22" height="10" rx="2.5" />
+        <rect x="2" y="2" width="17" height="7" rx="1.2" fill="currentColor" />
+        <rect x="23.5" y="3.5" width="2" height="4" rx="0.6" fill="currentColor" />
+      </svg>
+    </span>
+  </div>
+
+  <div class="annotation">
+    <span class="swatch"></span>方案 A — 单一玻璃 (Single-Layer Glass) · 推荐度 ★★★
+  </div>
+
+  <div class="page-head">
+    <h1>我的账本</h1>
+    <span class="user">xinhua1001</span>
+  </div>
+
+  <div class="stack">
+
+    <a class="card-link" href="#">
+      <div class="session-card">
+        <div class="row">
+          <div class="title">测试币种</div>
+          <span class="role owner"><span class="dot-led"></span>owner</span>
+        </div>
+        <div class="meta">
+          <span><b>1 人</b></span>
+          <span class="dot">·</span>
+          <span>2026-07-19</span>
+        </div>
+      </div>
+    </a>
+
+    <a class="card-link" href="#">
+      <div class="session-card">
+        <div class="row">
+          <div class="title">泰国测试账单 6.19-6.22</div>
+          <span class="role owner"><span class="dot-led"></span>owner</span>
+        </div>
+        <div class="meta">
+          <span><b>5 人</b></span>
+          <span class="dot">·</span>
+          <span>2026-07-19</span>
+        </div>
+      </div>
+    </a>
+
+    <a class="card-link" href="#">
+      <div class="session-card">
+        <div class="row">
+          <div class="title">个人测试</div>
+          <span class="role owner"><span class="dot-led"></span>owner</span>
+        </div>
+        <div class="meta">
+          <span><b>1 人</b></span>
+          <span class="dot">·</span>
+          <span>2026-07-19</span>
+        </div>
+      </div>
+    </a>
+
+  </div>
+
+  <div class="ios-homeindicator"></div>
+</div>
+
+</body>
+</html>

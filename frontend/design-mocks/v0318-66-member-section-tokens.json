@@ -1,0 +1,305 @@
+{
+  "version": "v0.3.18-66",
+  "name": "Member Section Review Tokens",
+  "scope": "Member section + expiry hint placement + owner/badge weight + email truncation + single-member density + tablet layout",
+  "designer_agent": "MiniMax-M3 (subagent, depth 1/1)",
+  "task_origin": "PO #6865 feedback #1 — '成员 section 排版问题' (vague, auto-reviewed)",
+  "based_on": "v0.3.18-62 mockup A (chip-style member section, recommended) — but actual v0.3.18 #64+#65 implementation diverged to list/grid layout. This review bridges that gap.",
+  "created_at": "2026-07-20T14:30:00+08:00",
+  "tokens_reused_from_v0318_62": {
+    "_shared.css": "/home/node/.openclaw/workspace/sbc/design-notes/_shared.css",
+    "glass_bg_card": "rgba(255, 255, 255, 0.55)",
+    "glass_blur": "saturate(180%) blur(20px)",
+    "glass_radius_card": "16px",
+    "glass_radius_chip": "999px",
+    "avatar_palette": ["indigo", "pink", "emerald", "amber", "blue", "purple"],
+    "currency_bar_horizontal": "linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(99, 102, 241, 0.06))",
+    "navbar_glass": "rgba(255, 255, 255, 0.55) + saturate(180%) blur(20px) + 1px solid rgba(0,0,0,0.06)"
+  },
+  "tokens_new_for_v0318_66": {
+    "amber_palette": {
+      "amber_50":  "#fffbeb",
+      "amber_100": "#fef3c7",
+      "amber_200": "#fde68a",
+      "amber_400": "#fbbf24",
+      "amber_500": "#f59e0b",
+      "amber_600": "#d97706",
+      "amber_700": "#b45309",
+      "amber_800": "#92400e",
+      "amber_900": "#78350f"
+    },
+    "owner_palette": {
+      "owner_ring_color":    "rgba(168, 85, 247, 0.40-0.55)",
+      "owner_ring_purple":   "#a855f7",
+      "owner_gold_gradient": "linear-gradient(135deg, #fde68a, #f59e0b)",
+      "owner_crown_emoji":   "👑",
+      "owner_inline_tag_bg": "rgba(99, 102, 241, 0.14)",
+      "owner_inline_tag_fg": "#1d4ed8 (accent-700)"
+    },
+    "me_palette": {
+      "me_ring_color":    "rgba(59, 130, 246, 0.40-0.55)",
+      "me_ring_blue":     "#3b82f6",
+      "me_dot_diameter":  "6px",
+      "me_dot_glow":      "0 0 0 2px rgba(59, 130, 246, 0.18)"
+    },
+    "expiry_pill": {
+      "bg":               "var(--amber-50) = #fffbeb",
+      "border":           "1px solid rgba(245, 158, 11, 0.22)",
+      "text_color":       "var(--amber-700) = #b45309",
+      "font_size":        "11px (var(--font-size-xs))",
+      "font_weight":      "600",
+      "padding":          "3px 9px 3px 7px",
+      "border_radius":    "999px",
+      "icon_size":        "11×11",
+      "icon_stroke":      "currentColor, stroke-width 2.5",
+      "line_height":      "1.2",
+      "white_space":      "nowrap"
+    },
+    "expiry_alert_banner": {
+      "bg":                 "linear-gradient(135deg, rgba(254, 215, 170, 0.55), rgba(253, 186, 116, 0.40))",
+      "backdrop_filter":    "saturate(180%) blur(20px)",
+      "border":             "1px solid rgba(245, 158, 11, 0.30)",
+      "border_radius":      "12px",
+      "padding":            "8px 12px",
+      "icon_diameter":      "22×22",
+      "icon_bg":            "linear-gradient(135deg, #fbbf24, #f59e0b)",
+      "text_color":         "var(--amber-800) = #92400e",
+      "text_font_size":     "11px (var(--font-size-xs))",
+      "text_font_weight":   "600",
+      "shadow":             "inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 1px 4px rgba(245, 158, 11, 0.10)"
+    },
+    "member_chip": {
+      "padding":          "6px 12px 6px 6px",
+      "gap":              "8px",
+      "border_radius":    "999px",
+      "bg":               "rgba(255, 255, 255, 0.6)",
+      "bg_hover":         "rgba(255, 255, 255, 0.85)",
+      "bg_selected":      "rgba(59, 130, 246, 0.10)",
+      "bg_owner":         "rgba(168, 85, 247, 0.06)",
+      "border":           "1px solid rgba(0, 0, 0, 0.06)",
+      "border_hover":     "1px solid rgba(59, 130, 246, 0.30)",
+      "border_selected":  "1px solid rgba(59, 130, 246, 0.50)",
+      "border_owner":     "1px solid rgba(168, 85, 247, 0.40)",
+      "shadow_hover":     "0 1px 4px rgba(99, 102, 241, 0.10)",
+      "shadow_selected":  "0 0 0 3px rgba(59, 130, 246, 0.18)",
+      "shadow_owner_selected": "0 0 0 3px rgba(168, 85, 247, 0.22)",
+      "transition":       "all 150ms ease-out",
+      "hover_transform":  "translateY(-1px)"
+    },
+    "member_avatar": {
+      "size_mobile":     "36px (compact) / 40px (full)",
+      "size_chip":       "28px",
+      "border_radius":   "50%",
+      "font_size":       "11px (chip) / 13px (compact) / 14px (full)",
+      "font_weight":     "600",
+      "owner_ring":      "0 0 0 2px #fff, 0 0 0 4px rgba(168, 85, 247, 0.55)",
+      "me_ring":         "0 0 0 2px #fff, 0 0 0 4px rgba(59, 130, 246, 0.55)",
+      "owner_me_dual_ring": "0 0 0 2px #fff, 0 0 0 4px rgba(59, 130, 246, 0.55), 0 0 0 6px rgba(168, 85, 247, 0.30)",
+      "crown_offset":    "top: -6px (avatar 36) / -7px (avatar 40)",
+      "crown_font_size": "11-12px",
+      "crown_shadow":    "filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.15))"
+    },
+    "member_row_grid": {
+      "mobile_columns":      "36px 1fr auto",
+      "mobile_gap":          "8px (var(--space-2))",
+      "tablet_columns":      "1fr 1fr (2-column grid)",
+      "tablet_gap":          "12px × 16px",
+      "row_padding":         "8px 0 / 12px 12px (tablet)",
+      "row_bg_tablet":       "rgba(255, 255, 255, 0.4)",
+      "row_border_tablet":   "1px solid rgba(0, 0, 0, 0.04)",
+      "row_hover_bg":        "rgba(99, 102, 241, 0.04)",
+      "selected_bg":         "rgba(59, 130, 246, 0.08)",
+      "selected_border":     "1px solid rgba(59, 130, 246, 0.30)",
+      "selected_shadow":     "0 0 0 3px rgba(59, 130, 246, 0.10)",
+      "owner_row_bg":        "linear-gradient(90deg, rgba(168, 85, 247, 0.04), transparent 60%)"
+    },
+    "member_text": {
+      "name_font_size":      "14-15px (mobile) / 14.5px (mockup C full)",
+      "name_font_weight":    "600-700",
+      "name_color":          "var(--gray-900) = #171717",
+      "name_line_height":    "1.3",
+      "name_word_break":     "break-word (no ellipsis — wrap full)",
+      "net_font_size":       "13-14px",
+      "net_font_weight":     "700",
+      "net_color_pos":       "var(--success-500) = #10b981",
+      "net_color_neg":       "var(--error-500) = #ef4444",
+      "email_font_size":     "11px (var(--font-size-xs))",
+      "email_color":         "var(--gray-500) = #737373",
+      "email_word_break":    "break-all (no max-width truncation)"
+    },
+    "member_remove": {
+      "size":                "28×28",
+      "border_radius":       "50%",
+      "color":               "var(--gray-400)",
+      "opacity_default":     "0.4 (desktop) / 1.0 (mobile, always visible)",
+      "opacity_hover_row":   "1.0",
+      "bg_hover":            "rgba(239, 68, 68, 0.10)",
+      "color_hover":         "var(--error-500)",
+      "transition":          "all 150ms ease-out"
+    },
+    "section_header": {
+      "padding_bottom":      "12px (var(--space-3))",
+      "border_bottom":       "1px solid rgba(0, 0, 0, 0.05)",
+      "gap":                 "12px (var(--space-3))",
+      "title_font_size":     "15px",
+      "title_font_weight":   "700",
+      "count_font_size":     "12px (var(--font-size-sm))",
+      "count_color":         "var(--gray-500)",
+      "count_margin_left":   "4px",
+      "mobile_flex":         "flex-direction: column at <360px"
+    },
+    "invite_pill": {
+      "padding":             "6px 12px",
+      "border_radius":       "999px",
+      "bg":                  "rgba(99, 102, 241, 0.10)",
+      "border":              "1px solid rgba(99, 102, 241, 0.22)",
+      "color":               "var(--accent-700) = #1d4ed8",
+      "font_size":           "11px (var(--font-size-xs))",
+      "font_weight":         "600",
+      "icon_size":           "12×12 emoji"
+    },
+    "solo_member_cta": {
+      "padding":             "12-16px",
+      "border_radius":       "12px",
+      "bg":                  "linear-gradient(135deg, rgba(99, 102, 241, 0.06), rgba(59, 130, 246, 0.04)) [variant A/B] OR linear-gradient(135deg, rgba(254, 215, 170, 0.30), rgba(99, 102, 241, 0.06)) [variant C]",
+      "border":              "1px dashed rgba(99, 102, 241, 0.20) [A/B] OR 1px dashed rgba(245, 158, 11, 0.30) [C]",
+      "text_font_size":      "12px (var(--font-size-sm))",
+      "text_color":          "var(--gray-700)",
+      "strong_color":        "var(--gray-900)",
+      "arrow_color":         "var(--accent-700)"
+    },
+    "fade_edge": {
+      "width":               "20-24px",
+      "gradient":            "linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.92))",
+      "position":            "right side of horizontal scroll chip row"
+    }
+  },
+  "responsive_breakpoints": {
+    "320_se": {
+      "max_width": "360px",
+      "changes": [
+        "section-header → flex-direction: column, align-items: flex-start",
+        "members-actions → width: 100%, justify-content: space-between",
+        "expiry-inline → font-size: 10px, padding: 2px 7px 2px 5px",
+        "member-row → grid-template-columns: 32px 1fr 28px, gap: 8px",
+        "avatar → 32×32, font-size: 12px (variant A)",
+        "mockup C: hide email (display: none) — net + name + role only",
+        "mockup C: avatar → 36×36 (kept larger because has crown)"
+      ]
+    },
+    "375_414": {
+      "max_width": "767px",
+      "default_layout": "single column, horizontal scroll for chips, list for rows"
+    },
+    "768_tablet": {
+      "min_width": "768px",
+      "changes": [
+        "member-list → display: grid, grid-template-columns: 1fr 1fr, gap: 12px 16px",
+        "member-row → padding: 12px, bg: rgba(255, 255, 255, 0.4), border: 1px solid rgba(0,0,0,0.04), border-radius: 12px",
+        "solo-cta → grid-column: 1 / -1",
+        "mockup B chip-row → flex-wrap: wrap, no scroll, no fade edge",
+        "mockup B detail-panel → max-width: 480px, margin: 0 auto",
+        "container max-width: 720px, margin: 0 auto (建议)"
+      ]
+    }
+  },
+  "dark_mode_placeholder": {
+    "scope": "未来 dark mode 适配占位, 当前 SBC app 暂无 dark mode (v0.3.18 实测)",
+    "owner_ring_dark":      "rgba(168, 85, 247, 0.65)",
+    "me_ring_dark":         "rgba(59, 130, 246, 0.65)",
+    "expiry_bg_dark":       "rgba(245, 158, 11, 0.15)",
+    "expiry_text_dark":     "var(--amber-300)",
+    "card_bg_dark":         "rgba(30, 30, 35, 0.55)",
+    "card_border_dark":     "rgba(255, 255, 255, 0.10)"
+  },
+  "ios_safari_fallback": {
+    "scope": "iOS Safari <18 / WebKit backdrop-filter bug fallback",
+    "trigger": "@supports not (backdrop-filter: blur(10px))",
+    "fallback": {
+      "card_bg":        "rgba(255, 255, 255, 0.92) — 完全不透明保证可读性",
+      "expiry_pill_bg": "rgba(255, 251, 235, 0.92)",
+      "chip_bg":        "rgba(255, 255, 255, 0.92)",
+      "alert_bg":       "linear-gradient(135deg, rgba(254, 215, 170, 0.92), rgba(253, 186, 116, 0.92))"
+    },
+    "css_snippet": "@supports not (backdrop-filter: blur(10px)) { .glass-fallback { background: rgba(255,255,255,0.92) !important; } }"
+  },
+  "transitions": {
+    "fast":      "150ms ease-out",
+    "base":      "220ms ease-out",
+    "chip_hover": "translateY(-1px) + box-shadow + background",
+    "row_hover":  "background-color 150ms ease-out",
+    "selected":   "border-color + box-shadow 150ms ease-out"
+  },
+  "deliverables": {
+    "html_mockups": [
+      "frontend/design-mocks/v0318-66-member-section-A.html",
+      "frontend/design-mocks/v0318-66-member-section-B.html",
+      "frontend/design-mocks/v0318-66-member-section-C.html"
+    ],
+    "shared_css": "frontend/design-mocks/_v0318-66-shared.css",
+    "screenshots": [
+      "frontend/design-mocks/screenshots/v0318-66-member-section-A-320.png (640×1480 @2x)",
+      "frontend/design-mocks/screenshots/v0318-66-member-section-A-375.png (750×1624 @2x)",
+      "frontend/design-mocks/screenshots/v0318-66-member-section-A-768.png (1536×2048 @2x)",
+      "frontend/design-mocks/screenshots/v0318-66-member-section-B-320.png",
+      "frontend/design-mocks/screenshots/v0318-66-member-section-B-375.png",
+      "frontend/design-mocks/screenshots/v0318-66-member-section-B-768.png",
+      "frontend/design-mocks/screenshots/v0318-66-member-section-C-320.png",
+      "frontend/design-mocks/screenshots/v0318-66-member-section-C-375.png",
+      "frontend/design-mocks/screenshots/v0318-66-member-section-C-768.png"
+    ],
+    "synced_to_media": "/home/node/.openclaw/media/v0318-66-mockups/ (9 PNGs for Telegram)"
+  },
+  "candidates_summary": {
+    "A": {
+      "name": "精修列表 (最小改动)",
+      "approach": "保留现有 list/grid 布局, 修 8 个 review 问题: 过期提示挪到 header 右上 inline pill; 删 chevron; owner 紫色 ring + 皇冠; owner+me 同 row 只显皇冠 + 'me · owner' 文本; email 不截断; net 字号 13px 首位; 1-member 紧凑 CTA banner; 768px 2-column grid",
+      "changes_to_current": "最小 — 改 expiry 位置 + owner 视觉 + 删除 chevron + email nowrap + 1-member CTA + 768px grid",
+      "estimated_diff_size": "约 80 行 CSS 改动 + 30 行 HTML 微调",
+      "fit": "如 PO 接受现状 list 布局, 只想修排版细节 → A",
+      "tradeoffs": "信息密度高, 5+ member 时 section 仍较长; chip 选中态缺失 (现状没有 selected_user_id)",
+      "rating": "★★★ (推荐 — 风险最低, 改动最小, 修了所有 review 问题)"
+    },
+    "B": {
+      "name": "横向 chip + 选中态 (中度改动)",
+      "approach": "采纳 v0.3.18 #62 mockup A 原方案: 头像 + 名字 + role pill 紧凑 horizontal scroll; 选中态 ring (蓝) + 浅蓝底; 选中后下方展开 detail panel 显示 email/net; owner 用金色 avatar + 皇冠; 多 member 横向滚动 + 右侧 fade edge; 768px wrap 成 2 行",
+      "changes_to_current": "中度 — 改 member 渲染为 chip + detail panel; selected_user_id 真正可用",
+      "estimated_diff_size": "约 150 行 CSS 改动 + 60 行 HTML 重构 (.member-row → .member-chip + .member-detail)",
+      "fit": "如 PO 想要 'chip-style selected' 真正落地 (跟 v0.3.18 #62 mockup A 一致) → B",
+      "tradeoffs": "5+ member 时横向滚动需要 affordance; detail panel 是新交互模式, 用户需学习; 320px 横向截断严重 (chip 只看到 1-2 个)",
+      "rating": "★★ (推荐 — 视觉最现代, 但 UX 风险中)"
+    },
+    "C": {
+      "name": "Hybrid 列表 + amber alert (较大改动)",
+      "approach": "保留 row 布局 (信息密度高), 但融合: amber alert banner 在 section top 独立显示过期 (跟 mockup #62 B 同款, 但更紧凑); avatar 用 ring 选中态; email 不截断; net 字号 14px 首位; owner 金色 avatar + 紫色 crown; 1-member 紧凑 banner; 320px 隐藏 email; 768px 2-column grid",
+      "changes_to_current": "较大 — 加 amber alert banner + 选中态 + email nowrap + 1-member compact + 320px 隐藏 email + 768px grid",
+      "estimated_diff_size": "约 130 行 CSS 改动 + 50 行 HTML 微调",
+      "fit": "如 PO 想要 '过期' 更显眼 + 选中态 + 完整信息保留 → C",
+      "tradeoffs": "amber alert banner 视觉权重最高, 跟成员列表抢戏; 选中态在 list 上不如 chip 上直观 (整行点 vs 单 chip 点)",
+      "rating": "★★ (备选 — 过期最显眼, 但 alert 跟 list 抢戏)"
+    }
+  },
+  "recommendation": {
+    "pick": "A",
+    "reason": "改动最小, 风险最低, 修了所有 review 问题. iOS 标准 header (左 title + 右 status + 邀请 button) 是 mobile 最稳定的模式. owner 用紫色 ring + 皇冠区别于 me 蓝色 ring, 视觉权重合理. 1-member 紧凑 CTA + 768px 2-column 解决空旷问题. 跟现状实现 diff 最小, Coder 直接改 CSS + 模板小动即可."
+  },
+  "alternative_combos": [
+    {
+      "combo": "B (如果 PO 想要真正落地 v0.3.18 #62 mockup A 的 chip-style selected)",
+      "rationale": "B 是 PO 当初拍板的 mockup A 原方案, 实际 #64+#65 没落地 chip. 现在 review 后给 PO 看 chip 实际效果, 让 PO 决定要不要回到原方案."
+    },
+    {
+      "combo": "C (如果 PO 觉得过期信息应该更显眼)",
+      "rationale": "amber alert banner 是 mockup #62 B 同款, 但放在 section 内独立位置. 跟 list 布局兼容, 信息密度不丢."
+    }
+  ],
+  "designer_notes": [
+    "现状问题不是 '设计失败', 而是 'v0.3.18 #62 拍板的 mockup A 落地时实际改成了 list 布局 (沿用 v0.2.1 UI rev 的 grid), 失去了 chip + selected + 紧凑 3 个核心卖点'.",
+    "A 是 '在现状 list 基础上修排版', B 是 '回到 v0.3.18 #62 原方案', C 是 '折中'.",
+    "3 个 mockup 共享 _v0318-66-shared.css (extends v0.3.18-62 _shared.css + 加 amber/owner/me token).",
+    "全 9 张截图使用同一 .bg-stage 背景模拟 glass-bg.jpg 的 light indigo gradient.",
+    "deviceScaleFactor=2 retina 输出, 320 viewport 实际像素 640×1480, 375=750×1624, 768=1536×2048.",
+    "中文用系统 fallback (-apple-system / PingFang SC), iOS Safari 渲染效果.",
+    "全部 mockup 包含 iOS chrome (status bar 含 wifi/battery icon + home indicator), Master 可直接对比."
+  ]
+}
