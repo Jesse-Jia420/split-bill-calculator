@@ -55,6 +55,10 @@
    * 路由 +page.svelte 已传 session.primary_currency (从 SessionDetail.primary_currency).
    */
   export let primaryCurrency: string | null = null;
+  /**
+   * v0.3.18 #69: 该 session 的全部币种 (session.currencies), 用于行 2/3 循环。
+   */
+  export let currencies: string[] = [];
 
   type Group = {
     date: string;
@@ -488,6 +492,10 @@
   function onGroupToggle(date: string, e: Event) {
     const el = e.currentTarget as HTMLDetailsElement;
     const isOpenNow = el.open;
+    // Svelte 5 的 class:open={isOpen(g.date)} 被 untrack 包住 → 不反应 collapsed 更新。
+    // 手动切 chevron DOM class 确保视觉同步 (native details toggle 此时已完成)。
+    const chevron = el.querySelector('.day-chevron');
+    if (chevron) chevron.classList.toggle('open', isOpenNow);
     collapsed = { ...collapsed, [date]: !isOpenNow };
     saveCollapsedState();
   }
@@ -500,14 +508,18 @@
     const saved = loadCollapsedState();
     const userTouched = Object.keys(saved).length > 0;
 
+    // v0.3.18 #69 fix2 (PO #6918): isOpen(date) 的优先级:
+    //   date in collapsed → return !collapsed[date] (用户显式设置)
+    //   else → return defaultOpenDates[date] (T7 默认)
+    // 之前 collapsed = { ...defaultOpenDates } 让 collapsed 有全部 date key,
+    // 导致 isOpen 返回 !collapsed[date] — 把 T7 "今天展开" 反转成折叠。
+    // 修复: 不复制 defaultOpenDates 到 collapsed,让 isOpen 走 fallback。
     if (userTouched) {
       // 用户手动 toggle 过 → localStorage 优先
       collapsed = { ...collapsed, ...saved };
-    } else {
-      // 从未手动折叠过 → 应用默认值 (only 今天展开, 其他折叠)
-      collapsed = { ...defaultOpenDates };
-      // 不写 localStorage,等用户真正 toggle 时再写。
     }
+    // else: collapsed 保持 {} → isOpen 会 fallback 到 defaultOpenDates
+    // 不写 localStorage,等用户真正 toggle 时再写。
 
     const onDocClick = (e: MouseEvent) => {
       const t = e.target as HTMLElement;
@@ -546,33 +558,55 @@
                  Row 3 = 人均行 -->
             <summary class="day-header section-header">
               <div class="day-row-1">
-                <span class="day-toggle" aria-hidden="true">{isOpen(g.date) ? '−' : '+'}</span>
                 <span class="day-date" data-testid="day-date">{formatDate(g.date, { weekday: true })}</span>
-                <span class="day-count" data-testid="day-count">{g.bills.length} 笔</span>
+                <span class="day-row-1-right">
+                  <span class="day-count" data-testid="day-count">{g.bills.length} 笔</span>
+                  <span class="day-chevron" data-testid="day-chevron">{'›'}</span>
+                </span>
               </div>
               <div class="day-row-2">
-                {#each g.currencyTotals as t, ti (t.ccy)}
-                  <!-- v0.3.18 #68: 单币 group 的唯一 chip 永远算 primary (indigo 玻璃),
-                       不管 session.primary_currency 是什么 — 因为该 day 只有这一个币种,
-                       "主/副" 概念不适用, 让 chip 显示主币种颜色 (避免「单币却
-                       显示成 teal 副币种」视觉混乱, 跟单/双币节奏一致) -->
-                  {@const isPrimary = g.currencyTotals.length === 1
-                    ? true
-                    : (primaryCurrency !== null && primaryCurrency !== undefined)
+                {#if currencies && currencies.length > 0}
+                  {#each currencies as ccy}
+                    {@const total = g.currencyTotals.find(t => t.ccy === ccy)}
+                    {@const isPrimary = (primaryCurrency !== null && primaryCurrency !== undefined)
+                      ? ccy === primaryCurrency
+                      : false}
+                    <span
+                      class="cc-chip"
+                      class:cc-chip-secondary={!isPrimary}
+                      class:cc-chip-empty={!total}
+                      data-testid="cc-chip"
+                    >
+                      <span class="cc-code">{ccy}</span>
+                      <span class="cc-amt">{total ? fmtAmount(total.amount) : '—'}</span>
+                    </span>
+                  {/each}
+                {:else}
+                  {#each g.currencyTotals as t, ti (t.ccy)}
+                    {@const isPrimary = (primaryCurrency !== null && primaryCurrency !== undefined)
                       ? t.ccy === primaryCurrency
                       : ti === 0}
-                  <span
-                    class="cc-chip"
-                    class:cc-chip-secondary={!isPrimary}
-                    data-testid="cc-chip"
-                  >
-                    <span class="cc-code">{t.ccy}</span>
-                    <span class="cc-amt">{fmtAmount(t.amount)}</span>
-                  </span>
-                {/each}
-              </div>
+                    <span
+                      class="cc-chip"
+                      class:cc-chip-secondary={!isPrimary}
+                      data-testid="cc-chip"
+                    >
+                      <span class="cc-code">{t.ccy}</span>
+                      <span class="cc-amt">{fmtAmount(t.amount)}</span>
+                    </span>
+                  {/each}
+                {/if}</div>
               <div class="day-row-3">
+                {#if currencies && currencies.length > 0}
+                  {#each currencies as ccy}
+                    {@const pc = g.perCapitaBreakdown.find(p => p.ccy === ccy)}
+                    <span class="muted" class:cc-chip-empty={!pc}>
+                      人均 <strong>{pc ? fmtAmount(pc.amount) + ' ' + ccy : '—'}</strong>
+                    </span>
+                  {/each}
+                {:else}
                 <span class="muted">人均 <strong>{fmtBreakdown(g.perCapitaBreakdown)}</strong></span>
+                {/if}
               </div>
             </summary>
 
