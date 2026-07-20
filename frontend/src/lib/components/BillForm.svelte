@@ -15,6 +15,8 @@
    * - humanizeApiError() helper 保留 (返回 string, 仍被 toast 消费)
    */
   import { onMount } from 'svelte';
+  import { slide } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
   import type { SessionDetail } from '$api/sessions';
   import type { Bill } from '$api/bills';
   import { evaluateExpression } from '$api/calculator';
@@ -575,11 +577,11 @@
               aria-label={`${m.display_name} 的独占金额设置`}
               data-testid={`ppts-toggle-${m.id}`}
             >
-              <span class="ppt-toggle-label">独占金额</span>
+              <span class="ppt-toggle-label">独占</span>
               <span class="ppt-toggle-caret" aria-hidden="true">{isSubOpen ? '▴' : '▾'}</span>
             </button>
             {#if isSubOpen}
-              <div class="ppt-sub-row" data-testid={`ppts-sub-${m.id}`}>
+              <div class="ppt-sub-row" data-testid={`ppts-sub-${m.id}`} transition:slide={{ duration: 220, easing: cubicOut }}>
                 <span class="ppt-sub-sym">{currencySymbol(currency)}</span>
                 <input
                   type="number"
@@ -704,7 +706,7 @@
     color: var(--color-text, #111827);
     text-align: left;
     cursor: pointer;
-    font-size: var(--font-size-base, 16px);
+    font-size: 15px;
     -webkit-tap-highlight-color: transparent;
     transition: background-color 120ms ease;
   }
@@ -712,9 +714,9 @@
     background: var(--gray-100, #f3f4f6);
   }
   .ppt-check-icon {
-    font-size: 20px;
+    font-size: 18px;
     line-height: 1;
-    flex: 0 0 24px;
+    flex: 0 0 22px;
     text-align: center;
     color: var(--accent-500, #3b82f6);
   }
@@ -726,51 +728,74 @@
     white-space: nowrap;
   }
   .ppt-excl-badge {
-    font-size: 13px;
-    color: var(--gray-500, #6b7280);
-    margin-left: var(--space-1, 4px);
+    display: inline-flex;
+    align-items: center;
+    background: rgba(99, 102, 241, 0.08);
+    border: 1px solid rgba(99, 102, 241, 0.15);
+    color: #2563eb;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-left: auto;
     flex: 0 0 auto;
+    line-height: 1.4;
   }
-  /* v0.2.3 T14r2 (PRD §3.9.2b): explicit text button instead of a
-     bare chevron. The pill reuses .link-btn styling (same accent
-     color, same hover), but bumps min-height to 44px so the tap
-     target stays ≥ 44px. */
+  /* v0.3.18 #77: compact pill toggle — 32px height, glass bg, 11px font */
   .ppt-toggle {
     flex: 0 0 auto;
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    min-height: var(--touch-target, 44px);
-    padding: 6px 10px;
-    color: var(--gray-700, #374151);
-    font-size: var(--font-size-sm, 13px);
-    font-weight: 500;
-    border-radius: var(--radius-md, 8px);
+    min-height: 32px;
+    padding: 4px 10px;
+    color: #737373;
+    font-size: 11px;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 999px;
     -webkit-tap-highlight-color: transparent;
-    transition: background-color 120ms ease, color 120ms ease;
+    cursor: pointer;
+    transition: background-color 150ms ease, color 150ms ease;
   }
   .ppt-toggle[aria-expanded='true'] {
-    color: var(--accent-700, #1d4ed8);
+    color: #2563eb;
+    background: rgba(99, 102, 241, 0.08);
+    border-color: rgba(99, 102, 241, 0.15);
   }
   .ppt-toggle:active {
-    background: var(--gray-100, #f3f4f6);
+    background: rgba(0, 0, 0, 0.04);
   }
   .ppt-toggle-label {
     line-height: 1;
   }
   .ppt-toggle-caret {
-    font-size: 11px;
+    font-size: 8px;
     line-height: 1;
-    /* use a unicode glyph (▾ / ▴) — wider than `›`, no rotate needed */
+    transition: transform 180ms ease-out;
+    display: inline-block;
+  }
+  .ppt-toggle[aria-expanded='true'] .ppt-toggle-caret {
+    transform: rotate(180deg);
   }
   .ppt-sub-row {
     flex-basis: 100%;
     display: flex;
     align-items: center;
     gap: var(--space-2, 8px);
-    padding: 4px 12px 12px 36px;
+    padding: 8px 12px 12px 40px;
     color: var(--gray-500, #6b7280);
     font-size: var(--font-size-sm, 13px);
+    background: rgba(255, 255, 255, 0.55);
+    backdrop-filter: saturate(160%) blur(14px);
+    -webkit-backdrop-filter: saturate(160%) blur(14px);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 12px;
+    transition: box-shadow 180ms ease;
+  }
+  .ppt-sub-row:focus-within {
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.12);
   }
   .ppt-sub-sym {
     color: var(--gray-500, #6b7280);
@@ -781,15 +806,19 @@
     white-space: nowrap;
   }
   .ppt-sub-input {
-    max-width: 120px;
-    padding: 6px 8px;
-    border: 1px solid var(--color-border, #e5e7eb);
-    border-radius: var(--radius-md, 8px);
-    font-size: var(--font-size-base, 16px);
+    flex: 1;
+    padding: 4px 6px;
+    border: none;
+    background: transparent;
+    font-size: 15px;
+    font-weight: 500;
     font-variant-numeric: tabular-nums;
-    background: var(--color-bg, #fff);
     color: var(--color-text, #111827);
-    min-height: var(--touch-target, 44px);
+    min-height: 32px;
+    outline: none;
+  }
+  .ppt-sub-input::placeholder {
+    color: var(--gray-400, #9ca3af);
   }
   @media (prefers-reduced-motion: reduce) {
     .ppt-toggle {
