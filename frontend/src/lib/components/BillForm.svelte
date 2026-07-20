@@ -504,7 +504,7 @@
       <span class="label">
         参与者 ({includedCount}/{session.members.length} 已选)
       </span>
-
+    </div>
 
     <!-- v0.2.3 T14 (PRD §3.9.2): single tap area per row + chevron-expandable sub-row.
          Hide the whole section when the session has no members. -->
