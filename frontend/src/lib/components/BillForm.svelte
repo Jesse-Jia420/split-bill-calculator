@@ -255,11 +255,12 @@
 
   // v0.3.20 #91 (PO msg 03:06 #7375): pill 改为两态切换 (shared 虚 ↔ exclusive 实).
   //   - shared (默认): "个人消费 ¥" ghost 玻璃, 102×32 钉死
-  //   - exclusive (实): ¥ + input + stepper, accent 玻璃, 102×32 钉死
+  //   - exclusive (实): ¥ + input, accent 玻璃, 102×32 钉死
+  // v0.3.20 #92 (PO msg 07:13 #7409): 删 stepper (▲▼ 按钮) — pill 背景跨 ¥+input+stepper 不连续,
+  // 视觉混乱. 改纯 ¥+input 双元素, 数字直接键盘输入或 input 自带 stepper (mobile keyboard 自带).
   // 不再有第三个"数字 pill"态 — input 永远显示, 数字直接读 input.
   // 点 shared → enterExclusive (focus input)
   // 点 ¥ / pill 内非 input 区 → exitExclusive (清 invalid amount)
-  // 点 ▲▼ → stepAmount (在 exclusive 内 ±1, 不切回 shared)
   //
   // `st.exclusive` 是 source of truth, buildPayload 直接读它.
   // 无需 editingMemberId 之类的中间 UI 状态.
@@ -318,17 +319,9 @@
   }
 
   /**
-   * v0.3.20 #91: stepper 按钮 — 在 exclusive 态内 ±1 调整金额, 不切回 shared.
+   * v0.3.20 #92 (PO msg 07:13 #7409): stepper 函数已删 (UI 删 stepper 按钮后无 caller).
+   * exclusive 金额调整走原生 number input (mobile keyboard 自带 + / - 控件).
    */
-  function stepAmount(memberId: number, delta: number) {
-    const st = participantState[memberId];
-    if (!st) return;
-    const n = Number(st.amount);
-    const cur = Number.isFinite(n) && n > 0 ? n : 0;
-    const next = Math.max(0, cur + delta);
-    st.amount = next > 0 ? String(next) : '';
-    participantState = { ...participantState };
-  }
 
 
 
@@ -583,7 +576,9 @@
               <span class="ppt-name">{m.display_name}</span>
             </button>
             {#if st?.exclusive}
-              <!-- exclusive 实态: ¥ + input + stepper, accent 玻璃 -->
+              <!-- v0.3.20 #92 (PO msg 07:13 #7409): exclusive 实态: ¥ + input, accent 玻璃, 102×32 钉死.
+                   删 stepper (▲▼) — pill 背景不连续, 视觉混乱; 改纯双元素 (¥ + input).
+                   金额调整走 native input (mobile keyboard 自带 + / - 控件). -->
               <div
                 class="excl-pill excl-pill-exclusive"
                 role="group"
@@ -608,20 +603,6 @@
                   aria-label={`${m.display_name} 的个人消费金额`}
                   data-testid={`ppts-amount-${m.id}`}
                 />
-                <span class="pill-stepper">
-                  <button
-                    type="button"
-                    class="pill-step pill-step-up"
-                    on:click={() => stepAmount(m.id, 1)}
-                    aria-label={`增加 ${m.display_name} 的个人消费`}
-                  >▲</button>
-                  <button
-                    type="button"
-                    class="pill-step pill-step-down"
-                    on:click={() => stepAmount(m.id, -1)}
-                    aria-label={`减少 ${m.display_name} 的个人消费`}
-                  >▼</button>
-                </span>
               </div>
             {:else}
               <!-- shared 虚态: "个人消费 ¥" ghost 玻璃, 点 → 进 exclusive -->
@@ -847,13 +828,14 @@
     letter-spacing: -0.01em;
   }
 
-  /* exclusive (实) — 浅紫 bg + accent border + ¥ + input + stepper
-     focus: border 加深 accent-600 */
+  /* v0.3.20 #92 (PO msg 07:13 #7409): exclusive (实) — 浅紫 bg + accent border + ¥ + input 双元素
+     focus: border 加深 accent-600. 删 stepper 后 pill 内只剩两个元素, padding 拉到对称 10px
+     让 ¥ 和 input 视觉居中, gap 4px 让两个元素不挤. */
   .excl-pill-exclusive {
     background: rgba(99, 102, 241, 0.10);
     border: 1px solid rgba(99, 102, 241, 0.55);
-    padding: 0 6px 0 8px;
-    gap: 2px;
+    padding: 0 10px;
+    gap: 4px;
     cursor: default;
   }
   .excl-pill-exclusive:focus-within {
@@ -903,38 +885,9 @@
     color: rgba(99, 102, 241, 0.35);
     font-weight: 500;
   }
-  .pill-stepper {
-    flex: 0 0 auto;
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    margin-left: 1px;
-  }
-  .pill-step {
-    width: 14px;
-    height: 13px;
-    border: 0;
-    padding: 0;
-    background: rgba(99, 102, 241, 0.10);
-    border-radius: 3px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--accent-600, #4f46e5);
-    font-size: 7px;
-    line-height: 1;
-    cursor: pointer;
-    font-weight: 700;
-    font-family: inherit;
-    -webkit-tap-highlight-color: transparent;
-    transition: background-color 100ms ease-out;
-  }
-  .pill-step:hover {
-    background: rgba(99, 102, 241, 0.22);
-  }
-  .pill-step:active {
-    background: rgba(99, 102, 241, 0.35);
-  }
+  /* v0.3.20 #92 (PO msg 07:13 #7409): 删 .pill-stepper / .pill-step / .pill-step:hover / .pill-step:active
+     — stepper 按钮已删, native number input 自带 +/- 控件 (mobile keyboard 上可见).
+     独占 pill 改纯 ¥ + input 双元素, 背景连续不跨子元素. */
   .btn-sm {
     min-height: 36px;
     padding: 4px 10px;

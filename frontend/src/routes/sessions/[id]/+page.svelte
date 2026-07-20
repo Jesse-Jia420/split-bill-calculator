@@ -443,13 +443,14 @@
       />
     {/if}
 
-    <!-- v0.3.19 #83 (PO #7300): 折叠态 header 重构成 3 行布局 —
-         row1: title + count 左, [expiry + invite] 右 (always; expanded 保留 invite 可见性)
-         row2: avatar 组 (18px, palette 渐变, -6px overlap), 折叠态独有
-         row3: chevron-down + 「查看 N 人」居中 (affordance 提示), 折叠态独有
+    <!-- v0.3.20 #92 (PO msg 07:13 #7409): 重排 members head rows —
+         row1: title + count 左, expiry pill 右 (owner_email 为空时)
+         row2: avatar 组 (左, 折叠态独有) + InviteLinkButton (右, 永远渲染)
+         row3: chevron-down + 「查看 N 人」居中, 折叠态独有
          整段 onclick + aria-expanded 保留, header 整体可点折叠/展开.
-         设计取舍: PO #7300 原划 row2 右为 invite, 但展开态 row2 不渲染, 邀按钮会消失 →
-         改把 InviteLinkButton 永远放 row1, 既保留任何状态可调, 避免 TS session_code 双指错误. -->
+         反 #7300 regression 修复: row1 挪 invite 到 row2 后, 展开态 InviteLinkButton 必须保留.
+         设计理由: invite 是核心操作, 不应被 collapsed 状态决定可见性.
+         row2 用 space-between: 折叠时 [avatars 左 | invite 右]; 展开时 [空 | invite 右] 自然 right-align. -->
     <div class="card members-card">
       <header
         class="members-head"
@@ -461,7 +462,7 @@
         aria-expanded={membersOpen}
         aria-label={membersOpen ? '收起成员列表' : '展开成员列表'}
       >
-        <!-- 第一行: 成员 · N人 左 (users icon 14×14 gray-500), [expiry + invite] 右 -->
+        <!-- 第一行: 成员 · N人 左 (users icon 14×14 gray-500), expiry pill 右 (owner_email 为空时) -->
         <div class="members-head-row1">
           <h3 class="members-title-a">
             <!-- Lucide `users` 14×14 gray-500 -->
@@ -484,18 +485,37 @@
             </svg>
             <span>成员 · {session.members.length}人</span>
           </h3>
-          <div class="members-actions-a">
-            {#if (session?.owner_email == null || session?.owner_email === '') && session?.invite_expires_at}
-              <span class="expiry-inline-a" data-testid="invite-expiry-pill">
-                <!-- Lucide `clock` 11×11 -->
-                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <circle cx="12" cy="12" r="10" />
-                  <polyline points="12 6 12 12 16 14" />
-                </svg>
-                <span>{formatExpiryDate(session.invite_expires_at)} 后过期</span>
-              </span>
+          {#if (session?.owner_email == null || session?.owner_email === '') && session?.invite_expires_at}
+            <span class="expiry-inline-a" data-testid="invite-expiry-pill">
+              <!-- Lucide `clock` 11×11 -->
+              <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+              <span>{formatExpiryDate(session.invite_expires_at)} 后过期</span>
+            </span>
+          {/if}
+        </div>
+
+        <!-- 第二行: 头像组 (左, 折叠态独有) + InviteLinkButton (右, 永远渲染)
+             用 space-between + right margin-left: auto, 折叠时 [avatars | invite],
+             展开时 [空 | invite] 自然 right-align, 任何状态都能调 invite -->
+        <div class="members-head-row2">
+          <div class="members-row2-left">
+            {#if !membersOpen && session.members.length > 0}
+              <div class="members-avatars-inline" aria-hidden="true">
+                {#each session.members.slice(0, 8) as m, i (m.id)}
+                  <div class="avatar-mini palette-{i % 5}" title={m.display_name}>
+                    {avatarLetter(m.display_name)}
+                  </div>
+                {/each}
+                {#if session.members.length > 8}
+                  <span class="avatar-mini avatar-mini-overflow">+{session.members.length - 8}</span>
+                {/if}
+              </div>
             {/if}
-            <!-- 邀请按钮永远在 row1 (展开/折叠 两态都能调, 避免 regression) -->
+          </div>
+          <div class="members-row2-right">
             <InviteLinkButton
               sessionId={session.id}
               sessionCode={session?.session_code ?? ""}
@@ -503,22 +523,6 @@
             />
           </div>
         </div>
-
-        <!-- 第二行: 头像组 (18px palette 渐变, -6px overlap), 折叠态独有 -->
-        {#if !membersOpen && session.members.length > 0}
-          <div class="members-head-row2">
-            <div class="members-avatars-inline" aria-hidden="true">
-              {#each session.members.slice(0, 8) as m, i (m.id)}
-                <div class="avatar-mini palette-{i % 5}" title={m.display_name}>
-                  {avatarLetter(m.display_name)}
-                </div>
-              {/each}
-              {#if session.members.length > 8}
-                <span class="avatar-mini avatar-mini-overflow">+{session.members.length - 8}</span>
-              {/if}
-            </div>
-          </div>
-        {/if}
 
         <!-- 第三行: chevron-down + 「查看 N 人」居中 (affordance 提示), 折叠态独有 -->
         {#if !membersOpen}
@@ -880,12 +884,26 @@
     gap: 8px;
     min-height: 32px;
   }
+  /* v0.3.20 #92 (PO msg 07:13 #7409): row2 改成左右两栏 —
+     左 (members-row2-left) = avatars (折叠态独有), 右 (members-row2-right) = InviteLinkButton (always).
+     用 space-between 让两端对齐, margin-left: auto 在 right 上作为 fallback
+     确保即使 left 是空 placeholder, invite 仍在最右. */
   .members-head-row2 {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
     min-height: 28px;
+  }
+  .members-row2-left {
+    display: flex;
+    align-items: center;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .members-row2-right {
+    flex: 0 0 auto;
+    margin-left: auto;
   }
   .members-head-row3 {
     display: flex;
@@ -945,13 +963,8 @@
     color: var(--gray-500, #737373);
     margin-left: 4px;
   }
-  /* v0.3.18 #66 (Mockup A): actions container — amber pill + invite button 并排. */
-  .members-actions-a {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    flex: 0 0 auto;
-  }
+  /* v0.3.20 #92 (PO msg 07:13 #7409): 删 .members-actions-a — expiry 已挪回 row1 单独渲染,
+     InviteLinkButton 已挪到 row2 的 .members-row2-right. 容器不再需要. */
 
   /* Expiry inline pill (mockup A token: amber-50 bg + amber-700 text + border) */
   /* v0.3.19 #83 (PO #7300): amber 配色克制 — bg 保留 amber-50, 文字改 gray-700, 不抢 row1 L1 主信息. */
