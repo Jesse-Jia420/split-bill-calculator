@@ -35,6 +35,7 @@
   import { fly, fade } from "svelte/transition";
   import { Pencil, Trash2 } from 'lucide-svelte';
   import { formatMoney, formatDate } from '$lib/utils/format';
+  import { currencySymbol } from '$lib/utils/currency';
   import type { Bill } from '$api/bills';
   import SkeletonBill from './SkeletonBill.svelte';
   import CategoryIcon from './CategoryIcon.svelte';
@@ -254,6 +255,14 @@
     const n = b.participants?.length ?? 0;
     if (n <= 0) return null;
     return b.amount / n;
+  }
+
+  // v0.3.20 #92 (PO msg 07:13 #7409): 聚合 bill.participants 中所有 is_exclusive 的 exclusive_amount.
+  // 仅在该 bill 有独占消费时返回 > 0, 用于决定 .bill-row-exclusive 行是否渲染.
+  function billExclusiveTotal(b: Bill): number {
+    return (b.participants ?? [])
+      .filter((p) => p.is_exclusive && Number(p.exclusive_amount) > 0)
+      .reduce((sum, p) => sum + Number(p.exclusive_amount), 0);
   }
 
   // v0.3.17 #36fix3 (PO msg 14:53): session-member-level ownership
@@ -597,15 +606,24 @@
                   {/each}
                 {/if}</div>
               <div class="day-row-3">
-                {#if currencies && currencies.length > 0}
-                  {#each currencies as ccy}
-                    {@const pc = g.perCapitaBreakdown.find(p => p.ccy === ccy)}
-                    <span class="muted" class:cc-chip-empty={!pc}>
-                      人均 <strong>{pc ? fmtAmount(pc.amount) + ' ' + ccy : '—'}</strong>
-                    </span>
-                  {/each}
+                {#if g.perCapitaBreakdown.length === 1}
+                  {@const pc = g.perCapitaBreakdown[0]}
+                  <!-- v0.3.20 #92 (PO msg 07:13 #7409): 单币场景 (1 个 perCapitaBreakdown entry) —
+                       "人均 X CNY". 无论 session currencies 是 1 还是 2, 都按实际账单数据展示. -->
+                  <span class="muted">
+                    人均 <strong>{fmtAmount(pc.amount) + ' ' + pc.ccy}</strong>
+                  </span>
+                {:else if g.perCapitaBreakdown.length > 1}
+                  <!-- v0.3.20 #92 (PO msg 07:13 #7409): 双币/多币 dedupe — 单一 "人均" label,
+                       多币种值合并到同一 <strong> (用 " · " 分隔).
+                       迭代 g.perCapitaBreakdown (实际有账单数据的币种) 而不是 session currencies,
+                       避免空币种渲染为 "—". -->
+                  <span class="muted">
+                    人均 <strong>{#each g.perCapitaBreakdown as pc, i (pc.ccy)}{#if i > 0} · {/if}{fmtAmount(pc.amount) + ' ' + pc.ccy}{/each}</strong>
+                  </span>
                 {:else}
-                <span class="muted">人均 <strong>{fmtBreakdown(g.perCapitaBreakdown)}</strong></span>
+                  <!-- v0.3.18 #68: 没有 per-capita 数据时 fallback -->
+                  <span class="muted">人均 <strong>—</strong></span>
                 {/if}
               </div>
             </summary>
@@ -734,8 +752,16 @@
                             {fmtAmount(b.amount)}<span class="unit">{b.currency}</span>
                           </span>
                         </div>
-                        <div class="bill-row2 muted">
-                          <span class="bill-meta-line">
+                        <!-- v0.3.20 #92 (PO msg 07:13 #7409): 新增 .bill-row-exclusive —
+                             独占金额行. 仅当 b.participants 里有任意 is_exclusive && exclusive_amount > 0 时渲染.
+                             单币独占金额聚合 (双币独占场景后端暂不支持, 但代码防御性 sum 一下). -->
+                        {#if billExclusiveTotal(b) > 0}
+                          <div class="bill-row-exclusive muted">
+                            独占 {currencySymbol(b.currency)}{fmtAmount(billExclusiveTotal(b))}<span class="unit">{b.currency}</span>
+                          </div>
+                        {/if}
+                        <div class="bill-row3 muted">
+                          <span class="bill-meta-left">
                             <span class="bill-participants" aria-label="参与人数 {b.participants.length}">
                               <svg
                                 viewBox="0 0 24 24"
@@ -927,11 +953,12 @@
   }
 
   /* === v0.3.18 #68: Row 2 = 货币玻璃 chip 行 ===
-     inline-flex + nowrap + overflow:hidden, 双币并排靠左对齐,
-     极窄屏 320px 自动 ellipsis (永不换行到第 4 行, 视觉节奏绝对一致) */
+     v0.3.20 #92 (PO msg 07:13 #7409): 右对齐 (justify-content: flex-end), 跟 row1 chevron 右侧对齐,
+     单/双币统一右对齐. 仍 nowrap + overflow:hidden, 极窄屏 320px 自动 ellipsis (永不换行到第 4 行). */
   .day-row-2 {
     display: flex;
     align-items: center;
+    justify-content: flex-end;
     gap: 6px;
     flex-wrap: nowrap;
     overflow: hidden;
@@ -981,11 +1008,13 @@
   }
   .cc-chip.cc-chip-secondary .cc-code { color: #0f766e; }
 
-  /* === v0.3.18 #68: Row 3 = 人均行 === */
+  /* === v0.3.18 #68: Row 3 = 人均行 ===
+     v0.3.20 #92 (PO msg 07:13 #7409): 右对齐 (justify-content: flex-end), 跟 row2 chips 右侧对齐.
+     双币场景 Fix 4 也合并到单一 "人均" label, 这里右对齐让 values 视觉聚合. */
   .day-row-3 {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     gap: 10px;
     font-size: 12px;
     color: #64748b;
@@ -1330,25 +1359,42 @@
     white-space: nowrap;
   }
 
-  .bill-row2 {
-    /* v0.1.4 polish: share_amount 独立新一行 — column 布局让 meta 在上、share 在下 */
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 2px;
+  /* v0.3.20 #92 (PO msg 07:13 #7409): bill-row2 拆成 .bill-row-exclusive + .bill-row3 —
+     - .bill-row-exclusive: 独占金额行 (可选, 仅 billExclusiveTotal(b) > 0 时渲染)
+     - .bill-row3: 人数 + 时间 + 谁付款 (左) + 分摊 (右, space-between)
+     两行都跟 .bill-row1 同 font-size, muted 颜色, 视觉连贯. */
+  .bill-row-exclusive {
     margin-top: 2px;
     font-size: var(--font-size-sm);
+    color: #94a3b8;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
   }
-  .bill-meta-line {
-    min-width: 0;
+  .bill-row-exclusive .unit {
+    margin-left: 2px;
+    font-size: var(--font-size-xs, 12px);
+    color: #94a3b8;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+  }
+  .bill-row3 {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
+    margin-top: 2px;
+    font-size: var(--font-size-sm);
+  }
+  .bill-meta-left {
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 1 auto;
   }
   .bill-meta-text {
     min-width: 0;
-    flex: 1 1 auto;
+    flex: 0 1 auto;
   }
   /* v0.3.16 #9 (PO msg 20:01): bill row2 时间右侧加 Lucide users icon + 人数,
      跟 SettleMemberBreakdown.svelte .participant-count 风格一致 (灰色文字) */
