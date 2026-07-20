@@ -21,7 +21,6 @@
   export let sessionCode: string = '';
   /** True if the caller is the session owner (保留 prop,后续 v0.2 rotate 功能回归使用)。 */
   export const isOwner: boolean = false;
-
   /* v0.3.18 #66 (PO #6899 Mockup A): 过期提示已移到 page-level .expiry-inline-a (amber pill),
      ownerEmail / inviteExpiresAt / formatExpiresDate / expiresDate 全部不再需要,
      删除以避免 svelte-check unused export warning. */
