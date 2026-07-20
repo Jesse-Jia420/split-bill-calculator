@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>v0.3.18 #68 方案 B — 主币种大金额 + 副币种 compact</title>
+  <style>
+    :root { --page-bg: #f2f3f7; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      background: var(--page-bg);
+      color: #171717;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+        "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      font-feature-settings: "cv11", "ss01", "ss03";
+    }
+
+    .ios-chrome {
+      width: 375px;
+      margin: 0 auto;
+      background: var(--page-bg);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .annotation {
+      padding: 12px 20px 6px;
+      font-size: 11px;
+      color: #4338ca;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      background: rgba(224, 231, 255, 0.5);
+      border-bottom: 1px dashed rgba(99, 102, 241, 0.3);
+    }
+    .annotation .meta {
+      display: block;
+      margin-top: 4px;
+      font-size: 10.5px;
+      color: #3730a3;
+      font-weight: 500;
+      letter-spacing: 0;
+      line-height: 1.5;
+    }
+    .annotation .star {
+      display: inline-block;
+      margin-left: 4px;
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: rgba(99,102,241,0.18);
+      color: #4338ca;
+      font-size: 9.5px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+    }
+
+    .ios-statusbar {
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 22px 0 24px;
+      box-sizing: border-box;
+      font-size: 15px;
+      font-weight: 600;
+      color: #000;
+      letter-spacing: -0.2px;
+    }
+    .ios-statusbar .time { font-variant-numeric: tabular-nums; }
+    .ios-statusbar .right { display: inline-flex; align-items: center; gap: 6px; }
+
+    .ios-homeindicator {
+      height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .ios-homeindicator::after {
+      content: "";
+      width: 134px;
+      height: 5px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.85);
+    }
+
+    .page-head {
+      padding: 6px 20px 6px;
+    }
+    .page-head .crumb {
+      font-size: 11.5px;
+      color: #64748b;
+      letter-spacing: 0.02em;
+      margin-bottom: 2px;
+    }
+    .page-head h1 {
+      margin: 0;
+      font-size: 19px;
+      font-weight: 700;
+      letter-spacing: -0.4px;
+      color: #111827;
+    }
+
+    /* ============================================================
+       方案 B — 主币种大金额 + 副币种 compact (chip 行)
+       核心策略: 主币种永远是大字号 + 右对齐, 副币种用 compact 灰色 chip
+       单币 group 高度 3 行, 双币 group 高度也是 3 行 (副币种压缩在第 1 行)
+       ============================================================ */
+
+    .section-card {
+      margin: 8px 16px 16px;
+      background: linear-gradient(135deg, rgba(255,255,255,0.72) 0%, rgba(255,255,255,0.55) 100%);
+      backdrop-filter: saturate(200%) blur(20px) brightness(1.03);
+      -webkit-backdrop-filter: saturate(200%) blur(20px) brightness(1.03);
+      border: 1px solid rgba(255,255,255,0.7);
+      border-radius: 18px;
+      padding: 4px 0;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.85),
+        inset 0 -1px 0 rgba(15,23,42,0.04),
+        0 1px 2px rgba(15,23,42,0.04),
+        0 8px 24px rgba(15,23,42,0.06),
+        0 0 0 0.5px rgba(99,102,241,0.06);
+    }
+
+    .section-card .head {
+      padding: 12px 16px 10px;
+      border-bottom: 1px solid rgba(15,23,42,0.05);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .section-card .head h2 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .section-card .head .total {
+      font-size: 12px;
+      color: #94a3b8;
+      font-weight: 500;
+    }
+
+    .day-group-b {
+      border-top: 1px solid rgba(15,23,42,0.04);
+      padding: 13px 16px 13px;
+    }
+    .day-group-b:first-of-type { border-top: none; }
+
+    /* Row 1: date + count (跟 A 同) */
+    .day-group-b .row-1 {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .day-group-b .left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .day-group-b .plus {
+      width: 22px; height: 22px;
+      display: inline-flex; align-items: center; justify-content: center;
+      border-radius: 50%;
+      background: rgba(99,102,241,0.10);
+      color: #4338ca;
+      font-size: 15px; font-weight: 400; line-height: 1;
+      flex-shrink: 0;
+    }
+    .day-group-b .date {
+      font-size: 15.5px; font-weight: 700; color: #0f172a;
+      letter-spacing: -0.2px; font-variant-numeric: tabular-nums;
+    }
+    .day-group-b .count {
+      font-size: 12px; color: #64748b; font-weight: 600;
+      background: rgba(15,23,42,0.04);
+      padding: 3px 9px; border-radius: 999px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Row 2: 主币种大金额 (右) + 副币种 compact chip (紧跟其后)
+       单币 group: 只有主币种 chip
+       双币 group: 主币种 chip + 副币种 mini chip */
+    .day-group-b .row-2 {
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 6px;
+      flex-wrap: nowrap;
+    }
+    .primary-amount {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 4px;
+      padding: 5px 12px 5px 12px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, rgba(99,102,241,0.32) 0%, rgba(59,130,246,0.20) 100%);
+      backdrop-filter: saturate(220%) blur(20px);
+      -webkit-backdrop-filter: saturate(220%) blur(20px);
+      border: 1.5px solid rgba(165,180,252,0.5);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.85),
+        0 4px 14px rgba(99,102,241,0.20);
+      flex-shrink: 0;
+    }
+    .primary-amount .cc-code {
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: #1e1b4b;
+    }
+    .primary-amount .cc-amt {
+      font-size: 15px;
+      font-weight: 700;
+      color: #0f172a;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.2px;
+    }
+    .primary-amount.primary-only {
+      /* 单币 (无副币种) — 视觉稍大 */
+      padding: 5px 14px;
+    }
+    .primary-amount.primary-only .cc-amt { font-size: 15.5px; }
+
+    .secondary-compact {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(20,184,166,0.10);
+      border: 1px solid rgba(20,184,166,0.22);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.55);
+      flex-shrink: 1;
+      min-width: 0;
+    }
+    .secondary-compact .cc-code {
+      font-size: 10px;
+      font-weight: 700;
+      color: #0f766e;
+      letter-spacing: 0.05em;
+      flex-shrink: 0;
+    }
+    .secondary-compact .cc-amt {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #334155;
+      font-variant-numeric: tabular-nums;
+    }
+    .secondary-compact .plus-sep {
+      color: #94a3b8;
+      font-weight: 500;
+      margin-right: 1px;
+    }
+
+    /* Row 3: 人均 (跟 A 同) */
+    .day-group-b .row-3 {
+      margin-top: 6px;
+      font-size: 12px;
+      color: #64748b;
+      font-weight: 500;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .day-group-b .percapita {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-variant-numeric: tabular-nums;
+    }
+    .day-group-b .percapita .strong { color: #334155; font-weight: 600; }
+
+    .design-note {
+      padding: 8px 20px 18px;
+      font-size: 11px;
+      color: #475569;
+      line-height: 1.6;
+    }
+    .design-note strong { color: #4338ca; font-weight: 700; }
+    .design-note .ok { color: #047857; font-weight: 600; }
+    .design-note .warn { color: #b45309; font-weight: 600; }
+    .design-note .star { color: #4338ca; font-weight: 700; }
+    .design-note ul { margin: 4px 0 0 0; padding-left: 18px; }
+
+    /* ===== 768 ===== */
+    @media (min-width: 720px) {
+      .ios-chrome { width: 768px; }
+      .page-head h1 { font-size: 24px; }
+      .annotation { font-size: 12.5px; padding: 14px 28px 8px; }
+      .annotation .meta { font-size: 11.5px; }
+      .section-card { margin: 10px 28px 20px; border-radius: 22px; padding: 6px 0; }
+      .section-card .head { padding: 14px 22px 12px; }
+      .section-card .head h2 { font-size: 18px; }
+      .day-group-b { padding: 17px 22px 17px; }
+      .day-group-b .date { font-size: 17px; }
+      .day-group-b .plus { width: 26px; height: 26px; font-size: 17px; }
+      .primary-amount { padding: 6px 16px; }
+      .primary-amount .cc-amt { font-size: 16.5px; }
+      .secondary-compact { padding: 4px 10px; }
+      .secondary-compact .cc-amt { font-size: 14px; }
+      .day-group-b .row-3 { font-size: 13.5px; }
+      .design-note { font-size: 12.5px; padding: 10px 28px 32px; }
+    }
+
+    @media (max-width: 340px) {
+      .ios-chrome { width: 320px; }
+      .page-head { padding: 4px 14px 4px; }
+      .page-head h1 { font-size: 17px; }
+      .annotation { padding: 10px 14px 4px; font-size: 10.5px; }
+      .section-card { margin: 6px 12px 14px; border-radius: 14px; }
+      .section-card .head { padding: 10px 12px 8px; }
+      .day-group-b { padding: 10px 12px 10px; }
+      .day-group-b .date { font-size: 14px; }
+      .day-group-b .plus { width: 20px; height: 20px; font-size: 13px; }
+      .primary-amount { padding: 4px 10px; }
+      .primary-amount .cc-amt { font-size: 13.5px; }
+      .secondary-compact { padding: 3px 7px; }
+      .secondary-compact .cc-amt { font-size: 11.5px; }
+      .day-group-b .row-3 { font-size: 11px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="ios-chrome">
+  <div class="ios-statusbar">
+    <span class="time">9:41</span>
+    <span class="right">
+      <svg width="16" height="11" viewBox="0 0 16 11" fill="currentColor" aria-hidden="true">
+        <path d="M1 7h2v3H1zM4 5h2v5H4zM7 3h2v7H7zM10 1h2v9h-2z" />
+      </svg>
+      <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1" aria-hidden="true">
+        <path d="M1 5 Q8 -1 15 5" /><path d="M3 7 Q8 3 13 7" />
+        <circle cx="8" cy="9" r="1" fill="currentColor" />
+      </svg>
+      <svg width="26" height="11" viewBox="0 0 26 11" fill="none" stroke="currentColor" stroke-width="1" aria-hidden="true">
+        <rect x="0.5" y="0.5" width="22" height="10" rx="2.5" />
+        <rect x="2" y="2" width="17" height="7" rx="1.2" fill="currentColor" />
+        <rect x="23.5" y="3.5" width="2" height="4" rx="0.6" fill="currentColor" />
+      </svg>
+    </span>
+  </div>
+
+  <div class="page-head">
+    <div class="crumb">账本 › 账单列表 › 时间 header · 方案 B</div>
+    <h1>方案 B · 主币种大金额 + 副币种 compact</h1>
+  </div>
+
+  <div class="annotation">
+    统一策略: 主币种永远是大字号, 副币种永远压缩到 mini chip
+    <span class="meta">↳ 跟用户心智模型对齐 ("主币种为主, 副币种为辅") · 单/双币 group 高度始终 3 行<br/>
+        ↳ 副币种在 320px 极窄屏下自动 ellipsis, 不破坏主币种视觉重量</span>
+    <span class="star">RUNNER-UP</span>
+  </div>
+
+  <div class="section-card">
+    <div class="head">
+      <h2>账单</h2>
+      <span class="total">共 32 笔</span>
+    </div>
+
+    <!-- 单币 2026-06-23 (主币种 CNY) — 只有主币种 chip -->
+    <div class="day-group-b">
+      <div class="row-1">
+        <div class="left">
+          <span class="plus">+</span>
+          <span class="date">6月23日 周二</span>
+        </div>
+        <span class="count">8 笔</span>
+      </div>
+      <div class="row-2">
+        <span class="primary-amount primary-only">
+          <span class="cc-code">CNY</span>
+          <span class="cc-amt">3,897.00</span>
+        </span>
+      </div>
+      <div class="row-3">
+        <span class="percapita">人均 <span class="strong">1,295.42 THB</span></span>
+      </div>
+    </div>
+
+    <!-- 双币 2026-06-22 — 主币种 CNY + 副币种 THB compact -->
+    <div class="day-group-b">
+      <div class="row-1">
+        <div class="left">
+          <span class="plus">+</span>
+          <span class="date">6月22日 周一</span>
+        </div>
+        <span class="count">10 笔</span>
+      </div>
+      <div class="row-2">
+        <span class="primary-amount">
+          <span class="cc-code">CNY</span>
+          <span class="cc-amt">279.00</span>
+        </span>
+        <span class="secondary-compact">
+          <span class="plus-sep">+</span>
+          <span class="cc-code">THB</span>
+          <span class="cc-amt">4,214.00</span>
+        </span>
+      </div>
+      <div class="row-3">
+        <span class="percapita">人均 <span class="strong">82.33 CNY + 1,245.33 THB</span></span>
+      </div>
+    </div>
+
+    <!-- 双币 2026-06-21 — 主币种 CNY + 副币种 THB -->
+    <div class="day-group-b">
+      <div class="row-1">
+        <div class="left">
+          <span class="plus">+</span>
+          <span class="date">6月21日 周日</span>
+        </div>
+        <span class="count">7 笔</span>
+      </div>
+      <div class="row-2">
+        <span class="primary-amount">
+          <span class="cc-code">CNY</span>
+          <span class="cc-amt">600.00</span>
+        </span>
+        <span class="secondary-compact">
+          <span class="plus-sep">+</span>
+          <span class="cc-code">THB</span>
+          <span class="cc-amt">3,506.00</span>
+        </span>
+      </div>
+      <div class="row-3">
+        <span class="percapita">人均 <span class="strong">131.00 CNY + 899.30 THB</span></span>
+      </div>
+    </div>
+
+    <!-- 单币 2026-06-20 — 只有主币种 chip -->
+    <div class="day-group-b">
+      <div class="row-1">
+        <div class="left">
+          <span class="plus">+</span>
+          <span class="date">6月20日 周六</span>
+        </div>
+        <span class="count">7 笔</span>
+      </div>
+      <div class="row-2">
+        <span class="primary-amount primary-only">
+          <span class="cc-code">CNY</span>
+          <span class="cc-amt">3,555.00</span>
+        </span>
+      </div>
+      <div class="row-3">
+        <span class="percapita">人均 <span class="strong">835.92 THB</span></span>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="design-note">
+    <strong>设计说明:</strong>
+    <ul>
+      <li><span class="ok">✓</span> 主币种永远占主导视觉重量 (v0.3.18 #62 "Stamped glass coin" 延续), 副币种压缩</li>
+      <li><span class="ok">✓</span> 单/双币 group 高度一致 (3 行), 列表节奏齐</li>
+      <li><span class="ok">✓</span> 主币种切换 (CNY ↔ THB) 时, 主 chip 颜色/位置不变, 副 chip 自动让位</li>
+      <li><span class="ok">✓</span> "CNY 279 + THB 4,214" 用户一眼能看出"以 CNY 为主"语义</li>
+      <li><span class="warn">⚠</span> 副币种 chip 在 320px 下需 ellipsis, 长金额会被截 (eg. "4,214.00...")</li>
+      <li><span class="warn">⚠</span> 主币种 chip 占用右侧, 视觉重心偏右 (vs A 方案两侧均衡)</li>
+    </ul>
+    <strong>推荐度: ★★</strong> — 视觉简洁度 ★★☆ · 主次分明 ★★★ · 跨断点稳定 ★★☆ · 备选实施
+  </div>
+
+  <div class="ios-homeindicator"></div>
+</div>
+
+</body>
+</html>

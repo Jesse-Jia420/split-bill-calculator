@@ -1,0 +1,397 @@
+{
+  "version": "v0.3.18 #67 design tokens (SessionCard tone-down variants)",
+  "author": "Designer Agent (subagent)",
+  "generated_for": "split-bill-calculator",
+  "task": "PO #6865 feedback #2: 账本列表 item 背景色太过鲜艳 → 给 3 个调淡方案",
+  "baseline": "v0.3.18 #64 SessionCard C 候选 (commit eca9353) — 三色 indigo→purple→blue 0.22→0.30 alpha 渐变玻璃 + saturate(220%) blur(28px) + 紫色 outer glow + hover translateY(-3px) + 紫色 ring + title 17px/700/accent-700",
+  "current_implementation_sha": "frontend/src/lib/components/SessionCard.svelte (v0.3.18 #64)",
+  "design_language_continuity": {
+    "system": "iOS 27 Liquid Glass (v0.3.17 #21/#34/#50 + v0.3.18 #30 iOS app-shell 延续)",
+    "保留元素": [
+      "18px border-radius",
+      "backdrop-filter saturate + blur 玻璃基底",
+      "inset 顶部高光 (玻璃厚度)",
+      "浮起外阴影",
+      "transition 200ms cubic-bezier(0.34, 1.56, 0.64, 1) spring"
+    ],
+    "调淡方向": [
+      "去掉 indigo→purple→blue 三色渐变背景 (主要原因)",
+      "saturate 从 220% 降到 160-200%",
+      "blur 从 28px 降到 20-22px (玻璃质感保留但不过强)",
+      "去掉紫色 outer glow ring (hover 态)",
+      "hover translateY 从 -3px 降到 -2px (浮起感保留但不'活泼')",
+      "title 由 accent-700 (#1d4ed8) → gray-900 (#171717) 跟全站克制感对齐"
+    ]
+  },
+  "current_state": {
+    "label": "CURRENT (PO 觉得太鲜艳)",
+    "card": {
+      "background": "linear-gradient(135deg, rgba(99,102,241,0.22) 0%, rgba(168,85,247,0.25) 50%, rgba(59,130,246,0.30) 100%)",
+      "backdrop_filter": "saturate(220%) blur(28px)",
+      "border": "1px solid rgba(255,255,255,0.5)",
+      "border_radius": "18px",
+      "padding": "18px",
+      "box_shadow": [
+        "inset 0 1px 0 rgba(255,255,255,0.6)",
+        "0 1px 4px rgba(99,102,241,0.08)",
+        "0 4px 16px rgba(99,102,241,0.06)"
+      ]
+    },
+    "hover": {
+      "transform": "translateY(-3px)",
+      "border_color": "rgba(255,255,255,0.7)",
+      "box_shadow": [
+        "inset 0 1px 0 rgba(255,255,255,0.7)",
+        "0 4px 12px rgba(99,102,241,0.16)",
+        "0 8px 32px rgba(99,102,241,0.10)",
+        "0 0 0 3px rgba(99,102,241,0.10) — 紫色 ring"
+      ],
+      "transition": "box-shadow 240ms ease-out, transform 240ms ease-out, border-color 240ms ease-out"
+    },
+    "title": {
+      "font_size": "17px",
+      "font_weight": 700,
+      "color": "#1d4ed8 (accent-700)",
+      "letter_spacing": "-0.01em"
+    },
+    "role_owner": {
+      "background": "linear-gradient(135deg, rgba(99,102,241,0.85) 0%, rgba(59,130,246,0.85) 100%)",
+      "color": "white",
+      "padding": "4px 10px",
+      "box_shadow": "0 1px 3px rgba(99,102,241,0.3)"
+    },
+    "role_member": {
+      "background": "rgba(255,255,255,0.5)",
+      "color": "#737373 (gray-500)",
+      "padding": "2px 10px"
+    },
+    "saturation_rating": "5-6/10 — macaron/dreamy purple 风格, 浅色模式仍显眼, 偏离账本工具的克制感"
+  },
+
+  "tone_A": {
+    "label": "方案 A — 单一玻璃 (Single-Layer Glass)",
+    "推荐度": "★★★ (强烈推荐)",
+    "rationale": "回到 v0318-62-task-1 拍板的纯白玻璃, 跟全站 #30 iOS app-shell 克制感对齐. 唯一彩色 = owner pill (浅 indigo 玻璃, 跟 #62 拍板一致). 整页视觉留白清晰, 工具气质回归.",
+    "card": {
+      "background": "linear-gradient(135deg, rgba(255,255,255,0.82) 0%, rgba(255,255,255,0.65) 100%)",
+      "backdrop_filter": "saturate(180%) blur(20px) brightness(1.02)",
+      "border": "1px solid rgba(255,255,255,0.75)",
+      "border_radius": "18px (375px) / 22px (768px) / 16px (320px)",
+      "padding": "18px (375px) / 22px (768px) / 14px (320px)",
+      "box_shadow": [
+        "inset 0 1px 0 rgba(255,255,255,0.85)",
+        "inset 0 -1px 0 rgba(15,23,42,0.04)",
+        "0 1px 2px rgba(15,23,42,0.04)",
+        "0 6px 18px rgba(15,23,42,0.05)"
+      ],
+      "sheen_overlay": "::before — top 60%, rgba(255,255,255,0.45) → 0, opacity 0.55"
+    },
+    "hover": {
+      "transform": "translateY(-2px)",
+      "background": "linear-gradient(135deg, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0.78) 100%)",
+      "box_shadow": [
+        "inset 0 1px 0 rgba(255,255,255,0.95)",
+        "inset 0 -1px 0 rgba(15,23,42,0.05)",
+        "0 2px 4px rgba(15,23,42,0.05)",
+        "0 12px 28px rgba(15,23,42,0.08)"
+      ],
+      "transition": "transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 200ms ease, background 200ms ease"
+    },
+    "title": {
+      "font_size": "16px (375px) / 18px (768px) / 15px (320px)",
+      "font_weight": 600,
+      "color": "#171717 (gray-900)",
+      "letter_spacing": "-0.2px"
+    },
+    "role_owner": {
+      "color": "#4338ca (indigo-700)",
+      "background": "linear-gradient(135deg, rgba(165,180,252,0.45) 0%, rgba(99,102,241,0.22) 100%)",
+      "border": "1px solid rgba(99,102,241,0.28)",
+      "backdrop_filter": "blur(8px)",
+      "box_shadow": "inset 0 1px 0 rgba(255,255,255,0.6), 0 1px 3px rgba(99,102,241,0.10)",
+      "padding": "3px 9px",
+      "font_size": "11px",
+      "font_weight": 600,
+      "letter_spacing": "0.04em",
+      "text_transform": "uppercase",
+      "border_radius": "999px",
+      "dot_led": "6×6 circle, currentColor, opacity 0.85"
+    },
+    "role_member": {
+      "color": "#737373 (gray-500)",
+      "background": "rgba(255,255,255,0.55)",
+      "border": "1px solid rgba(15,23,42,0.08)",
+      "backdrop_filter": "blur(8px)",
+      "box_shadow": "inset 0 1px 0 rgba(255,255,255,0.7)"
+    },
+    "meta": {
+      "margin_top": "12px",
+      "font_size": "12.5px (375px) / 13.5px (768px) / 12px (320px)",
+      "color": "#737373 (gray-500)",
+      "bold_count": "font-weight 600, color #404040 (gray-700)",
+      "dot_separator": "color #d4d4d4 (gray-300)"
+    },
+    "饱和度评分": "2/10 (极淡) — 几乎纯白, 唯一彩色来自 owner pill"
+  },
+
+  "tone_B": {
+    "label": "方案 B — 双色玻璃 (Two-Tone Subtle Glass)",
+    "推荐度": "★★ (次推荐, 仍带轻度彩色)",
+    "rationale": "保留极淡 lavender→sky 双色调 (alpha 0.30→0.32, 比现状 -60%), 跟 page background 同色系呼应. 比 A 方案多一点 'Liquid Glass 色彩感' 但不抢眼.",
+    "card": {
+      "background": "linear-gradient(135deg, rgba(199,210,254,0.30) 0%, rgba(147,197,253,0.32) 100%)",
+      "backdrop_filter": "saturate(200%) blur(22px) brightness(1.02)",
+      "border": "1px solid rgba(255,255,255,0.7)",
+      "border_radius": "18px (375px) / 22px (768px) / 16px (320px)",
+      "padding": "18px (375px) / 22px (768px) / 14px (320px)",
+      "box_shadow": [
+        "inset 0 1px 0 rgba(255,255,255,0.85)",
+        "inset 0 -1px 0 rgba(15,23,42,0.04)",
+        "0 1px 2px rgba(15,23,42,0.04)",
+        "0 6px 18px rgba(15,23,42,0.05)"
+      ],
+      "sheen_overlay": "::before — top 55%, rgba(255,255,255,0.45) → 0, opacity 0.55"
+    },
+    "hover": {
+      "transform": "translateY(-2px)",
+      "background": "linear-gradient(135deg, rgba(199,210,254,0.45) 0%, rgba(147,197,253,0.48) 100%)",
+      "border_color": "rgba(165,180,252,0.5)",
+      "box_shadow": [
+        "inset 0 1px 0 rgba(255,255,255,0.95)",
+        "inset 0 -1px 0 rgba(15,23,42,0.05)",
+        "0 2px 4px rgba(15,23,42,0.05)",
+        "0 12px 28px rgba(99,102,241,0.10) — 极轻紫色光晕 (替代紫色 ring)"
+      ],
+      "transition": "transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 200ms ease, background 200ms ease, border-color 200ms ease"
+    },
+    "title": {
+      "font_size": "16px (375px) / 18px (768px) / 15px (320px)",
+      "font_weight": 600,
+      "color": "#171717 (gray-900)",
+      "letter_spacing": "-0.2px"
+    },
+    "role_owner": {
+      "color": "#4338ca (indigo-700)",
+      "background": "linear-gradient(135deg, rgba(199,210,254,0.55) 0%, rgba(147,197,253,0.45) 100%)",
+      "border": "1px solid rgba(99,102,241,0.30)",
+      "backdrop_filter": "blur(8px)",
+      "box_shadow": "inset 0 1px 0 rgba(255,255,255,0.6), 0 1px 3px rgba(99,102,241,0.12)"
+    },
+    "role_member": {
+      "color": "#737373 (gray-500)",
+      "background": "rgba(255,255,255,0.55)",
+      "border": "1px solid rgba(15,23,42,0.08)",
+      "backdrop_filter": "blur(8px)",
+      "box_shadow": "inset 0 1px 0 rgba(255,255,255,0.7)"
+    },
+    "meta": {
+      "margin_top": "12px",
+      "font_size": "12.5px (375px) / 13.5px (768px) / 12px (320px)",
+      "color": "#737373 (gray-500)"
+    },
+    "饱和度评分": "3/10 (淡) — 双色调极淡玻璃, 保留 iOS Liquid Glass 色彩感但不抢眼"
+  },
+
+  "tone_C": {
+    "label": "方案 C — 灰阶玻璃 + 局部 accent (Neutral Glass + Local Accent)",
+    "推荐度": "★★ (次推荐, 工具感最强)",
+    "rationale": "跟 iOS app-shell (#30) 整体克制感严格对齐. 卡身纯白不透明, 唯一彩色 = owner pill 深蓝实色 + hover 时左侧 4px 蓝色实色条 (替代紫色 ring, 信息更明确). 工具气质最强, 但少了'Liquid Glass 飘浮感'.",
+    "card": {
+      "background": "linear-gradient(135deg, rgba(255,255,255,0.94) 0%, rgba(255,255,255,0.82) 100%)",
+      "backdrop_filter": "saturate(160%) blur(20px) brightness(1.02)",
+      "border": "1px solid rgba(15,23,42,0.06) — 微灰色实边 (跟玻璃白底形成边界)",
+      "border_radius": "18px (375px) / 22px (768px) / 16px (320px)",
+      "padding": "18px 18px 18px 22px (375px) / 22px 22px 22px 26px (768px) / 14px 14px 14px 18px (320px) — 左侧 4px 留给 accent stripe",
+      "box_shadow": [
+        "inset 0 1px 0 rgba(255,255,255,0.95)",
+        "0 1px 2px rgba(15,23,42,0.04)",
+        "0 4px 12px rgba(15,23,42,0.05)"
+      ],
+      "accent_stripe": "::before — 4px wide, 0 height (transparent default)",
+      "sheen_overlay": "::after — top 55%, rgba(255,255,255,0.35) → 0, opacity 0.4 (极淡)"
+    },
+    "hover": {
+      "transform": "translateY(-2px)",
+      "background": "linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(255,255,255,0.90) 100%)",
+      "border_color": "rgba(99,102,241,0.20)",
+      "box_shadow": [
+        "inset 0 1px 0 rgba(255,255,255,1)",
+        "0 2px 4px rgba(15,23,42,0.04)",
+        "0 10px 24px rgba(15,23,42,0.07)"
+      ],
+      "accent_stripe_active": "::before background → #3b82f6 (accent-500)",
+      "transition": "transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 200ms ease, border-color 200ms ease, padding-left 200ms ease, background 200ms ease"
+    },
+    "title": {
+      "font_size": "16px (375px) / 18px (768px) / 15px (320px)",
+      "font_weight": 600,
+      "color": "#171717 (gray-900)",
+      "letter_spacing": "-0.2px"
+    },
+    "role_owner": {
+      "color": "white",
+      "background": "#1d4ed8 (accent-700) 实色",
+      "border": "1px solid rgba(255,255,255,0.3)",
+      "box_shadow": "0 1px 2px rgba(29,78,216,0.30) — 微深蓝外阴影 (强调身份)",
+      "padding": "3px 9px",
+      "font_size": "11px",
+      "font_weight": 600,
+      "letter_spacing": "0.04em",
+      "text_transform": "uppercase",
+      "border_radius": "999px"
+    },
+    "role_member": {
+      "color": "#737373 (gray-500)",
+      "background": "#f5f5f5 (gray-100) 实色",
+      "border": "1px solid rgba(15,23,42,0.06)",
+      "padding": "3px 9px"
+    },
+    "meta": {
+      "margin_top": "12px",
+      "font_size": "12.5px (375px) / 13.5px (768px) / 12px (320px)",
+      "color": "#737373 (gray-500)",
+      "dot_separator": "color #e5e5e5 (gray-200)"
+    },
+    "饱和度评分": "1/10 (中性) — 唯一彩色来自 owner pill 实色 + hover 时左侧 4px 蓝条"
+  },
+
+  "comparison_matrix": {
+    "headers": ["维度", "CURRENT", "A 单一玻璃", "B 双色玻璃", "C 灰阶+accent"],
+    "rows": [
+      ["整体彩色饱和度", "5-6/10", "2/10", "3/10", "1/10"],
+      ["iOS Liquid Glass 感强度", "★★★★", "★★★", "★★★½", "★★½"],
+      ["工具克制感", "★★", "★★★½", "★★★", "★★★★"],
+      ["owner pill 视觉权重", "高 (深蓝实色)", "中 (浅 indigo 玻璃)", "中 (浅 indigo→sky 玻璃)", "高 (深蓝实色)"],
+      ["hover 反馈强度", "强 (-3px + 紫 ring)", "中 (-2px + 玻璃加深)", "中 (-2px + 紫光晕)", "强 (-2px + 左侧蓝条)"],
+      ["跟 iOS app-shell #30 克制感对齐", "不", "是", "基本是", "严格"],
+      ["实施改动量 (相对 #64)", "0 (baseline)", "中 (改 bg / title / hover)", "中 (改 bg alpha)", "大 (改 bg / 加 stripe / owner 实色)"]
+    ]
+  },
+
+  "design_decision": {
+    "recommended": "A",
+    "推荐理由": "1) 跟 v0318-62-task-1 拍板的设计 token 完全对齐 (纯白玻璃) — 重新拉回 v0.3.17 #30 iOS app-shell 的克制调性. 2) 改动量可控 — 主要调 alpha / 移 title 颜色 / 降 hover translateY. 3) owner pill 仍保留浅 indigo 玻璃, 身份信息不缺. 4) PO 反馈 #6865 #2 '颜色太过鲜艳' 直接对应: 把彩色背景拿掉 = 直接解决问题.",
+    "次推 B": "如果 PO 仍希望保留一点 '彩色玻璃' 调性 (避免太素), B 方案的极淡 lavender→sky 玻璃能保留 iOS Liquid Glass 飘浮感但不抢眼.",
+    "次推 C": "如果 PO 想要严格工具感 (类似 Mercury / Linear / Notion 的克制卡片风), C 方案的灰阶 + 左侧 accent stripe 是最克制的选择, 但少了'玻璃感'."
+  },
+
+  "responsive_breakpoints": {
+    "320px": {
+      "ios_chrome_width": "320px",
+      "page_head_padding": "6px 14px 12px",
+      "page_head_h1_size": "24px",
+      "stack_padding": "4px 10px 16px",
+      "stack_gap": "10px",
+      "card_padding": "14px / 14px 14px 14px 18px (C)",
+      "card_radius": "16px",
+      "title_size": "15px",
+      "meta_size": "12px"
+    },
+    "375px": {
+      "ios_chrome_width": "375px (default, mobile-first)",
+      "page_head_padding": "8px 18px 14px",
+      "page_head_h1_size": "28px",
+      "stack_padding": "4px 14px 24px",
+      "stack_gap": "12px",
+      "card_padding": "18px / 18px 18px 18px 22px (C)",
+      "card_radius": "18px",
+      "title_size": "16px",
+      "meta_size": "12.5px"
+    },
+    "768px": {
+      "ios_chrome_width": "768px",
+      "page_head_padding": "8px 24px 14px",
+      "page_head_h1_size": "34px",
+      "stack_padding": "6px 24px 32px",
+      "stack_gap": "16px",
+      "card_padding": "22px / 22px 22px 22px 26px (C)",
+      "card_radius": "22px",
+      "title_size": "18px",
+      "meta_size": "13.5px"
+    }
+  },
+
+  "compatibility_notes": {
+    "ios_safari_lt_18": "backdrop-filter 不支持时, 退化为 opaque rgba(255,255,255,0.92) — 仍接近玻璃白感, 不影响可读性",
+    "android_chrome": "backdrop-filter blur 完全支持, 视觉一致",
+    "clamp_tokens": "字号 / 间距用 app.css v0.3.17 #34 已 clamp 化的 token (320px 缩 87.5%, 480px+ 命中 max)",
+    "dark_mode": "未提供 — v0.2 待做, 当前 light mode only",
+    "fallback_css": "@supports not (backdrop-filter: blur(1px)) { .session-card { background: rgba(255,255,255,0.92); } }"
+  },
+
+  "diff_vs_v0318_62_tokens": {
+    "summary": "本任务在 #62 基础上调淡色彩 — 不引入新 token, 只调整 #62 已有 token 的 alpha / 颜色.",
+    "changed_tokens": [
+      {
+        "name": "session-card background",
+        "v0318-62": "linear-gradient(135deg, rgba(255,255,255,0.72) 0%, rgba(255,255,255,0.55) 100%)",
+        "v0318-67-A": "linear-gradient(135deg, rgba(255,255,255,0.82) 0%, rgba(255,255,255,0.65) 100%) — alpha 提高 (背景更不透明, 更白)",
+        "v0318-67-B": "linear-gradient(135deg, rgba(199,210,254,0.30) 0%, rgba(147,197,253,0.32) 100%) — 引入极淡 lavender→sky (呼应 page bg)",
+        "v0318-67-C": "linear-gradient(135deg, rgba(255,255,255,0.94) 0%, rgba(255,255,255,0.82) 100%) — alpha 大幅提高 (接近不透明白)"
+      },
+      {
+        "name": "session-card backdrop-filter",
+        "v0318-62": "saturate(200%) blur(20px) brightness(1.03)",
+        "v0318-67-A": "saturate(180%) blur(20px) brightness(1.02) — saturate 略降",
+        "v0318-67-B": "saturate(200%) blur(22px) brightness(1.02) — 保留 saturate, blur 略增",
+        "v0318-67-C": "saturate(160%) blur(20px) brightness(1.02) — saturate 大幅降 (玻璃感最弱)"
+      },
+      {
+        "name": "session-card title color",
+        "v0318-62": "#0f172a (gray-900)",
+        "v0318-67-A": "#171717 (gray-900)",
+        "v0318-67-B": "#171717 (gray-900)",
+        "v0318-67-C": "#171717 (gray-900)",
+        "v0318-64-CURRENT": "#1d4ed8 (accent-700) — PO 觉得鲜艳, 调淡改回 gray-900"
+      },
+      {
+        "name": "session-card hover transform",
+        "v0318-62": "translateY(-2px)",
+        "v0318-64-CURRENT": "translateY(-3px) + 紫色 ring",
+        "v0318-67-A": "translateY(-2px) — 跟 #62 一致",
+        "v0318-67-B": "translateY(-2px) — 跟 #62 一致",
+        "v0318-67-C": "translateY(-2px) — 跟 #62 一致 + 左侧 4px accent stripe"
+      },
+      {
+        "name": "session-card hover box-shadow",
+        "v0318-62": "0 14px 32px rgba(15,23,42,0.09) — 灰阴影",
+        "v0318-64-CURRENT": "0 8px 32px rgba(99,102,241,0.10) + 0 0 0 3px rgba(99,102,241,0.10) — 紫阴影 + 紫 ring",
+        "v0318-67-A": "0 12px 28px rgba(15,23,42,0.08) — 灰阴影",
+        "v0318-67-B": "0 12px 28px rgba(99,102,241,0.10) — 极轻紫阴影 (替代紫 ring)",
+        "v0318-67-C": "0 10px 24px rgba(15,23,42,0.07) — 灰阴影"
+      },
+      {
+        "name": "role.owner background",
+        "v0318-62": "linear-gradient(135deg, rgba(165,180,252,0.45) 0%, rgba(99,102,241,0.25) 100%) — 浅 indigo 玻璃",
+        "v0318-64-CURRENT": "linear-gradient(135deg, rgba(99,102,241,0.85) 0%, rgba(59,130,246,0.85) 100%) — 深蓝实色 (抢眼)",
+        "v0318-67-A": "linear-gradient(135deg, rgba(165,180,252,0.45) 0%, rgba(99,102,241,0.22) 100%) — 浅 indigo 玻璃 (回 #62)",
+        "v0318-67-B": "linear-gradient(135deg, rgba(199,210,254,0.55) 0%, rgba(147,197,253,0.45) 100%) — 浅 indigo→sky 玻璃",
+        "v0318-67-C": "#1d4ed8 (accent-700) 实色 — 保留深蓝实色 (强调身份)"
+      }
+    ],
+    "unchanged_tokens": [
+      "border-radius 18px / 22px / 16px (跟 #62 完全一致)",
+      "padding 18px / 22px / 14px (跟 #62 完全一致)",
+      "role.member background (跟 #62 完全一致)",
+      "iOS status bar / home indicator 尺寸",
+      "stack gap 12px / 16px / 10px (跟 #62 完全一致)",
+      "transition cubic-bezier(0.34, 1.56, 0.64, 1) 200ms spring (跟 #62 完全一致)"
+    ]
+  },
+
+  "files_generated": {
+    "html_mockups": [
+      "frontend/design-mocks/v0318-67-sessioncard-CURRENT.html (现状 #64 太鲜艳)",
+      "frontend/design-mocks/v0318-67-sessioncard-tone-A.html (单一玻璃, 推荐)",
+      "frontend/design-mocks/v0318-67-sessioncard-tone-B.html (双色玻璃, 次推)",
+      "frontend/design-mocks/v0318-67-sessioncard-tone-C.html (灰阶+accent, 次推)"
+    ],
+    "screenshots": [
+      "frontend/design-mocks/screenshots/v0318-67-sessioncard-CURRENT-{320,375,768}.png (live page 真机截图)",
+      "frontend/design-mocks/screenshots/v0318-67-sessioncard-A-{320,375,768}.png (方案 A 静态截图)",
+      "frontend/design-mocks/screenshots/v0318-67-sessioncard-B-{320,375,768}.png (方案 B 静态截图)",
+      "frontend/design-mocks/screenshots/v0318-67-sessioncard-C-{320,375,768}.png (方案 C 静态截图)"
+    ],
+    "design_tokens": "frontend/design-mocks/v0318-67-sessioncard-tone-tokens.json (本文件)"
+  }
+}

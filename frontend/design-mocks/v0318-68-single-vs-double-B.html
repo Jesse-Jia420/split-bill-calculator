@@ -1,0 +1,37 @@
+<!doctype html>
+<html><head>
+<meta charset="utf-8">
+<title>方案 B · 单币 vs 双币 同框</title>
+<style>
+  :root { --bg: #f2f3f7; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif; -webkit-font-smoothing: antialiased; }
+  .wrap { padding: 20px; max-width: 1100px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 700; color: #0f172a; margin: 0 0 6px 0; letter-spacing: -0.4px; }
+  .crumb { font-size: 12px; color: #64748b; margin-bottom: 16px; letter-spacing: 0.02em; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .pair .col { background: #fff; border: 1px solid rgba(15,23,42,0.08); border-radius: 18px; padding: 10px; box-shadow: 0 2px 8px rgba(15,23,42,0.04); }
+  .col-label { font-size: 13px; font-weight: 700; padding: 4px 10px; border-radius: 999px; display: inline-block; margin-bottom: 8px; letter-spacing: 0.02em; }
+  .col-label.single { color: #4338ca; background: rgba(99,102,241,0.08); }
+  .col-label.dual { color: #0f766e; background: rgba(20,184,166,0.10); }
+  iframe { width: 100%; height: 600px; border: 0; display: block; border-radius: 12px; }
+  .note { margin-top: 12px; padding: 10px 14px; border-radius: 12px; background: rgba(99,102,241,0.06); font-size: 12px; color: #3730a3; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="crumb">v0.3.18 #68 · 方案 B 验证 · 单币 vs 双币 高度统一</div>
+  <h1>方案 B · 单币 group ⇄ 双币 group 同框 (375px)</h1>
+  <div class="pair">
+    <div class="col">
+      <span class="col-label single">单币 group · 6月20日</span>
+      <iframe src="http://127.0.0.1:8450/v0318-68-bills-header-B.html" frameborder="0" scrolling="no"></iframe>
+    </div>
+    <div class="col">
+      <span class="col-label dual">双币 group · 6月22日</span>
+      <iframe src="http://127.0.0.1:8450/v0318-68-bills-header-B.html" frameborder="0" scrolling="no"></iframe>
+    </div>
+  </div>
+  <div class="note">✅ 验证点: 方案 B 下, 单币和双币 group header 的高度一致, 不再出现现状的 "2 行 vs 3 行" 混乱。</div>
+</div>
+</body></html>

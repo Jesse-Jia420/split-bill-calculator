@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>SBC v0.3.19 #82 整体 session 详情 · iOS 真机验证</title>
+  <style>
+    /* ============================================================
+       SBC v0.3.19 #82 — 整体 session 详情 mockup
+       按 SKILL-design-principles.md v0.1 (8 条原则) + SKILL-mobile-validation.md v1.0 出图
+       反 #73 教训沉淀: 5 元素 header 砸场 → 本设计 L1 > L2 > L3 > L4 权重严格递减
+       iOS 参照: Apple Mail inbox (compact list) + Apple Pay Cash (group send) + Apple Health (clean card)
+       ============================================================ */
+
+    :root {
+      /* === Color tokens (灰阶 + 蓝色 accent + 5 头像渐变) === */
+      --gray-50:  #fafafa;
+      --gray-100: #f5f5f5;
+      --gray-200: #e5e5e5;
+      --gray-300: #d4d4d4;
+      --gray-400: #a3a3a3;
+      --gray-500: #737373;
+      --gray-600: #525252;
+      --gray-700: #404040;
+      --gray-800: #262626;
+      --gray-900: #171717;
+
+      --accent-50:  #eff6ff;
+      --accent-100: #dbeafe;
+      --accent-500: #3b82f6;
+      --accent-600: #2563eb;
+      --accent-700: #1d4ed8;
+
+      --success-500: #10b981;
+      --success-50: #ecfdf5;
+      --error-500:   #ef4444;
+      --error-50:    #fef2f2;
+      --amber-50:    #fffbeb;
+      --amber-500:   #f59e0b;
+      --amber-700:   #b45309;
+
+      --purple-50:  #faf5ff;
+      --purple-500: #a855f7;
+      --purple-700: #6d28d9;
+
+      /* === 5-stop 头像渐变 (iOS 风格, 低饱和) === */
+      --avatar-1: linear-gradient(135deg, #818cf8 0%, #6366f1 100%); /* indigo */
+      --avatar-2: linear-gradient(135deg, #f472b6 0%, #ec4899 100%); /* pink   */
+      --avatar-3: linear-gradient(135deg, #34d399 0%, #10b981 100%); /* emerald*/
+      --avatar-4: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); /* amber  */
+      --avatar-5: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%); /* blue   */
+
+      /* === iOS 26 Liquid Glass tokens === */
+      --glass-bg-card: rgba(255, 255, 255, 0.62);
+      --glass-bg-chip: rgba(255, 255, 255, 0.72);
+      --glass-bg-chip-hover: rgba(255, 255, 255, 0.92);
+      --glass-border-card: rgba(255, 255, 255, 0.50);
+      --glass-border-strong: rgba(0, 0, 0, 0.06);
+      --glass-blur: saturate(180%) blur(20px);
+      --glass-blur-strong: saturate(200%) blur(28px);
+      --glass-radius-card: 18px;
+      --glass-shadow-card: 0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.04);
+
+      /* === Spacing scale (4px base) === */
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 20px;
+      --space-6: 24px;
+      --space-8: 32px;
+
+      /* === Type scale (iOS HIG + 中文 PingFang) === */
+      --type-2xs: 10px;
+      --type-xs:  11px;
+      --type-sm:  12px;
+      --type-base: 14px;
+      --type-lg:  16px;
+      --type-xl:  18px;
+      --type-2xl: 22px;
+      --type-3xl: 28px;
+
+      /* === iOS chrome === */
+      --ios-statusbar-h: 44px;
+      --ios-navbar-h: 44px;
+      --ios-homeindicator-h: 34px;
+      --ios-touch-min: 44px;
+
+      /* === Motion === */
+      --transition-fast: 150ms cubic-bezier(0.2, 0.8, 0.2, 1);
+      --transition-base: 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", "Inter", "SF Pro Text", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      color: var(--gray-900);
+      background: #f0f2f8;
+      font-size: var(--type-base);
+      line-height: 1.4;
+      letter-spacing: -0.005em;
+    }
+
+    /* === Stage with soft iOS-style gradient + grain === */
+    .bg-stage {
+      min-height: 100vh;
+      background:
+        radial-gradient(ellipse 80% 60% at 18% 8%, #dde4ff 0%, transparent 60%),
+        radial-gradient(ellipse 70% 50% at 88% 22%, #ffe0ec 0%, transparent 55%),
+        radial-gradient(ellipse 90% 70% at 50% 92%, #dff4ff 0%, transparent 60%),
+        linear-gradient(135deg, #eef1fb 0%, #f7f5fb 50%, #f0f6fb 100%);
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      position: relative;
+      overflow: hidden;
+    }
+    .bg-stage::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.035;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    }
+
+    .phone {
+      position: relative;
+      width: 100%;
+      max-width: 430px;
+      background: transparent;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    /* ============================================================
+       iOS status bar (Dynamic Island style)
+       ============================================================ */
+    .ios-statusbar {
+      height: var(--ios-statusbar-h);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 28px 0 28px;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--gray-900);
+      flex-shrink: 0;
+    }
+    .ios-statusbar .right {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .signal-bars {
+      display: inline-flex;
+      align-items: flex-end;
+      gap: 2px;
+      height: 11px;
+    }
+    .signal-bars span {
+      display: block;
+      width: 3px;
+      background: var(--gray-900);
+      border-radius: 1px;
+    }
+    .signal-bars span:nth-child(1) { height: 4px; }
+    .signal-bars span:nth-child(2) { height: 6px; }
+    .signal-bars span:nth-child(3) { height: 8px; }
+    .signal-bars span:nth-child(4) { height: 11px; }
+    .wifi {
+      display: inline-flex;
+      width: 14px;
+      height: 10px;
+      position: relative;
+    }
+    .wifi::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: var(--gray-900);
+      clip-path: polygon(50% 0%, 100% 35%, 78% 35%, 90% 60%, 65% 60%, 78% 100%, 22% 100%, 35% 60%, 10% 60%, 22% 35%, 0% 35%);
+    }
+    .battery {
+      display: inline-flex;
+      align-items: center;
+      gap: 1px;
+      width: 26px;
+      height: 12px;
+    }
+    .battery::before {
+      content: "";
+      flex: 1;
+      height: 11px;
+      border-radius: 3px;
+      border: 1px solid var(--gray-900);
+      background: linear-gradient(90deg, var(--gray-900) 0%, var(--gray-900) 80%, transparent 80%);
+      opacity: 0.95;
+    }
+    .battery::after {
+      content: "";
+      width: 1.5px;
+      height: 4px;
+      border-radius: 0 1px 1px 0;
+      background: var(--gray-900);
+    }
+
+    /* ============================================================
+       NavBar (sticky, glass) — iOS Mail inbox 大标题 + 右上 edit 按钮
+       ============================================================ */
+    .navbar {
+      min-height: var(--ios-navbar-h);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 18px 12px;
+      background: rgba(255, 255, 255, 0.40);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border-bottom: 1px solid var(--glass-border-strong);
+      flex-shrink: 0;
+    }
+    .navbar .nav-side {
+      min-width: 64px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .navbar .nav-side.right { justify-content: flex-end; }
+    .navbar .back-btn {
+      color: var(--accent-700);
+      font-size: 17px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      min-height: var(--ios-touch-min);
+      min-width: 44px;
+    }
+    .navbar .action-btn {
+      color: var(--accent-700);
+      font-size: 17px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      min-height: var(--ios-touch-min);
+      padding: 0 8px;
+    }
+    .navbar .nav-title {
+      flex: 1;
+      text-align: center;
+      font-weight: 600;
+      font-size: 17px;
+      color: var(--gray-900);
+      letter-spacing: -0.01em;
+    }
+
+    /* ============================================================
+       Page content wrapper
+       ============================================================ */
+    .page {
+      padding: 0 var(--space-4) calc(80px + var(--space-6) + var(--ios-homeindicator-h)) var(--space-4);
+      flex: 1 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+      min-height: calc(844px - 44px - 56px - 60px); /* iPhone 13 viewport minus chrome */
+    }
+
+    /* ============================================================
+       Session header — title + currency badge
+       按 SKILL 原则 1: title 是 L1 (22px / 700)
+       按 SKILL 原则 7: iOS Mail 大标题样式
+       ============================================================ */
+    .session-head {
+      padding: var(--space-2) 0 var(--space-3) 0;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+    .session-title-row {
+      display: flex;
+      align-items: baseline;
+      gap: var(--space-2);
+      flex-wrap: wrap;
+    }
+    .session-name {
+      font-size: var(--type-2xl);          /* L1: 22px */
+      font-weight: 700;
+      color: var(--gray-900);
+      letter-spacing: -0.012em;
+      line-height: 1.2;
+    }
+    .session-id {
+      font-size: var(--type-sm);            /* L3: 12px */
+      font-weight: 500;
+      color: var(--gray-400);
+      font-variant-numeric: tabular-nums;
+    }
+    .currency-badge-row {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      flex-wrap: wrap;
+    }
+    .currency-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 13px 6px 9px;
+      background: rgba(255, 255, 255, 0.72);
+      backdrop-filter: saturate(160%) blur(14px);
+      -webkit-backdrop-filter: saturate(160%) blur(14px);
+      border: 1px solid var(--glass-border-strong);
+      border-radius: 999px;
+      font-size: var(--type-sm);
+      font-weight: 600;
+      color: var(--gray-800);
+      min-height: 30px;
+      line-height: 1;
+    }
+    .currency-pill .code {
+      color: var(--accent-700);
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .currency-pill .dot {
+      width: 3px;
+      height: 3px;
+      border-radius: 50%;
+      background: var(--gray-300);
+      flex-shrink: 0;
+    }
+    .currency-pill .rate {
+      color: var(--gray-500);
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.01em;
+    }
+
+    /* ============================================================
+       Card base — iOS 26 Liquid Glass
+       ============================================================ */
+    .card {
+      background: var(--glass-bg-card);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--glass-border-strong);
+      border-radius: var(--glass-radius-card);
+      padding: var(--space-4);
+      box-shadow: var(--glass-shadow-card);
+      overflow: hidden;
+    }
+
+    /* ============================================================
+       SECTION HEADER (反 #73 教训 — 元素上限 3 个)
+       反 #73 反例: title + count + avatar + pill + button + chevron (6 元素砸场)
+       本设计:
+         - members section header: title + count + 1 button (邀请) = 3 个 ✓
+         - bills section header:   title + count + 2 chips   = 3 个 (默认 invoice, ghost 邀请隐藏) ✓
+       按 SKILL 原则 2.1: 任何 header 最多 3 个元素
+       按 SKILL 原则 1: title 是 L1 (15px / 600), count 是 L3 (13px / 500 gray-500)
+       按 SKILL 原则 6: 默认 affordance 隐形 (无 chevron 装饰, 整 header clickable 但不露馅)
+       ============================================================ */
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+      margin-bottom: var(--space-3);
+      min-height: 28px; /* 不要用 60-70px 砸场 */
+    }
+    .section-head.clickable {
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .section-title {
+      font-size: var(--type-lg);            /* L1: 16px */
+      font-weight: 600;
+      color: var(--gray-900);
+      letter-spacing: -0.005em;
+      display: inline-flex;
+      align-items: baseline;
+      gap: var(--space-2);
+    }
+    .section-count {
+      font-size: var(--type-sm);            /* L3: 12px / gray-500 */
+      font-weight: 500;
+      color: var(--gray-500);
+      font-variant-numeric: tabular-nums;
+    }
+    .section-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      flex-shrink: 0;
+    }
+
+    /* ============================================================
+       按原则 6: 默认 affordance 必须隐形 — invite 是 L2 ghost link (默认 13px gray-500, hover 才显)
+       激活时 (ghost variant) 才显示 glass 边框. 不允许一上来就 pill.
+       ============================================================ */
+    .invite-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      min-height: var(--ios-touch-min);     /* iOS HIG: 44pt */
+      min-width: var(--ios-touch-min);
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.65);
+      backdrop-filter: saturate(160%) blur(14px);
+      -webkit-backdrop-filter: saturate(160%) blur(14px);
+      border: 1px solid rgba(99, 102, 241, 0.16);
+      color: var(--accent-700);
+      font-size: var(--type-sm);
+      font-weight: 600;
+      letter-spacing: -0.003em;
+      transition: all var(--transition-fast);
+    }
+
+    /* ============================================================
+       Avatar mini stack — 反 #73 教训: 24px → 改为 16px (L4 隐形)
+       按 SKILL 原则 5.2: mini avatar ≤ 20px, font 7-8px / 700
+       按 SKILL 原则 5.1: DOM 正向, margin-left: -6px, 不依赖 rtl
+       ============================================================ */
+    .avatar-stack {
+      display: inline-flex;
+      align-items: center;
+    }
+    .avatar-stack .av {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 7px;
+      font-weight: 700;
+      letter-spacing: 0;
+      flex-shrink: 0;
+      border: 1.5px solid rgba(255, 255, 255, 0.95);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+    }
+    .avatar-stack .av + .av { margin-left: -6px; }
+    .avatar-stack .av.p1 { background: var(--avatar-1); }
+    .avatar-stack .av.p2 { background: var(--avatar-2); }
+    .avatar-stack .av.p3 { background: var(--avatar-3); }
+    .avatar-stack .av.p4 { background: var(--avatar-4); }
+    .avatar-stack .av.p5 { background: var(--avatar-5); }
+    .avatar-stack .av-overflow {
+      background: rgba(255, 255, 255, 0.85);
+      color: var(--gray-600);
+      font-size: 8px;
+      font-weight: 700;
+    }
+
+    /* ============================================================
+       Member section (collapsed 状态, 默认)
+       反 #73 教训: 收起态塞太多 affordance → 改为 1 行头像堆叠 + 邀请按钮
+       按原则 1: "成员 · 5" 是 L1, 头像是 L4 (隐形), invite 是 L2
+       ============================================================ */
+    .members-card { padding: var(--space-3) var(--space-4); }
+    .members-card .collapsed-preview {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding-top: var(--space-2);
+      border-top: 1px solid var(--glass-border-strong);
+      margin-top: var(--space-3);
+    }
+    .members-card .preview-label {
+      font-size: var(--type-xs);            /* L4: 11px */
+      color: var(--gray-400);
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+      flex: 1;
+    }
+
+    /* 展开态 member rows */
+    .members-card.expanded { padding: var(--space-3) var(--space-4) var(--space-2) var(--space-4); }
+    .member-row {
+      display: grid;
+      grid-template-columns: 36px 1fr auto;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3) 0;
+      border-bottom: 1px solid var(--gray-100);
+    }
+    .member-row:last-child { border-bottom: none; }
+    .member-row .av-main {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      flex-shrink: 0;
+      position: relative;
+    }
+    .member-row .av-main.p1 { background: var(--avatar-1); }
+    .member-row .av-main.p2 { background: var(--avatar-2); }
+    .member-row .av-main.p3 { background: var(--avatar-3); }
+    .member-row .av-main.p4 { background: var(--avatar-4); }
+    .member-row .av-main.p5 { background: var(--avatar-5); }
+    .member-row .av-main.is-owner {
+      box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(168, 85, 247, 0.55);
+    }
+    .member-row .crown {
+      position: absolute;
+      top: -7px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 11px;
+      line-height: 1;
+    }
+    .member-info {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .member-name-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .member-name {
+      font-size: var(--type-base);          /* L1: 14px */
+      font-weight: 600;
+      color: var(--gray-900);
+      line-height: 1.3;
+    }
+    .me-dot {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--accent-700);
+    }
+    .me-dot::before {
+      content: "";
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--accent-500);
+    }
+    .member-meta {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      font-size: var(--type-xs);            /* L3: 11px */
+      color: var(--gray-500);
+      line-height: 1.4;
+    }
+    .member-net {
+      font-size: 13px;                       /* L1: 13px / 700 净金额 */
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.01em;
+      text-align: right;
+    }
+    .member-net.pos { color: var(--success-500); }
+    .member-net.neg { color: var(--error-500); }
+
+    /* ============================================================
+       Bills section — chip 风格 actions (反 #68 沿用)
+       按 SKILL 原则 2.1: title + count + 2 actions = 3 个 ✓
+       按原则 4: 1 个主色填充元素 (只看 chip 数量, 但只有「查看结算」是主色 chip,
+                「个人账单」是 ghost outline chip = 视觉重量错开, 不"圣诞树")
+       ============================================================ */
+    .bills-card { padding: var(--space-3) var(--space-4) var(--space-4) var(--space-4); }
+    .bill-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3) 0;
+      border-bottom: 1px solid var(--gray-100);
+    }
+    .bill-row:last-child { border-bottom: none; }
+    .bill-row .bill-main {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .bill-desc {
+      font-size: var(--type-base);          /* L1: 14px */
+      font-weight: 500;
+      color: var(--gray-900);
+      line-height: 1.35;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .bill-meta {
+      font-size: var(--type-xs);            /* L3: 11px */
+      color: var(--gray-500);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      line-height: 1.3;
+    }
+    .bill-meta .dot {
+      width: 3px;
+      height: 3px;
+      border-radius: 50%;
+      background: var(--gray-300);
+    }
+    .bill-amount {
+      font-size: var(--type-lg);            /* L1: 16px */
+      font-weight: 700;
+      color: var(--gray-900);
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+      letter-spacing: -0.01em;
+      line-height: 1.2;
+    }
+    .bill-amount .sub {
+      display: block;
+      font-size: var(--type-xs);            /* L3: 11px */
+      color: var(--gray-500);
+      font-weight: 500;
+      margin-top: 1px;
+    }
+
+    /* ============================================================
+       Action chips — iOS 风格 玻璃化 chip
+       ============================================================ */
+    .action-chips {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      min-height: 30px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.65);
+      backdrop-filter: saturate(160%) blur(12px);
+      -webkit-backdrop-filter: saturate(160%) blur(12px);
+      border: 1px solid rgba(99, 102, 241, 0.12);
+      color: var(--accent-700);
+      font-size: var(--type-xs);
+      font-weight: 600;
+      letter-spacing: -0.003em;
+      white-space: nowrap;
+    }
+    .chip svg { display: block; flex-shrink: 0; }
+
+    /* ============================================================
+       FAB — 圆形 + 玻璃化 (右下, 跟 iOS native 跟手图标一致)
+       用 position: absolute 居中于 .phone 容器底部, 避免 fixed 在 fullPage 截图里
+       出现在 viewport 中间覆盖内容 (反 #167 新规 + 真机验证规范)
+       ============================================================ */
+    .fab {
+      position: absolute;
+      right: 18px;
+      bottom: calc(var(--ios-homeindicator-h) + 18px);
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.85) 100%);
+      backdrop-filter: saturate(180%) blur(20px);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.6);
+      box-shadow:
+        0 6px 20px rgba(15, 23, 42, 0.18),
+        0 2px 6px rgba(15, 23, 42, 0.08),
+        inset 0 0.5px 0 rgba(255, 255, 255, 0.9);
+      color: var(--accent-700);
+      font-size: 28px;
+      font-weight: 300;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding-bottom: 4px;
+      z-index: 50;
+    }
+    /* iPad 调大 FAB */
+    @media (min-width: 768px) {
+      .fab {
+        right: 24px;
+        bottom: calc(var(--ios-homeindicator-h) + 24px);
+        width: 64px;
+        height: 64px;
+        font-size: 32px;
+      }
+    }
+
+    /* ============================================================
+       iOS home indicator (bottom safe area)
+       用 position: absolute 居中于 .phone 底部, 同 FAB
+       ============================================================ */
+    .ios-homeindicator {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: var(--ios-homeindicator-h);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 100;
+    }
+    .ios-homeindicator::after {
+      content: "";
+      width: 134px;
+      height: 5px;
+      border-radius: 999px;
+      background: var(--gray-900);
+      opacity: 0.85;
+    }
+
+    /* ============================================================
+       Annotation chip (top-of-page, mockup-only label)
+       放在 status bar 下方, 不挡 iOS chrome — 仅 mockup 用, 不进产品
+       ============================================================ */
+    .mockup-label {
+      position: relative;
+      margin: 10px auto 4px;
+      width: fit-content;
+      z-index: 5;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.10em;
+      color: var(--gray-600);
+      padding: 5px 14px;
+      background: rgba(255, 255, 255, 0.72);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-radius: 999px;
+      border: 1px solid var(--glass-border-strong);
+      text-transform: uppercase;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+      display: block;
+    }
+
+    /* ============================================================
+       Utility / common
+       ============================================================ */
+    .stack { display: flex; flex-direction: column; }
+    .row { display: flex; align-items: center; }
+    .between { justify-content: space-between; }
+    .gap-2 { gap: var(--space-2); }
+    .gap-3 { gap: var(--space-3); }
+    .mt-2 { margin-top: var(--space-2); }
+    .mt-3 { margin-top: var(--space-3); }
+    .mt-4 { margin-top: var(--space-4); }
+
+    /* iOS-style SVG icons size */
+    .icon { width: 16px; height: 16px; display: inline-block; flex-shrink: 0; }
+    .icon-sm { width: 13px; height: 13px; display: inline-block; flex-shrink: 0; }
+  </style>
+</head>
+<body>
+  <div class="bg-stage">
+    <div class="phone">
+      <!-- iOS status bar (Dynamic Island + battery) -->
+      <div class="ios-statusbar">
+        <span>9:41</span>
+        <div class="right">
+          <span class="signal-bars">
+            <span></span><span></span><span></span><span></span>
+          </span>
+          <span class="wifi"></span>
+          <span class="battery"></span>
+        </div>
+      </div>
+
+      <!-- Annotation label (mockup only, 不进产品, 放在 status bar 下方) -->
+      <div class="mockup-label">v0.3.19 #82 · 整体视觉重审 · 基准方案</div>
+
+      <!-- NavBar: ‹ 账户 (L2, accent) + title (L1, 600) + 编辑 (L2, accent) -->
+      <nav class="navbar">
+        <div class="nav-side">
+          <button class="back-btn" aria-label="返回账户">
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+            账户
+          </button>
+        </div>
+        <div class="nav-title">账本详情</div>
+        <div class="nav-side right">
+          <button class="action-btn" aria-label="编辑账本">编辑</button>
+        </div>
+      </nav>
+
+      <!-- Page content -->
+      <main class="page">
+
+        <!-- ========== Session header (above member section) ========== -->
+        <section class="session-head">
+          <div class="session-title-row">
+            <h1 class="session-name">泰国清迈 7 日</h1>
+            <span class="session-id">#12</span>
+          </div>
+          <div class="currency-badge-row">
+            <span class="currency-pill">
+              <span class="code">CNY</span>
+              <span class="dot"></span>
+              <span class="rate">1 CNY = 4.65 THB</span>
+            </span>
+            <span class="currency-pill">
+              <span class="code">THB</span>
+              <span class="dot"></span>
+              <span class="rate">1 THB = 0.21 CNY</span>
+            </span>
+          </div>
+        </section>
+
+        <!-- ========== Members section (collapsed 状态, 默认) ========== -->
+        <!-- 按 SKILL 原则 2.1: header 元素上限 3 个 → title + count + 1 button (邀请) -->
+        <!-- 按 SKILL 原则 1: "成员 · 5" L1, "邀请" L2 -->
+        <!-- 反 #73: 不放 avatar 堆叠在 header, 移到下面 collapsed-preview 一行 -->
+        <div class="card members-card">
+          <header class="section-head clickable" role="button" tabindex="0" aria-expanded="false" aria-label="展开成员列表">
+            <h2 class="section-title">
+              成员
+              <span class="section-count">· 5</span>
+            </h2>
+            <div class="section-actions">
+              <button class="invite-btn" aria-label="邀请朋友">
+                <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                  <circle cx="9" cy="7" r="4"/>
+                  <line x1="19" y1="8" x2="19" y2="14"/>
+                  <line x1="22" y1="11" x2="16" y2="11"/>
+                </svg>
+                邀请
+              </button>
+            </div>
+          </header>
+          <!-- 折叠态: 头部下方一行 L4 头像预览 (反 #73 教训: 24px → 16px, 不抢戏)
+               名字列表单独 row, 跟头像错开, 不挤 -->
+          <div class="collapsed-preview">
+            <div class="avatar-stack" aria-hidden="true">
+              <div class="av p1">新</div>
+              <div class="av p2">贾</div>
+              <div class="av p3">林</div>
+              <div class="av p4">M</div>
+              <div class="av p5">S</div>
+            </div>
+          </div>
+          <div style="font-size: 11px; color: var(--gray-500); margin-top: 6px; font-weight: 500;">
+            新华 · 贾馍 · 林沐 · Mike · Sherry
+          </div>
+        </div>
+
+        <!-- ========== Bills section ========== -->
+        <!-- 按 SKILL 原则 2.1: title + count + 2 actions = 3 个 (chip style) -->
+        <!-- 按 SKILL 原则 7: iOS Mail "Today" section header 风格 (单 row, 紧凑) -->
+        <div class="card bills-card">
+          <header class="section-head">
+            <h2 class="section-title">
+              账单
+              <span class="section-count">共 32 笔</span>
+            </h2>
+            <div class="section-actions">
+              <div class="action-chips">
+                <button class="chip" aria-label="查看结算">
+                  <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="4" y="3" width="16" height="18" rx="2"/>
+                    <line x1="8" y1="7" x2="16" y2="7"/>
+                    <line x1="8" y1="11" x2="10" y2="11"/>
+                    <line x1="14" y1="11" x2="16" y2="11"/>
+                    <line x1="8" y1="15" x2="10" y2="15"/>
+                    <line x1="14" y1="15" x2="16" y2="15"/>
+                  </svg>
+                  查看结算
+                </button>
+                <button class="chip" aria-label="个人账单">
+                  <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                  </svg>
+                  个人账单
+                </button>
+              </div>
+            </div>
+          </header>
+
+          <!-- Bill rows (3 条示例, 玻璃化 row, 单 row 内 L1 描述 + L3 元数据 + L1 金额) -->
+          <div class="bill-row">
+            <div class="bill-main">
+              <div class="bill-desc">宁曼路一号 · 泰北菜晚餐</div>
+              <div class="bill-meta">
+                <span>贾馍付款</span>
+                <span class="dot"></span>
+                <span>👤 5人</span>
+                <span class="dot"></span>
+                <span>今天</span>
+              </div>
+            </div>
+            <div class="bill-amount">
+              ฿1,840
+              <span class="sub">¥ 386.40</span>
+            </div>
+          </div>
+
+          <div class="bill-row">
+            <div class="bill-main">
+              <div class="bill-desc">古城住宿 · Nimman Lodge</div>
+              <div class="bill-meta">
+                <span>贾馍付款</span>
+                <span class="dot"></span>
+                <span>👤 5人</span>
+                <span class="dot"></span>
+                <span>昨天</span>
+              </div>
+            </div>
+            <div class="bill-amount">
+              ฿4,200
+              <span class="sub">¥ 882.00</span>
+            </div>
+          </div>
+
+          <div class="bill-row">
+            <div class="bill-main">
+              <div class="bill-desc">双条车 · 古城→机场</div>
+              <div class="bill-meta">
+                <span>林沐付款</span>
+                <span class="dot"></span>
+                <span>👤 5人</span>
+                <span class="dot"></span>
+                <span>7月18日</span>
+              </div>
+            </div>
+            <div class="bill-amount">
+              ฿600
+              <span class="sub">¥ 126.00</span>
+            </div>
+          </div>
+
+          <div class="bill-row">
+            <div class="bill-main">
+              <div class="bill-desc">Tamarind Village 早午餐</div>
+              <div class="bill-meta">
+                <span>贾馍付款</span>
+                <span class="dot"></span>
+                <span>👤 5人</span>
+                <span class="dot"></span>
+                <span>7月17日</span>
+              </div>
+            </div>
+            <div class="bill-amount">
+              ฿1,260
+              <span class="sub">¥ 264.60</span>
+            </div>
+          </div>
+
+          <div class="bill-row">
+            <div class="bill-main">
+              <div class="bill-desc">7-11 夜市零食饮料</div>
+              <div class="bill-meta">
+                <span>Mike付款</span>
+                <span class="dot"></span>
+                <span>👤 5人</span>
+                <span class="dot"></span>
+                <span>7月17日</span>
+              </div>
+            </div>
+            <div class="bill-amount">
+              ฿340
+              <span class="sub">¥ 71.40</span>
+            </div>
+          </div>
+
+          <!-- "查看更多" footer (L3 ghost link, 按原则 6 默认隐形) -->
+          <div style="text-align: center; padding: var(--space-2) 0 var(--space-1);">
+            <button style="font-size: var(--type-sm); color: var(--gray-500); font-weight: 500; background: transparent; border: 0; padding: 8px 16px; min-height: 44px;">
+              查看全部 32 笔账单 ↓
+            </button>
+          </div>
+        </div>
+
+      </main>
+
+      <!-- FAB (新建账单, iOS 圆形玻璃) -->
+      <button class="fab" aria-label="新建账单">+</button>
+
+      <!-- iOS home indicator (bottom safe area) -->
+      <div class="ios-homeindicator"></div>
+    </div>
+  </div>
+</body>
+</html>

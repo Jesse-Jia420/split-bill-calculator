@@ -1,0 +1,469 @@
+{
+  "version": "v0.3.18 #62 design tokens",
+  "author": "Designer Agent (subagent)",
+  "generated_for": "split-bill-calculator",
+  "tasks": [
+    "task_1_session_card",
+    "task_2_member_section_with_anon_hint",
+    "task_3_currency_pill_single"
+  ],
+  "design_language": {
+    "system": "iOS 27 Liquid Glass (v0.3.17 #21/#34/#50 延续)",
+    "page_background": "var(--gray-50) #fafafa — PO #6526 整站去背景图",
+    "primary_accent": "indigo-500 #6366f1 / indigo-700 #4338ca",
+    "type_scale": "Inter Variable 14-18px (clamp responsive)",
+    "shape": "16-22px radius card / 999px radius pill",
+    "motion": "cubic-bezier(0.34, 1.56, 0.64, 1) spring 200ms"
+  },
+
+  "task_1_session_card": {
+    "rationale": "现状 background white + border gray-200 太硬、跟全站玻璃化脱节。新设计 iOS 27 Liquid Glass card — 半透明白 + saturate blur + 顶部 sheen + 内高光 + 浮起外阴影",
+    "card": {
+      "background": "linear-gradient(135deg, rgba(255,255,255,0.72) 0%, rgba(255,255,255,0.55) 100%)",
+      "backdrop_filter": "saturate(200%) blur(20px) brightness(1.03)",
+      "border": "1px solid rgba(255, 255, 255, 0.7)",
+      "border_radius": "18px (375px) / 22px (768px) / 16px (320px)",
+      "padding": "16px 16px 14px (375px) / 18px 20px 16px (768px) / 14px 14px 12px (320px)",
+      "box_shadow": [
+        "inset 0 1px 0 rgba(255,255,255,0.85) — 顶部内高光",
+        "inset 0 -1px 0 rgba(15,23,42,0.04) — 下沿内阴影",
+        "0 1px 2px rgba(15,23,42,0.04) — 微投影",
+        "0 8px 24px rgba(15,23,42,0.06) — 主浮起阴影",
+        "0 0 0 0.5px rgba(99,102,241,0.06) — 玻璃外圈光晕"
+      ],
+      "sheen_overlay": {
+        "selector": "::before",
+        "background": "linear-gradient(180deg, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0) 100%)",
+        "height": "60%",
+        "opacity": 0.6,
+        "pointer_events": "none"
+      }
+    },
+    "hover": {
+      "background": "linear-gradient(135deg, rgba(255,255,255,0.82) 0%, rgba(255,255,255,0.65) 100%)",
+      "transform": "translateY(-2px)",
+      "box_shadow": [
+        "inset 0 1px 0 rgba(255,255,255,0.95)",
+        "inset 0 -1px 0 rgba(15,23,42,0.05)",
+        "0 2px 4px rgba(15,23,42,0.05)",
+        "0 14px 32px rgba(15,23,42,0.09)",
+        "0 0 0 0.5px rgba(99,102,241,0.10)"
+      ],
+      "transition": "transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1), background 200ms ease, box-shadow 200ms ease",
+      "trigger": "@media (hover: hover)"
+    },
+    "active": {
+      "transform": "scale(0.99) translateY(0)",
+      "background": "linear-gradient(135deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0.5) 100%)"
+    },
+    "title": {
+      "font_size": "16px (375px) / 18px (768px) / 15px (320px)",
+      "font_weight": 600,
+      "color": "#0f172a (gray-900)",
+      "line_height": 1.35,
+      "letter_spacing": "-0.2px",
+      "ellipsis": "single-line, white-space: nowrap, overflow: hidden, text-overflow: ellipsis"
+    },
+    "role_tag": {
+      "shared": {
+        "padding": "3px 9px",
+        "font_size": "11px (375px) / 10.5px (320px)",
+        "font_weight": 600,
+        "letter_spacing": "0.04em",
+        "text_transform": "uppercase",
+        "border_radius": "999px",
+        "line_height": 1,
+        "display": "inline-flex (with 4px gap for dot LED)"
+      },
+      "owner": {
+        "color": "#4338ca (indigo-700)",
+        "background": "linear-gradient(135deg, rgba(165,180,252,0.45) 0%, rgba(99,102,241,0.25) 100%)",
+        "border": "1px solid rgba(99,102,241,0.28)",
+        "backdrop_filter": "blur(8px)",
+        "box_shadow": [
+          "inset 0 1px 0 rgba(255,255,255,0.6)",
+          "0 1px 3px rgba(99,102,241,0.12)"
+        ],
+        "dot_led": "6×6 circle, currentColor, opacity 0.85"
+      },
+      "member": {
+        "color": "#64748b (slate-500)",
+        "background": "rgba(255,255,255,0.55)",
+        "border": "1px solid rgba(15,23,42,0.08)",
+        "backdrop_filter": "blur(8px)",
+        "box_shadow": "inset 0 1px 0 rgba(255,255,255,0.7)",
+        "dot_led": "6×6 circle, currentColor, opacity 0.85"
+      }
+    },
+    "currency_meta_pill": {
+      "rationale": "card 内嵌的 currency 信息 pill — 不是 SessionCurrencyBadge 那个, 而是列表 item 简化版",
+      "display": "inline-flex (or hidden when session has only 1 currency)",
+      "margin_top": "10px",
+      "padding": "4px 10px",
+      "font_size": "11.5px (375px) / 12.5px (768px) / 11px (320px)",
+      "font_weight": 500,
+      "color": "#475569 (slate-600)",
+      "background": "rgba(255,255,255,0.5)",
+      "border": "1px solid rgba(99,102,241,0.16)",
+      "backdrop_filter": "blur(8px)",
+      "box_shadow": "inset 0 1px 0 rgba(255,255,255,0.6)",
+      "border_radius": "999px",
+      "primary_currency": "color #4338ca (indigo-700), weight 700",
+      "secondary_currency": "color #1e293b (gray-800), weight 700",
+      "arrow": "color #6366f1 (indigo-500), weight 600",
+      "rate_separator": "1px left border rgba(99,102,241,0.18), margin-left 4px, padding-left 8px",
+      "rate_value": "color #1e293b (gray-800), weight 600, tabular-nums"
+    },
+    "meta_row": {
+      "margin_top": "14px",
+      "display": "flex",
+      "align_items": "center",
+      "gap": "10px",
+      "font_size": "12.5px (375px) / 13.5px (768px) / 11.5px (320px)",
+      "color": "#64748b (slate-500)",
+      "font_variant_numeric": "tabular-nums"
+    },
+    "avatars": {
+      "container": "display inline-flex",
+      "item": {
+        "width": "24px",
+        "height": "24px",
+        "border_radius": "50%",
+        "font_size": "10px",
+        "font_weight": 700,
+        "color": "#fff",
+        "border": "2px solid #fff",
+        "margin_left": "-8px (overlap)",
+        "first_margin_left": "0",
+        "box_shadow": "0 1px 2px rgba(15,23,42,0.08)",
+        "gradient_palette": [
+          "linear-gradient(135deg, #818cf8, #6366f1) — indigo",
+          "linear-gradient(135deg, #f472b6, #ec4899) — pink",
+          "linear-gradient(135deg, #fbbf24, #f59e0b) — amber",
+          "linear-gradient(135deg, #34d399, #10b981) — emerald",
+          "linear-gradient(135deg, #60a5fa, #2563eb) — blue"
+        ]
+      },
+      "more_item": {
+        "background": "rgba(255,255,255,0.7)",
+        "color": "#475569 (slate-600)",
+        "font_weight": 600,
+        "backdrop_filter": "blur(8px)"
+      }
+    },
+    "meta_text": {
+      "bold_count": "weight 600, color #334155 (slate-700)",
+      "dot_separator": "color #cbd5e1 (slate-300)"
+    },
+    "chevron": {
+      "margin_left": "auto",
+      "width": "24px",
+      "height": "24px",
+      "border_radius": "50%",
+      "background": "rgba(255,255,255,0.5)",
+      "border": "1px solid rgba(15,23,42,0.06)",
+      "backdrop_filter": "blur(8px)",
+      "color": "#94a3b8 (slate-400)",
+      "icon": "lucide chevron-right, 12×12, stroke 2.5"
+    }
+  },
+
+  "task_2_member_section_with_anon_hint": {
+    "rationale": "现状 InviteLinkButton 下方挂 hint 文本, 文字长+挤在右栏, 跟 invite 按钮视觉打架。新设计: 过期 hint 独立为暖色 amber glass pill, 放在 header 跟 member list 之间作为独立信息块, 不再压在 invite 按钮下方",
+    "section_card": {
+      "shared_with_session_card": true,
+      "note": "members-card 复用 task_1 card 的玻璃基底 (border-radius 18px / 22px / 16px)"
+    },
+    "header": {
+      "padding": "14px 16px (375px) / 16px 20px (768px) / 12px 14px (320px)",
+      "display": "flex",
+      "align_items": "center",
+      "gap": "8px"
+    },
+    "title": {
+      "font_size": "15px (375px) / 16px (768px) / 14px (320px, 隐式)",
+      "font_weight": 600,
+      "color": "#0f172a (gray-900)"
+    },
+    "count": {
+      "font_size": "13px",
+      "color": "#94a3b8 (slate-400)",
+      "font_weight": 500
+    },
+    "actions": {
+      "margin_left": "auto",
+      "display": "inline-flex",
+      "gap": "6px",
+      "align_items": "center"
+    },
+    "invite_btn": {
+      "note": "复用全局 .glass-pill 类, 这里只列任务 2 定制值",
+      "padding": "6px 12px",
+      "font_size": "12px",
+      "font_weight": 600,
+      "icon_gap": "5px"
+    },
+    "chevron": {
+      "width": "26px",
+      "height": "26px",
+      "border_radius": "50%",
+      "transition": "transform 200ms ease, color 150ms ease",
+      "open_state": "transform rotate(180deg); color #6366f1 (indigo-500)"
+    },
+    "anon_expiry_hint": {
+      "rationale": "PO 反馈 hint 跟 invite 按钮挤一起丑。新设计: 独立暖色玻璃 pill, header 与 list 之间, 表达 '重要但不紧急' 的语义",
+      "visibility": "conditional — 仅当 owner_email == null && invite_expires_at != null",
+      "margin": "4px 14px 16px (375px) / 4px 18px 18px (768px) / 4px 12px 14px (320px)",
+      "padding": "10px 12px (375px) / 11px 14px (768px) / 9px 11px (320px)",
+      "display": "flex",
+      "align_items": "center",
+      "gap": "10px",
+      "border_radius": "14px",
+      "background": "linear-gradient(135deg, rgba(251,191,36,0.14) 0%, rgba(245,158,11,0.09) 100%)",
+      "backdrop_filter": "blur(12px)",
+      "border": "1px solid rgba(245,158,11,0.30)",
+      "box_shadow": [
+        "inset 0 1px 0 rgba(255,255,255,0.55)",
+        "0 1px 4px rgba(245,158,11,0.10)"
+      ],
+      "font_size": "12.5px (375px) / 13px (768px) / 11.5px (320px)",
+      "color": "#92400e (amber-800)",
+      "line_height": 1.4,
+      "letter_spacing": "-0.1px",
+      "date_bold": {
+        "font_weight": 600,
+        "color": "#78350f (amber-900)",
+        "font_variant_numeric": "tabular-nums"
+      },
+      "clock_icon": {
+        "container": {
+          "flex_shrink": 0,
+          "width": "18px",
+          "height": "18px",
+          "border_radius": "50%",
+          "display": "inline-flex",
+          "align_items": "center",
+          "justify_content": "center",
+          "color": "#b45309 (amber-700)",
+          "background": "rgba(255,255,255,0.55)",
+          "border": "1px solid rgba(245,158,11,0.35)"
+        },
+        "icon": "lucide clock, 11×11, stroke 2.2"
+      }
+    },
+    "member_list": {
+      "padding": "4px 0 6px",
+      "list_style": "none",
+      "margin": 0
+    },
+    "member_item": {
+      "padding": "10px 16px (375px) / 12px 20px (768px) / 9px 14px (320px)",
+      "gap": "12px (375px) / 14px (768px) / 10px (320px)",
+      "display": "flex",
+      "align_items": "center",
+      "separator": {
+        "selector": "::before (on item + item)",
+        "position": "absolute; top 0; left right 16px (375px) / 20px (768px) / 14px (320px)",
+        "height": "1px",
+        "background": "linear-gradient(90deg, transparent 0%, rgba(15,23,42,0.06) 30%, rgba(15,23,42,0.06) 70%, transparent 100%)"
+      }
+    },
+    "member_avatar": {
+      "width": "36px (375px) / 40px (768px) / 32px (320px)",
+      "height": "36px (375px) / 40px (768px) / 32px (320px)",
+      "border_radius": "50%",
+      "font_size": "14px (375px) / 15px (768px) / 12px (320px)",
+      "font_weight": 700,
+      "color": "#fff",
+      "box_shadow": [
+        "inset 0 1px 0 rgba(255,255,255,0.4)",
+        "0 1px 3px rgba(99,102,241,0.18)"
+      ],
+      "gradient_palette": "复用 SessionCard av 配色 5 色循环"
+    },
+    "member_name_row": {
+      "display": "flex",
+      "align_items": "center",
+      "gap": "6px",
+      "line_height": 1.2
+    },
+    "member_name": {
+      "font_size": "14.5px (375px) / 15.5px (768px) / 13.5px (320px)",
+      "font_weight": 600,
+      "color": "#0f172a (gray-900)",
+      "letter_spacing": "-0.1px"
+    },
+    "badge": {
+      "shared": {
+        "padding": "1px 6px",
+        "border_radius": "999px",
+        "font_size": "9.5px (375px) / 9px (320px)",
+        "font_weight": 600,
+        "letter_spacing": "0.06em",
+        "text_transform": "uppercase",
+        "line_height": 1.5
+      },
+      "owner": {
+        "color": "#4338ca",
+        "background": "linear-gradient(135deg, rgba(165,180,252,0.45) 0%, rgba(99,102,241,0.25) 100%)",
+        "border": "1px solid rgba(99,102,241,0.28)",
+        "box_shadow": "inset 0 1px 0 rgba(255,255,255,0.55)"
+      },
+      "me": {
+        "color": "#fff",
+        "background": "linear-gradient(135deg, #3b82f6, #6366f1)",
+        "border": "1px solid rgba(255,255,255,0.3)",
+        "text_transform": "none",
+        "letter_spacing": "0.02em",
+        "box_shadow": "0 1px 2px rgba(99,102,241,0.18)"
+      }
+    },
+    "member_email": {
+      "font_size": "11.5px (375px) / 10.5px (320px)",
+      "color": "#94a3b8 (slate-400)",
+      "margin_top": "2px",
+      "white_space": "nowrap",
+      "overflow": "hidden",
+      "text_overflow": "ellipsis",
+      "max_width": "100% (in flex item with min-width:0)"
+    },
+    "member_net": {
+      "font_size": "13.5px (375px) / 12.5px (320px)",
+      "font_weight": 600,
+      "font_variant_numeric": "tabular-nums",
+      "letter_spacing": "-0.2px",
+      "flex_shrink": 0,
+      "padding_left": "4px",
+      "states": {
+        "positive": "color #047857 (emerald-700)",
+        "negative": "color #be123c (rose-700)",
+        "zero": "color #94a3b8 (slate-400)"
+      }
+    },
+    "member_remove": {
+      "width": "32px (375px) / 36px (768px) / 30px (320px)",
+      "height": "32px (375px) / 36px (768px) / 30px (320px)",
+      "border_radius": "50%",
+      "font_size": "18px (375px) / 19px (768px) / 17px (320px)",
+      "line_height": 1,
+      "color": "#94a3b8 (slate-400)",
+      "background": "rgba(255,255,255,0.5)",
+      "border": "1px solid rgba(15,23,42,0.06)",
+      "backdrop_filter": "blur(6px)",
+      "margin_left": "-2px",
+      "hover": "color #f43f5e (rose-500); background rgba(244,63,94,0.06)"
+    }
+  },
+
+  "task_3_currency_pill_single": {
+    "rationale": "现状 'pill 还是很丑' — 渐变 0.18→0.08 太淡, 玻璃厚度不足, 像水印不像胶囊。新设计 'Stamped glass coin': 提高饱和度 + 双层 box-shadow (内高光 + 内下沉) + 1.5px 实边 + 圆圈 + 号, 让 pill 像有厚度的硬币",
+    "pill": {
+      "display": "inline-flex",
+      "align_items": "center",
+      "gap": "6px",
+      "padding": "8px 16px 8px 18px (375px) / 9px 16px 9px 18px (768px) / 6px 10px 6px 12px (320px)",
+      "font_size": "13.5px (375px) / 14.5px (768px) / 12.5px (320px)",
+      "font_weight": 700,
+      "line_height": 1,
+      "letter_spacing": "0.04em",
+      "font_variant_numeric": "tabular-nums",
+      "border_radius": "999px",
+      "color": "#1e1b4b (indigo-950)",
+      "owner_bg": "linear-gradient(135deg, rgba(99,102,241,0.32) 0%, rgba(59,130,246,0.22) 100%)",
+      "owner_border": "1.5px solid rgba(165,180,252,0.5)",
+      "owner_backdrop_filter": "saturate(220%) blur(22px)",
+      "owner_box_shadow": [
+        "inset 0 1px 0 rgba(255,255,255,0.85) — 内顶部高光 (玻璃厚度)",
+        "inset 0 -1px 0 rgba(67,56,202,0.10) — 内底部阴影 (浮起感)",
+        "0 4px 14px rgba(99,102,241,0.32) — 主浮起外阴影",
+        "0 0 0 0.5px rgba(255,255,255,0.4) — 玻璃外圈 highlight"
+      ],
+      "readonly_bg": "linear-gradient(135deg, rgba(255,255,255,0.72) 0%, rgba(255,255,255,0.52) 100%)",
+      "readonly_border": "1.5px solid rgba(148,163,184,0.45)",
+      "readonly_box_shadow": [
+        "inset 0 1px 0 rgba(255,255,255,0.85)",
+        "0 2px 8px rgba(15,23,42,0.06)",
+        "0 0 0 0.5px rgba(255,255,255,0.4)"
+      ],
+      "readonly_color": "#334155 (slate-700)",
+      "transition": "background 180ms ease, box-shadow 180ms ease, transform 120ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+      "sheen_overlay": {
+        "selector": "::before",
+        "position": "absolute; top 1px; left 6px; right 6px",
+        "height": "50%",
+        "border_radius": "999px",
+        "background": "linear-gradient(180deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0) 100%)",
+        "pointer_events": "none"
+      },
+      "currency_code": {
+        "position": "relative; z-index 1",
+        "color_owner": "#1e1b4b",
+        "color_readonly": "#334155",
+        "font_weight": 700
+      }
+    },
+    "owner_states": {
+      "rest": "见 pill.owner_bg 默认态",
+      "hover": {
+        "background": "linear-gradient(135deg, rgba(99,102,241,0.42) 0%, rgba(59,130,246,0.30) 100%)",
+        "box_shadow": [
+          "inset 0 1px 0 rgba(255,255,255,0.95)",
+          "inset 0 -1px 0 rgba(67,56,202,0.12)",
+          "0 6px 20px rgba(99,102,241,0.42)",
+          "0 0 0 0.5px rgba(255,255,255,0.5)"
+        ],
+        "transform": "translateY(-1px)"
+      },
+      "active": {
+        "transform": "scale(0.96) translateY(0)"
+      },
+      "focus_visible": "outline 2px solid #3b82f6; outline-offset 3px"
+    },
+    "add_icon_circle": {
+      "position": "relative; z-index 1",
+      "width": "18px (375px) / 16px (320px)",
+      "height": "18px (375px) / 16px (320px)",
+      "border_radius": "50%",
+      "background": "linear-gradient(135deg, #ffffff 0%, #e0e7ff 100%)",
+      "color": "#4338ca (indigo-700)",
+      "box_shadow": [
+        "inset 0 1px 0 rgba(255,255,255,0.95)",
+        "0 1px 3px rgba(67,56,202,0.32)"
+      ],
+      "transition": "background 150ms ease, transform 200ms ease",
+      "hover_state": {
+        "background": "linear-gradient(135deg, #ffffff 0%, #c7d2fe 100%)",
+        "transform": "rotate(90deg) — '+' 变成 '×'"
+      },
+      "icon": "lucide plus, 11×11, stroke 2.5 (rest) / lucide minus 11×11 (hover, after 90° rotate)"
+    },
+    "fallback": {
+      "ios_safari_lt_18_no_backdrop_filter": "background rgba(99,102,241,0.18) opaque (跟现状一致, 仅 fallback)",
+      "@supports": "@supports not (backdrop-filter: blur(1px))"
+    }
+  },
+
+  "compatibility_notes": {
+    "ios_safari_lt_18": "backdrop-filter 不支持时, 退化为更 opaque 的 indigo 背景 (跟现状一致)",
+    "android_chrome": "backdrop-filter blur 完全支持, 视觉一致",
+    "clamp_tokens": "字号 / 间距用 app.css v0.3.17 #34 已 clamp 化的 token — 320px 缩 87.5%, 480px+ 命中 max",
+    "dark_mode": "未提供 — v0.2 待做, 当前 light mode only"
+  },
+
+  "files_generated": {
+    "html_mockups": [
+      "frontend/design-mocks/v0318-62-session-card.html",
+      "frontend/design-mocks/v0318-62-member-section.html",
+      "frontend/design-mocks/v0318-62-currency-pill.html"
+    ],
+    "screenshots": [
+      "frontend/design-mocks/screenshot-session-card-320.png (640×1480 @2x)",
+      "frontend/design-mocks/screenshot-session-card-768.png (1536×2048 @2x)",
+      "frontend/design-mocks/screenshot-member-section-320.png (640×1480 @2x)",
+      "frontend/design-mocks/screenshot-member-section-768.png (1536×2048 @2x)",
+      "frontend/design-mocks/screenshot-currency-pill-320.png (640×1480 @2x)",
+      "frontend/design-mocks/screenshot-currency-pill-768.png (1536×2048 @2x)"
+    ],
+    "design_tokens": "frontend/design-mocks/v0318-62-tokens.json (本文件)"
+  }
+}

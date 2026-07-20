@@ -1,0 +1,509 @@
+{
+  "version": "v0.3.18 #68 design tokens",
+  "author": "Designer Agent (subagent)",
+  "generated_for": "split-bill-calculator",
+  "task": "账单列表时间 group header 单/双币排版统一 (PO #6865 #3)",
+  "design_language": {
+    "system": "iOS 27 Liquid Glass (v0.3.17 #21/#34/#50 + v0.3.18 #62 延续)",
+    "page_background": "var(--gray-50) #fafafa — PO #6526 整站去背景图",
+    "primary_accent": "indigo-500 #6366f1 / indigo-700 #4338ca",
+    "secondary_accent": "teal-500 #14b8a6 / teal-700 #0f766e (副币种标识)",
+    "type_scale": "Inter Variable 11-18px (clamp responsive)",
+    "shape": "16-22px radius card / 999px radius pill",
+    "motion": "cubic-bezier(0.34, 1.56, 0.64, 1) spring 200ms"
+  },
+  "problem_statement": {
+    "po_feedback": "账单列表时间 header 有些是单币, 有些是双币, 导致排版混乱",
+    "current_implementation_chaos": [
+      "单币 group = 2 行 (日期+金额 / 人均+总笔数)",
+      "双币 group = 3 行 (金额换行成 2 行 / 人均 / 总笔数)",
+      "grid 列宽撑不下双币金额时, 右上角金额无 nowrap, 自动换行成 2 行",
+      "总笔数右对齐悬空, 跟单币 group 总笔数位置错位",
+      "320px 极窄屏下双币人均被迫换行, 总笔数下沉到第 4 行"
+    ],
+    "unification_goal": "单/双币 group header 高度一致, 滚动节奏统一, 视觉等价"
+  },
+  "shared_constraints": {
+    "fixed_height_strategy": "all 3 solutions force 3-row layout regardless of currency count",
+    "currency_chip_nowrap": "chip 行 inline-flex + nowrap + overflow:hidden + text-overflow:ellipsis, never wraps to row 4",
+    "clamp_font_size": "320px 下 chip 字号自动缩, 768px 下 chip 字号 +0.5~1px",
+    "dark_mode": "未提供 — v0.2 待做, 当前 light mode only",
+    "ios_safari_lt_18": "backdrop-filter 不支持时, 退化为更 opaque 的 indigo/teal 背景"
+  },
+  "task_1_current_state_evidence": {
+    "rationale": "PO 反馈 #6865 #3 — 复刻真机截图存证, 证明现状混乱",
+    "implementation": "BillListGrouped 真机截图复刻, 显示 4 个 group (单/双/双/单) 在同一列表中",
+    "data": {
+      "session_11_thailand": {
+        "bills_total": 32,
+        "currency_split": "5 CNY + 27 THB",
+        "group_count": 4,
+        "groups_2026_06_19_single_thb": "2 bills / ฿359",
+        "groups_2026_06_20_dual_cny_thb": "11 bills / ฿6,702 + ฿380",
+        "groups_2026_06_21_dual_cny_thb": "9 bills / ฿4,214 + ฿348",
+        "groups_2026_06_22_dual_cny_thb": "10 bills / ฿3,897 + ฿151"
+      }
+    },
+    "screenshots_captured": [
+      "frontend/design-mocks/screenshots/v0318-68-bills-header-CURRENT-320.png (640×1480 @2x)",
+      "frontend/design-mocks/screenshots/v0318-68-bills-header-CURRENT-375.png (750×2600 @2x)",
+      "frontend/design-mocks/screenshots/v0318-68-bills-header-CURRENT-768.png (1536×3000 @2x)"
+    ]
+  },
+  "task_2_solution_a": {
+    "name": "方案 A — 固定 3 行 + 货币玻璃 chip 行",
+    "recommended": true,
+    "recommendation_stars": "★★★",
+    "rationale": "视觉简洁度 ★★★ / 主次分明 ★★★ / 跨断点稳定 ★★★ — 最干净, 跟 iOS 27 Liquid Glass 一脉相承",
+    "structure": {
+      "row_1": "[+ icon] [日期] ... [总笔数 badge]",
+      "row_2": "货币玻璃 chip 行 (单币=1 个 chip, 双币=2 个 chip 并排 nowrap)",
+      "row_3": "人均行 (单币 '人均 X THB' / 双币 '人均 X CNY + Y THB')"
+    },
+    "tokens": {
+      "section_card": {
+        "shared_with_v62_session_card": true,
+        "background": "linear-gradient(135deg, rgba(255,255,255,0.72) 0%, rgba(255,255,255,0.55) 100%)",
+        "backdrop_filter": "saturate(200%) blur(20px) brightness(1.03)",
+        "border": "1px solid rgba(255,255,255,0.7)",
+        "border_radius": "18px (375px) / 22px (768px) / 14px (320px)",
+        "padding": "4px 0",
+        "box_shadow": [
+          "inset 0 1px 0 rgba(255,255,255,0.85)",
+          "inset 0 -1px 0 rgba(15,23,42,0.04)",
+          "0 1px 2px rgba(15,23,42,0.04)",
+          "0 8px 24px rgba(15,23,42,0.06)",
+          "0 0 0 0.5px rgba(99,102,241,0.06)"
+        ]
+      },
+      "day_group": {
+        "padding": "14px 16px 14px (375px) / 18px 22px 18px (768px) / 11px 12px 11px (320px)",
+        "border_top": "1px solid rgba(15,23,42,0.04)",
+        "transition": "background 200ms ease"
+      },
+      "row_1": {
+        "display": "flex",
+        "align_items": "center",
+        "justify_content": "space-between",
+        "gap": "10px",
+        "height": "28px (375px) / 30px (768px) / 24px (320px)"
+      },
+      "plus_icon": {
+        "size": "22px × 22px (375px) / 26px × 26px (768px) / 20px × 20px (320px)",
+        "border_radius": "50%",
+        "background": "rgba(99,102,241,0.10)",
+        "color": "#4338ca (indigo-700)",
+        "font_size": "15px (375px) / 17px (768px) / 13px (320px)",
+        "transition": "background 200ms ease, transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+        "expanded_state": "transform: rotate(45deg) (+ → ×)"
+      },
+      "date": {
+        "font_size": "15.5px (375px) / 17px (768px) / 14px (320px)",
+        "font_weight": 700,
+        "color": "#0f172a (gray-900)",
+        "letter_spacing": "-0.2px",
+        "font_variant_numeric": "tabular-nums"
+      },
+      "count_badge": {
+        "font_size": "12px (375px) / 13px (768px) / 11px (320px)",
+        "font_weight": 600,
+        "color": "#64748b (slate-500)",
+        "background": "rgba(15,23,42,0.04)",
+        "padding": "3px 9px (375px) / 4px 11px (768px) / 2px 7px (320px)",
+        "border_radius": "999px",
+        "font_variant_numeric": "tabular-nums",
+        "letter_spacing": "0.02em"
+      },
+      "row_2_chip_row": {
+        "margin_top": "8px",
+        "display": "flex",
+        "align_items": "center",
+        "gap": "6px",
+        "flex_wrap": "nowrap",
+        "overflow": "hidden",
+        "height": "30px (375px) / 34px (768px) / 26px (320px)"
+      },
+      "cc_chip": {
+        "shared": {
+          "display": "inline-flex",
+          "align_items": "center",
+          "gap": "6px (375px) / 6px (768px) / 4px (320px)",
+          "padding": "5px 11px (375px) / 6px 14px (768px) / 4px 8px (320px)",
+          "border_radius": "999px",
+          "font_variant_numeric": "tabular-nums",
+          "white_space": "nowrap",
+          "flex_shrink": 1,
+          "min_width": 0,
+          "transition": "background 180ms ease, box-shadow 180ms ease"
+        },
+        "primary": {
+          "background": "linear-gradient(135deg, rgba(99,102,241,0.20) 0%, rgba(59,130,246,0.12) 100%)",
+          "backdrop_filter": "saturate(180%) blur(12px)",
+          "border": "1px solid rgba(99,102,241,0.28)",
+          "box_shadow": [
+            "inset 0 1px 0 rgba(255,255,255,0.55)",
+            "0 1px 3px rgba(99,102,241,0.10)"
+          ],
+          "cc_code": {
+            "font_size": "10.5px (375px) / 11.5px (768px) / 10px (320px)",
+            "font_weight": 700,
+            "letter_spacing": "0.06em",
+            "color": "#4338ca (indigo-700)",
+            "flex_shrink": 0
+          },
+          "cc_amt": {
+            "font_size": "13.5px (375px) / 15px (768px) / 12px (320px)",
+            "font_weight": 700,
+            "color": "#0f172a (gray-900)",
+            "letter_spacing": "-0.2px",
+            "ellipsis_strategy": "text-overflow: ellipsis, max-width: clamp(80px, 35vw, 180px)"
+          }
+        },
+        "secondary": {
+          "background": "linear-gradient(135deg, rgba(20,184,166,0.16) 0%, rgba(99,102,241,0.10) 100%)",
+          "border": "1px solid rgba(20,184,166,0.30)",
+          "box_shadow": [
+            "inset 0 1px 0 rgba(255,255,255,0.55)",
+            "0 1px 3px rgba(20,184,166,0.10)"
+          ],
+          "cc_code": {
+            "font_size": "10.5px (375px) / 11.5px (768px) / 10px (320px)",
+            "font_weight": 700,
+            "letter_spacing": "0.06em",
+            "color": "#0f766e (teal-700)",
+            "flex_shrink": 0
+          },
+          "cc_amt": {
+            "font_size": "13.5px (375px) / 15px (768px) / 12px (320px)",
+            "font_weight": 700,
+            "color": "#0f172a (gray-900)",
+            "letter_spacing": "-0.2px",
+            "ellipsis_strategy": "text-overflow: ellipsis, max-width: clamp(80px, 35vw, 180px)"
+          }
+        }
+      },
+      "row_3_percapita": {
+        "margin_top": "8px (375px) / 8px (768px) / 6px (320px)",
+        "font_size": "12px (375px) / 13.5px (768px) / 11px (320px)",
+        "color": "#64748b (slate-500)",
+        "font_weight": 500,
+        "display": "flex",
+        "justify_content": "space-between",
+        "gap": "10px",
+        "strong_text": {
+          "color": "#334155 (slate-700)",
+          "font_weight": 600,
+          "font_variant_numeric": "tabular-nums"
+        },
+        "ellipsis": "white-space: nowrap, overflow: hidden, text-overflow: ellipsis"
+      },
+      "compatibility": {
+        "ios_safari_lt_18": "@supports not (backdrop-filter: blur(1px)) → background: rgba(99,102,241,0.18) opaque",
+        "android_chrome": "backdrop-filter blur 完全支持, 视觉一致"
+      }
+    }
+  },
+  "task_3_solution_b": {
+    "name": "方案 B — 主币种大金额 + 副币种 compact (主币优先)",
+    "recommended": false,
+    "recommendation_stars": "★★",
+    "rationale": "视觉简洁度 ★★☆ / 主次分明 ★★★ / 跨断点稳定 ★★☆ — 备选实施, 跟用户心智模型对齐 (主币为主)",
+    "structure": {
+      "row_1": "[+ icon] [日期] ... [总笔数 badge] (跟 A 同)",
+      "row_2": "[主币种大 chip] [+ 副币种 mini chip (双币时)]",
+      "row_3": "人均行 (跟 A 同)"
+    },
+    "tokens": {
+      "primary_amount_chip": {
+        "display": "inline-flex",
+        "align_items": "baseline",
+        "gap": "4px",
+        "padding": "5px 12px (375px) / 6px 16px (768px) / 4px 10px (320px)",
+        "border_radius": "999px",
+        "background": "linear-gradient(135deg, rgba(99,102,241,0.32) 0%, rgba(59,130,246,0.20) 100%)",
+        "backdrop_filter": "saturate(220%) blur(20px)",
+        "border": "1.5px solid rgba(165,180,252,0.5)",
+        "box_shadow": [
+          "inset 0 1px 0 rgba(255,255,255,0.85)",
+          "0 4px 14px rgba(99,102,241,0.20)"
+        ],
+        "cc_code": {
+          "font_size": "10.5px (375px) / 11.5px (768px) / 10px (320px)",
+          "font_weight": 700,
+          "letter_spacing": "0.06em",
+          "color": "#1e1b4b (indigo-950)"
+        },
+        "cc_amt": {
+          "font_size": "15px (375px) / 16.5px (768px) / 13.5px (320px)",
+          "font_weight": 700,
+          "color": "#0f172a (gray-900)",
+          "font_variant_numeric": "tabular-nums",
+          "letter_spacing": "-0.2px"
+        },
+        "primary_only_variant": {
+          "padding": "5px 14px",
+          "cc_amt_size_boost": "15.5px (375px) / 17px (768px) / 14px (320px)"
+        }
+      },
+      "secondary_compact_chip": {
+        "display": "inline-flex",
+        "align_items": "center",
+        "gap": "4px (375px) / 4px (768px) / 3px (320px)",
+        "padding": "4px 8px (375px) / 4px 10px (768px) / 3px 7px (320px)",
+        "border_radius": "999px",
+        "background": "rgba(20,184,166,0.10)",
+        "border": "1px solid rgba(20,184,166,0.22)",
+        "box_shadow": "inset 0 1px 0 rgba(255,255,255,0.55)",
+        "cc_code": {
+          "font_size": "10px (375px) / 10.5px (768px) / 9px (320px)",
+          "font_weight": 700,
+          "color": "#0f766e (teal-700)",
+          "letter_spacing": "0.05em"
+        },
+        "cc_amt": {
+          "font_size": "12.5px (375px) / 14px (768px) / 11.5px (320px)",
+          "font_weight": 600,
+          "color": "#334155 (slate-700)",
+          "font_variant_numeric": "tabular-nums"
+        },
+        "plus_separator": {
+          "color": "#94a3b8 (slate-400)",
+          "font_weight": 500,
+          "margin_right": "1px"
+        }
+      },
+      "row_2_layout": {
+        "margin_top": "8px",
+        "display": "flex",
+        "align_items": "center",
+        "justify_content": "flex-end",
+        "gap": "6px",
+        "flex_wrap": "nowrap"
+      }
+    }
+  },
+  "task_4_solution_c": {
+    "name": "方案 C — 镜像 group header + 双行 chip",
+    "recommended": false,
+    "recommendation_stars": "★★",
+    "rationale": "视觉简洁度 ★★☆ / 主次分明 ★★★ / 跨断点稳定 ★★☆ — 备选实施, 适合专业财务/高频多币场景",
+    "structure": {
+      "grid_template": "auto / 22px 1fr auto (375px) / 26px 1fr auto (768px) / 20px 1fr auto (320px)",
+      "row_1_grid": "[+] [日期] [总金额 (主币种汇总)]",
+      "row_2_grid": "[+] [chip 行 (单/双)] [总笔数]",
+      "row_3_grid": "meta 行 (人均, dashed border-top)"
+    },
+    "tokens": {
+      "gh_grid": {
+        "display": "grid",
+        "column_gap": "10px (375px) / 14px (768px) / 8px (320px)",
+        "row_gap": "6px (375px) / 8px (768px) / 5px (320px)",
+        "align_items": "start",
+        "grid_template_columns": "22px 1fr auto (375px) / 26px 1fr auto (768px) / 20px 1fr auto (320px)"
+      },
+      "plus_icon": {
+        "grid_column": 1,
+        "grid_row": "1 / 3",
+        "align_self": "center",
+        "size": "22px × 22px (375px) / 26px × 26px (768px) / 20px × 20px (320px)"
+      },
+      "date": {
+        "grid_column": 2,
+        "grid_row": 1,
+        "font_size": "15px (375px) / 17px (768px) / 13.5px (320px)",
+        "font_weight": 700,
+        "color": "#0f172a (gray-900)",
+        "align_self": "end"
+      },
+      "right_total": {
+        "grid_column": 3,
+        "grid_row": 1,
+        "text_align": "right",
+        "align_self": "end",
+        "total_amt": {
+          "font_size": "16px (375px) / 18px (768px) / 14px (320px)",
+          "font_weight": 800,
+          "color": "#0f172a (gray-900) — 单币 / #4338ca (indigo-700) — 双币 (强调主币汇总)",
+          "font_variant_numeric": "tabular-nums",
+          "letter_spacing": "-0.3px",
+          "line_height": 1.1,
+          "white_space": "nowrap"
+        },
+        "label_tag_dual": {
+          "font_size": "9.5px (375px) / 10px (768px) / 9px (320px)",
+          "font_weight": 600,
+          "color": "#6366f1 (indigo-500)",
+          "letter_spacing": "0.04em",
+          "margin_right": "2px",
+          "vertical_align": "middle"
+        }
+      },
+      "chip_row": {
+        "grid_column": 2,
+        "grid_row": 2,
+        "display": "flex",
+        "align_items": "center",
+        "gap": "5px",
+        "flex_wrap": "nowrap",
+        "overflow": "hidden"
+      },
+      "cc_chip_c": {
+        "display": "inline-flex",
+        "align_items": "center",
+        "gap": "4px (375px) / 4px (768px) / 3px (320px)",
+        "padding": "3px 8px (375px) / 4px 10px (768px) / 2px 6px (320px)",
+        "border_radius": "999px",
+        "primary_bg": "linear-gradient(135deg, rgba(99,102,241,0.18) 0%, rgba(59,130,246,0.10) 100%)",
+        "primary_border": "1px solid rgba(99,102,241,0.22)",
+        "secondary_bg": "linear-gradient(135deg, rgba(20,184,166,0.14) 0%, rgba(99,102,241,0.08) 100%)",
+        "secondary_border": "1px solid rgba(20,184,166,0.24)",
+        "box_shadow": "inset 0 1px 0 rgba(255,255,255,0.55)",
+        "white_space": "nowrap",
+        "flex_shrink": 1,
+        "cc_code": {
+          "font_size": "9.5px (375px) / 10.5px (768px) / 9px (320px)",
+          "font_weight": 700,
+          "letter_spacing": "0.06em",
+          "primary_color": "#4338ca (indigo-700)",
+          "secondary_color": "#0f766e (teal-700)"
+        },
+        "cc_amt": {
+          "font_size": "12px (375px) / 13.5px (768px) / 11px (320px)",
+          "font_weight": 700,
+          "color": "#334155 (slate-700)",
+          "font_variant_numeric": "tabular-nums"
+        }
+      },
+      "total_count": {
+        "grid_column": 3,
+        "grid_row": 2,
+        "font_size": "11.5px (375px) / 12.5px (768px) / 10.5px (320px)",
+        "color": "#94a3b8 (slate-400)",
+        "font_weight": 600,
+        "font_variant_numeric": "tabular-nums",
+        "text_align": "right",
+        "margin_top": "1px"
+      },
+      "meta": {
+        "grid_column": "2 / 4",
+        "grid_row": 3,
+        "margin_top": "6px (375px) / 8px (768px) / 5px (320px)",
+        "padding_top": "6px (375px) / 8px (768px) / 5px (320px)",
+        "border_top": "1px dashed rgba(15,23,42,0.06)",
+        "font_size": "11.5px (375px) / 13px (768px) / 10.5px (320px)",
+        "color": "#64748b (slate-500)",
+        "font_weight": 500,
+        "display": "flex",
+        "justify_content": "space-between",
+        "percapita": {
+          "font_variant_numeric": "tabular-nums",
+          "white_space": "nowrap",
+          "overflow": "hidden",
+          "text_overflow": "ellipsis"
+        }
+      }
+    }
+  },
+  "comparison": {
+    "visual_simplicity_stars": { "A": "★★★", "B": "★★☆", "C": "★★☆" },
+    "primary_secondary_clarity_stars": { "A": "★★★", "B": "★★★", "C": "★★★" },
+    "cross_breakpoint_stability_stars": { "A": "★★★", "B": "★★☆", "C": "★★☆" },
+    "implementation_complexity": { "A": "low", "B": "medium", "C": "high" },
+    "data_consistency_strategy": {
+      "A": "chip 行 单/双币并排 (CNY + THB 同时展示, 信息全保留)",
+      "B": "主币 chip 大 + 副币 mini chip 压缩 (副币缩约, 主币突出)",
+      "C": "右侧总金额用主币汇总, chip 行保留双币全量 (汇总 + 全量同时可见)"
+    },
+    "tradeoff_table": {
+      "A": [
+        "✓ 视觉简洁度最高",
+        "✓ 跨断点稳定 (chip nowrap + ellipsis)",
+        "✓ 主副币并排权重相等, 中性",
+        "⚠ 主次区分弱 (两个 chip 视觉重量接近)"
+      ],
+      "B": [
+        "✓ 主币种突出, 跟用户心智模型一致",
+        "✓ 跟 v0.3.18 #62 'Stamped glass coin' 主币种一致",
+        "⚠ 视觉重心偏右",
+        "⚠ 副币种 chip 在 320px 下需 ellipsis"
+      ],
+      "C": [
+        "✓ 镜像结构, 左右对齐完美",
+        "✓ 主币汇总 + 副币 chip 全量同时可见",
+        "⚠ 实现成本最高 (3 行 grid)",
+        "⚠ 双币 group 总金额需 '主' label 标识, 稍显啰嗦"
+      ]
+    }
+  },
+  "responsive_breakpoints": {
+    "320px": {
+      "ios_chrome_width": "320px",
+      "section_card_border_radius": "14px",
+      "section_card_padding": "4px 0",
+      "day_group_padding": "11px 12px 11px",
+      "row_2_chip_gap": "4px",
+      "chip_padding": "4px 8px (A) / 3px 7px (B) / 2px 6px (C)",
+      "chip_font_size": "12px",
+      "percapita_font_size": "11px",
+      "notes": "chip nowrap + ellipsis 兜底, 双币 chip 极窄屏下自动 ellipsis"
+    },
+    "375px": {
+      "ios_chrome_width": "375px",
+      "section_card_border_radius": "18px",
+      "section_card_padding": "4px 0",
+      "day_group_padding": "14px 16px 14px",
+      "row_2_chip_gap": "6px",
+      "chip_padding": "5px 11px (A) / 4px 8px (B) / 3px 8px (C)",
+      "chip_font_size": "13.5px (A) / 12.5px (B) / 12px (C)",
+      "percapita_font_size": "12px"
+    },
+    "768px": {
+      "ios_chrome_width": "768px",
+      "section_card_border_radius": "22px",
+      "section_card_padding": "6px 0",
+      "day_group_padding": "18px 22px 18px",
+      "row_2_chip_gap": "6px",
+      "chip_padding": "6px 14px (A) / 4px 10px (B) / 4px 10px (C)",
+      "chip_font_size": "15px (A) / 14px (B) / 13.5px (C)",
+      "percapita_font_size": "13.5px"
+    }
+  },
+  "ios_chrome_standard": {
+    "status_bar_height": "44px",
+    "home_indicator_height": "34px",
+    "annotation_strip": {
+      "background_danger": "rgba(254,226,226,0.6) — CURRENT 现状",
+      "background_info": "rgba(224,231,255,0.5) — 方案 A 推荐",
+      "background_success": "rgba(224,231,255,0.5) — 方案 B/C 备选"
+    }
+  },
+  "compatibility_notes": {
+    "ios_safari_lt_18": "backdrop-filter 不支持时, 退化为更 opaque 的 indigo/teal 背景 (跟现状一致)",
+    "android_chrome": "backdrop-filter blur 完全支持, 视觉一致",
+    "clamp_tokens": "字号 / 间距用 app.css v0.3.17 #34 已 clamp 化的 token — 320px 缩 87.5%, 480px+ 命中 max",
+    "dark_mode": "未提供 — v0.2 待做, 当前 light mode only"
+  },
+  "files_generated": {
+    "html_mockups": [
+      "frontend/design-mocks/v0318-68-bills-header-CURRENT.html (现状证据)",
+      "frontend/design-mocks/v0318-68-bills-header-A.html (方案 A 推荐)",
+      "frontend/design-mocks/v0318-68-bills-header-B.html (方案 B 备选)",
+      "frontend/design-mocks/v0318-68-bills-header-C.html (方案 C 备选)",
+      "frontend/design-mocks/v0318-68-comparison.html (4 方案同框对比)",
+      "frontend/design-mocks/v0318-68-single-vs-double-A.html (A 单/双同框证明)",
+      "frontend/design-mocks/v0318-68-single-vs-double-B.html (B 单/双同框证明)",
+      "frontend/design-mocks/v0318-68-single-vs-double-C.html (C 单/双同框证明)"
+    ],
+    "screenshots": [
+      "frontend/design-mocks/screenshots/v0318-68-bills-header-CURRENT-{320,375,768}.png (3 张)",
+      "frontend/design-mocks/screenshots/v0318-68-bills-header-A-{320,375,768}.png (3 张)",
+      "frontend/design-mocks/screenshots/v0318-68-bills-header-B-{320,375,768}.png (3 张)",
+      "frontend/design-mocks/screenshots/v0318-68-bills-header-C-{320,375,768}.png (3 张)",
+      "frontend/design-mocks/screenshots/v0318-68-bills-header-comparison-4up.png (4 方案同框对比 1 张)",
+      "frontend/design-mocks/screenshots/v0318-68-A-single-vs-double.png (A 单/双同框 1 张)",
+      "frontend/design-mocks/screenshots/v0318-68-B-single-vs-double.png (B 单/双同框 1 张)",
+      "frontend/design-mocks/screenshots/v0318-68-C-single-vs-double.png (C 单/双同框 1 张)"
+    ],
+    "design_tokens": "frontend/design-mocks/v0318-68-bills-header-tokens.json (本文件)"
+  }
+}
