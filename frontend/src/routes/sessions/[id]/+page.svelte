@@ -621,6 +621,7 @@
           currentUserMemberId={currentMemberId}
           onDelete={handleDeleteBill}
           loading={loading}
+          primaryCurrency={session.primary_currency}
         />
       {/if}
     </div>
