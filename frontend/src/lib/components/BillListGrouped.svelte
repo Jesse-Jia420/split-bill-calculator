@@ -1,25 +1,33 @@
 <script lang="ts">
   /**
-   * v0.1.4 (2026-07-02) — bills grouped list polish。
+   * v0.3.18 #68 (2026-07-20) — 账单时间 header 单/双币统一 (PO #6899 ★★★ A)。
    *
-   * 本次 polish (v0.1.4):
-   * - <details> 顺滑折叠动画: 包一层 .day-body-wrap + .day-body,用 grid-template-rows
-   *   0fr ↔ 1fr 实现 250ms cubic-bezier 过渡。Chrome 117+/Safari 17.4+/Firefox 127+
-   *   支持,老浏览器降级到 <details> 默认瞬时展开。
-   * - share_amount 独立一行: .bill-row2 从 row 改 column 布局,让 share_amount
-   *   从右侧变到下一行,与 meta 上下两行展示,避免元信息被挤压。
+   * 本次 polish (v0.3.18 #68):
+   * - 固定 3 行布局: 单/双币 group header 高度 100% 一致 (反 #121 自决, 跟 Designer
+   *   mockup A 字面执行)。
+   * - Row 1 = [+ toggle] [日期] ... [总笔数 badge]
+   * - Row 2 = 货币玻璃 chip 行 (单币 1 chip / 双币 2 chip inline-flex + nowrap)
+   * - Row 3 = 人均行 (单币 "人均 X CNY" / 双币 "人均 X CNY + Y THB")
+   * - chip 行主币种 (session.primary_currency) = indigo 玻璃, 副币种 = teal 玻璃
+   *   (一眼分主次)
+   * - chip 行用 flex-wrap: nowrap + overflow:hidden + text-overflow:ellipsis,
+   *   320px 极窄屏下双币自动 ellipsis, 不再换行成第 4 行
+   * - "+" toggle 改 22×22 圆形 indigo 0.10 bg (跟 v0.3.17 #19 圆形按钮族一致),
+   *   不用 absolute 定位 (放在 row-1 flex 头)
+   *
+   * 沿用 v0.1.4:
+   * - <details> 顺滑折叠动画 + share_amount 独立一行
    *
    * 沿用 v0.1.3 Sprint 2:
-   * - T6 千分位: 删除手写数字格式化,统一切到 $lib/utils/format.formatMoney。
-   * - T7 折叠默认: 找 session 中**最新**的 occurred_at 日期作为「当天」,只有
-   *   「当天」group 默认展开,其他全部默认折叠。用户手动 toggle 后用 localStorage
-   *   记住。
-   * - Token alias 迁移: var(--color-*) → var(--*) 主 token。
+   * - T6 千分位: formatMoney + formatDate
+   * - T7 折叠默认: 最新 occurred_at 当天默认展开
+   * - Token alias 迁移: var(--color-*) → var(--*) 主 token
    *
    * 沿用:
-   * - v0.1.2 反馈修 6 项目 3 (Bill item 背景色统一)
-   * - v0.1.2 反馈修 5 项目 4 (iOS Mail-style swipe)
-   * - v0.1.2 反馈修 5 Commit 2 (bd0cf89) — bill item 重构 + swipe
+   * - v0.3.17 #20 sticky header 浮起 + 列表展开动画卡 stagger 取消
+   * - v0.3.17 #21 swipe drag rubber band spring damping + sticky iPhone Safari
+   * - v0.3.18 #50 全站极透明化 (section bg 0.04 + hairline 0.18)
+   * - v0.3.18 #62 #64 SessionCard C + Member section A (玻璃化延续)
    */
   import { onMount, tick } from 'svelte';
   import { writable, get, type Writable } from 'svelte/store';
@@ -38,6 +46,15 @@
   export let onDelete: ((billId: number) => void | Promise<void>) | null = null;
   /** Sprint 3 T13: true 时显示 N 个 SkeletonBill 骨架 */
   export let loading: boolean = false;
+  /**
+   * v0.3.18 #68: 主币种 (session.primary_currency)。
+   * - 提供时, 该币种的 chip 用 indigo 玻璃 (主币种视觉).
+   * - 其他币种 chip 用 teal 玻璃 (副币种视觉).
+   * - 不提供时 (undefined / null), currencyTotals 第一个 chip 视为主币种
+   *   (向后兼容旧调用方 + 反 #121 自决排版细节).
+   * 路由 +page.svelte 已传 session.primary_currency (从 SessionDetail.primary_currency).
+   */
+  export let primaryCurrency: string | null = null;
 
   type Group = {
     date: string;
@@ -522,17 +539,40 @@
       {#each groups as g, gi (g.date)}
         <li class="day-group" in:fly={{ y: 8, duration: 220, delay: Math.min(gi * 40, 240) }}>
           <details open={isOpen(g.date)} on:toggle={(e) => onGroupToggle(g.date, e)}>
+            <!-- v0.3.18 #68 (PO #6899 ★★★ A): 固定 3 行布局 —
+                 单币/双币 group 高度 100% 一致, 滚动节奏齐.
+                 Row 1 = [+ toggle] [日期] ... [总笔数 badge]
+                 Row 2 = 货币玻璃 chip 行 (1-2 个 chip, inline-flex + nowrap)
+                 Row 3 = 人均行 -->
             <summary class="day-header section-header">
-              <span class="day-toggle" aria-hidden="true">{isOpen(g.date) ? '−' : '+'}</span>
-              <div class="day-header-main">
-                <span class="day-date">{g.date}</span>
-                <span class="day-total" data-testid="day-total">
-                  {g.totalDisplay}
-                </span>
+              <div class="day-row-1">
+                <span class="day-toggle" aria-hidden="true">{isOpen(g.date) ? '−' : '+'}</span>
+                <span class="day-date" data-testid="day-date">{formatDate(g.date, { weekday: true })}</span>
+                <span class="day-count" data-testid="day-count">{g.bills.length} 笔</span>
               </div>
-              <div class="day-header-sub">
-                <span class="muted">人均 {fmtBreakdown(g.perCapitaBreakdown)}</span>
-                <span class="muted">总笔数 {g.bills.length}</span>
+              <div class="day-row-2">
+                {#each g.currencyTotals as t, ti (t.ccy)}
+                  <!-- v0.3.18 #68: 单币 group 的唯一 chip 永远算 primary (indigo 玻璃),
+                       不管 session.primary_currency 是什么 — 因为该 day 只有这一个币种,
+                       "主/副" 概念不适用, 让 chip 显示主币种颜色 (避免「单币却
+                       显示成 teal 副币种」视觉混乱, 跟单/双币节奏一致) -->
+                  {@const isPrimary = g.currencyTotals.length === 1
+                    ? true
+                    : (primaryCurrency !== null && primaryCurrency !== undefined)
+                      ? t.ccy === primaryCurrency
+                      : ti === 0}
+                  <span
+                    class="cc-chip"
+                    class:cc-chip-secondary={!isPrimary}
+                    data-testid="cc-chip"
+                  >
+                    <span class="cc-code">{t.ccy}</span>
+                    <span class="cc-amt">{fmtAmount(t.amount)}</span>
+                  </span>
+                {/each}
+              </div>
+              <div class="day-row-3">
+                <span class="muted">人均 <strong>{fmtBreakdown(g.perCapitaBreakdown)}</strong></span>
               </div>
             </summary>
 
@@ -760,18 +800,17 @@
     width: 100%;
   }
 
-  /* === day header 排版 ===
-     v0.3.18 #46-A: 改 transparent, 让 sheet 玻璃透出 (sticky 浮起时仍可见).
-     sticky 浮起时 .section-header glass 接管, scroll-under 内容有 blur 遮罩. */
+  /* === day header 排版 === v0.3.18 #68 (PO #6899 ★★★ A):
+     固定 3 行布局 — 单币/双币 group 高度 100% 一致, 滚动节奏齐.
+     Sticky 浮起时 .section-header glass 接管, scroll-under 内容有 blur 遮罩. */
   .day-header {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 8px;
     cursor: pointer;
     list-style: none;
-    padding: var(--space-2) var(--space-3);
+    padding: 12px 16px 14px;
     background: transparent;
-    min-height: var(--touch-target, 44px);
     flex-wrap: wrap;
     position: relative;
   }
@@ -791,7 +830,9 @@
      v0.3.18 #54 (PO msg 18:10 #6569): 加重模糊 — 0.30 太透, 账单列表 row
      滚过 sticky header 时几乎贴脸穿透. bg 0.30 → 0.65 (× 2.17 浓液化),
      blur 12 → 20 (+67%), sticky 浮起时 row 内容被遮蔽更彻底, 文字可读性
-     提升. saturate 180% 保留 (玻璃质感). */
+     提升. saturate 180% 保留 (玻璃质感).
+     v0.3.18 #68: 保留 sticky 行为 + mask-image 16px opaque (v0.3.17 #20),
+     header 高度固定 = 3 行后滚动节奏绝对一致. */
   .section-header {
     position: sticky;
     top: 0;
@@ -801,57 +842,154 @@
     -webkit-backdrop-filter: saturate(180%) blur(20px);
     border-bottom: 1px solid var(--gray-200);
   }
+
+  /* === v0.3.18 #68: Row 1 = [+ toggle] [日期] ... [总笔数 badge] === */
+  .day-row-1 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 22px;
+  }
+  /* v0.3.18 #68: "+" toggle 改 22×22 圆形 indigo 0.10 bg (跟 v0.3.17 #19
+     圆形按钮族保持一致, 不用 absolute 定位 — 放在 row-1 flex 头) */
   .day-toggle {
-    position: absolute;
-    top: var(--space-2);
-    left: var(--space-2);
-    width: 20px;
-    height: 20px;
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 18px;
-    color: var(--gray-500);
-    line-height: 1;
+    border-radius: 50%;
+    background: rgba(99, 102, 241, 0.10);
+    color: #4338ca;
+    font-size: 15px;
     font-weight: 400;
-  }
-  .day-header-main,
-  .day-header-sub {
-    padding-left: 28px;
-  }
-  .day-header-main {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--space-2);
-    flex-wrap: wrap;
-  }
-  .day-header-sub {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--space-2);
-    flex-wrap: wrap;
-    font-size: var(--font-size-sm, 13px);
+    line-height: 1;
+    transition: background 200ms ease, transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
   }
   .day-date {
-    font-weight: 600;
-    font-size: 1rem;
+    font-weight: 700;
+    font-size: 15.5px;
+    color: var(--gray-900);
+    letter-spacing: -0.2px;
     font-variant-numeric: tabular-nums;
     flex: 0 0 auto;
     /* v0.3.18 #49: 日期白色微晕 (防止透明化后文字对比度降低) */
     text-shadow: 0 1px 3px rgba(255, 255, 255, 0.8);
   }
-  .day-total {
+  /* v0.3.18 #68: 总笔数 badge — 跟 chip 行视觉平行, slate bg + slate-500 text */
+  .day-count {
+    font-size: 12px;
+    color: #64748b;
     font-weight: 600;
-    font-size: 1rem;
+    background: rgba(15, 23, 42, 0.04);
+    padding: 3px 9px;
+    border-radius: 999px;
     font-variant-numeric: tabular-nums;
-    flex: 0 0 auto;
-    text-align: right;
-    margin-left: auto;
-    /* v0.3.18 #49: 当日合计白色微晕 (同上, 重要文字补偿) */
+    letter-spacing: 0.02em;
+    flex-shrink: 0;
     text-shadow: 0 1px 3px rgba(255, 255, 255, 0.8);
   }
+
+  /* === v0.3.18 #68: Row 2 = 货币玻璃 chip 行 ===
+     inline-flex + nowrap + overflow:hidden, 双币并排靠左对齐,
+     极窄屏 320px 自动 ellipsis (永不换行到第 4 行, 视觉节奏绝对一致) */
+  .day-row-2 {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: nowrap;
+    overflow: hidden;
+    min-height: 30px;
+  }
+  .cc-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 11px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.20) 0%, rgba(59, 130, 246, 0.12) 100%);
+    backdrop-filter: saturate(180%) blur(12px);
+    -webkit-backdrop-filter: saturate(180%) blur(12px);
+    border: 1px solid rgba(99, 102, 241, 0.28);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.55),
+      0 1px 3px rgba(99, 102, 241, 0.10);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    flex-shrink: 1;
+    min-width: 0;
+  }
+  .cc-chip .cc-code {
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: #4338ca;
+    flex-shrink: 0;
+  }
+  .cc-chip .cc-amt {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #0f172a;
+    letter-spacing: -0.2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+  /* 副币种 chip: teal 玻璃 (一眼分主次) */
+  .cc-chip.cc-chip-secondary {
+    background: linear-gradient(135deg, rgba(20, 184, 166, 0.16) 0%, rgba(99, 102, 241, 0.10) 100%);
+    border-color: rgba(20, 184, 166, 0.30);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.55),
+      0 1px 3px rgba(20, 184, 166, 0.10);
+  }
+  .cc-chip.cc-chip-secondary .cc-code { color: #0f766e; }
+
+  /* === v0.3.18 #68: Row 3 = 人均行 === */
+  .day-row-3 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 12px;
+    color: #64748b;
+    font-weight: 500;
+  }
+  .day-row-3 .muted strong {
+    color: #334155;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* === v0.3.18 #68 续: 320px 极窄屏 chip 缩号 === */
+  @media (max-width: 360px) {
+    .day-header { padding: 10px 12px 12px; gap: 6px; }
+    .day-row-1 { gap: 8px; min-height: 20px; }
+    .day-toggle { width: 20px; height: 20px; font-size: 13px; }
+    .day-date { font-size: 14px; }
+    .day-count { font-size: 11px; padding: 2px 7px; }
+    .day-row-2 { gap: 4px; min-height: 26px; }
+    .cc-chip { padding: 4px 8px; gap: 4px; }
+    .cc-chip .cc-code { font-size: 10px; }
+    .cc-chip .cc-amt { font-size: 12px; }
+    .day-row-3 { font-size: 11px; }
+  }
+  /* === v0.3.18 #68 续: 768px tablet chip 微放大 === */
+  @media (min-width: 720px) {
+    .day-header { padding: 14px 22px 16px; gap: 10px; }
+    .day-row-1 { min-height: 26px; }
+    .day-toggle { width: 26px; height: 26px; font-size: 17px; }
+    .day-date { font-size: 17px; }
+    .day-count { font-size: 13px; padding: 4px 11px; }
+    .day-row-2 { gap: 8px; min-height: 34px; }
+    .cc-chip { padding: 6px 14px; }
+    .cc-chip .cc-code { font-size: 11.5px; }
+    .cc-chip .cc-amt { font-size: 15px; }
+    .day-row-3 { font-size: 13.5px; }
+  }
+
   .unit {
     font-size: 10px;
     font-weight: 400;
