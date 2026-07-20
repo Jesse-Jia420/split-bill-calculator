@@ -31,8 +31,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import { fly, slide } from 'svelte/transition';
-  import { cubicOut } from 'svelte/easing';
+  import { fly } from 'svelte/transition';
   import { listBills, deleteBill, createBill } from '$api/bills';
   import { getSettle } from '$api/settle';
   import { formatMoney } from '$lib/utils/format';
@@ -444,10 +443,8 @@
       />
     {/if}
 
-    <!-- v0.3.18 #73 (PO #6986 Mockup A Studio 紧凑): header 整体 clickable (折叠/展开),
-         收起态走方案 A: title + count + mini 梯度色头像预览 (左) + expiry pill + 邀请按钮 + chevron (右),
-         展开态走 v0.3.18 #66 Mockup A 精修列表 (header 不变, 只补 chevron + 动画)。
-         transition:slide 220ms ease-out 提供平滑展开/收起。 -->
+    <!-- v0.3.18 #66 (PO #6899 Mockup A 精修列表): header 重构 — 标题 + 数量 左, [expiry pill] + 邀请按钮 右, 删 chevron.
+         保留 onclick + aria-expanded (header 整体可点折叠/展开, 折叠态头像预览仍内嵌)。 -->
     <div class="card members-card">
       <header
         class="members-head"
@@ -459,30 +456,23 @@
         aria-expanded={membersOpen}
         aria-label={membersOpen ? '收起成员列表' : '展开成员列表'}
       >
-        <div class="members-head-left">
-          <h3 class="members-title-a">
-            成员 <span class="members-count-a">· {session.members.length}</span>
-          </h3>
+        <h3 class="members-title-a">
+          成员 <span class="members-count-a">· {session.members.length}</span>
+        </h3>
 
-          <!-- v0.3.18 #73 (PO #6986 Mockup A): 折叠态 mini 头像预览 — 24×24 梯度色 rtl 堆叠
-               (复用 v0.3.18 #66 avatar-1..5 palette), -6px overlap, 2px white border. -->
-          {#if !membersOpen && session.members.length > 0}
-            <div class="mini-avatars-a" aria-hidden="true">
-              {#each session.members.slice(0, 5) as m, i (m.id)}
-                <div
-                  class="mini-avatar-a palette-{i % 5}"
-                  title={m.display_name}
-                >
-                  {avatarLetter(m.display_name)}
-                </div>
-              {/each}
-              {#if session.members.length > 5}
-                <span class="mini-avatar-a mini-avatar-overflow-a">+{session.members.length - 5}</span>
-              {/if}
-            </div>
-          {/if}
-        </div>
-
+        <!-- 折叠态: 头部内嵌 avatar 预览 (替代独立 toggle button) -->
+        {#if !membersOpen && session.members.length > 0}
+          <div class="members-avatars-inline" aria-hidden="true">
+            {#each session.members.slice(0, 8) as m (m.id)}
+              <div class="avatar-mini" title={m.display_name}>
+                {avatarLetter(m.display_name)}
+              </div>
+            {/each}
+            {#if session.members.length > 8}
+              <span class="avatar-mini avatar-mini-overflow">+{session.members.length - 8}</span>
+            {/if}
+          </div>
+        {/if}
         <div class="members-actions-a">
           <!-- v0.3.18 #66 (PO #6899 Mockup A): 过期提示 amber pill 移到 section header 右侧
                (iOS 标准), 不再挂在 invite 按钮下方. 仅 anon owner (ownerEmail 为空) 渲染. -->
@@ -500,20 +490,10 @@
             sessionCode={session?.session_code ?? ""}
             {isOwner}
           />
-          <!-- v0.3.18 #73 (PO #6986 Mockup A): chevron-down 12×12, gray-400, 20×20 触摸容器,
-               expanded 时旋转 180deg (transform 220ms ease-out). 用户感知可折叠. -->
-          <span class="collapse-chevron-a" class:is-expanded={membersOpen} aria-hidden="true">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="6 9 12 15 18 9" />
-            </svg>
-          </span>
         </div>
       </header>
 
       {#if membersOpen}
-        <!-- v0.3.18 #73 (PO #6986 Mockup A): Svelte transition:slide 220ms ease-out 平滑展开/收起.
-             wrapper div 提供 transition:slide, 内部 1-member CTA / EmptyState / members-list 维持 v0.3.18 #66 精修列表不变. -->
-        <div transition:slide={{ duration: 220, easing: cubicOut }} class="members-body-a">
         <!-- v0.3.18 #66 (PO #6899 Mockup A) 7: 1-member 紧凑 CTA banner -->
         {#if session.members.length === 1 && session.members[0].role === 'owner'}
           <div class="solo-cta-a" data-testid="solo-member-cta">
@@ -606,7 +586,6 @@
             {/each}
           </ul>
         {/if}
-        </div>
       {/if}
     </div>
 
@@ -848,9 +827,8 @@
   }
   .members-head-left {
     display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 8px;
+    flex-direction: column;
+    gap: 2px;
     min-width: 0;
     flex: 1 1 auto;
   }
@@ -967,24 +945,6 @@
     background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
   }
   .avatar-a.e {
-    background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
-  }
-  /* v0.3.18 #73: 复用 v0.3.18 #66 palette — 让 markup 已用的 palette-{i % 5} 在
-     展开态生效 (之前 markup 引用 palette-0..4 但无 CSS, 全部 fallback 默认 indigo).
-     Mini avatar 同样用 palette-{i % 5} (见 .mini-avatar-a.palette-* 块)。 */
-  .avatar-a.palette-0 {
-    background: linear-gradient(135deg, #818cf8 0%, #6366f1 100%);
-  }
-  .avatar-a.palette-1 {
-    background: linear-gradient(135deg, #f472b6 0%, #ec4899 100%);
-  }
-  .avatar-a.palette-2 {
-    background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
-  }
-  .avatar-a.palette-3 {
-    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
-  }
-  .avatar-a.palette-4 {
     background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
   }
   .avatar-a.is-owner {
@@ -1151,128 +1111,43 @@
     font-size: 16px;
   }
 
-  /* === v0.3.18 #73 (PO #6986 Mockup A Studio 紧凑): 收起态专用样式 ===
-     字面移植 v0318-73-member-collapse-tokens.json (scheme_A)。
-     - .members-head.collapsed: padding 4px / margin -4px / hover bg indigo 0.04 / active 0.08 / 150ms ease-out
-     - .mini-avatars-a: direction rtl / gap 0 / margin 0 4px (最后一个人在最右)
-     - .mini-avatar-a: 24×24 / font 9px 600 / 2px white border / -6px overlap / gradient palette-0..4
-     - .collapse-chevron-a: 20×20 触摸容器 / gray-400 / expanded 时 rotate 180deg / 220ms ease-out */
-  .members-head.collapsed {
-    border-bottom: none;
-    margin: -4px;
-    padding: 4px;
-    border-radius: 8px;
-    align-items: center;
-    transition: background-color 150ms ease-out;
-  }
-  .members-head.collapsed:hover {
-    background-color: rgba(99, 102, 241, 0.04);
-  }
-  .members-head.collapsed:active {
-    background-color: rgba(99, 102, 241, 0.08);
-  }
-
-  /* Mini avatar row — rtl 堆叠 (最后一个人视觉最右) */
-  .mini-avatars-a {
+  /* v0.2.1 UI rev: 折叠态 header 内嵌 avatar 预览 (max 8 + overflow) */
+  .members-avatars-inline {
     display: inline-flex;
     align-items: center;
     gap: 0;
-    margin: 0 4px;
-    flex: 0 0 auto;
-    direction: rtl;
+    margin: 0 8px;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
   }
-  .mini-avatar-a {
-    width: 24px;
-    height: 24px;
+  .members-avatars-inline .avatar-mini {
+    width: 26px;
+    height: 26px;
+    font-size: clamp(0.6875rem, 2.6vw, 0.75rem);
+  }
+  .avatar-mini {
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
+    background: var(--accent-500);
+    color: #fff;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     font-weight: 600;
-    font-size: 9px;
-    color: #fff;
-    margin-left: -6px;
-    border: 2px solid white;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-    flex-shrink: 0;
-    position: relative;
-    background: linear-gradient(135deg, #818cf8 0%, #6366f1 100%);
+    font-size: 12px;
+    margin-left: -8px;
+    border: 2px solid var(--color-bg, white);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+    user-select: none;
   }
-  .mini-avatar-a:first-child {
+  .avatar-mini:first-child {
     margin-left: 0;
   }
-  /* Mockup A palette: 复用 v0.3.18 #66 avatar-a gradient (indigo/pink/emerald/amber/blue) */
-  .mini-avatar-a.palette-0 {
-    background: linear-gradient(135deg, #818cf8 0%, #6366f1 100%);
-  }
-  .mini-avatar-a.palette-1 {
-    background: linear-gradient(135deg, #f472b6 0%, #ec4899 100%);
-  }
-  .mini-avatar-a.palette-2 {
-    background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
-  }
-  .mini-avatar-a.palette-3 {
-    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
-  }
-  .mini-avatar-a.palette-4 {
-    background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
-  }
-  .mini-avatar-overflow-a {
-    background: var(--gray-300, #d4d4d4) !important;
-    color: var(--gray-700, #404040) !important;
-    font-size: 8px;
-    font-weight: 700;
-  }
-
-  /* Chevron — 20×20 触摸容器 + gray-400 chevron-down + rotate 220ms */
-  .collapse-chevron-a {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 20px;
-    color: var(--gray-400, #a3a3a3);
-    transition: transform 220ms ease-out;
-    flex-shrink: 0;
-  }
-  .collapse-chevron-a.is-expanded {
-    transform: rotate(180deg);
-  }
-  .collapse-chevron-a svg {
-    display: block;
-  }
-
-  /* Body wrapper — transition:slide 220ms ease-out (Svelte 自动, CSS 不动) */
-  .members-body-a {
-    /* 不设 height / overflow, 让 Svelte transition:slide 处理.
-       overflow: hidden 在 Svelte transition:slide 内部已隐式应用. */
-  }
-
-  /* Mockup A SE 320px compact mode 覆盖 (mini avatar 缩小, header 允许 wrap) */
-  @media (max-width: 360px) {
-    .members-head.collapsed {
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-    .mini-avatar-a {
-      width: 22px;
-      height: 22px;
-      font-size: 8px;
-      margin-left: -5px;
-    }
-  }
-  /* Tablet 768px — mini avatar 放大, chevron 放大 */
-  @media (min-width: 768px) {
-    .mini-avatar-a {
-      width: 28px;
-      height: 28px;
-      font-size: 10px;
-      margin-left: -7px;
-    }
-    .collapse-chevron-a {
-      width: 24px;
-      height: 24px;
-    }
+  .avatar-mini-overflow {
+    background: var(--gray-300, #d1d5db) !important;
+    color: var(--gray-700, #374151) !important;
   }
 
   /* v0.3.18 #66 (PO #6899 Mockup A) 8: 768px tablet 2-column grid */

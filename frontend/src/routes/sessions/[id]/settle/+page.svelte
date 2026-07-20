@@ -191,13 +191,15 @@
              (主币种汇总 label 长 ~120-140px, 原始数据 label 短 ~60-80px, thumb 差异明显)
              跟 wizard step 3 currency-mode 同一组件, 跨页面视觉一致.
              单币种 session: "原始数据" disabled (locked, 不会切到 split state).
-             v0.3.18 #60 删 "原始数据" option, 只剩 主币种汇总 (SettleMemberBreakdown 内部
-             split 分支保留 — v0.3.17 #32 维护)。#63 不动这个内部 IosSwitch (PO 字面改 #57
-             那个 activeTab IosSwitch)。 -->
+             v0.3.18 #80 (coder 80): 恢复 a941bac 越界删除的 "原始数据" option — PO #6826 红圈
+             只要求删 settle 底部 3 FAB + 按源币种 section, 没拍过 IosSwitch option, 顺手删是越界.
+             SettleMemberBreakdown 内部 split 分支 (v0.3.17 #32) 全程保留, view=split 是合法态.
+             单币种 session: currencies.length < 2 时 "原始数据" disabled (跟 v0.3.17 #32 原行为一致). -->
         <IosSwitch
           ariaLabel="结算视图"
           options={[
-            { value: 'primary', label: `主币种汇总 (${session.primary_currency})` }
+            { value: 'primary', label: `主币种汇总 (${session.primary_currency})` },
+            { value: 'split', label: '原始数据', disabled: !session.currencies || session.currencies.length < 2 }
           ]}
           bind:value={viewMode}
         />
