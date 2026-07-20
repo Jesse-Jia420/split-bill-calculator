@@ -15,8 +15,6 @@
    * - humanizeApiError() helper 保留 (返回 string, 仍被 toast 消费)
    */
   import { onMount } from 'svelte';
-  import { slide } from 'svelte/transition';
-  import { cubicOut } from 'svelte/easing';
   import type { SessionDetail } from '$api/sessions';
   import type { Bill } from '$api/bills';
   import { evaluateExpression } from '$api/calculator';
@@ -238,18 +236,16 @@
     participantState = { ...participantState };
   }
 
-  // v0.2.3 T14 (PRD §3.9.2): the participants section was redesigned —
-  // each row is now a single tappable button that toggles `included`,
-  // and a chevron expands a sub-row containing the exclusive-amount
-  // number input. The data structure (`participantState`) and the
-  // submit-time payload (`buildPayload`) are unchanged.
+  // v0.3.19 #84 (PO #7306 + #7082 + #7085): 单 chip 三态切换 (PO 拍板 v3 ghost link).
+  // 删 sub-row 展开方案 (反 #7085 否定), 改成 chip 原地切换:
+  //   - 默认 (amount==0, !editing): ghost 文字 "独占" (14px gray-400, 无 bg/border)
+  //   - 编辑 (editing==true): white pill + accent 描边 + ¥ + input
+  //   - 数字 (amount>0, !editing): accent pill "独占 ¥500 ✎"
   //
-  // `subRowOpen` is purely UI state — it tracks which rows have their
-  // exclusive-amount sub-row expanded. It does NOT participate in
-  // `buildPayload`; the `exclusive` flag in `participantState` is what
-  // gets serialized, and the chevron toggle keeps that flag in sync
-  // with the visible sub-row.
-  let subRowOpen: Record<number, boolean> = {};
+  // `editingMemberId` is purely UI state — it tracks which row is in
+  // edit mode. It does NOT participate in `buildPayload`; the
+  // `exclusive` flag in `participantState` is what gets serialized.
+  let editingMemberId: number | null = null;
 
   /** Count of currently-included members (header summary). */
   $: includedCount = session.members.reduce(
@@ -272,57 +268,33 @@
   }
 
   /**
-   * Toggle the sub-row for a single member. On open: mark the row
-   * `exclusive=true` so the number input is meaningful. On close via
-   * chevron: clear `exclusive` if the amount is zero/empty so the
-   * persisted bill doesn't carry a spurious `is_exclusive=true`.
+   * v0.3.19 #84 (PO #7082): 进入编辑态 — chip 原地切换成 input pill.
+   * 同时把 `exclusive=true` 标记上, 让 payload 知道这行是独占金额模式.
    */
-  function toggleSubRow(memberId: number) {
+  function enterEditMode(memberId: number) {
     const st = participantState[memberId];
     if (!st) return;
-    const wasOpen = !!subRowOpen[memberId];
-    subRowOpen[memberId] = !wasOpen;
-    subRowOpen = { ...subRowOpen };
-    if (!wasOpen) {
-      st.exclusive = true;
-      if (!st.amount || st.amount === '0') st.amount = '';
-      participantState = { ...participantState };
-    } else {
-      const n = Number(st.amount);
-      if (!st.amount || st.amount === '' || !Number.isFinite(n) || n <= 0) {
-        st.exclusive = false;
-        st.amount = '0';
-        participantState = { ...participantState };
-      }
-    }
-  }
-
-  /** Ensure sub-row is open while the number input is focused. */
-  function onSubRowFocus(memberId: number) {
-    if (!subRowOpen[memberId]) {
-      subRowOpen[memberId] = true;
-      subRowOpen = { ...subRowOpen };
-    }
+    editingMemberId = memberId;
+    st.exclusive = true;
+    if (!st.amount || st.amount === '0') st.amount = '';
+    participantState = { ...participantState };
   }
 
   /**
-   * Blur handler — collapse the sub-row (per spec "失去焦点时自动收起"),
-   * and clear the exclusive flag when the amount is zero/empty so the
-   * persisted `is_exclusive` matches what the user actually sees.
+   * v0.3.19 #84 (PO #7082 + #7085): 退出编辑态 — blur 时立即切回 pill,
+   * 不等合法值才切 (PO #7085 拍板). 若值非法 (< 0, NaN, 空) 则清值
+   * 并关掉 exclusive, 避免持久化空字符串.
    */
-  function onSubRowBlur(memberId: number) {
+  function exitEditMode(memberId: number) {
     const st = participantState[memberId];
     if (!st) return;
-    if (subRowOpen[memberId]) {
-      subRowOpen[memberId] = false;
-      subRowOpen = { ...subRowOpen };
-    }
+    editingMemberId = null;
     const n = Number(st.amount);
     if (!st.amount || st.amount === '' || !Number.isFinite(n) || n <= 0) {
       st.exclusive = false;
       st.amount = '0';
-      participantState = { ...participantState };
     }
+    participantState = { ...participantState };
   }
 
 
@@ -550,12 +522,14 @@
       <ul class="ppts list" style="list-style: none; margin: 0; padding: 0;" data-testid="ppts-list">
         {#each session.members as m (m.id)}
           {@const st = participantState[m.id]}
-          {@const isSubOpen = subRowOpen[m.id] ?? false}
-          <li class="ppt-row" class:sub-open={isSubOpen} data-testid={`ppts-li-${m.id}`}>
-            <!-- v0.3.2 (Bug 4 — 2026-07-07): 还原 PRD §3.9.2 设计的 chevron toggle + sub-row。
-                 之前 (v0.3.1 PO Bug #2) 改成 inline input, 但 user 无法 toggle `exclusive=true`,
-                 `toggleSubRow` 函数和 CSS 已就位但 template 没渲染 → 用户填金额也不存。
-                 修法: 恢复 chevron button + 折叠 sub-row (沿用 v0.2.3 T14r2 spec). -->
+          {@const isEditing = editingMemberId === m.id}
+          {@const hasNumber = st?.exclusive && Number(st.amount) > 0}
+          <li class="ppt-row" data-testid={`ppts-li-${m.id}`}>
+            <!-- v0.3.19 #84 (PO #7082+#7085+#7306): 单 chip 三态切换.
+                 不再展开 sub-row (反 #7085); 整个切换在 chip 原地完成.
+                 - ghost (默认): 仅 "独占" 文字, 14px gray-400, 无 bg/border
+                 - input (编辑): ¥ + input, 14px white bg + accent 描边 + 30px 焦点光晕
+                 - pill (数字): ¥500 ✎, 13px accent bg + 1px accent border -->
             <button
               type="button"
               class="ppt-main"
@@ -565,37 +539,41 @@
             >
               <span class="ppt-check-icon" aria-hidden="true">{st?.included ? '☑' : '☐'}</span>
               <span class="ppt-name">{m.display_name}</span>
-              {#if st?.exclusive && Number(st.amount) > 0}
-                <span class="ppt-excl-badge">{currencySymbol(currency)}{st.amount}</span>
-              {/if}
             </button>
-            <button
-              type="button"
-              class="ppt-toggle"
-              on:click={() => toggleSubRow(m.id)}
-              aria-expanded={isSubOpen}
-              aria-label={`${m.display_name} 的独占金额设置`}
-              data-testid={`ppts-toggle-${m.id}`}
-            >
-              <span class="ppt-toggle-label">独占</span>
-              <span class="ppt-toggle-caret" aria-hidden="true">{isSubOpen ? '▴' : '▾'}</span>
-            </button>
-            {#if isSubOpen}
-              <div class="ppt-sub-row" data-testid={`ppts-sub-${m.id}`} transition:slide={{ duration: 220, easing: cubicOut }}>
-                <span class="ppt-sub-sym">{currencySymbol(currency)}</span>
+            {#if isEditing}
+              <div class="excl-chip excl-chip-input" data-testid={`ppts-chip-${m.id}`}>
+                <span class="excl-sym">{currencySymbol(currency)}</span>
                 <input
                   type="number"
                   min="0"
                   step="0.01"
-                  class="ppt-sub-input"
+                  class="excl-input"
                   bind:value={st.amount}
-                  on:focus={() => onSubRowFocus(m.id)}
-                  on:blur={() => onSubRowBlur(m.id)}
+                  on:blur={() => exitEditMode(m.id)}
                   placeholder="0.00"
                   aria-label={`${m.display_name} 的独占金额`}
                   data-testid={`ppts-amount-${m.id}`}
                 />
               </div>
+            {:else if hasNumber}
+              <button
+                type="button"
+                class="excl-chip excl-chip-number"
+                on:click={() => enterEditMode(m.id)}
+                aria-label={`修改 ${m.display_name} 的独占金额`}
+                data-testid={`ppts-chip-${m.id}`}
+              >
+                {currencySymbol(currency)}{st.amount}
+                <span class="excl-edit-icon" aria-hidden="true">✎</span>
+              </button>
+            {:else}
+              <button
+                type="button"
+                class="excl-chip excl-chip-ghost"
+                on:click={() => enterEditMode(m.id)}
+                aria-label={`为 ${m.display_name} 设置独占金额`}
+                data-testid={`ppts-chip-${m.id}`}
+              >独占</button>
             {/if}
           </li>
         {/each}
@@ -727,103 +705,84 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .ppt-excl-badge {
+  /* v0.3.19 #84 (PO #7082 + #7085 + #7306): 单 chip 三态切换 — v3 ghost link.
+     删旧 ppt-toggle / ppt-sub-row / ppt-excl-badge 整套 (反 #7085 否定展开).
+     整个切换在 chip 原地完成 (opacity 150ms, 无 slide/rotate):
+       - ghost (默认): 仅 "独占" 文字, 14px gray-400, 无 bg/border, 12×8 padding
+       - input (编辑): white bg + accent 描边 + 焦点光晕, ¥ + input, 14px/600
+       - pill (数字): accent 浅 bg + 1px accent border, ¥500 ✎, 13px/700
+     chip 宽度允许独立变化; member name 用 flex:1 吸收剩余空间. */
+  .excl-chip {
     display: inline-flex;
     align-items: center;
-    background: rgba(99, 102, 241, 0.08);
-    border: 1px solid rgba(99, 102, 241, 0.15);
-    color: #2563eb;
-    padding: 2px 8px;
-    border-radius: 999px;
-    font-size: 12px;
     font-weight: 600;
-    margin-left: auto;
-    flex: 0 0 auto;
-    line-height: 1.4;
-  }
-  /* v0.3.18 #77: compact pill toggle — 32px height, glass bg, 11px font */
-  .ppt-toggle {
-    flex: 0 0 auto;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    min-height: 32px;
-    padding: 4px 10px;
-    color: #737373;
-    font-size: 11px;
-    font-weight: 600;
-    background: rgba(255, 255, 255, 0.6);
-    border: 1px solid rgba(0, 0, 0, 0.06);
-    border-radius: 999px;
-    -webkit-tap-highlight-color: transparent;
     cursor: pointer;
-    transition: background-color 150ms ease, color 150ms ease;
+    transition: opacity 150ms ease-out;
+    flex: 0 0 auto;
   }
-  .ppt-toggle[aria-expanded='true'] {
-    color: #2563eb;
-    background: rgba(99, 102, 241, 0.08);
-    border-color: rgba(99, 102, 241, 0.15);
-  }
-  .ppt-toggle:active {
-    background: rgba(0, 0, 0, 0.04);
-  }
-  .ppt-toggle-label {
-    line-height: 1;
-  }
-  .ppt-toggle-caret {
-    font-size: 8px;
-    line-height: 1;
-    transition: transform 180ms ease-out;
-    display: inline-block;
-  }
-  .ppt-toggle[aria-expanded='true'] .ppt-toggle-caret {
-    transform: rotate(180deg);
-  }
-  .ppt-sub-row {
-    flex-basis: 100%;
-    display: flex;
-    align-items: center;
-    gap: var(--space-2, 8px);
-    padding: 8px 12px 12px 40px;
-    color: var(--gray-500, #6b7280);
-    font-size: var(--font-size-sm, 13px);
-    background: rgba(255, 255, 255, 0.55);
-    backdrop-filter: saturate(160%) blur(14px);
-    -webkit-backdrop-filter: saturate(160%) blur(14px);
-    border: 1px solid rgba(0, 0, 0, 0.06);
-    border-radius: 12px;
-    transition: box-shadow 180ms ease;
-  }
-  .ppt-sub-row:focus-within {
-    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.12);
-  }
-  .ppt-sub-sym {
-    color: var(--gray-500, #6b7280);
-    font-size: var(--font-size-base, 16px);
-    font-variant-numeric: tabular-nums;
-  }
-  .ppt-sub-label {
-    white-space: nowrap;
-  }
-  .ppt-sub-input {
-    flex: 1;
-    padding: 4px 6px;
-    border: none;
+  /* 默认 ghost — 14px / 400 / gray-400 / 仅文字 / 无 bg/border / 12×8 padding */
+  .excl-chip-ghost {
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--gray-400, #a3a3a3);
     background: transparent;
-    font-size: 15px;
-    font-weight: 500;
-    font-variant-numeric: tabular-nums;
-    color: var(--color-text, #111827);
-    min-height: 32px;
-    outline: none;
+    border: none;
+    padding: 12px 8px;
+    min-height: 38px;
   }
-  .ppt-sub-input::placeholder {
+  .excl-chip-ghost:active {
+    opacity: 0.5;
+  }
+  /* 编辑 input — white bg + accent 描边 + 焦点光晕 + ¥ + input */
+  .excl-chip-input {
+    background: var(--color-bg, #fff);
+    border: 1px solid var(--accent-500, #3b82f6);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 14px;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.12);
+    gap: 4px;
+  }
+  .excl-sym {
+    color: var(--gray-500, #6b7280);
+    font-weight: 500;
+  }
+  .excl-input {
+    background: transparent;
+    border: none;
+    outline: none;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--gray-900, #171717);
+    width: 60px;
+    padding: 2px 0;
+    font-variant-numeric: tabular-nums;
+  }
+  .excl-input::placeholder {
     color: var(--gray-400, #9ca3af);
   }
   @media (prefers-reduced-motion: reduce) {
-    .ppt-toggle {
+    .excl-chip {
       transition-duration: 0ms;
     }
+  }
+  /* 数字 pill — accent 浅 bg + 1px accent border + ¥500 ✎ */
+  .excl-chip-number {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent-700, #1d4ed8);
+    background: rgba(99, 102, 241, 0.08);
+    border: 1px solid rgba(99, 102, 241, 0.15);
+    border-radius: 999px;
+    padding: 2px 8px;
+    gap: 4px;
+  }
+  .excl-chip-number:active {
+    background: rgba(99, 102, 241, 0.15);
+  }
+  .excl-edit-icon {
+    font-size: 11px;
+    opacity: 0.6;
   }
   .btn-sm {
     min-height: 36px;
