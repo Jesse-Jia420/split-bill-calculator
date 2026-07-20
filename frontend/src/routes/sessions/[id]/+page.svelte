@@ -200,6 +200,19 @@
     return formatMoney(0, { showSymbol: false });
   }
 
+  /**
+   * v0.3.18 #66 (PO #6899 Mockup A): anon 账本过期时间 ISO -> 中文长格式
+   * 「YYYY 年 M 月 D 日后过期」(amber pill 文案).
+   */
+  function formatExpiryPill(iso: string): string {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    const y = d.getFullYear();
+    const m = d.getMonth() + 1;
+    const day = d.getDate();
+    return `${y} 年 ${m} 月 ${day} 日后过期`;
+  }
+
   async function load() {
     if (!sessionId) return;
     loading = true;
@@ -417,7 +430,8 @@
       />
     {/if}
 
-    <!-- v0.2.1 UI rev (PO 2026-07-03 18:15 重设计): 整个 header clickable + 折叠态 avatar 预览 -->
+    <!-- v0.3.18 #66 (PO #6899 Mockup A 精修列表): header 重构 — 标题 + 数量 左, [expiry pill] + 邀请按钮 右, 删 chevron.
+         保留 onclick + aria-expanded (header 整体可点折叠/展开, 折叠态头像预览仍内嵌)。 -->
     <div class="card members-card">
       <header
         class="members-head"
@@ -429,11 +443,11 @@
         aria-expanded={membersOpen}
         aria-label={membersOpen ? '收起成员列表' : '展开成员列表'}
       >
-        <h3 class="members-title">
-          成员 <span class="muted members-count-inline">({session.members.length})</span>
-        </h3>
-
-        <!-- 折叠态: 头部内嵌 avatar 预览 (替代独立 toggle button) -->
+        <div class="members-head-left">
+          <h3 class="members-title">
+            成员 <span class="members-count-inline">· {session.members.length}</span>
+          </h3>
+        </div>
         {#if !membersOpen && session.members.length > 0}
           <div class="members-avatars-inline" aria-hidden="true">
             {#each session.members.slice(0, 8) as m (m.id)}
@@ -446,22 +460,38 @@
             {/if}
           </div>
         {/if}
-
         <div class="members-actions">
+          {#if (session?.owner_email == null || session?.owner_email === '') && session?.invite_expires_at}
+            <span class="expiry-inline-a" data-testid="invite-expires-hint">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+              {formatExpiryPill(session.invite_expires_at)}
+            </span>
+          {/if}
           <InviteLinkButton
             sessionId={session.id}
             sessionCode={session?.session_code ?? ""}
             {isOwner}
-            ownerEmail={session?.owner_email ?? null}
-            inviteExpiresAt={session?.invite_expires_at ?? null}
           />
-          <span class="members-chevron" class:open={membersOpen} aria-hidden="true">▾</span>
         </div>
       </header>
 
       {#if membersOpen}
-        <!-- v0.1.4 round 2 改动 4: 条件从 <= 1 改为 === 0 (owner 自动加入 length >= 1) -->
-        {#if session.members.length === 0}
+        <!-- v0.3.18 #66 (PO #6899 Mockup A) 7: 1-member 紧凑 CTA banner (只有 owner 一个人的账本) -->
+        {#if session.members.length === 1 && session.members[0].role === 'owner'}
+          <div class="solo-cta-a" data-testid="solo-member-cta">
+            <span class="solo-cta-icon-a" aria-hidden="true">
+              {avatarLetter(session.members[0].display_name)}
+            </span>
+            <span class="solo-cta-text-a">
+              <strong>{session.members[0].display_name}</strong> 还没有同伴,
+              <strong>邀请朋友</strong> 加入一起记账
+            </span>
+            <span class="solo-cta-arrow-a" aria-hidden="true">→</span>
+          </div>
+        {:else if session.members.length === 0}
           <EmptyState
             icon="users"
             title="还没有成员"
@@ -470,45 +500,64 @@
             onCtaClick={copyInviteLink}
           />
         {:else}
-          <ul class="members-list">
+          <ul class="members-list-a">
             {#each session.members as m, i (m.id)}
               <li
-                class="member-item"
+                class="member-row-a"
+                class:is-owner={m.role === 'owner'}
+                class:is-me={currentMember?.id === m.id}
                 in:fly={{ y: 8, duration: 220, delay: Math.min(i * 30, 300) }}
               >
-                <div class="member-avatar" aria-hidden="true">{avatarLetter(m.display_name)}</div>
-                <div class="member-info">
-                  <div class="member-name-row">
-                    <span class="member-name">{m.display_name}</span>
-                    {#if m.role === 'owner'}
-                      <span class="owner-badge">owner</span>
+                <div
+                  class="avatar-a"
+                  class:b={i % 5 === 1}
+                  class:c={i % 5 === 2}
+                  class:d={i % 5 === 3}
+                  class:e={i % 5 === 4}
+                  class:is-owner={m.role === 'owner'}
+                  class:is-me={currentMember?.id === m.id}
+                  aria-hidden="true"
+                >
+                  {#if m.role === 'owner'}
+                    <span class="owner-crown">👑</span>
+                  {/if}
+                  {avatarLetter(m.display_name)}
+                </div>
+                <div class="member-info-a">
+                  <div class="member-name-row-a">
+                    <span class="member-name-a">{m.display_name}</span>
+                    {#if m.role === 'owner' && currentMember?.id !== m.id}
+                      <span class="owner-tag-a">owner</span>
                     {/if}
-                    {#if currentMember?.id === m.id}
-                      <span class="me-badge">me</span>
+                    {#if currentMember?.id === m.id && m.role !== 'owner'}
+                      <span class="me-dot-a">me</span>
+                    {/if}
+                    {#if currentMember?.id === m.id && m.role === 'owner'}
+                      <span class="me-dot-a">me · owner</span>
                     {/if}
                   </div>
-                  <div class="member-meta-row">
+                  <div class="member-meta-a">
                     <span
-                      class="member-net"
+                      class="member-net-a"
                       class:pos={(memberIdToNet[m.id] ?? 0) > 0}
                       class:neg={(memberIdToNet[m.id] ?? 0) < 0}
                     >
                       {memberIdToNet[m.id] !== undefined ? fmtNet(memberIdToNet[m.id]) : '—'}
                     </span>
                     {#if m.email}
-                      <span class="member-email muted">{m.email}</span>
+                      <span class="member-email-a">{m.email}</span>
                     {:else if $user && m.user_id === $user.user_id}
                       <!-- Bug fix (PO 12:51 报): 普通 member 详情页看不到自己 email.
                            BE 端同伴 slot claim 没 push user.email 到 SessionMember.email,
                            但 $user store 已有 email. 如果 member 是当前 user, fallback 显示 $user.email. -->
-                      <span class="member-email muted">{$user.email}</span>
+                      <span class="member-email-a">{$user.email}</span>
                     {/if}
                   </div>
                 </div>
                 {#if isOwner && m.role !== 'owner'}
                   <button
                     type="button"
-                    class="member-remove"
+                    class="member-remove-a"
                     onclick={(e) => { e.stopPropagation(); handleDeleteMemberClick(m); }}
                     aria-label="移除成员 {m.display_name}"
                     title="owner-only: v0.2 待 BE 支持 removeMember"
@@ -622,6 +671,7 @@
           onDelete={handleDeleteBill}
           loading={loading}
           primaryCurrency={session.primary_currency}
+          currencies={session.currencies}
         />
       {/if}
     </div>
@@ -717,11 +767,17 @@
   }
   /* v0.3.2 §3.12.3: `.session-header-actions` 移动端 CSS 块一并清理（类已删）。
 
-  /* === 反馈修 6 项目 2: members section — grid 布局 彻底重写 === */
+  /* === v0.3.18 #66 (PO #6899 Mockup A 精修列表): 列表布局彻底重写 ===
+     Mockup A 的 8 项 review 修复全部落到 CSS, 字面移植 v0318-66-shared.css token。
+     (1) 过期提示挪到 header 右上 inline pill (amber 50/700)
+     (2) 删除冗余 chevron (header 本身 clickable)
+     (3) owner 紫色 ring + 👑 小皇冠 emoji
+     (4) owner+me 同 row 只显皇冠 + "me · owner" 微章
+     (5) email 不截断 (word-break: break-all, 不设 max-width)
+     (6) net 字号 13px / font-weight 700 / 首位
+     (7) 1-member 紧凑 CTA banner
+     (8) 768px 2-column grid */
   .members-card {
-    /* v0.3.18 #64 (PO 候选 A 真正落地, 反 #161 v3 修正):
-       玻璃 card — 跟全站玻璃语言统一 (rgba 0.55 + saturate(180%) blur(20px) + radius 16px).
-       不改 outer card border (跟其他 .card 一致). */
     background: rgba(255, 255, 255, 0.55);
     backdrop-filter: saturate(180%) blur(20px);
     -webkit-backdrop-filter: saturate(180%) blur(20px);
@@ -729,186 +785,318 @@
     padding: 16px;
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
   }
-  /* v0.3.18 #64: 整头横向 flex + hairline 分隔. 保留 cursor: pointer + onclick (折叠/展开)
-     + 灰色 hover (背景保留 — 反 #161 v3 约束). */
+
+  /* Header — title + count 左, [expiry pill] + 邀请按钮 右 (iOS 标准) */
   .members-head {
     display: flex;
+    align-items: flex-start;
     justify-content: space-between;
-    align-items: center;
     gap: 12px;
     flex-wrap: wrap;
-    padding-bottom: 12px;
+    padding: 0 0 12px 0;
+    margin: 0 0 12px 0;
     border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-    margin-bottom: 12px;
     cursor: pointer;
     user-select: none;
     transition: background-color 120ms ease;
   }
   .members-head:hover {
-    background-color: var(--gray-50, #f9fafb);
+    background-color: rgba(99, 102, 241, 0.04);
   }
   .members-head:focus-visible {
     outline: 2px solid var(--accent-500, #3b82f6);
     outline-offset: 2px;
   }
+  .members-head-left {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
   .members-title {
     margin: 0;
-    font-size: var(--font-size-base);
-    font-weight: 600;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--gray-900, #171717);
+    letter-spacing: -0.005em;
     display: inline-flex;
     align-items: baseline;
-    gap: var(--space-1);
+    gap: 4px;
   }
   .members-count-inline {
     font-weight: 400;
-    font-size: var(--font-size-sm);
+    font-size: 12px;
+    color: var(--gray-500, #737373);
+    margin-left: 4px;
   }
   .members-actions {
     display: inline-flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
+    flex: 0 0 auto;
   }
 
-  /* v0.2.1 UI rev: removed .members-toggle button — header itself is now clickable (see .members-head above) */
+  /* Expiry inline pill (mockup A token: amber-50 bg + amber-700 text + border) */
+  .expiry-inline-a {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--amber-700, #b45309);
+    background: var(--amber-50, #fffbeb);
+    border: 1px solid rgba(245, 158, 11, 0.22);
+    border-radius: 999px;
+    padding: 3px 9px 3px 7px;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+  .expiry-inline-a svg {
+    flex-shrink: 0;
+    opacity: 0.85;
+  }
 
-  /* === members list — chip 布局 === */
-  .members-list {
+  /* === Member list — 列表布局 (替代旧 chip 圆角 999px) === */
+  .members-list-a {
     list-style: none;
     padding: 0;
     margin: 0;
-  }
-  /* v0.3.18 #64 (PO 候选 A 真正落地, 反 #161 v3 修正): chip 重构.
-     avatar + info + (optional) remove 横排, 999px 圆角 + 半透明白底 + 细边. */
-  .member-item {
     display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 6px 12px 6px 6px;
-    background: rgba(255, 255, 255, 0.6);
-    border: 1px solid rgba(0, 0, 0, 0.06);
-    border-radius: 999px;
-    margin-bottom: 8px;
-    transition: background 150ms ease, border-color 150ms ease;
+    flex-direction: column;
+    gap: 8px;
   }
-  .member-item:last-child {
-    margin-bottom: 0;
-  }
-  /* v0.3.18 #64: 28×28 圆形 avatar. 保留现有颜色逻辑 (单一 var(--accent-500), 不强制 gradient —
-     反 #161 v3 教训: 避免回退). grid + place-items: center 居中单字符. */
-  .member-avatar {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
+  /* Mockup A row: grid 36px 1fr auto, 头像 + 信息 + (可选) remove */
+  .member-row-a {
     display: grid;
-    place-items: center;
-    font-size: 12px;
-    font-weight: 600;
-    color: white;
-    background: var(--accent-500);
-    flex-shrink: 0;
+    grid-template-columns: 36px 1fr auto;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+    border-radius: 8px;
+    transition: background-color 150ms ease-out;
   }
-  .member-info {
+  .member-row-a:last-child {
+    border-bottom: none;
+  }
+  .member-row-a:hover {
+    background-color: rgba(99, 102, 241, 0.04);
+  }
+  .member-row-a.is-owner {
+    background: linear-gradient(90deg, rgba(168, 85, 247, 0.04) 0%, transparent 60%);
+    border-radius: 10px;
+  }
+  .member-row-a.is-me {
+    background: rgba(59, 130, 246, 0.04);
+    border-radius: 10px;
+  }
+
+  /* Avatar — 36px, 5 色循环 (indigo/pink/emerald/amber/blue) + owner 紫色 ring + 👑 */
+  .avatar-a {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #818cf8 0%, #6366f1 100%);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 13px;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .avatar-a.b {
+    background: linear-gradient(135deg, #f472b6 0%, #ec4899 100%);
+  }
+  .avatar-a.c {
+    background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+  }
+  .avatar-a.d {
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  }
+  .avatar-a.e {
+    background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+  }
+  .avatar-a.is-owner {
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(168, 85, 247, 0.55);
+  }
+  .avatar-a.is-me {
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(59, 130, 246, 0.55);
+  }
+  .owner-crown {
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    line-height: 1;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.15));
+    z-index: 1;
+  }
+
+  /* Member info — name + meta row */
+  .member-info-a {
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    flex: 1 1 auto;
+    gap: 2px;
   }
-  .member-name-row {
-    display: inline-flex;
+  .member-name-row-a {
+    display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     flex-wrap: wrap;
     min-width: 0;
   }
-  .member-name {
+  .member-name-a {
     font-size: 14px;
-    font-weight: 500;
-    color: var(--gray-900);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  /* v0.3.18 #64: 玻璃 pill — 0.12 alpha + accent-700. */
-  .owner-badge {
-    display: inline-block;
-    font-size: 10px;
-    padding: 2px 6px;
-    border-radius: 999px;
-    background: rgba(59, 130, 246, 0.12);
-    color: var(--accent-700);
-    font-weight: 500;
-    line-height: 1.2;
-  }
-  .me-badge {
-    display: inline-block;
-    font-size: 10px;
-    padding: 2px 6px;
-    border-radius: 999px;
-    background: rgba(59, 130, 246, 0.12);
-    color: var(--accent-700);
     font-weight: 600;
-    line-height: 1.2;
+    color: var(--gray-900, #171717);
+    /* Mockup A fix #5: email 不截断 → name 也不 ellipsis */
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    word-break: break-word;
+    line-height: 1.3;
   }
-  /* v0.3.18 #64: align-items center (vs baseline) + gap 6px + 12px gray-500 + margin-top 2px. */
-  .member-meta-row {
-    display: flex;
+  /* owner tag (只有 owner 是别人时显示) — 紫色玻璃 pill */
+  .owner-tag-a {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.14), rgba(99, 102, 241, 0.14));
+    color: #6d28d9;
+    line-height: 1.3;
+  }
+  /* me 微章 — 蓝色圆点 + 文字, owner+me 同行时显示 "me · owner" */
+  .me-dot-a {
+    display: inline-flex;
     align-items: center;
-    gap: 6px;
-    flex-wrap: wrap;
-    font-size: 12px;
-    color: var(--gray-500);
-    margin-top: 2px;
-  }
-  .member-net {
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--gray-500);
-  }
-  .member-net.pos {
-    color: var(--color-success, #059669);
-  }
-  .member-net.neg {
-    color: var(--color-danger, #dc2626);
-  }
-  .member-email {
-    font-size: 12px;
-    color: var(--gray-500);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 200px;
-  }
-  /* v0.3.18 #64: chip 内联 × 按钮 — 16px / gray-500 / 透明 / 0 border / cursor not-allowed
-     (按钮始终 disabled, PO 已知 owner-only v0.2 待 BE 支持). */
-  .member-remove {
-    font-size: 16px;
-    color: var(--gray-500);
-    background: transparent;
-    border: 0;
-    cursor: not-allowed;
-    padding: 0;
+    gap: 3px;
+    font-size: 10px;
+    color: var(--accent-700, #1d4ed8);
+    font-weight: 600;
     line-height: 1;
-    flex-shrink: 0;
   }
-  .member-item:hover .member-remove:not(:disabled) {
-    opacity: 1;
-  }
-  .member-remove:hover:not(:disabled) {
-    background: rgba(239, 68, 68, 0.1);
-    color: var(--error-500);
+  .me-dot-a::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent-500, #3b82f6);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.18);
   }
 
-  /* v0.1.4 round 2 改动 1: 折叠态 — 小头像堆叠 (32px 圆 -8px 重叠) */
-  .members-avatars-collapsed {
+  /* Meta row — net 13px 首位 + email 不截断 */
+  .member-meta-a {
     display: flex;
-    flex-direction: row;
+    align-items: baseline;
+    gap: 8px;
     flex-wrap: wrap;
+    font-size: 11px;
+    color: var(--gray-500, #737373);
+    line-height: 1.4;
+  }
+  .member-net-a {
+    font-size: 13px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+  .member-net-a.pos {
+    color: var(--color-success, #059669);
+  }
+  .member-net-a.neg {
+    color: var(--color-danger, #dc2626);
+  }
+  /* Mockup A fix #5: email 不截断 (旧版 max-width: 200px + ellipsis 改成 break-all 完整显示) */
+  .member-email-a {
+    font-size: 11px;
+    color: var(--gray-500, #737373);
+    word-break: break-all;
+  }
+
+  /* Remove × 按钮 — 28×28 圆形, 透明默认, hover 时变红 */
+  .member-remove-a {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: transparent;
+    border: 0;
+    color: var(--gray-400, #a3a3a3);
+    cursor: not-allowed;
+    font-size: 14px;
+    line-height: 1;
+    opacity: 0.4;
+    transition: all 150ms ease-out;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .member-row-a:hover .member-remove-a:not(:disabled) {
+    opacity: 1;
+  }
+  .member-remove-a:hover:not(:disabled) {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--error-500, #ef4444);
+  }
+
+  /* Mockup A fix #7: 1-member 紧凑 CTA banner (只有 owner 一人) */
+  .solo-cta-a {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.06) 0%, rgba(59, 130, 246, 0.04) 100%);
+    border-radius: 12px;
+    border: 1px dashed rgba(99, 102, 241, 0.20);
+  }
+  .solo-cta-icon-a {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #818cf8 0%, #6366f1 100%);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .solo-cta-text-a {
+    flex: 1;
+    font-size: 12px;
+    color: var(--gray-700, #404040);
+    line-height: 1.4;
+  }
+  .solo-cta-text-a strong {
+    color: var(--gray-900, #171717);
+  }
+  .solo-cta-arrow-a {
+    color: var(--accent-700, #1d4ed8);
+    font-size: 16px;
+  }
+
+  /* v0.2.1 UI rev: 折叠态 header 内嵌 avatar 预览 (max 8 + overflow) */
+  .members-avatars-inline {
+    display: inline-flex;
     align-items: center;
     gap: 0;
-    margin-top: var(--space-3);
-    padding: var(--space-2) 0;
-    min-height: 32px;
+    margin: 0 8px;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .members-avatars-inline .avatar-mini {
+    width: 26px;
+    height: 26px;
+    font-size: clamp(0.6875rem, 2.6vw, 0.75rem);
   }
   .avatar-mini {
     width: 32px;
@@ -920,7 +1108,7 @@
     align-items: center;
     justify-content: center;
     font-weight: 600;
-    font-size: var(--font-size-sm);
+    font-size: 12px;
     margin-left: -8px;
     border: 2px solid var(--color-bg, white);
     box-shadow: 0 1px 2px rgba(0,0,0,0.08);
@@ -929,74 +1117,67 @@
   .avatar-mini:first-child {
     margin-left: 0;
   }
-  /* v0.2.1 UI rev: removed .members-avatars-collapsed .muted.small block */
-
-  /* v0.2.1 UI rev: 折叠态 header 内嵌 avatar 预览 (max 8 + overflow) */
-  .members-avatars-inline {
-    display: inline-flex;
-    align-items: center;
-    gap: 0;
-    margin: 0 var(--space-2);
-    flex: 1 1 auto;
-    min-width: 0;
-    overflow: hidden;
-  }
-  .members-avatars-inline .avatar-mini {
-    width: 26px;
-    height: 26px;
-    font-size: clamp(0.6875rem, 2.6vw, 0.75rem);
-  }
   .avatar-mini-overflow {
     background: var(--gray-300, #d1d5db) !important;
     color: var(--gray-700, #374151) !important;
   }
-  /* v0.2.1 UI rev: chevron icon (replaces .members-toggle button) */
-  .members-chevron {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    font-size: var(--font-size-base);
-    color: var(--gray-500);
-    transition: transform 180ms ease;
-    transform: rotate(-90deg);
-    margin-left: var(--space-1);
-    flex: 0 0 auto;
-  }
-  .members-chevron.open {
-    transform: rotate(0deg);
+
+  /* v0.3.18 #66 (PO #6899 Mockup A) 8: 768px tablet 2-column grid */
+  @media (min-width: 768px) {
+    .members-list-a {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px 16px;
+    }
+    .member-row-a {
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.4);
+      border: 1px solid rgba(0, 0, 0, 0.04);
+      border-radius: 12px;
+    }
+    .member-row-a:last-child {
+      border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+    }
+    .solo-cta-a {
+      grid-column: 1 / -1;
+    }
   }
 
-  /* === 移动端 ≤380px: avatar 32px, padding 紧凑 === */
-  @media (max-width: 480px) {
-    .members-card {
-      padding: var(--space-3);
+  /* Mockup A SE 320px compact mode */
+  @media (max-width: 360px) {
+    .members-head {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
     }
-    .member-item {
-      grid-template-columns: 32px 1fr auto;
-      gap: var(--space-2, 8px);
-      padding: var(--space-2, 8px) 0;
+    .members-actions {
+      width: 100%;
+      justify-content: space-between;
     }
-    .member-avatar {
+    .expiry-inline-a {
+      font-size: 10px;
+      padding: 2px 7px 2px 5px;
+    }
+    .member-row-a {
+      grid-template-columns: 32px 1fr 28px;
+      gap: 8px;
+    }
+    .avatar-a {
       width: 32px;
       height: 32px;
-      font-size: var(--font-size-sm);
-    }
-    .member-name {
-      font-size: var(--font-size-sm);
-    }
-    .member-remove {
-      opacity: 1; /* 触摸设备 hover 不可靠,默认显示 */
-    }
-    .member-email {
-      /* §3.11.11+§3.11.14: 邮箱必须显示 (anon-claimed slot 登录后绑定显示邮箱).
-         旧 v0.2.1 规则 display:none 是错的, 改成小字号 + 缩窄. */
-      font-size: clamp(0.625rem, 2.4vw, 0.6875rem);
-      max-width: 140px;
+      font-size: 12px;
     }
   }
 
+  /* 移动端 ≤480px: row 紧凑 + remove 按钮默认可见 */
+  @media (max-width: 480px) {
+    .members-card {
+      padding: 12px;
+    }
+    .member-remove-a {
+      opacity: 1;
+    }
+  }
   /* === bills section header === */
   .bills-card-head {
     display: flex;

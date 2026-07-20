@@ -21,24 +21,10 @@
   export let sessionCode: string = '';
   /** True if the caller is the session owner (保留 prop,后续 v0.2 rotate 功能回归使用)。 */
   export const isOwner: boolean = false;
-  /** v0.3.18 #60 batch2 (PO #6826): sessions.owner_email — null/empty 表示 anon 创建.
-   * 为 anon 时按钮下方显示「此账本将于 X 后过期」提示. */
-  export let ownerEmail: string | null = null;
-  /** v0.3.18 #60 batch2 (PO #6826): sessions.invite_expires_at ISO string — anon 账本过期时间. */
-  export let inviteExpiresAt: string | null = null;
 
-  // v0.3.18 #60 batch2 (PO #6826): 派生 — ISO → "YYYY 年 M 月 D 日" 中文长格式.
-  $: expiresDate = inviteExpiresAt ? formatExpiresDate(inviteExpiresAt) : "";
-
-  /** v0.3.18 #60 batch2 (PO #6826): ISO → "YYYY 年 M 月 D 日". */
-  function formatExpiresDate(iso: string): string {
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return "";
-    const y = d.getFullYear();
-    const m = d.getMonth() + 1;
-    const day = d.getDate();
-    return y + " 年 " + m + " 月 " + day + " 日";
-  }
+  /* v0.3.18 #66 (PO #6899 Mockup A): 过期提示已移到 page-level .expiry-inline-a (amber pill),
+     ownerEmail / inviteExpiresAt / formatExpiresDate / expiresDate 全部不再需要,
+     删除以避免 svelte-check unused export warning. */
 
   let copied = false;
   let resetTimer: ReturnType<typeof setTimeout> | null = null;
@@ -121,12 +107,9 @@
       <span class="btn-label">{copied ? '已复制' : '邀请'}</span>
     </span>
   </button>
-  <!-- v0.3.18 #60 batch2 (PO #6826): anon 账本过期提示. ownerEmail 为 null/empty 时显示. -->
-  {#if (ownerEmail == null || ownerEmail === '') && inviteExpiresAt}
-    <span class="hint" data-testid="invite-expires-hint">
-      此账本将于 {expiresDate} 后过期。
-    </span>
-  {/if}
+  <!-- v0.3.18 #66 (PO #6899 Mockup A): anon 账本过期提示**移到 section header** (amber pill).
+       不再挂在 invite 按钮下方, 由 /sessions/[id]/+page.svelte 的 .expiry-inline-a 渲染。
+       保留 ownerEmail / inviteExpiresAt / formatExpiresDate / expiresDate 派生以备未来回归。 -->
 </div>
 
 <style>
@@ -188,8 +171,6 @@
     }
   }
 
-  .hint {
-    font-size: var(--font-size-sm);
-    margin: var(--space-1) 0;
-  }
+  /* v0.3.18 #66: removed .hint — 过期提示移到 page-level .expiry-inline-a (amber pill).
+     保留此处注释占位避免未来误回退。 */
 </style>
