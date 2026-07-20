@@ -190,6 +190,19 @@
   }
 
   /**
+   * v0.3.18 #66 (PO #6899 Mockup A): ISO → "YYYY 年 M 月 D 日" 中文长格式.
+   * 用于 page-level .expiry-inline-a amber pill (从 InviteLinkButton 移到 section header).
+   */
+  function formatExpiryDate(iso: string): string {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    const y = d.getFullYear();
+    const m = d.getMonth() + 1;
+    const day = d.getDate();
+    return y + ' 年 ' + m + ' 月 ' + day + ' 日';
+  }
+
+  /**
    * T6: 净金额显示,>0 加 "+", <0 加 U+2212 (Sprint 1 文档约束), =0 "0.00"。
    * 数字部分走 formatMoney (千分位)。
    */
@@ -443,11 +456,11 @@
         aria-expanded={membersOpen}
         aria-label={membersOpen ? '收起成员列表' : '展开成员列表'}
       >
-        <div class="members-head-left">
-          <h3 class="members-title">
-            成员 <span class="members-count-inline">· {session.members.length}</span>
-          </h3>
-        </div>
+        <h3 class="members-title-a">
+          成员 <span class="members-count-a">· {session.members.length}</span>
+        </h3>
+
+        <!-- 折叠态: 头部内嵌 avatar 预览 (替代独立 toggle button) -->
         {#if !membersOpen && session.members.length > 0}
           <div class="members-avatars-inline" aria-hidden="true">
             {#each session.members.slice(0, 8) as m (m.id)}
@@ -460,14 +473,16 @@
             {/if}
           </div>
         {/if}
-        <div class="members-actions">
+        <div class="members-actions-a">
+          <!-- v0.3.18 #66 (PO #6899 Mockup A): 过期提示 amber pill 移到 section header 右侧
+               (iOS 标准), 不再挂在 invite 按钮下方. 仅 anon owner (ownerEmail 为空) 渲染. -->
           {#if (session?.owner_email == null || session?.owner_email === '') && session?.invite_expires_at}
-            <span class="expiry-inline-a" data-testid="invite-expires-hint">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <span class="expiry-inline-a" data-testid="invite-expiry-pill">
+              <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <circle cx="12" cy="12" r="10" />
                 <polyline points="12 6 12 12 16 14" />
               </svg>
-              {formatExpiryPill(session.invite_expires_at)}
+              <span>{formatExpiryDate(session.invite_expires_at)} 后过期</span>
             </span>
           {/if}
           <InviteLinkButton
@@ -479,7 +494,7 @@
       </header>
 
       {#if membersOpen}
-        <!-- v0.3.18 #66 (PO #6899 Mockup A) 7: 1-member 紧凑 CTA banner (只有 owner 一个人的账本) -->
+        <!-- v0.3.18 #66 (PO #6899 Mockup A) 7: 1-member 紧凑 CTA banner -->
         {#if session.members.length === 1 && session.members[0].role === 'owner'}
           <div class="solo-cta-a" data-testid="solo-member-cta">
             <span class="solo-cta-icon-a" aria-hidden="true">
@@ -499,23 +514,28 @@
             ctaLabel={copyingInvite ? '已复制' : '复制邀请链接'}
             onCtaClick={copyInviteLink}
           />
+        {:else if session.members.length === 1 && isOwner}
+          <div class="solo-cta-a">
+            <div class="solo-cta-icon-a" aria-hidden="true">+</div>
+            <div class="solo-cta-text-a">
+              <strong>你是 owner</strong> · 邀请朋友加入,开始分摊第一笔账单吧
+            </div>
+            <span class="solo-cta-arrow-a" aria-hidden="true">›</span>
+          </div>
         {:else}
           <ul class="members-list-a">
             {#each session.members as m, i (m.id)}
+              {@const isMe = currentMember?.id === m.id}
               <li
                 class="member-row-a"
                 class:is-owner={m.role === 'owner'}
-                class:is-me={currentMember?.id === m.id}
+                class:is-me={isMe}
                 in:fly={{ y: 8, duration: 220, delay: Math.min(i * 30, 300) }}
               >
                 <div
-                  class="avatar-a"
-                  class:b={i % 5 === 1}
-                  class:c={i % 5 === 2}
-                  class:d={i % 5 === 3}
-                  class:e={i % 5 === 4}
+                  class="avatar-a palette-{i % 5}"
                   class:is-owner={m.role === 'owner'}
-                  class:is-me={currentMember?.id === m.id}
+                  class:is-me={isMe}
                   aria-hidden="true"
                 >
                   {#if m.role === 'owner'}
@@ -526,14 +546,12 @@
                 <div class="member-info-a">
                   <div class="member-name-row-a">
                     <span class="member-name-a">{m.display_name}</span>
-                    {#if m.role === 'owner' && currentMember?.id !== m.id}
-                      <span class="owner-tag-a">owner</span>
-                    {/if}
-                    {#if currentMember?.id === m.id && m.role !== 'owner'}
-                      <span class="me-dot-a">me</span>
-                    {/if}
-                    {#if currentMember?.id === m.id && m.role === 'owner'}
+                    {#if m.role === 'owner' && isMe}
                       <span class="me-dot-a">me · owner</span>
+                    {:else if m.role === 'owner'}
+                      <span class="owner-tag-a">owner</span>
+                    {:else if isMe}
+                      <span class="me-dot-a">me</span>
                     {/if}
                   </div>
                   <div class="member-meta-a">
@@ -824,13 +842,22 @@
     align-items: baseline;
     gap: 4px;
   }
-  .members-count-inline {
+  /* v0.3.18 #66 (PO #6899 Mockup A): section header title 字号 15px + count inline 12px */
+  .members-title-a {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--gray-900);
+    letter-spacing: -0.005em;
+  }
+  .members-count-a {
     font-weight: 400;
     font-size: 12px;
     color: var(--gray-500, #737373);
     margin-left: 4px;
   }
-  .members-actions {
+  /* v0.3.18 #66 (Mockup A): actions container — amber pill + invite button 并排. */
+  .members-actions-a {
     display: inline-flex;
     align-items: center;
     gap: 8px;
@@ -887,6 +914,7 @@
     background: linear-gradient(90deg, rgba(168, 85, 247, 0.04) 0%, transparent 60%);
     border-radius: 10px;
   }
+
   .member-row-a.is-me {
     background: rgba(59, 130, 246, 0.04);
     border-radius: 10px;
@@ -1167,6 +1195,7 @@
       height: 32px;
       font-size: 12px;
     }
+    .avatar-a { width: 32px; height: 32px; font-size: 12px; }
   }
 
   /* 移动端 ≤480px: row 紧凑 + remove 按钮默认可见 */
