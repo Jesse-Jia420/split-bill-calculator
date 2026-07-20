@@ -192,14 +192,14 @@
   /**
    * v0.3.18 #66 (PO #6899 Mockup A): ISO → "YYYY 年 M 月 D 日" 中文长格式.
    * 用于 page-level .expiry-inline-a amber pill (从 InviteLinkButton 移到 section header).
+   * v0.3.19 #83 (PO #7300): header pill 改紧凑 — "M月D日" (省 "年" 和 "后过期" — template 自加) — iPhone SE (375px) 不超.
    */
   function formatExpiryDate(iso: string): string {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return '';
-    const y = d.getFullYear();
     const m = d.getMonth() + 1;
     const day = d.getDate();
-    return y + ' 年 ' + m + ' 月 ' + day + ' 日';
+    return m + '月' + day + '日';
   }
 
   /**
@@ -443,8 +443,13 @@
       />
     {/if}
 
-    <!-- v0.3.18 #66 (PO #6899 Mockup A 精修列表): header 重构 — 标题 + 数量 左, [expiry pill] + 邀请按钮 右, 删 chevron.
-         保留 onclick + aria-expanded (header 整体可点折叠/展开, 折叠态头像预览仍内嵌)。 -->
+    <!-- v0.3.19 #83 (PO #7300): 折叠态 header 重构成 3 行布局 —
+         row1: title + count 左, [expiry + invite] 右 (always; expanded 保留 invite 可见性)
+         row2: avatar 组 (18px, palette 渐变, -6px overlap), 折叠态独有
+         row3: chevron-down + 「查看 N 人」居中 (affordance 提示), 折叠态独有
+         整段 onclick + aria-expanded 保留, header 整体可点折叠/展开.
+         设计取舍: PO #7300 原划 row2 右为 invite, 但展开态 row2 不渲染, 邀按钮会消失 →
+         改把 InviteLinkButton 永远放 row1, 既保留任何状态可调, 避免 TS session_code 双指错误. -->
     <div class="card members-card">
       <header
         class="members-head"
@@ -456,41 +461,85 @@
         aria-expanded={membersOpen}
         aria-label={membersOpen ? '收起成员列表' : '展开成员列表'}
       >
-        <h3 class="members-title-a">
-          成员 <span class="members-count-a">· {session.members.length}</span>
-        </h3>
-
-        <!-- 折叠态: 头部内嵌 avatar 预览 (替代独立 toggle button) -->
-        {#if !membersOpen && session.members.length > 0}
-          <div class="members-avatars-inline" aria-hidden="true">
-            {#each session.members.slice(0, 8) as m (m.id)}
-              <div class="avatar-mini" title={m.display_name}>
-                {avatarLetter(m.display_name)}
-              </div>
-            {/each}
-            {#if session.members.length > 8}
-              <span class="avatar-mini avatar-mini-overflow">+{session.members.length - 8}</span>
+        <!-- 第一行: 成员 · N人 左 (users icon 14×14 gray-500), [expiry + invite] 右 -->
+        <div class="members-head-row1">
+          <h3 class="members-title-a">
+            <!-- Lucide `users` 14×14 gray-500 -->
+            <svg
+              class="members-title-icon"
+              viewBox="0 0 24 24"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+            <span>成员 · {session.members.length}人</span>
+          </h3>
+          <div class="members-actions-a">
+            {#if (session?.owner_email == null || session?.owner_email === '') && session?.invite_expires_at}
+              <span class="expiry-inline-a" data-testid="invite-expiry-pill">
+                <!-- Lucide `clock` 11×11 -->
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                <span>{formatExpiryDate(session.invite_expires_at)} 后过期</span>
+              </span>
             {/if}
+            <!-- 邀请按钮永远在 row1 (展开/折叠 两态都能调, 避免 regression) -->
+            <InviteLinkButton
+              sessionId={session.id}
+              sessionCode={session?.session_code ?? ""}
+              {isOwner}
+            />
+          </div>
+        </div>
+
+        <!-- 第二行: 头像组 (18px palette 渐变, -6px overlap), 折叠态独有 -->
+        {#if !membersOpen && session.members.length > 0}
+          <div class="members-head-row2">
+            <div class="members-avatars-inline" aria-hidden="true">
+              {#each session.members.slice(0, 8) as m, i (m.id)}
+                <div class="avatar-mini palette-{i % 5}" title={m.display_name}>
+                  {avatarLetter(m.display_name)}
+                </div>
+              {/each}
+              {#if session.members.length > 8}
+                <span class="avatar-mini avatar-mini-overflow">+{session.members.length - 8}</span>
+              {/if}
+            </div>
           </div>
         {/if}
-        <div class="members-actions-a">
-          <!-- v0.3.18 #66 (PO #6899 Mockup A): 过期提示 amber pill 移到 section header 右侧
-               (iOS 标准), 不再挂在 invite 按钮下方. 仅 anon owner (ownerEmail 为空) 渲染. -->
-          {#if (session?.owner_email == null || session?.owner_email === '') && session?.invite_expires_at}
-            <span class="expiry-inline-a" data-testid="invite-expiry-pill">
-              <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <circle cx="12" cy="12" r="10" />
-                <polyline points="12 6 12 12 16 14" />
-              </svg>
-              <span>{formatExpiryDate(session.invite_expires_at)} 后过期</span>
-            </span>
-          {/if}
-          <InviteLinkButton
-            sessionId={session.id}
-            sessionCode={session?.session_code ?? ""}
-            {isOwner}
-          />
-        </div>
+
+        <!-- 第三行: chevron-down + 「查看 N 人」居中 (affordance 提示), 折叠态独有 -->
+        {#if !membersOpen}
+          <div class="members-head-row3" aria-hidden="true">
+            <!-- Lucide `chevron-down` 12×12 gray-400 -->
+            <svg
+              class="members-expand-chevron"
+              viewBox="0 0 24 24"
+              width="12"
+              height="12"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+            <span class="members-expand-hint">查看 {session.members.length} 人</span>
+          </div>
+        {/if}
       </header>
 
       {#if membersOpen}
@@ -804,14 +853,13 @@
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
   }
 
-  /* Header — title + count 左, [expiry pill] + 邀请按钮 右 (iOS 标准) */
+  /* v0.3.19 #83 (PO #7300): 折叠态 header 重构成 3 行布局 —
+     row1 (40px) / row2 (36px) / row3 (24px). 整段仍 onclick + aria-expanded. */
   .members-head {
     display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-    flex-wrap: wrap;
-    padding: 0 0 12px 0;
+    flex-direction: column;
+    gap: 4px;
+    padding: 0 0 10px 0;
     margin: 0 0 12px 0;
     border-bottom: 1px solid rgba(0, 0, 0, 0.05);
     cursor: pointer;
@@ -824,6 +872,37 @@
   .members-head:focus-visible {
     outline: 2px solid var(--accent-500, #3b82f6);
     outline-offset: 2px;
+  }
+  .members-head-row1 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 32px;
+  }
+  .members-head-row2 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 28px;
+  }
+  .members-head-row3 {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-height: 20px;
+    color: var(--gray-400, #9ca3af);
+  }
+  .members-expand-chevron {
+    flex-shrink: 0;
+  }
+  .members-expand-hint {
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--gray-400, #9ca3af);
+    line-height: 1;
   }
   .members-head-left {
     display: flex;
@@ -842,13 +921,23 @@
     align-items: baseline;
     gap: 4px;
   }
-  /* v0.3.18 #66 (PO #6899 Mockup A): section header title 字号 15px + count inline 12px */
+  /* v0.3.19 #83 (PO #7300): 成员 · N人 + users icon 14×14 gray-500 内联 */
   .members-title-a {
     margin: 0;
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 700;
     color: var(--gray-900);
     letter-spacing: -0.005em;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+  }
+  .members-title-icon {
+    color: var(--gray-500, #737373);
+    flex-shrink: 0;
   }
   .members-count-a {
     font-weight: 400;
@@ -865,19 +954,21 @@
   }
 
   /* Expiry inline pill (mockup A token: amber-50 bg + amber-700 text + border) */
+  /* v0.3.19 #83 (PO #7300): amber 配色克制 — bg 保留 amber-50, 文字改 gray-700, 不抢 row1 L1 主信息. */
   .expiry-inline-a {
     display: inline-flex;
     align-items: center;
     gap: 4px;
     font-size: 11px;
-    color: var(--amber-700, #b45309);
+    color: var(--gray-700, #404040);
     background: var(--amber-50, #fffbeb);
-    border: 1px solid rgba(245, 158, 11, 0.22);
+    border: 1px solid rgba(245, 158, 11, 0.18);
     border-radius: 999px;
     padding: 3px 9px 3px 7px;
-    font-weight: 600;
+    font-weight: 500;
     line-height: 1.2;
     white-space: nowrap;
+    flex-shrink: 0;
   }
   .expiry-inline-a svg {
     flex-shrink: 0;
@@ -921,6 +1012,7 @@
   }
 
   /* Avatar — 36px, 5 色循环 (indigo/pink/emerald/amber/blue) + owner 紫色 ring + 👑 */
+  /* v0.3.19 #83 (PO #7300): 加玻璃质感 — 2px 白边 + shadow + inset highlight, 36px 更立体. */
   .avatar-a {
     width: 36px;
     height: 36px;
@@ -934,6 +1026,10 @@
     font-size: 13px;
     flex-shrink: 0;
     position: relative;
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    box-shadow:
+      0 4px 12px rgba(0, 0, 0, 0.08),
+      inset 0 0.5px 0 rgba(255, 255, 255, 0.6);
   }
   .avatar-a.b {
     background: linear-gradient(135deg, #f472b6 0%, #ec4899 100%);
@@ -945,6 +1041,22 @@
     background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
   }
   .avatar-a.e {
+    background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+  }
+  /* v0.3.19 #83 (PO #7300): template 用 palette-{i%5}, 补补 CSS */
+  .avatar-a.palette-0 {
+    background: linear-gradient(135deg, #818cf8 0%, #6366f1 100%);
+  }
+  .avatar-a.palette-1 {
+    background: linear-gradient(135deg, #f472b6 0%, #ec4899 100%);
+  }
+  .avatar-a.palette-2 {
+    background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+  }
+  .avatar-a.palette-3 {
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  }
+  .avatar-a.palette-4 {
     background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
   }
   .avatar-a.is-owner {
@@ -1112,42 +1224,60 @@
   }
 
   /* v0.2.1 UI rev: 折叠态 header 内嵌 avatar 预览 (max 8 + overflow) */
+  /* v0.3.19 #83 (PO #7300): 18px, -6px overlap (不再用 -8px, 18px 间距 -6 视觉刚好). */
   .members-avatars-inline {
     display: inline-flex;
     align-items: center;
     gap: 0;
-    margin: 0 8px;
     flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
   }
   .members-avatars-inline .avatar-mini {
-    width: 26px;
-    height: 26px;
-    font-size: clamp(0.6875rem, 2.6vw, 0.75rem);
+    width: 18px;
+    height: 18px;
+    font-size: 8px;
+    margin-left: -6px;
   }
+  .members-avatars-inline .avatar-mini:first-child {
+    margin-left: 0;
+  }
+  /* v0.3.19 #83 (PO #7300): 折叠态 mini avatar 用 palette-{i%5} 渐变 (复用 v0.3.18 #66 token).
+     删掉之前 .avatar-mini { background: var(--accent-500) } 单色. */
   .avatar-mini {
     width: 32px;
     height: 32px;
     border-radius: 50%;
-    background: var(--accent-500);
     color: #fff;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     font-weight: 600;
     font-size: 12px;
-    margin-left: -8px;
-    border: 2px solid var(--color-bg, white);
-    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+    border: 1.5px solid #fff;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.10);
     user-select: none;
+    position: relative;
   }
-  .avatar-mini:first-child {
-    margin-left: 0;
+  .avatar-mini.palette-0 {
+    background: linear-gradient(135deg, #818cf8, #6366f1);
+  }
+  .avatar-mini.palette-1 {
+    background: linear-gradient(135deg, #f472b6, #ec4899);
+  }
+  .avatar-mini.palette-2 {
+    background: linear-gradient(135deg, #34d399, #10b981);
+  }
+  .avatar-mini.palette-3 {
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  }
+  .avatar-mini.palette-4 {
+    background: linear-gradient(135deg, #60a5fa, #3b82f6);
   }
   .avatar-mini-overflow {
     background: var(--gray-300, #d1d5db) !important;
     color: var(--gray-700, #374151) !important;
+    font-weight: 600;
   }
 
   /* v0.3.18 #66 (PO #6899 Mockup A) 8: 768px tablet 2-column grid */
