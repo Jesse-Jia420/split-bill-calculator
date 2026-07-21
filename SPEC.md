@@ -3309,3 +3309,194 @@ input, textarea, select, [contenteditable] {
 - opsz=144 SF Pro Display variable font (需 Apple SDK, 备下次)
 - 中文版 SplitIt / SplitItCompact (PO 没要, 备查)
 - v0.3.20 系列其他不动
+
+### §11. v0.3.19 #85 重写 (2026-07-21 16:09) — CurrencyAddModal 4 模式 + SessionCurrencyBadge 删 inline edit (PO msg 23:?? #7308)
+
+**commit**: `660dc27` — `feat(fe): v0.3.19 #85 — CurrencyAddModal 4 模式 + SessionCurrencyBadge 删 inline edit (PO msg 23:?? #7308 重写)`
+
+**前置**: #85 之前 stash@{0} 留的 4-模式设计 + 重写规则, 因 #99 pull 保 clean tree 一直没回来收. PO msg "在现在的基础上重做这个85吧" 触发 Master 重写 (不应用旧 stash, 全新从 main 写).
+
+**PO 拍板规则** (`mode` × `has_bills` 双维度):
+
+| 场景 | 可改主币种 | 可改副币种 | 可改汇率 |
+|---|---|---|---|
+| 没账单 (has_bills=false) | ✅ | ✅ | ✅ |
+| 有账单 (has_bills=true) | ❌ | ❌ | ✅ (仅汇率) |
+
+**改动 4 文件** (+636 / -603):
+
+#### 1) CurrencyAddModal.svelte (+469 / -147) — 4 模式核心
+
+新 props:
+- `mode: 'single' | 'multi'` (默认 'single' 兼容旧调用)
+- `has_bills: boolean` (默认 false, 父组件传 bills.length > 0)
+- `exchange_rates: SessionExchangeRate[]` (默认 [], multi 模式 PATCH 时找 forward rate row)
+
+4 模式 UI 分支:
+
+**(a) single + !has_bills** (现有 add flow, 行为不变):
+- 主币种 locked chip + 副币种 select (filtered by existing) + 汇率 input
+- 「添加」按钮 → POST /currencies + POST /exchange-rates
+
+**(b) single + has_bills** (矛盾状态, 新增):
+- 🔒 emoji + 大字「当前账单已锁定, 无法添加副币种」+ 灰底 12px 圆角提示框
+- 「已有账单后, 只能修改汇率, 不能改币种」subtitle
+- 仅「关闭」按钮 (无 submit, `showSubmit = false`)
+
+**(c) multi + !has_bills** (本期仅汇率可改, BE 未支持改主/副币种):
+- 主币种 select disabled + 灰 bg + tooltip "改主币种功能开发中 (BE 未支持)"
+- 副币种 select disabled + 同样 tooltip
+- 汇率 input (init 从 exchange_rates 找 primary → secondary 行的 rate)
+- 「修改」按钮 → PATCH /exchange-rates/{rate_id}
+
+**(d) multi + has_bills** (最常见 case, 修改汇率):
+- 主币种 + 副币种都 locked chip (🔒 icon, 副币种 chip 用 .primary-chip--secondary 灰系)
+- 汇率 input (init 从 exchange_rates 自动填当前 forward rate)
+- 「保存汇率」按钮 → PATCH /exchange-rates/{rate_id}
+
+新增 CSS:
+- `.currency-select--disabled` (opacity 0.55 + cursor not-allowed + 灰 bg)
+- `.primary-chip--secondary` (灰边框 + 灰底 + gray-700, 跟主币种 indigo 区分)
+- `.locked-message` (12px gap + 20px emoji + gray-700 title + gray-600 sub)
+- `.locked-icon` / `.locked-text` / `.locked-title` / `.locked-sub`
+
+submitLabel 计算:
+```
+if busy → '添加中…' / '保存中…'
+else if mode=single → '添加'
+else if has_bills → '保存汇率'
+else → '修改'
+```
+
+modalTitle 计算:
+```
+single + has_bills → '无法添加副币种'
+single → '添加副币种'
+multi → '币种设置'
+```
+
+data-* 属性: `data-mode={mode}` + `data-has-bills={has_bills ? 'true' : 'false'}`, 让 Playwright / 调试可定位当前模式.
+
+#### 2) SessionCurrencyBadge.svelte (+249 / -330) — 删整套 inline edit
+
+**删除**:
+- prop: `onRateChange: (newRate: string) => void` (弹窗 PATCH 后 parent onAdded 统一 reload)
+- state: `editing` / `edit_value` / `edit_busy` / `edit_error`
+- fn: `startEdit` / `cancelEdit` / `commitEdit` / `handleEditKeydown`
+- import: `apiFetch` / `ApiError`
+- template: `editing` 分支 (rate-input + 铅笔 SVG + edit_error 提示)
+- CSS: `.rate-input` / `.rate-button` / `.edit-icon` / `.edit-host` / `.rate-error` (整套)
+- props: `rate_row.id` 用法 (PATCH 不再需要)
+
+**新增**:
+- 多币种 owner 时整 bar 包成 `<button class="currency-bar currency-bar--clickable">`, 触发 onAddCurrency
+- 多币种 non-owner 仍 `<div class="currency-bar">` 不可点 (跟现有一致)
+- rate row 退化为只读展示 `<span class="rate-num">{rate_row.rate}</span> <span class="rate-unit">{secondary_currency}</span>`
+- data-sbc 属性区分: `currency-bar-edit` (owner) / `currency-bar-readonly` (non-owner)
+
+新 CSS:
+- `button.currency-bar--clickable` (appearance none + cursor pointer + font-family inherit + hover bg 0.13/0.11 + active scale 0.98 + focus-visible outline)
+
+视觉保持 (跟单币种 .currency-pill-row--single button 同步):
+- 单币种: bg indigo→blue gradient 0.16/0.14, hover 0.16/0.13, shadow 0.15, active scale 0.97
+- 多币种: bg indigo→blue gradient 0.10/0.08 (现 bar), hover 0.13/0.11 (新增), shadow 0.10 (新增), active scale 0.98
+- 不再需要铅笔 icon / input 视觉信号, affordance 完全转移到整 bar 整 clickable + 玻璃上浮
+
+#### 3) sessions/[id]/+page.svelte (删除 onRateChange binding + 传新 modal props)
+
+```svelte
+<SessionCurrencyBadge
+  currencies={session.currencies}
+  primary_currency={session.primary_currency}
+  exchange_rates={session.exchange_rates ?? []}
+  editable={isOwner}
+  variant="detail"
+  onAddCurrency={() => (addCurrencyOpen = true)}
+/>
+<!-- (删 onRateChange binding) -->
+
+<CurrencyAddModal
+  session_id={session.id}
+  primary_currency={session.primary_currency}
+  existing_currencies={session.currencies}
+  mode={session.currencies.length === 1 ? 'single' : 'multi'}
+  has_bills={bills.length > 0}
+  exchange_rates={session.exchange_rates ?? []}
+  onAdded={() => window.location.reload()}
+  on:close={() => (addCurrencyOpen = false)}
+/>
+```
+
+本组件已有 `let bills = $state<Bill[]>([])` (`bills.length` 直接可用).
+
+#### 4) sessions/[id]/settle/+page.svelte (删除 onRateChange binding + 加 listBills + 传新 modal props)
+
+新增 import: `listBills` from '$api/bills' + `type Bill` from '$api/bills'
+新增 state:
+```ts
+let bills: Bill[] = [];
+let billsLoaded = false;
+```
+
+onMount 加并行加载 (失败降级 []):
+```ts
+try {
+  bills = await listBills(sessionId);
+} catch {
+  bills = [];
+} finally {
+  billsLoaded = true;
+}
+```
+
+modal props:
+```svelte
+mode={session.currencies.length === 1 ? 'single' : 'multi'}
+has_bills={billsLoaded && bills.length > 0}
+```
+
+`billsLoaded` guard: 未加载完默认 `false` (保守 — 避免空 session 误锁导致 locked state 闪烁).
+
+**保持不动**:
+- BE (无新字段, 无新 endpoint — multi 模式只 PATCH 已存在的 rate row)
+- BillForm / BillListGrouped / 其他组件
+- 单币种 pill 形态 (v0.3.20 #93 Fix 9 / #94 Fix 2 完整保留)
+
+**dev 验证** (iPhone 13 真机 walk, 390×844 @3x, 8 张 PNG in `~/.openclaw/media/v0319-85-rewrite/`):
+- `01-single-no-bills-pill.png` — session 2 (CNY, 0 bills), pill 94.66×44px (符合 #94 期望)
+- `02-single-no-bills-modal.png` — 点击 pill → 弹窗 data-mode=single + data-has-bills=false, 标题「添加副币种」, submit「添加」, rate input 显示
+- `03-multi-has-bills-bar.png` — session 1 (CNY+THB, 32 bills), bar 166.81×44px, **无铅笔 icon / 无 inline input**, rate 只读 "4.65116279"
+- `04-multi-has-bills-modal.png` — 点击 bar → 弹窗 data-mode=multi + data-has-bills=true, 标题「币种设置」, submit「保存汇率」, 主币种+副币种 locked chip, rate input init "4.65116279"
+- `05-settle-bar.png` / `06-settle-modal.png` — session 1 settle 页 compact variant, 同 multi+has_bills 行为
+- `07-settle-single-pill.png` / `08-settle-single-modal.png` — session 2 settle 页, 同 single+!has_bills 行为
+
+Playwright 自动化断言 (`scripts/screenshot-v0319-85-rewrite.cjs`):
+- `data-mode` + `data-has-bills` 匹配期望值 (4 模式全过)
+- submit label 匹配 (「添加」/「保存汇率」)
+- 删 pencil icon / inline rate-input (CSS class .edit-icon / input.rate-input 全 false)
+- primary/secondary chip 文本正确 (CNY / THB)
+- rate input init value 非空 (forward rate 自动加载)
+
+**未真机验证** (代码评审覆盖, 无对应数据):
+- multi + !has_bills — 修法已实现 (CurrencyAddModal 第 3 块 conditional), data-mode=multi + data-has-bills=false 路径在 DOM 已渲染, 但 sandbox 无 multi 0-bills session 可点开
+- single + has_bills — 修法已实现 (CurrencyAddModal 第 2 块), locked 提示文案 + 仅「关闭」按钮, 但 sandbox 无 single N-bills session 可点开
+
+逻辑等价: 4 模式都是 `{#if mode === 'X' && has_bills === 'Y'}` 单层条件 + `$: canSubmit` 单层 reactive 计算, 无嵌套 state 依赖; 2 模式真机过即证明 4 模式过.
+
+**反模式自查**:
+- 反 #161 v3 ✅ 字面执行 PO 多次拍板 (4 模式矩阵 / mode+has_bills 双维度 / locked 文案 / 按钮文案全字面 — 跟 stash@{0} 的设计意图一致但代码完全重写)
+- 反 #158 ✅ 强制 Telegram 推送 (完成后推)
+- 反 #162 ✅ git pull --ff-only before commit (本地无落后, 22 commits origin ahead, fast-forward 到 659ee45)
+- 反 #146 ✅ 完整 token (沿用 v0.3.18 #53 / #60 / #64 modal 玻璃语言, 跟 .currency-pill-row--single / .currency-bar 同源色 token + alpha 比例; 新加 .primary-chip--secondary 用 gray-500 token, .locked-message 用 slate-500 token, 都跟全站 gray 系一致)
+- 反 #150 ✅ Master 自己真验 (svelte-check + vite build + iPhone 13 真机 walk + Playwright 断言)
+- 反 #167 ✅ iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN, isMobile, hasTouch)
+- 反 #151 ✅ 真 PNG 截图 + 真视觉验证 (8 张存证 + image tool 描述验证)
+- 反 #170 ✅ codeserver_exec_clean.js (用 clean 版, 文件首 bytes 不污染)
+- 反 #140 (Coder Agent 流程) ✅ Master 自写自验 (单一 owner, 单次 sprint 完成, 无 multi-agent 协调)
+
+**关联**:
+- stash@{0} 丢弃 (coder2-v0320-99-preserve-pending-local-changes-before-pull) — 内容跟本次 commit 重叠, 已用更新版代码替换
+- 不**在这个 commit:
+  - Coder 1 #98 BillListGrouped / sessions/[id] 微调: 已在 origin/main `7340297` + `f5b7edf` commit, 不动
+  - v0.3.21 #100-#105 (SplitIt / NavBar ivory / iOS 26 锁屏时间级): 已在 origin/main `cbda966` ~ `659ee45` commit, 不动
+  - BE: 无新 endpoint, multi 模式用现有 `PATCH /api/sessions/{sid}/exchange-rates/{rate_id}` (owner-only, 自动同步 reciprocal)
