@@ -3834,3 +3834,75 @@ image tool 视觉验证 (03 截图):
 - 上游: c8dab5c #85 v3 (PO #7731 5 反馈修, FAB 圆形按钮 + 多+hb 同行 + Lucide lock icon)
 - 不动: v0.3.18 #53 / #60 batch2 / v0.3.20 #93/#94 modal 玻璃语言 + 4 模式 conditional 逻辑 + BE / 路由
 - 不动: v0.3.21 #100-#106.x (NavBar / Landing / 其它 sprint)
+
+### §11. v0.3.21 #108 (2026-07-21 18:04) — CurrencyAddModal 3 bug 修复 (PO msg 17:54)
+
+**PO msg 17:54 报 3 个 bug**:
+
+1. **toast 应永远在最上层** — 之前 toast 在汇率设置弹窗下层 (toast z-index 100 < modal-backdrop z-index 999)
+2. **副币种设置「—」应变单币种** — 之前 toast "功能开发中", 应真调 DELETE
+3. **副币种设置任意币种应正常保存** — 之前 "找不到汇率记录" 报错 (findForwardRate 找不到新币种的 rate row), 应 REPLACE (DELETE old + POST new + POST rate)
+
+**改动 (1 frontend global + 1 backend endpoint + 1 modal handleSubmit 3-case)**:
+
+#### Bug 1 (frontend global): Toast.svelte z-index 100 → 9999
+- 单文件 1 处改: `.toast-root { z-index: 100 }` → `9999`
+- 永远在所有 modal/NavBar/FAB 之上 (modal=999, FAB=150, NavBar=100)
+- 适用全站所有 toast, 不只 CurrencyAddModal
+
+#### Bug 2 + 3 (backend): 新增 DELETE /sessions/{id}/currencies/{code}
+- `backend/app/api/sessions.py` +150 行, `remove_session_currency` endpoint
+- Guards:
+  * `require_session_owner` → 403 非 owner
+  * 404 session 不存在 / currency 不在 session.currencies
+  * 409 `cannot_remove_primary_currency` (不允许删主币种)
+  * 422 `currency_not_supported` (不在 SUPPORTED_CURRENCIES)
+- Cascade: 移除 session.currencies 的 code + DELETE 所有 SessionExchangeRate.from_currency 或 .to_currency == code 的行
+- 返回完整 SessionDetail payload (跟 POST /currencies + claim_session 同 shape)
+- 跟 add_session_currency endpoint 镜像
+
+#### Bug 2 + 3 (frontend): CurrencyAddModal.svelte handleSubmit 拆 3 case
+- `multi_secondary_options` 过滤掉 primary (避免 user 选 primary → BE 409)
+- 跟踪 `originalSecondary` (跟 `multiInitialized` 同步, 不会随 secondary 改变)
+- canSubmit 加分支: `secondary === '' ? !busy : rateValid && !busy` (「—」 不需 rate)
+- handleSubmit 拆 4 分支:
+  * `mode === 'single'`: ADD new currency + create rate (单币种 add flow, 不变)
+  * `else if (secondary === '')`: DELETE 旧副币种 → success toast "已移除 X, 账本回到单币种 (Y)"
+  * `else if (secondary === originalSecondary)`: PATCH 现有 rate (multi + existing PATCH path, 不变)
+  * `else`: REPLACE — DELETE 旧副币种 + POST 新副币种 + POST 新汇率 → success toast "已从 X 切换到 Y, 汇率 R Y/Z"
+- `sessions.ts` 加 `deleteSessionCurrency(sessionId, currency)` API helper
+
+**实施 commit**:
+- `fix(be): v0.3.21 #108 — DELETE /sessions/{id}/currencies/{code} endpoint (Bug 2/3 backend)`
+- `fix(fe): v0.3.21 #108 — Toast z-index 9999 + CurrencyAddModal 3-case handleSubmit (Bug 1/2/3)`
+- `chore(fe): add v0.3.21 #108 walk script (3 bug 真机 + 5 PNG 验证)`
+- 本 §11 sync commit
+
+**dev 验证** (iPhone 13 真机 walk, Playwright 程序化 + 视觉, 4 张 PNG in `~/.openclaw/media/v0321-108/`):
+
+**Bug 1 (toast z-index)**:
+- DOM 检查: `backdropZ=999`, `toastZ=9999`, `toastAboveModal=true` ✓
+- toast-root z-index in DOM = 9999 (跟 CSS 写的一致) ✓
+
+**Bug 2 (「—」 → single-currency)**:
+- 选「—」后: `submitLabel="切换单币种"`, `rateDisabled=true` ✓
+- 点 submit → DELETE API 调用 `DELETE /api/sessions/2/currencies/HKD status=200` ✓
+- `modalClosedAfterSubmit=true` ✓
+- session.currencies 变 `["CNY"]` (HKD 被移除), exchange_rates count=0 ✓
+- success toast 显示 "已移除 HKD, 账本回到单币种 (CNY)" (timing 截图未捕到, toast 2s auto-dismiss, 但 API 已确认)
+
+**Bug 3 (任意币种 REPLACE)**:
+- 选 USD (新币种, 非 existing HKD): `rateInputEnabled=true`, 填入 0.15 ✓
+- 点 submit → 3 API 调用按顺序触发:
+  * `DELETE /api/sessions/2/currencies/HKD status=200` (旧副币种 cascade 删)
+  * `POST /api/sessions/2/currencies status=200` (新副币种添加)
+  * `POST /api/sessions/2/exchange-rates status=201` (新汇率 + reciprocal 自动)
+- `modalClosedAfterSubmit=true` ✓
+- session.currencies 变 `["CNY", "USD"]`, exchange_rates `CNY->USD=0.15000000 + USD->CNY=6.66666667` ✓
+- `hasNewCNYUSDForward=true`, `hasNewUSDCNYReciprocal=true`, `oldHKDGone=true` ✓
+
+**关联**:
+- 上游: 114b216 #107 (PO msg 17:21 9 项 CurrencyAddModal UI 反馈修)
+- 上游: c8dab5c #85 v3 (PO #7731 5 反馈修, FAB 圆形按钮 / Lucide lock icon)
+- 关联: 「—」选项 (114b216 #107 加的) → 现在真生效 (不再是"功能开发中")
+- 不动: v0.3.21 #100-#106.x (NavBar / Landing / 其它 sprint)
