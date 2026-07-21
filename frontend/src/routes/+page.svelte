@@ -349,7 +349,7 @@
 
   .tagline {
     font-size: 2.25rem;
-    font-weight: 500;  /* v0.3.21 #106.1 (PO msg 17:30): 700 -> 500 让中文段细一点 */
+    font-weight: 400;  /* v0.3.21 #106.2 (PO msg 17:43): 500 -> 400 还是太粗, 再细一档到 regular */
     color: #fff;
     margin: 0 0 0.75rem;
     line-height: 1.15;
