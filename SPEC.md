@@ -2712,3 +2712,44 @@ seed 脚本 (`backend/scripts/seed_dev_data.py`) 已有 find-or-create 逻辑：
 - v0.3.20 #95 `line-height: 1` — 保留作为 fallback 防御 (跟 Fix 1 新的 `line-height: 22px` 不冲突)
 - 4 个 untracked screenshot/test 脚本 (`frontend/scripts/{diag,diag2,gap_zoom,v0320-98-shot}.cjs`) — 仅本地调试用, 不纳入 diff (跟 #97 / #99 留永久 screenshot 脚本的策略不同, 这批只是 throwaway)
 
+
+### §11. v0.3.20 #99-fix (2026-07-21) — NavBar 透明玻璃修正 (PO msg 13:54 #7537 反馈)
+
+**commit**: `feat(fe): v0.3.20 #99-fix — NavBar 透明玻璃 (paper texture 透过)`
+
+**前置问题** (v0.3.20 #99 commit `08ac6e6`):
+- Coder 1 加了 `linear-gradient(135deg, rgba(99,102,241,0.55) 0%, rgba(59,130,246,0.55) 100%)`
+- PO 立即反馈: "不要加别的颜色, 只加玻璃效果, 本来就是为了让背景图案部分漏出来"
+- indigo→blue 渐变把 #97 paper texture 盖死了, 跟 paper bg 初衷反
+
+**改动 1 处** (NavBar.svelte, 4 处子替换):
+- `.navbar` bg: indigo→blue gradient → `rgba(255, 255, 255, 0.55)` (纯白 alpha, 0 彩色)
+- `.navbar` backdrop-filter: `saturate(180%)` → `saturate(130%)` (降饱和保 paper texture 自然)
+- `.navbar` box-shadow: 删 `0 1px 6px rgba(99, 102, 241, 0.12)` (外阴影带 indigo 色)
+- `@supports not (backdrop-filter)` fallback bg: indigo→blue gradient → `rgba(255, 255, 255, 0.85)` (高 alpha 白)
+
+**保留**:
+- inset highlight top `rgba(255, 255, 255, 0.4)` 玻璃上沿 ✓
+- inset highlight bottom `rgba(0, 0, 0, 0.04)` 玻璃下沿 ✓
+- border-bottom `rgba(255, 255, 255, 0.2)` 玻璃跟 paper 分割 ✓
+- `.btn-sm` / `.ghost` 等按钮仍用 indigo→blue gradient (跟玻璃族 token 一致, 这是 PO 没否定的部分)
+- saturate(130%) blur(20px) (saturate 微调让 paper 不过饱和失真)
+
+**dev 验证** (iPhone 13 viewport @ test.jessejia.pp.ua):
+- /auth/login 截图: NavBar 显示半透明白色玻璃, paper 纹透过可见 (`~/.openclaw/media/v0320-99-fix/navbar-transparent-glass.png`)
+- vite HMR 自动: 1:55:42 PM hmr update /src/lib/components/NavBar.svelte
+- @supports fallback 在 Safari iOS < 18 设备上 0.85 white opaque (纸纹不可见但 text 可读)
+
+**反模式自查**:
+- 反 #162 ✅ git pull --ff-only before commit (拉到 7340297 #98, 跟我 fix 无冲突)
+- 反 #151 ✅ 真 PNG 截图 (iPhone 13 真机 walk, image 工具 visual confirm)
+- 反 #158 ✅ 强制 Telegram 推送 (立刻给 Jesse 报)
+
+**不**在这个 commit:
+- §11. v0.3.20 #99 entry **不**单独写, 跟 #99-fix 合并 (因 #99 错了, 没必要把错的落地文档化)
+- Footer 不动 (PO #7536 明确"不管 footer", v0.3.18 #54 撤了的 footer 不恢复)
+
+**关联**:
+- v0.3.20 #97 paper bg `24f6622` — #99-fix 让 NavBar 玻璃正确为 paper 服务 (不盖死)
+- v0.3.20 #98 `7340297` — 跟 #99-fix 无文件冲突 (我改 NavBar, Coder 1 改 +page.svelte)
+- v0.3.18 #47/#51 — 删 #47 玻璃 bg, #51 撤回 footer; 这条 #99-fix 是新设计 (paper bg 上的真透明玻璃)

@@ -75,28 +75,27 @@
        .navbar 是 body flex column 第一项, 始终贴顶。 */
     padding: calc(var(--space-3) + env(safe-area-inset-top, 0px)) var(--space-4) var(--space-3);
     /* v0.3.20 #99 (PO msg 13:36 #7532 第 4 项, msg 13:39 #7536 缩范围:
-       只做 header, footer 不管): NavBar 半透明玻璃化 — 跟 v0.3.17 #30 /
-       v0.3.17 #21 玻璃族统一, 升级 .navbar 为 Liquid Glass 容器.
-       - bg 从 rgba(255,255,255,0.20) flat-white → indigo→blue 135deg gradient @ 0.55
-         (跟 .glass-pill / .btn-sm 同色 token, 但 NavBar 是大容器需要更高 alpha
-         保证 brand/按钮文字可读性, 跟 chip 0.04/0.02 透明拉开层级)
-       - backdrop-filter saturate(180%) blur(20px) (跟 .glass-pill saturate(200%) blur(20px)
-         同族, 这里 saturate 微调 180 让背景 paper texture 不要过饱和)
-       - inset highlight top 1px rgba(255,255,255,0.4) (跟 glass-pill 0.45 同源)
-       - border-bottom 1px rgba(255,255,255,0.2) 当 separator (玻璃边沿, 跟 #97
-         paper bg 形成柔和分割, 不要 .color-border 实色硬切)
-       - Safari iOS < 18 fallback @supports 提供更 opaque 实色保证可读 */
-    background: linear-gradient(
-      135deg,
-      rgba(99, 102, 241, 0.55) 0%,
-      rgba(59, 130, 246, 0.55) 100%
-    );
-    backdrop-filter: saturate(180%) blur(20px);
-    -webkit-backdrop-filter: saturate(180%) blur(20px);
+       只做 header, footer 不管): NavBar 半透明玻璃化.
+       v0.3.20 #99-fix (PO msg 13:54 反馈): 透明玻璃 — 原版加 indigo→blue 渐变
+       把 paper 纹理盖死了, 跟"原就是为了让背景图案部分漏出来"的诉求反.
+       改 transparent white alpha + 降 saturate 让 paper 纹部分透过来.
+       - bg: rgba(255,255,255,0.55) (白色 alpha, 无彩色)
+       - backdrop-filter: saturate(130%) blur(20px) (blur 让纸纹糊但仍可见, saturate
+         不加太高免纸纹失真)
+       - inset highlight top 1px rgba(255,255,255,0.4) 玻璃上沿
+       - inset highlight bottom 1px rgba(0,0,0,0.04) 玻璃下沿
+       - border-bottom 1px rgba(255,255,255,0.2) 玻璃跟 paper bg 的柔和分割
+       - Safari iOS < 18 fallback @supports: 0.85 opaque white (纸纹 fallback 不可见,
+         但保证 navbar 文字仍可读) */
+    /* v0.3.20 #99-fix (PO msg 13:54): 透明玻璃 — 不再加颜色 (前版 indigo→blue 渐变
+       把 paper 纹盖死). 改用纯白 alpha + blur 让 paper 纹部分透过来.
+       saturate 从 180% → 130% 让纸纹不过饱和失真. */
+    background: rgba(255, 255, 255, 0.55);
+    backdrop-filter: saturate(130%) blur(20px);
+    -webkit-backdrop-filter: saturate(130%) blur(20px);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.4),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.04),
-      0 1px 6px rgba(99, 102, 241, 0.12);
+      inset 0 -1px 0 rgba(0, 0, 0, 0.04);
     border-bottom: 1px solid rgba(255, 255, 255, 0.2);
     flex-wrap: wrap;
   }
@@ -197,16 +196,12 @@
     color: var(--accent-700);
   }
   /* v0.3.18 #48: Safari iOS < 18 backdrop-filter fallback.
-     v0.3.20 #99: 跟新 gradient bg 对齐 — fallback 用 indigo 实色 0.65 (跟新
-     gradient 0.55 + 边缘补偿 0.10 提供无 backdrop-filter 时的 fallback 可读性).
-     .ghost 0.35/0.20 → 0.55/0.40 (同源). */
+     v0.3.20 #99: fallback 用更 opaque white (0.85) 替代前版 indigo 渐变 — 跟新
+     transparent glass bg 一致, 失去 blur 但仍提供文字可读性.
+     v0.3.20 #99-fix: 同步去 indigo 色. */
   @supports not (backdrop-filter: blur(1px)) {
     .navbar {
-      background: linear-gradient(
-        135deg,
-        rgba(99, 102, 241, 0.65) 0%,
-        rgba(59, 130, 246, 0.65) 100%
-      );
+      background: rgba(255, 255, 255, 0.85);
     }
     .ghost { background: rgba(255, 255, 255, 0.55); }
   }
