@@ -507,7 +507,13 @@
                   aria-label="登录以永久保存账本"
                   data-testid="invite-expiry-cta"
                 >
-                  <span class="expiry-cta-prefix">(</span>
+                  <!-- v0.3.20 #94 Fix 4 (PO msg 02:13 #7455): 去括号.
+                       之前是 "(Jesse) 登录以永久保存" (用 .expiry-cta-prefix 包 "()",
+                       nick 后跟 ") 登录以永久保存" 不分类), PO 拍板 "Jesse 登录以永久保存"
+                       直接连写不要括号. 模板 + CSS 同步清理:
+                       - 删 .expiry-cta-prefix (包开括号那个)
+                       - nick 仍是 .expiry-cta-nick (紫色粗体 accent-700)
+                       - "登录以永久保存" 独立 .expiry-cta-suffix (默认颜色, 跟 nick 区分) -->
                   <span class="expiry-cta-nick">
                     {#if session.members && session.members.length > 0}
                       {session.members[0].display_name}
@@ -515,7 +521,7 @@
                       owner
                     {/if}
                   </span>
-                  <span>) 登录以永久保存</span>
+                  <span class="expiry-cta-suffix">登录以永久保存</span>
                 </a>
               {/if}
             </span>
@@ -912,13 +918,27 @@
   /* v0.3.20 #92 (PO msg 07:13 #7409): row2 改成左右两栏 —
      左 (members-row2-left) = avatars (折叠态独有), 右 (members-row2-right) = InviteLinkButton (always).
      用 space-between 让两端对齐, margin-left: auto 在 right 上作为 fallback
-     确保即使 left 是空 placeholder, invite 仍在最右. */
+     确保即使 left 是空 placeholder, invite 仍在最右.
+     v0.3.20 #94 Fix 3 (PO msg 02:13 #7455): --invite-btn-h CSS var 跟 InviteLinkButton 高度联动,
+     默认 48px (desktop), 767px 以下 44px (mobile 标准), 380px 以下 36px (按钮自带 mobile override).
+     row min-height 28px → 40px (允许 var 48px 内容装下, 不被截). */
   .members-head-row2 {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    min-height: 28px;
+    min-height: 40px;
+    --invite-btn-h: 48px;
+  }
+  @media (max-width: 767px) {
+    .members-head-row2 {
+      --invite-btn-h: 44px;
+    }
+  }
+  @media (max-width: 380px) {
+    .members-head-row2 {
+      --invite-btn-h: 36px;
+    }
   }
   .members-row2-left {
     display: flex;
@@ -930,12 +950,22 @@
     flex: 0 0 auto;
     margin-left: auto;
   }
+  /* v0.3.20 #94 Fix 6 (PO msg 02:13 #7455): "查看 N 人" 放分割线之下.
+     之前 chevron + "查看 N 人" 直接挨在 row2 (avatar + invite) 下面, 没视觉分隔,
+     PO 拍板 "跟 row1+row2 分开, 暗示这是 affordance 不是另一行信息".
+     加 border-top: 1px solid rgba(0,0,0,0.05) 跟 .members-head 已有的
+     border-bottom 同款 (折叠态独有 — row3 模板只在 {#if !membersOpen} 渲染,
+     expanded 状态 row3 DOM 不存在, border 自然也不显, 不会影响 expanded 视觉).
+     min-height 20 → 24 (border 1px + padding-top 视觉更平衡, 不被 border 挤). */
   .members-head-row3 {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 4px;
-    min-height: 20px;
+    min-height: 24px;
+    margin-top: 4px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
     color: var(--gray-400, #9ca3af);
   }
   .members-expand-chevron {
@@ -1034,13 +1064,12 @@
     outline-offset: 2px;
     border-radius: 4px;
   }
-  .expiry-cta-prefix,
-  .expiry-cta-nick {
-    color: var(--gray-600, #525252);
-  }
   .expiry-cta-nick {
     font-weight: 600;
     color: var(--accent-700, #4338ca);
+  }
+  .expiry-cta-suffix {
+    color: var(--gray-600, #525252);
   }
 
   /* === Member list — 列表布局 (替代旧 chip 圆角 999px) === */
@@ -1301,11 +1330,26 @@
     min-width: 0;
     overflow: hidden;
   }
+  /* v0.3.20 #94 Fix 3 (PO msg 02:13 #7455): 折叠态 row2 头像高度 = InviteLinkButton 高度.
+     之前 .members-avatars-inline .avatar-mini 18×18, 跟 InviteLinkButton 48px (desktop) / 44px
+     (iOS touch) / 36px (mobile override @ <380px) 完全不匹配, 视觉上 button 比 avatar 高 30+px,
+     折叠态 row2 左右两端不齐.
+
+     修法 (CSS var 联动, 不硬编码):
+     - 在 .members-head-row2 定义 --invite-btn-h, 默认 48px (desktop InviteLinkButton 实际高).
+     - @media (max-width: 767px) → 44px (iOS touch target, 跟 button 在 mobile 大多 viewport 一致).
+     - @media (max-width: 380px) → 36px (匹配 InviteLinkButton 自带 mobile override).
+     - .members-avatars-inline .avatar-mini 改用 var(--invite-btn-h) 控制 width/height.
+     - font-size 按比例: var * 0.32 (~15px at 48, ~14px at 44, ~12px at 36).
+     - margin-left 按比例: var * -0.25 (~-12px at 48, ~-11px at 44, ~-9px at 36), 25% overlap.
+     保留 base .avatar-mini 32×32 + font-size 12px (其他页面 BillForm / settle 等复用).
+     保留 palette-{i%5} 渐变 + overflow "+N" tag.
+     SessionMemberList 组件**不**改 (其他页面独立使用 28×28, 跨页面一致性不破坏). */
   .members-avatars-inline .avatar-mini {
-    width: 18px;
-    height: 18px;
-    font-size: 8px;
-    margin-left: -6px;
+    width: var(--invite-btn-h, 48px);
+    height: var(--invite-btn-h, 48px);
+    font-size: calc(var(--invite-btn-h, 48px) * 0.32);
+    margin-left: calc(var(--invite-btn-h, 48px) * -0.25);
   }
   .members-avatars-inline .avatar-mini:first-child {
     margin-left: 0;
@@ -1512,9 +1556,12 @@
 
   /* v0.3.20 #93 (Fix 7): --bills-search-h — BillListGrouped 的 day-header 通过此变量
      计算 sticky top 偏移. 50px = 搜索框实际高度 (padding 8x2 + input line-height ~16
-     + border 1x2) + 12px breathing room (原 margin-bottom). */
+     + border 1x2) + 12px breathing room (原 margin-bottom).
+     v0.3.20 #94 Fix 5 (PO msg 02:13 #7455): --bills-search-h 50px → 60px.
+     搜索框 padding-top 加 10px (8→18, 给 sticky top 上方留呼吸空间, 不贴 nav bar),
+     搜索框实际高度从 ~38px 变 ~48px, sticky region 同步加 10px → 60px (50+10). */
   .bills-card {
-    --bills-search-h: 50px;
+    --bills-search-h: 60px;
     padding-bottom: 96px;
   }
 
@@ -1528,7 +1575,11 @@
      v0.3.20 #93 (PO msg 00:04 #7450, Fix 7): sticky 跟随 page scroll,
      滚到任何位置搜索框常驻顶部 (跟全站 NavBar 一起保持可达).
      用 z-index: 20 高于 day-header (10) 让搜索框视觉上浮在 day-header 上;
-     backdrop blur + saturate 跟全站玻璃语言一致. */
+     backdrop blur + saturate 跟全站玻璃语言一致.
+     v0.3.20 #94 Fix 5 (PO msg 02:13 #7455): padding-top 8px → 18px (加 10px),
+     给搜索框上方留呼吸空间 (sticky top:0 紧贴 nav bar, 视觉太挤).
+     其他 padding-bottom 8px + 左右 12px 不变.
+     同步 --bills-search-h 50px → 60px (search region 加 10px, day-header sticky top 偏移跟着加). */
   .bills-search {
     position: sticky;
     top: 0;
@@ -1536,7 +1587,7 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
+    padding: 18px var(--space-3) var(--space-2);
     background: rgba(255, 255, 255, 0.55);
     backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
