@@ -348,7 +348,7 @@
   }
 
   .tagline {
-    font-size: 2.25rem;
+    font-size: 1.625rem;   /* v0.3.21 #106.3 (PO msg 18:17): 2.25rem → 1.625rem (-28%, 36→26px). 字号继续调小, 跟 wordmark / 按钮拉开 hierarchy */
     font-weight: 400;  /* v0.3.21 #106.2 (PO msg 17:43): 500 -> 400 还是太粗, 再细一档到 regular */
     color: #fff;
     margin: 0 0 0.75rem;
@@ -360,7 +360,8 @@
      同 line-1 italic-serif + glass material, 42px (不是 40 — 40 时 1.5px
      stroke / top specular band 在 @1x 几乎看不见 rim; 42 + 1.8px stroke
      保留 rim 清晰但仍明显小于 wordmark).
-     三级 hierarchy: wordmark (125) > emphasis (42) > tagline body (36). */
+     v0.3.21 #106.3 (PO msg 18:17): 字号继续调小 42px → 32px (-24%).
+     三级 hierarchy: wordmark (125) > emphasis (32) > tagline body (26). */
   .tagline-emphasis {
     position: relative;
     display: inline-block;
@@ -368,7 +369,7 @@
       "Source Serif Pro", "Noto Serif", serif;
     font-style: italic;
     font-weight: 700;
-    font-size: 42px;
+    font-size: 32px;        /* v0.3.21 #106.3: 42 → 32, 字号继续调小 */
     letter-spacing: -0.02em;
     line-height: 1;
     color: #E6ECF2;
