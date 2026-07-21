@@ -61,6 +61,8 @@
   import { slide } from 'svelte/transition';
   import { getSessionWithSecret } from '$api/sessions';
   import type { SessionDetail } from '$api/sessions';
+  import { listBills } from '$api/bills';
+  import type { Bill } from '$api/bills';
   import SettleTransferPath from '$components/SettleTransferPath.svelte';
   import SettleMemberBreakdown from '$components/SettleMemberBreakdown.svelte';
   import SessionCurrencyBadge from '$components/SessionCurrencyBadge.svelte';
@@ -76,6 +78,10 @@
   // v0.3.18 #53: open/close state for the CurrencyAddModal (triggered by
   // SessionCurrencyBadge single-pill + icon when owner).
   let addCurrencyOpen = false;
+  // v0.3.19 #85 (PO #7308): 本地加载 bills 决定 has_bills, 传给 CurrencyAddModal
+  // 决定锁哪些字段. settle 页通常都 >0 bills, 但仍准确加载避免 empty session 误判.
+  let bills: Bill[] = [];
+  let billsLoaded = false;
 
   $: sessionId = Number(page.params.id);
 
@@ -110,6 +116,14 @@
         memberIdToName[m.id] = m.display_name;
         memberIdToRole[m.id] = m.role;
       }
+      // v0.3.19 #85: 并行加载 bills 决定 has_bills. 即便失败也降级 false, 不阻塞主流程.
+      try {
+        bills = await listBills(sessionId);
+      } catch {
+        bills = [];
+      } finally {
+        billsLoaded = true;
+      }
     } catch (e: any) {
       // v0.3.1: 非成员 → 重定向到 join 页 claim nickname.
       if (e?.code === 'not a session member' || e?.status === 403) {
@@ -130,13 +144,14 @@
     <p class="muted">加载中…</p>
   {:else if session}
     <h2>{session.name} · 结算</h2>
+    <!-- v0.3.19 #85 (PO #7308): 删 onRateChange (弹窗 PATCH 后 parent onAdded 统一 reload).
+         多币种整 bar clickable 在 owner 时也触发 onAddCurrency. -->
     <SessionCurrencyBadge
       currencies={session.currencies ?? []}
       primary_currency={session.primary_currency}
       exchange_rates={session.exchange_rates ?? []}
       editable={memberIdToRole[currentMember?.id ?? 0] === 'owner'}
       variant="settle"
-      onRateChange={() => window.location.reload()}
       onAddCurrency={() => (addCurrencyOpen = true)}
     />
 
@@ -211,15 +226,22 @@
   {/if}
 
 
-  <!-- v0.3.18 #53: owner-driven "add secondary currency" modal.
+  <!-- v0.3.18 #53 + v0.3.19 #85: owner-driven modal.
        Mounted only when addCurrencyOpen=true (controlled by SessionCurrencyBadge
-       onAddCurrency click). onAdded reloads the page so the badge re-renders
-       as dual-bar (modal also dispatches close after onAdded fires). -->
+       onAddCurrency click from 单币种 pill 或 多币种整 bar).
+       mode 跟 session.currencies.length 联动: 1=单币种 (locked if bills>0) /
+       2=多币种 (only rate editable).
+       has_bills 跟本地 bills.length 联动 (并行加载完 billsLoaded 才显示).
+       billsLoaded 为 false 时默认 has_bills=false (保守 — 避免空 session 误锁).
+       onAdded reloads the page so the badge re-renders with new currencies/rates. -->
   {#if addCurrencyOpen && session}
     <CurrencyAddModal
       session_id={session.id}
       primary_currency={session.primary_currency}
       existing_currencies={session.currencies ?? []}
+      mode={session.currencies.length === 1 ? 'single' : 'multi'}
+      has_bills={billsLoaded && bills.length > 0}
+      exchange_rates={session.exchange_rates ?? []}
       onAdded={() => window.location.reload()}
       on:close={() => (addCurrencyOpen = false)}
     />

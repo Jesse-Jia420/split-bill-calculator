@@ -6,57 +6,47 @@
         - 单币种 session 退化为单 chip `[CNY]`
         - 不喧宾夺主: 13px 字号, color var(--gray-700), padding 4px 0
   视觉 token 全部引用 v0.1.3 app.css, 不新增 token。
-  inline edit 逻辑 (editing / startEdit / commitEdit / handleEditKeydown) 保持不变。
 
-  v0.3.17 #36 (2026-07-18, PO msg 10:54): 汇率 bar 改成 2 行布局. 货币对 (Row 1)
-  `.currency-pill-row` + 汇率 + 编辑 (Row 2) 新 `.rate-row`. 多币种 case 拆 2 行
-  (取消 inline `·` + `currency-rate-label`), 单币种 case 保持单 chip 不变.
-  复用现有 iOS27 Liquid Glass material (v0.3.17 #21/#34), 视觉风格延续.
+  v0.3.17 #36 (2026-07-18, PO msg 10:54): 汇率 bar 改成 2 行布局.
+  v0.3.17 #36fix (2026-07-18, PO msg 12:45 #6287): Row 1 + Row 2 合并 1 个 bar.
+  v0.3.18 #43: 整 bar 高度压到 ~40px.
+  v0.3.18 #53: 单币种胶囊缩小 + 点击添加副币种.
+  v0.3.18 #64 CurrentResize: 单币种 pill 形态调整 (padding/font-size/min-height/border).
+  v0.3.20 #93 Fix 9: 单币种 pill 改 button 形态.
+  v0.3.20 #94 Fix 2: 单币种 pill 视觉更明显 (min-height 44 / font-size 15 / padding 12/24).
+  v0.3.20 #98 (Coder 1): 3 处 UI 微调 (跟本组件无关, 引用其值).
+  v0.3.20 #99: NavBar 玻璃化 (跟本组件无关).
 
-  v0.3.17 #36fix (2026-07-18, PO msg 12:45 #6287 拍板): 纠正 #36 视觉实现.
-  原 #36 把 Row 1 + Row 2 做成 2 个独立 pill capsule (上下堆叠 2 个胶囊), PO 拍板
-  「应该是一个 bar 内部有两行」. 修法:
-    - 双币种 case 引入外层 `.currency-bar` (唯一 pill 视觉: border-radius 999px,
-      fit-content 居中, 玻璃 material) — flex-direction column 包裹 Row 1 + Row 2.
-    - 内部 `.currency-pill-row` (Row 1 货币对) + `.rate-row` (Row 2 汇率 + 编辑)
-      退化为「分隔行」, 不再有 bg / border-radius / border — 只用 padding/margin
-      拉开视觉, 跟外层 pill 共享同一玻璃基底.
-    - 视觉层次保留: Row 1 主币种 chip 仍然 accent-700 蓝色提示 (PO 蓝色意图),
-      Row 2 灰色汇率 (副标题感) — 但层次通过字号 / 颜色, 不是通过 bg 区分.
-    - 单币种 case 不变: `.currency-pill-row.currency-pill-row--single` 仍是单 chip
-      (1 个 row = 1 个 pill, 不需外层 wrapper).
-  行为 / 状态 / PATCH 逻辑 / 编辑态 / data-* 属性全部保留.
-
-  v0.3.18 #53 (PO msg 10:49 #6542) — 单币种胶囊缩小 + 点击添加副币种.
-  PO 反馈「单币种时, 币种胶囊 bar 比例有问题, 缩成一个小的即可」.
-  修法:
-    * 单币种 pill 整体缩小 (padding / font-size / blur / inset highlight / box-shadow
-      全部降一档, 跟双币种 Row 1 (.currency-pill-row) 高度对齐 ~24-28px).
-    * 单币种 + owner (editable={true}) → pill 包成 `<button>`, 加 click 触发 +
-      右侧 "+" 提示 (Lucide plus icon). 点击 → 调用 onAddCurrency 回调, 由 parent
-      弹 CurrencyAddModal.
-    * 单币种 + non-owner → 保持 `<div>`, 不可点 (现有行为).
-    * 双币种 case 不变 (已经有自己的 .rate-button edit flow, 不要冲突).
-    * 新增 prop `onAddCurrency: () => void` 可选 — parent 用来接收 click 事件.
+  v0.3.19 #85 重写 (PO msg 23:?? #7308) — 删 inline edit + 整 bar clickable:
+    1) 单币种 pill 还是太长, 改成短 pill (保留现有 44px 高 + button 形态).
+    2) 多币种 inline edit 改弹窗 — 不能在 bar 上直接改, 点击 bar 触发弹窗.
+       删除整套 inline edit (editing / startEdit / commitEdit / handleEditKeydown +
+       <input class="rate-input"> + 铅笔 <svg> + PATCH 调用 + apiFetch/ApiError import).
+       Rate row 退化为只读展示 `1 {primary} = {rate_row.rate} {secondary}`.
+    3) 多币种 case 整 bar 包成 <button> (editable=true 时), on:click 触发 onAddCurrency.
+       non-owner 用户 (editable=false) 仍保持 <div> 不可点.
+    4) 删除 props: onRateChange (inline edit 不再需要, 弹窗处理 PATCH, parent onAdded reload).
+    5) 删除 state: editing / edit_value / edit_busy / edit_error.
+    6) 删除 fn: startEdit / cancelEdit / commitEdit / handleEditKeydown.
+    7) 删除 import: apiFetch / ApiError (不再需要).
+    8) 视觉: rate row 视觉跟 Row 1 同层级 (L3 灰色副标题感), 不再有 accent 蓝色 + 铅笔
+       (affordance 转移到了整 bar 整 clickable + hover/active bg 加深).
 -->
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { apiFetch, ApiError } from '$api/client';
   import type { SessionExchangeRate } from '$api/sessions';
 
   export let currencies: string[];
   export let primary_currency: string;
   /** v0.3.14: per-session exchange rates (forward + reciprocal pairs). */
   export let exchange_rates: SessionExchangeRate[] = [];
-  /** §3.14.2 inline edit 是否启用 (双币种 + owner) */
+  /** §3.14.2 是否启用交互 (双币种 + owner); 也用于单币种 pill clickable. */
   export let editable: boolean = false;
   /** 'detail' = session detail 页 (16px bottom margin) | 'settle' = 顶部 compact (12px) */
   export let variant: 'detail' | 'settle' = 'detail';
-  /** §3.14.2 PATCH 成功回调 (page 接到事件后 reload / 重新拉 settle) */
-  export let onRateChange: ((newRate: string) => void) | undefined = undefined;
-  /** v0.3.18 #53: 单币种 + owner 点击 pill 时回调, parent 用来打开
-   *  CurrencyAddModal (modal 不在本组件内 — 避免 single-purpose modal
-   *  inflate SessionCurrencyBadge 这个核心 currency meta 组件的体量). */
+  /** v0.3.18 #53 (单币种 owner) + v0.3.19 #85 (多币种 owner 整 bar) 触发.
+   *  parent 用来打开 CurrencyAddModal. modal 不在本组件内 — 避免 single-purpose
+   *  modal inflate SessionCurrencyBadge 这个核心 currency meta 组件的体量. */
   export let onAddCurrency: (() => void) | undefined = undefined;
 
   const dispatch = createEventDispatcher<{ addCurrency: void }>();
@@ -64,96 +54,29 @@
   $: is_single = currencies.length === 1;
   $: secondary_currency = currencies.find((c) => c !== primary_currency) ?? '';
 
-  /** 主币种 → 副币种 的汇率 (展示用, 与 inline edit 改的是同一行, BE 自动同步 reciprocal) */
+  /** 主币种 → 副币种 的汇率 (展示用). */
   $: rate_row =
     !is_single
       ? exchange_rates.find(
-          (r) => r.from_currency === primary_currency && r.to_currency === secondary_currency
+          (r) =>
+            r.from_currency === primary_currency &&
+            r.to_currency === secondary_currency
         ) ?? null
       : null;
 
-  /** 是否展示 rate row (双币种 + 实际有 exchange_rates 数据) */
+  /** 是否展示 rate row (双币种 + 实际有 exchange_rates 数据). */
   $: show_rate = !is_single && rate_row !== null;
 
-  /** v0.3.18 #53: 单币种 + owner 时 pill 是 clickable. 双币种 case 已经有
-   *  .rate-button edit flow, 不要冲突, 显式 guard. */
+  /** v0.3.18 #53: 单币种 + owner 时 pill 是 clickable.
+   *  v0.3.19 #85: 双币种 + owner 时整 bar 也 clickable (统一 affordance).
+   *  non-owner 都不可点. */
   $: single_clickable = is_single && editable;
+  $: multi_clickable = !is_single && editable;
 
-  // §3.14.2 inline edit 状态
-  let editing = false;
-  let edit_value = '';
-  let edit_busy = false;
-  let edit_error: string | null = null;
-
-  function startEdit() {
-    if (!editable || !rate_row) return;
-    edit_value = rate_row.rate;
-    edit_error = null;
-    editing = true;
-    // 下一个 microtask 让 input 出现后 focus
-    queueMicrotask(() => {
-      const el = document.getElementById('sbc-rate-input') as HTMLInputElement | null;
-      el?.focus();
-      el?.select();
-    });
-  }
-
-  function cancelEdit() {
-    editing = false;
-    edit_value = '';
-    edit_error = null;
-  }
-
-  async function commitEdit() {
-    if (!rate_row) return;
-    const trimmed = edit_value.trim();
-    // 简单校验: 必须 > 0 的数字
-    const n = Number(trimmed);
-    if (!trimmed || !Number.isFinite(n) || n <= 0) {
-      edit_error = '请输入大于 0 的数字';
-      return;
-    }
-    edit_busy = true;
-    edit_error = null;
-    try {
-      // PATCH /api/sessions/{sid}/exchange-rates/{rate_id}
-      // body: { rate: "0.045" }
-      // BE 自动同步 reciprocal; 旧 bill snapshot 保留 (历史不被覆盖)。
-      await apiFetch<SessionExchangeRate[]>(
-        `/sessions/${rate_row.session_id}/exchange-rates/${rate_row.id}`,
-        {
-          method: 'PATCH',
-          body: JSON.stringify({ rate: trimmed }),
-        }
-      );
-      editing = false;
-      onRateChange?.(trimmed);
-    } catch (e: any) {
-      if (e instanceof ApiError) {
-        edit_error = e?.detail?.detail?.error ?? e?.message ?? '更新失败';
-      } else {
-        edit_error = e?.message ?? '更新失败';
-      }
-    } finally {
-      edit_busy = false;
-    }
-  }
-
-  function handleEditKeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      commitEdit();
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      cancelEdit();
-    }
-  }
-
-  /** v0.3.18 #53: 单币种 + owner click handler. 优先调用 onAddCurrency
-   *  prop (parent 提供 modal 切换状态), 也 dispatch 事件 (兼容未传
-   *  prop 的场景). */
+  /** v0.3.19 #85: 统一 click handler. 单/多币种 owner 触发 onAddCurrency
+   *  或 dispatch 事件 (兼容未传 prop 的场景). */
   function handleAddCurrencyClick() {
-    if (!single_clickable) return;
+    if (!editable) return;
     if (onAddCurrency) {
       onAddCurrency();
     } else {
@@ -168,10 +91,9 @@
   data-sbc="currency-meta"
 >
   {#if is_single}
-    <!-- v0.3.18 #53 (PO msg 10:49 #6542): 单币种 pill 缩小 + owner clickable.
-         单币种 + owner (single_clickable=true) → 包成 <button>, 加 + icon +
-         hover 反馈. 单币种 + non-owner → 保持 <div>, 不可点.
-         双币种 case 不变 (见下面 .currency-bar 块). -->
+    <!-- v0.3.18 #53 + v0.3.20 #93/#94: 单币种 pill 缩小 + owner clickable.
+         single_clickable=true → <button>, 加 + icon + hover 反馈.
+         single_clickable=false → <div>, 不可点. -->
     {#if single_clickable}
       <button
         type="button"
@@ -208,77 +130,62 @@
       </div>
     {/if}
   {:else}
-    <!-- v0.3.17 #36fix (PO msg 12:45 #6287 拍板): 双币种 case 改成 1 个外层 bar 内部 2 行.
-         原 #36 拆 2 个独立 pill (视觉像 2 个胶囊堆叠), 现在合并成 1 个 capsule. -->
-    <div class="currency-bar" data-sbc="currency-bar">
-      <!-- Row 1: 货币对 (CNY ⇄ THB) — 内部分隔行, 不再有独立 pill bg -->
-      <div class="currency-pill-row">
-        <span class="currency-chip primary">{primary_currency}</span>
-        <span class="currency-arrow" aria-hidden="true">⇄</span>
-        <span class="currency-chip secondary">{secondary_currency}</span>
-      </div>
-      <!-- Row 2: 汇率 + 编辑 (1 CNY = ... THB + ✏️) — 内部分隔行, 灰色副标题感 -->
-      {#if show_rate && rate_row}
-        <div class="rate-row">
-          <span class="currency-rate-label">1 {primary_currency} =</span>
-          {#if editing}
-            <span class="edit-host">
-              <input
-                id="sbc-rate-input"
-                type="text"
-                inputmode="decimal"
-                class="rate-input"
-                bind:value={edit_value}
-                on:keydown={handleEditKeydown}
-                on:blur={() => !edit_busy && commitEdit()}
-                disabled={edit_busy}
-                aria-label="编辑汇率"
-              />
-              <span class="rate-suffix">{secondary_currency}/{primary_currency}</span>
-              {#if edit_error}
-                <span class="rate-error" role="alert">{edit_error}</span>
-              {/if}
-            </span>
-          {:else if editable}
-            <button
-              type="button"
-              class="rate-button"
-              on:click={startEdit}
-              aria-label={`编辑汇率 ${rate_row.rate}`}
-              data-rate={rate_row.rate}
-              data-rate-id={rate_row.id}
-            >
-              <span class="rate-num">{rate_row.rate}</span>
-              <span class="rate-unit">{secondary_currency}</span>
-              <svg
-                class="edit-icon"
-                viewBox="0 0 24 24"
-                width="13"
-                height="13"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                <path d="m15 5 4 4" />
-              </svg>
-            </button>
-          {:else}
-            <span
-              class="rate-value"
-              data-rate={rate_row.rate}
-              data-rate-id={rate_row.id}
-            >
-              <span class="rate-num">{rate_row.rate}</span>
-              <span class="rate-unit">{secondary_currency}</span>
-            </span>
-          {/if}
+    <!-- v0.3.17 #36fix: 双币种 case 改成 1 个外层 bar 内部 2 行.
+         v0.3.19 #85: 整 bar 在 owner 时改为 <button> (editable 触发 onAddCurrency),
+         rate row 退化为只读展示 (无 inline edit, 无铅笔 icon, 无 input).
+         non-owner 仍 <div> 不可点. -->
+    {#if multi_clickable}
+      <button
+        type="button"
+        class="currency-bar currency-bar--clickable"
+        on:click={handleAddCurrencyClick}
+        aria-label="修改币种设置"
+        data-sbc="currency-bar-edit"
+        data-primary={primary_currency}
+        data-secondary={secondary_currency}
+        data-rate={rate_row?.rate ?? ''}
+      >
+        <!-- Row 1: 货币对 (CNY ⇄ THB) -->
+        <div class="currency-pill-row">
+          <span class="currency-chip primary">{primary_currency}</span>
+          <span class="currency-arrow" aria-hidden="true">⇄</span>
+          <span class="currency-chip secondary">{secondary_currency}</span>
         </div>
-      {/if}
-    </div>
+        <!-- Row 2: 汇率 (只读) -->
+        {#if show_rate && rate_row}
+          <div class="rate-row">
+            <span class="currency-rate-label">1 {primary_currency} =</span>
+            <span class="rate-value">
+              <span class="rate-num">{rate_row.rate}</span>
+              <span class="rate-unit">{secondary_currency}</span>
+            </span>
+          </div>
+        {/if}
+      </button>
+    {:else}
+      <div
+        class="currency-bar"
+        data-sbc="currency-bar-readonly"
+        data-primary={primary_currency}
+        data-secondary={secondary_currency}
+        data-rate={rate_row?.rate ?? ''}
+      >
+        <div class="currency-pill-row">
+          <span class="currency-chip primary">{primary_currency}</span>
+          <span class="currency-arrow" aria-hidden="true">⇄</span>
+          <span class="currency-chip secondary">{secondary_currency}</span>
+        </div>
+        {#if show_rate && rate_row}
+          <div class="rate-row">
+            <span class="currency-rate-label">1 {primary_currency} =</span>
+            <span class="rate-value">
+              <span class="rate-num">{rate_row.rate}</span>
+              <span class="rate-unit">{secondary_currency}</span>
+            </span>
+          </div>
+        {/if}
+      </div>
+    {/if}
   {/if}
 </div>
 
@@ -291,49 +198,9 @@
     margin: 0 0 var(--space-3);
   }
 
-  /* v0.3.18 #53 (PO msg 10:49 #6542): 单币种 pill 缩小 (PO 反馈「比例有问题,
-   * 缩成一个小的即可」).
-   *  - padding 6px → 2px (上下), 12-18px → 8-12px (左右)
-   *  - font-size 11-13px → 10-12px
-   *  - backdrop-filter blur 20px → 12px
-   *  - inset highlight 0.6 → 0.4
-   *  - box-shadow indigo 外阴影 0.08 → 0.04
-   *  - 整体高度 ~24-28px, 跟双币种 Row 1 (.currency-pill-row) 高度对齐
-   *  - 背景色不变 (保留跟双币种一致的 indigo gradient glass language)
-   *  - 保留 border-radius 999px (pill 形状)
-   *
-   *  v0.3.18 #53 (PO msg 10:49 #6542): 单币种 + owner 时 pill 是 <button>,
-   *  跟双币种 .currency-bar (玻璃) 同款语言; hover/active 加 bg 加深 + 微缩放
-   *  让用户感知「可点」. focus-visible 也加 outline (a11y).
-   *
-   *  v0.3.18 #64 (PO #6859 拍板 CurrentResize — 单币种 pill 仅调整大小, 形态不动):
-   *    - padding 6px 12px → 10px 18px (变大让 chip 视觉权重跟双币种 .currency-bar 平衡).
-   *    - font-size 13px → 15px (跟双币种 .currency-bar 12px 形成层级但更显眼).
-   *    - min-height 24px → 36px (iOS touch target 友好, 接近 44pt).
-   *    - border 1px → 1.5px solid (跟外阴影 0.06 配合, 边缘更清晰).
-   *    - outer shadow 0 1px 4px rgba(99,102,241,0.04) → 0 2px 8px rgba(99,102,241,0.06).
-   *    - **不**改: gradient 角度 + alpha + saturate + blur + border-radius + 点击行为. */  /* v0.3.20 #93 (PO msg 00:04 #7450, Fix 9): 单币种 pill 改 button 形态 —
-     PO 反馈"太细长不像 button". 修法:
-     - padding 10/18 -> 8/16 (横纵比更平衡)
-     - font-size 15px -> 14px + font-weight 600 (跟双币种 Row 1 12px weight 600 形成层级但视觉更圆润)
-     - min-height 36 -> 38 (提高一档, 让 chip 高度接近双币种 .currency-bar ~40px)
-     - gap 3-6px -> 6-8px (chip + plus icon 视觉对称)
-     - bg alpha 0.10/0.08 -> 0.12/0.10 (跟双币种 .currency-bar 0.10/0.08 接近, 视觉对齐)
-     - border 1.5px 0.15 -> 1.5px 0.22 (边缘更清晰, button 视觉更明确)
-     - blur 12px -> 20px (跟 Fix 2 #21/#30/#49 玻璃语言一致)
-     - inset highlight 0.4 -> 0.55 (玻璃上沿加亮, 跟 pill 语言对齐)
-     - 外阴影 0.06 -> 0.08 (button 视觉更突出)
-     保留 border-radius 999px (pill 形态) + gradient 角度 (indigo accent 语言). */
-  /* v0.3.17 #36fix: 内部 .currency-pill-row (Row 1 — 货币对) 退化为分隔行.
-   *   不再有 bg / border-radius / border — 跟外层 .currency-bar 共享同一玻璃基底.
-   *   仅通过 width: 100% 撑满 bar, 内部 3 chip 居中.
-   *
-   *   v0.3.18 #43: min-height 16px 跟 .rate-row 对齐, 保证两行视觉同高 unit.
-   *
-   *   v0.3.20 #94 Fix 2c (PO msg 02:13 #7455): 移到 .currency-pill-row--single **之前**.
-   *   之前在 --single 之后, 同特异性 (0,2,0) 后写覆盖前写, --single 的 min-height 44
-   *   / padding 12px 24px 都被这里 min-height 16 / padding 0 覆盖, 单币 pill 永远 20px 高.
-   *   Fix 2b 移到 --single 之后仍错; Fix 2c 真正移到前面, --single 后写 wins, 44/12-24 生效. */
+  /* v0.3.18 #53: 单币种 pill 缩小 + owner clickable.
+   *  v0.3.20 #94 Fix 2: button 形态更明确 (min-height 44 / padding 12/24 /
+   *  font-size 15 / font-weight 700 / bg alpha 0.16/0.14 / shadow 0.15). */
   .currency-pill-row {
     display: flex;
     justify-content: center;
@@ -346,20 +213,6 @@
     margin: 0;
   }
 
-
-  /* v0.3.20 #94 Fix 2 (PO msg 02:13 #7455): #93 Fix 9 改完 PO 还是嫌"太细长不像
-     button". 这次真修 — 让单币种 pill 视觉上明确是 button 形态:
-     - min-height 38 → 44 (iOS touch target 44pt 标准, 跟全局 --touch-target 一致)
-     - font-size 14 → 15 (主信息字号略大, 可读性更强)
-     - font-weight 600 → 700 (更粗, button 视觉权重)
-     - padding 8/16 → 12/24 (横纵比更平衡, 更接近方形 — 32x24 比例 vs 之前 32x16)
-     - box-shadow 0 2px 8px (0.08) → 0 4px 14px (0.15) (shadow 更明显, button 抬起感)
-     - bg alpha 0.12/0.10 → 0.16/0.14 (更显眼, button 视觉)
-     - 保留 border-radius 999px (pill 形态, 跟双币种 .currency-bar 一致)
-     - 保留 gradient 135deg 角度 (跟全站 indigo accent 渐变语言一致)
-     - **不**改双币种 .currency-bar 形态 (独立 keep)
-     - **不**改 hover state (已经够明显 — bg 0.16/0.13 + shadow 0.08)
-     fallback alpha 0.22 → 0.28 配新 bg 0.16/0.14. */
   .currency-pill-row--single {
     display: inline-flex;
     justify-content: center;
@@ -395,22 +248,13 @@
   }
 
   @supports not (backdrop-filter: blur(1px)) {
-    /* v0.3.20 #94 (Fix 2): fallback alpha 0.22 -> 0.28 配新 bg 0.16/0.14 */
     .currency-pill-row--single {
       background: rgba(99, 102, 241, 0.28);
     }
   }
 
-  /* v0.3.18 #53: clickable variant — single pill rendered as a button
-   * (replaces the previous <div> for owner case). Adds cursor + hover/active
-   * feedback without changing the glass surface (so the read-only and
-   * clickable variants look almost identical at rest, only differ on hover). */
-  /* v0.3.20 #94 Fix 2b (PO msg 02:13 #7455): `font: inherit` 改 `font-family: inherit`.
-     之前 `font: inherit` 是 CSS shorthand, 会重置所有 font 子属性 (font-size, font-weight,
-     line-height, font-style, font-variant, font-stretch) 到 inherited 值. 而 .currency-pill-row--single
-     设了 font-size: 15px / font-weight: 700, 因为 button.currency-pill-row--single 特异性更高
-     (0,2,1 vs 0,2,0) 所以 font: inherit 后写覆盖前写, 实际生效是 16px / 400 (body 默认).
-     改成 font-family: inherit 只继承字体族 (保留原意图: 字体跟 body 走), 不影响 size/weight. */
+  /* v0.3.20 #94 Fix 2b: `font: inherit` 改 `font-family: inherit`.
+   *  之前 `font: inherit` 是 CSS shorthand, 会重置所有 font 子属性. */
   button.currency-pill-row--single {
     appearance: none;
     cursor: pointer;
@@ -440,9 +284,6 @@
     outline-offset: 2px;
   }
 
-  /* v0.3.18 #53: "+" icon next to the primary chip — glass-tinted
-   * indigo so it visually says "click to add another". Sized to fit
-   * inside the shrunk pill (~12x12 SVG, same line-height as chip). */
   .add-icon {
     display: inline-flex;
     align-items: center;
@@ -454,26 +295,10 @@
     margin-left: 1px;
   }
 
-  /* v0.3.17 #36fix: 外层 .currency-bar (双币种 case 唯一 pill 视觉).
-   *   - flex-direction column 内部装 Row 1 + Row 2, 形成「1 个胶囊里有 2 行」视觉.
-   *   - fit-content 居中, 蓝色 accent 渐变 + 玻璃 material (跟原 Row 1 同款).
-   *   - 内边距偏紧, 让 Row 1 / Row 2 视觉上「贴合」成 1 个 unit.
-   *
-   *   v0.3.17 #40 (PO msg 16:24): 整 bar 高度太宽 + 编辑/普通态高度不一致真修.
-   *   - padding 6px → 4px (上下各 4px = 8px, 比原 12px 省 4px).
-   *   - gap Row 1 → Row 2 2px (原 4px), 更紧凑的视觉 unit.
-   *   - 加 gap: 2px 取代 .rate-row margin-top: 4px — 统一管理 Row 间 spacing.
-   *   - min-height 保证最小 unit 高度 (44px) iOS tap target 还合理.
-   *   - 单币种 .currency-pill-row--single 不动 (已经 fit-content 一行不需改).
-   *
-   *   v0.3.18 #43 (PO msg 17:43 #6401 拍板, 反 #40 不彻底): 整 bar 高度压到 ~40px 真修.
-   *   - padding 4px → 2px (上下各 2px = 4px, 比 v1 #40 再省 4px).
-   *   - font-size clamp → 12px 固定 (Row 1 主币种 副币种 12px 已够读).
-   *   - Row 1 + Row 2 都 min-height: 16px (之前 Row 1 无 min-height 跟 Row 2 20px 不齐).
-   *   - Row 1 line-height 1.4 → 1.2 (跟 Row 2 同高 16, 视觉 unit 一致).
-   *   - rate-input height 20 → 16, line-height 18 → 14 (跟 Row 2 同高).
-   *   - rate-button min-height 20 → 16, 加 line-height 14 (跟 rate-input 内容视觉同高).
-   *   实测 (414x896): BAR ~40px (was 48.8px), normal/edit 两态 16px 同高. */
+  /* v0.3.17 #36fix + v0.3.18 #43 + v0.3.19 #85: 外层 .currency-bar (双币种 case).
+   *  - flex-direction column 内部装 Row 1 + Row 2, 形成「1 个胶囊里有 2 行」视觉.
+   *  - v0.3.19 #85: 整 bar 在 owner 时是 <button>, 加 cursor + hover/active 反馈.
+   *  - v0.3.19 #85: rate row 退化为只读展示 (no inline edit, no pencil SVG, no input). */
   .currency-bar {
     display: flex;
     flex-direction: column;
@@ -489,7 +314,6 @@
     color: var(--gray-700);
     overflow: hidden;
 
-    /* iOS27 Liquid Glass (跟原 Row 1 同款蓝色 accent 渐变) */
     background: linear-gradient(
       135deg,
       rgba(99, 102, 241, 0.10) 0%,
@@ -513,6 +337,39 @@
     }
   }
 
+  /* v0.3.19 #85: owner 双币种整 bar 是 <button>, 加 cursor + hover/active 反馈.
+   *  hover bg alpha 0.10/0.08 → 0.13/0.11 (跟单币种 button 同步加深),
+   *  shadow 0.08 → 0.10 (按钮抬起感). 非 owner 仍 <div>, 不可点.
+   *  font-family: inherit (跟单币种 button fix 同步 — 避免 button 默认字体覆盖). */
+  button.currency-bar--clickable {
+    appearance: none;
+    cursor: pointer;
+    font-family: inherit;
+    color: inherit;
+    transition:
+      background 150ms ease,
+      box-shadow 150ms ease,
+      transform 100ms ease;
+  }
+  button.currency-bar--clickable:hover {
+    background: linear-gradient(
+      135deg,
+      rgba(99, 102, 241, 0.13) 0%,
+      rgba(59, 130, 246, 0.11) 100%
+    );
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.7),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.04),
+      0 2px 8px rgba(99, 102, 241, 0.10);
+  }
+  button.currency-bar--clickable:active {
+    transform: scale(0.98);
+  }
+  button.currency-bar--clickable:focus-visible {
+    outline: 2px solid var(--accent-500, #3b82f6);
+    outline-offset: 2px;
+  }
+
   /* 内部 chip 透明 (无独立 bg, 融入外层 .currency-bar / .currency-pill-row--single) */
   .currency-chip {
     display: inline-flex;
@@ -527,7 +384,6 @@
     white-space: nowrap;
     flex-shrink: 0;
   }
-  /* Row 1 蓝色 accent 提示 (PO 蓝色意图保留): 主币种 chip 强调更深 accent-700 */
   .currency-chip.primary {
     background: transparent;
     color: var(--accent-700, #4338ca);
@@ -544,19 +400,8 @@
     flex-shrink: 0;
   }
 
-  /* v0.3.17 #36fix: 内部 .rate-row (Row 2 — 汇率 + 编辑) 同样退化为分隔行.
-   *   视觉副标题感: 字号略小 (sub-clamp), 颜色 gray-600 (比 Row 1 略淡).
-   *   跟 Row 1 之间用 margin-top 4px 拉开 (无 hairline / 无 divider, 纯呼吸感).
-   *
-   *   v0.3.17 #40 (PO msg 16:24): 编辑态 (rate-input height 20px) vs 普通态
-   *   (rate-button text-only ~14px) 高度不一致真修.
-   *   - min-height: 20px 让普通态撑到跟编辑态一样高 (rate-input height 20px).
-   *   - align-items: baseline → center, vertical 居中 (text-only 跟 input 不同 baseline).
-   *   - margin-top: 0 (原 4px), 改用 .currency-bar gap: 2px 统一 Row 间距.
-   *
-   *   v0.3.18 #43 (PO msg 17:43 拍板, 反 #40 不彻底): min-height 20 → 16 (跟 Row 1 同高).
-   *   - font-size clamp → 11px 固定 (跟 Row 1 12px 形成视觉层级, 副标题感保留).
-   *   - line-height 1.2 (继承 .currency-bar), 跟 Row 1 line-height 一致, 两行同高 unit. */
+  /* v0.3.19 #85: rate row 退化为只读展示 (副标题感 gray-600 + 数字 gray-900).
+   *  跟 Row 1 同高 unit, min-height 16 保持, font-size 11 跟原一致. */
   .rate-row {
     display: flex;
     justify-content: center;
@@ -572,7 +417,6 @@
     color: var(--gray-600);
   }
 
-  /* Row 2 「1 CNY =」灰色标签 */
   .currency-rate-label {
     color: var(--gray-500);
     font-size: clamp(0.625rem, 2.4vw, 0.6875rem);
@@ -580,7 +424,6 @@
     flex-shrink: 0;
   }
 
-  /* Row 2 数字 / 单位 (rate-num 数字黑, rate-unit accent 蓝) */
   .rate-num {
     font-variant-numeric: tabular-nums;
     font-weight: 600;
@@ -597,9 +440,9 @@
     flex-shrink: 0;
   }
 
-  /* v0.3.18 #43: align-items baseline → center (跟 .rate-button 单独块的 center 对齐,
-     保证 .rate-value (普通不可编辑态) 内容跟 .rate-input 视觉同高, 切 normal/edit 时不跳). */
-  .rate-button,
+  /* v0.3.18 #43: align-items center (跟 .rate-input 视觉同高).
+   *  v0.3.19 #85: rate-value 不再有 bg / border / padding (退化为纯文本),
+   *  inline edit 已删, 不再需要 button 形态. */
   .rate-value {
     display: inline-flex;
     align-items: center;
@@ -608,145 +451,5 @@
     color: var(--gray-900);
     white-space: nowrap;
     flex-shrink: 0;
-  }
-
-  /* v0.3.18 #43: 加 min-height 16px + line-height 14 (覆盖全局 button min-height 44px).
-     v0.3.17 #40 commit message 声称加了但实际漏了 — 当时没改, 导致 rate-button 仍继承全局
-     base button 的 min-height: var(--touch-target) = 44px, 普通态 bar 撑高到 ~71px (vs 编辑态 49px).
-     这次真修: min-height 16 跟 .rate-row + .rate-input 对齐, line-height 14 跟 .rate-input 一致,
-     保证 rate-button 内容跟 rate-input 内容视觉同高 — 编辑态/普通态切换 pill 高度不变. */
-  /* v0.3.20 #94 Fix 1 (PO msg 02:13 #7455, 反 #93 调查结论错了):
-     rate-button 视觉从「裸文字」改成「glass pill 按钮」— 之前 bg transparent +
-     border 0 + padding 0, 16px 高, 跟普通文本无视觉差别, 用户根本看不出来
-     能点击 (唯一 affordance 是 12×12 pencil SVG, 极易漏看).
-     修法 (跟现有 .rate-input glass 语言对齐 — 视觉一致):
-     - bg transparent → rgba(255,255,255,0.35) (同款半透明白, 跟 input base 0.35 一致)
-     - border 0 → 1px solid rgba(99,102,241,0.30) (跟 input border 0.30 同款)
-     - border-radius 0 → 999px (pill 形态, 跟 input radius 一致)
-     - padding 0 → 1px 6px 1px 8px (asymmetric — 左 8px 跟 input 一致留数字位, 右 6px 留 pencil)
-     - box-shadow 加 inset highlight (玻璃上沿加亮, 跟全站 glass 语言一致)
-     - min-height 16 → 18 (row 2 从 16 → 18, bar 总高 40 → 42, 仍然紧凑, 但 button 触感更明确)
-     - line-height 14 (不变, 保持内容视觉同高)
-     - hover: bg 0.35 → 0.55, border 0.30 → 0.45 (更强反馈)
-     - :active scale(0.97) (iOS 触摸反馈)
-     保留 min-height 18px (iOS 标准 44px 不可达 — bar 整体保持紧凑, button 视觉 buttony 即可,
-     实际 tap target 仍靠 row 2 padding + bar bg 扩大. 之前是 0 padding 0 border 完全隐形.)
-     保留 cursor: pointer (基础 affordance).
-     e2e 验证 (修前): button visible, click → input, blur → PATCH 200, DB 更新,
-     page reload, 全部 OK. 真 bug 是 "用户看不出能点". */
-  .rate-button {
-    appearance: none;
-    background: rgba(255, 255, 255, 0.35);
-    border: 1px solid rgba(99, 102, 241, 0.30);
-    border-radius: 999px;
-    padding: 1px 6px 1px 8px;
-    margin: 0;
-    font: inherit;
-    color: inherit;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    min-height: 18px;
-    line-height: 14px;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.7),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.04);
-    transition:
-      background 150ms ease,
-      border-color 150ms ease,
-      box-shadow 150ms ease,
-      transform 100ms ease;
-  }
-  .rate-button:hover {
-    background: rgba(255, 255, 255, 0.55);
-    border-color: rgba(99, 102, 241, 0.45);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.8),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.04);
-  }
-  .rate-button:active {
-    transform: scale(0.97);
-  }
-  .rate-button:focus-visible {
-    outline: 2px solid var(--accent-500);
-    outline-offset: 2px;
-  }
-
-  .edit-icon {
-    color: var(--accent-500);
-    flex-shrink: 0;
-    transition: color 150ms ease;
-  }
-  .rate-button:hover .edit-icon {
-    color: var(--accent-700, #4338ca);
-  }
-
-  /* v0.3.17 #21 (PO msg 13:51 item 5): 汇率 bar 编辑态重构。
-     原版 .rate-input border 1px + padding 1px 5px + border-radius 4px (硬 rect)
-     跟胶囊 pill 风格脱节, 编辑时整个 pill-row 高度突变 (从 ~32px 跳 ~40px),
-     "很丑" (PO msg)。
-     修法 (跟 pill 同高 + 玻璃感):
-       - height 固定 20px (line-height 18 + padding 0), 跟 rate-button 18px text 同高,
-         pill-row 高度不变
-       - border-radius: 999px (跟 pill 一致), border 改成跟 pill 同款 accent 0.30
-       - bg 改成 rgba(255,255,255,0.65) (跟 pill 玻璃同款半透明白)
-       - inset highlight box-shadow (跟 pill 同款内高光)
-       - focus 时 outline 不用双层 (border 自身加焦点感 + box-shadow ring) */
-  .edit-host {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    line-height: 1;
-  }
-  /* v0.3.18 #43: height 20 → 16, line-height 18 → 14 (跟 Row 2 min-height 16 对齐)
-     v0.3.18 #48 (PO msg 19:10 #6489): bg 0.65 → 0.35 (× 0.54 透明化)
-     让 peach→rose→lavender 背景图透过来, 玻璃感真出. */
-  .rate-input {
-    appearance: none;
-    height: 16px;
-    line-height: 14px;
-    padding: 0 8px;
-    background: rgba(255, 255, 255, 0.35);
-    border: 1px solid rgba(99, 102, 241, 0.30);
-    border-radius: 999px;
-    font-size: clamp(0.625rem, 2.4vw, 0.6875rem);
-    font-family: inherit;
-    font-variant-numeric: tabular-nums;
-    color: var(--gray-900);
-    min-width: 4em;
-    max-width: 10em;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.7),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.04);
-    transition: border-color 150ms ease, box-shadow 150ms ease;
-  }
-  .rate-input:focus {
-    outline: none;
-    border-color: rgba(99, 102, 241, 0.55);
-    /* v0.3.18 #48: focus bg 0.85 → 0.55 (跟新 base 0.35 同比例降级, focus 时仍 opaque 让用户清楚焦点) */
-    background: rgba(255, 255, 255, 0.55);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.8),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.05),
-      0 0 0 3px rgba(99, 102, 241, 0.15);
-  }
-  .rate-input:disabled {
-    /* v0.3.18 #48: disabled 0.4 → 0.25 (跟新 base 0.35 比例降级, disabled 仍比 base 略暗) */
-    background: rgba(255, 255, 255, 0.25);
-    color: var(--gray-500);
-    cursor: wait;
-  }
-  .rate-suffix {
-    color: var(--gray-500);
-    font-size: clamp(0.625rem, 2.4vw, 0.6875rem);
-  }
-  .rate-error {
-    color: var(--error-500, #dc2626);
-    font-size: clamp(0.625rem, 2.4vw, 0.6875rem);
-    /* 320px edit-error 换行 case: 允许 error 单独占 1 行 */
-    flex-basis: 100%;
-    text-align: center;
-    margin-top: 2px;
   }
 </style>
