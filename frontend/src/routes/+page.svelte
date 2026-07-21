@@ -184,15 +184,17 @@
     margin-bottom: 1.5rem;
   }
 
-  /* v0.3.21 #103 (PO msg 15:03): iOS 26 lock screen style — 超大超细数字时尚感
-     font-weight 200 extra-light, font-size clamp 56-88px @ 390 viewport,
-     letter-spacing -0.03em (紧), text-shadow 让大数字在 hero bg 上可读. */
+  /* v0.3.21 #104 (PO msg 15:07): iOS 26 lock screen TIME scale — 真的超大了
+     font-size clamp 88-160px @ 390 viewport (iOS 26 time ~120pt = 1440px@3x)
+     font-weight 100 thin (极致细)
+     letter-spacing -0.05em (数字极致紧 — 跟锁屏时间 SF Ultra Light 一致)
+     text-shadow 加深 (大字在 hero bg 上要更稳). */
   .brand-name {
-    font-size: clamp(3.5rem, 14vw, 5.5rem);
-    font-weight: 200;
+    font-size: clamp(5.5rem, 25vw, 10rem);
+    font-weight: 100;
     color: #fff;
-    letter-spacing: -0.03em;
-    text-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+    letter-spacing: -0.05em;
+    text-shadow: 0 6px 32px rgba(0, 0, 0, 0.35);
     line-height: 1;
   }
 
@@ -266,6 +268,29 @@
       0 6px 20px rgba(255, 255, 240, 0.30);
   }
 
+  /* v0.3.21 #104 (PO msg 15:07): 删按钮蓝色边框 — Safari/Chrome 默认 focus
+     outline 删掉 (改用 ivory focus-visible). -webkit-tap-highlight-color: transparent
+     让 iOS tap 高亮也消失 (蓝色闪蓝). focus-visible (键盘 focus) 用 ivory outline
+     仍给 a11y 反馈. */
+  .btn-primary,
+  .btn-primary:hover,
+  .btn-primary:active,
+  .btn-primary:focus,
+  .btn-primary:focus-visible,
+  .btn-ghost,
+  .btn-ghost:hover,
+  .btn-ghost:active,
+  .btn-ghost:focus,
+  .btn-ghost:focus-visible {
+    -webkit-tap-highlight-color: transparent;
+    outline: none;
+  }
+  .btn-primary:focus-visible,
+  .btn-ghost:focus-visible {
+    outline: 2px solid rgba(255, 255, 240, 0.8);
+    outline-offset: 2px;
+  }
+
   .btn-primary:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.30);
     color: #FFFFF0;
@@ -276,7 +301,7 @@
   }
 
   .btn-primary:active:not(:disabled) {
-    transform: scale(0.98);
+    transform: scale(0.97);
   }
 
   .btn-primary:disabled {
@@ -322,6 +347,7 @@
   @supports not (backdrop-filter: blur(1px)) {
     .btn-primary { background: rgba(255, 255, 240, 0.85); }
     .btn-ghost { background: rgba(255, 255, 255, 0.85); }
+    .btn-primary:focus, .btn-ghost:focus { outline: none; }
   }
 
   .hint {
