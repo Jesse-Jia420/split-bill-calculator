@@ -87,7 +87,6 @@
     <!-- Centered content -->
     <div class="hero">
       <div class="brand-row">
-        <span class="brand-icon"><Wallet size={32} strokeWidth={1.75} /></span>
         <span class="brand-name">SplitIt</span>
       </div>
 
@@ -185,22 +184,16 @@
     margin-bottom: 1.5rem;
   }
 
-  /* v0.3.17 #16 hotfix: emoji -> Lucide Wallet icon
-     - 内联 SVG, line-height 1 + display inline-flex 让 SVG 跟 brand-name baseline 对齐
-     - color: #fff 跟 .brand-name 同色, 保持视觉一致 */
-  .brand-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 1;
-    color: #fff;
-  }
-
+  /* v0.3.21 #103 (PO msg 15:03): iOS 26 lock screen style — 超大超细数字时尚感
+     font-weight 200 extra-light, font-size clamp 56-88px @ 390 viewport,
+     letter-spacing -0.03em (紧), text-shadow 让大数字在 hero bg 上可读. */
   .brand-name {
-    font-size: 1.25rem;
-    font-weight: 700;
+    font-size: clamp(3.5rem, 14vw, 5.5rem);
+    font-weight: 200;
     color: #fff;
-    letter-spacing: 0.02em;
+    letter-spacing: -0.03em;
+    text-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+    line-height: 1;
   }
 
   .tagline {
@@ -270,7 +263,7 @@
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.4),
       inset 0 -1px 0 rgba(0, 0, 0, 0.08),
-      0 6px 20px rgba(59, 130, 246, 0.35);
+      0 6px 20px rgba(255, 255, 240, 0.30);
   }
 
   .btn-primary:hover:not(:disabled) {
@@ -279,7 +272,7 @@
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.55),
       inset 0 -1px 0 rgba(0, 0, 0, 0.08),
-      0 8px 24px rgba(59, 130, 246, 0.45);
+      0 8px 24px rgba(255, 255, 240, 0.35);
   }
 
   .btn-primary:active:not(:disabled) {
@@ -327,8 +320,8 @@
 
   /* Safari iOS < 18 fallback (无 backdrop-filter) */
   @supports not (backdrop-filter: blur(1px)) {
-    .btn-primary { background: rgba(59, 130, 246, 0.9); }
-    .btn-ghost { background: rgba(255, 255, 255, 0.22); }
+    .btn-primary { background: rgba(255, 255, 240, 0.85); }
+    .btn-ghost { background: rgba(255, 255, 255, 0.85); }
   }
 
   .hint {
