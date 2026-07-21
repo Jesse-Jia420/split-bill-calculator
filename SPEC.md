@@ -2791,3 +2791,46 @@ seed 脚本 (`backend/scripts/seed_dev_data.py`) 已有 find-or-create 逻辑：
 - Footer 不动 (PO #7536 明确"不管 footer", 撤了的 footer 不恢复)
 - AppBackground / paper bg 不动 (#97 已稳, 跟 NavBar 玻璃配合正好)
 - .btn-sm / .ghost 仍 indigo→blue 渐变 (跟 NavBar 不同容器, 交互按钮需颜色标识)
+
+### §11. v0.3.20 #99-fix3 (2026-07-21) — NavBar alpha 0.20 → 0.05 (PO msg 14:07 #7571 透明度再提高)
+
+**commit**: `03a645c` — `fix(fe): v0.3.20 #99-fix3 — NavBar bg alpha 0.20 → 0.05 (PO msg 14:07 #7571 透明度再提高)`
+
+**前置问题** (commit `8083e15` #99-fix2):
+- bg alpha 0.20 white → 透 ~80%, PO 反馈 "再透一点" 后仍不够
+- PO msg 14:07 #7571: "不行，透明度再提高"
+
+**改动 1 处**:
+- `.navbar` bg `rgba(255, 255, 255, 0.20)` → `rgba(255, 255, 255, 0.05)`
+- 1 行 CSS 替换 + 1 行注释加 #99-fix3 注记
+
+**视觉**:
+- alpha 0.05: paper bg 透 ~95%, navbar 仅作视觉分隔 (border-bottom 1px white 0.2 + inset highlight), 不抢 paper 主角戏
+- "Split Bill" 文字仍 readable (彩色 #color-text 跟 paper bg 自带对比, 不依赖 navbar wash)
+
+**保留** (跟 #99-fix2 一致):
+- backdrop-filter saturate(130%) blur(20px) (blur 仍让 navbar 区域有玻璃质感)
+- inset highlight top + bottom (glass 语言)
+- border-bottom 1px rgba(255,255,255,0.2) (微弱玻璃分隔)
+- @supports Safari <18 fallback 0.85 opaque white (无 backdrop-filter 时保可读)
+- .btn-sm / .ghost 仍 indigo→blue 渐变 (交互按钮颜色标识)
+
+**dev 验证** (iPhone 13 viewport 截图 /auth/login):
+- 截图: `~/.openclaw/media/v0320-99-fix3/navbar-alpha-005-fully-transparent.png` (354KB)
+- paper texture 在 NavBar 区域 ~95% 透过来, 仅一像素级 border-bottom 看得出 navbar 边界
+- "Split Bill" + "登录以保存" 文字 readable (彩色文字 + paper texture 灰度对比足够, 不靠 navbar wash)
+
+**关联链 (alpha 降级史)**:
+- #99 (08ac6e6): indigo gradient (错, 0 透)
+- #99-fix (54a03d4): white 0.55 (透 ~45%)
+- #99-fix2 (8083e15): white 0.20 (透 ~80%)
+- #99-fix3 (03a645c): white 0.05 (透 ~95%, 当前)
+
+**反模式自查**:
+- 反 #162 ✅ git pull --ff-only before commit (拉到 8083e15 #99-fix2, 无冲突)
+- 反 #151 ✅ 真 PNG 截图 (iPhone 13 真机 walk)
+- 反 #158 ✅ 强制 Telegram 推送
+
+**不**在这个 commit:
+- Footer / AppBackground / .btn-sm 不动 (PO 没否定)
+- @supports fallback bg 0.85 保留 (Safari <18 fallback 时仍要 opaque, 不跟着 alpha 降)
