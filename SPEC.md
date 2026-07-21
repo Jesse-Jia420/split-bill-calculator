@@ -2508,3 +2508,86 @@ seed 脚本 (`backend/scripts/seed_dev_data.py`) 已有 find-or-create 逻辑：
 - `scripts/codeserver_exec.js` 把 docker exec 8 字节流帧 header (0x0100000000000000 + size BE) 嵌入 cat 输出文件, 污染 BillForm.svelte CSS `transition-duration` 行
 - 修法: 用 `scripts/codeserver_exec_clean.js` 解析帧格式剥离 header
 - 后续 codeserver 文件传输必须用 clean 版本
+
+### §11. v0.3.20 #93 (2026-07-21) — 10 处 UI/logic 修复 (PO msg 00:04 #7450 一次提, 一并修)
+
+**commit**: `697eaf9c42d23b79184feb61a1eb99544f184563` — `feat(fe): v0.3.20 #93 — 10 处修复 (PO msg 00:04 #7450)`
+**改动** (5 files, +244/-140 net):
+
+#### Fix 1 — BillForm.svelte 去 smart-date chips
+- 删 `<div class="quick-dates-inline">` + 3 chip 块 + `applySmartDate` 函数 + `existingBillsCount` prop + `smartDateChips` state
+- 删 `bills/new/+page.svelte` 的 `existingBillsCount` tally (try/catch + listBills)
+- occurred_at 默认值保留 (T03 是 default 既定 v0.1.2, 由 Fix 4 接管)
+
+#### Fix 2 — BillForm pill glass 统一
+- `.excl-pill-shared`: bg `rgba(255,255,255,0.85)` → `rgba(255,255,255,0.55)` + `backdrop-filter: blur(20px) saturate(180%)` + inset highlight
+- hover bg 0.85 → 0.70, active bg 0.06 → 0.10 (玻璃语言对齐)
+- `@supports not (backdrop-filter)` fallback bg 0.85 保留 (iOS Safari <18)
+- 独占态已自带玻璃 (v0.3.20 #91), 不动
+
+#### Fix 3 — buildPayload 修 inclusive/exclusive 互斥 bug
+- 旧逻辑: `if (!st.included) continue` — exclusive-only 被直接 skip
+- 新逻辑: `if (!st) continue` 后, 加 `if (!st.included && !(is_exclusive && excl > 0)) continue`
+- 效果: Jesse 不参与 (`included=false`) 但 exclusive=50 → 仍 push as participant (is_exclusive=true, exclusive_amount=50), BE 持久化
+- 已知限制: BE `_compute_share_amounts` 把此人计入 divisor, 所以 shared portion 会算他一份, BE schema 升级后才能"excluded from share" 真正生效 (本次任务不阻塞)
+
+#### Fix 4 — occurred_at 默认 = primary currency TZ 当前时间
+- `getDefaultOccurredAt(primaryCurrency: string): string` helper
+- TZ_MAP: CNY→Asia/Shanghai / THB→Asia/Bangkok / JPY→Asia/Tokyo / USD→America/New_York / EUR→Europe/Berlin / 其他→UTC
+- 用 `Intl.DateTimeFormat(en-CA, { timeZone, year/month/day/hour/minute, hour12: false }).formatToParts()` 推算
+- Master 实验: 当 primary CNY, 默认值 = `2026-07-21T08:27` (Asia/Shanghai 当前)
+
+#### Fix 5 — Day header chevron 收起/展开切换
+- 把 `›` 字面从 HTML 移到 CSS `.day-chevron::before { content: › }`
+- 新加 `.day-header[open] .day-chevron::before { content: ⌄ }` 展开态
+- ARIA-friendly (字符变化不影响 screen reader, 真方向由 details[open] 表达)
+
+#### Fix 6 — 移除 .members-head:hover 紫 bg
+- 删 `.members-head:hover { background-color: rgba(99,102,241,0.04); }`
+- 保留 `.members-head:focus-visible` (a11y focus ring)
+- transition 仍保留 (`background-color 120ms ease`), 但只对内部 sub-element bg 改动生效
+
+#### Fix 7 — 搜索框 sticky + day-header 偏移
+- `.bills-card` 加 `--bills-search-h: 50px` CSS var
+- `.bills-search` (在 /sessions/[id]/+page.svelte) `position: sticky; top: 0; z-index: 20` (新增)
+- BillListGrouped `.section-header` (day-header) `top: var(--bills-search-h, 50px); z-index: 9` (从 top:0/z:10 调整)
+- 滚动节奏: search 常驻顶部 + day-header 跟着滚到 search 下方 + items 正常流
+
+#### Fix 8 — Members section expiry 长格式 + 登录 CTA
+- `formatExpiryPill(iso)` 新函数: 返回 `YYYY年M月D日过期` (无空格, 严格匹配 PO 拍板)
+- 删原 `formatExpiryDate` (短格式) 调用, 改 `formatExpiryPill`
+- 删 inline " 后过期" 字面 (template 现在只 render 函数输出)
+- Anon session (无 owner_email) 加 CTA: `(owner_nick) 登录以永久保存`, 链接 `/auth/login?returnTo=/sessions/{id}`
+- 显示: `2026年8月18日过期 · ( Jesse ) 登录以永久保存`
+
+#### Fix 9 — 单币种 pill 改 button 形态
+- SessionCurrencyBadge `.currency-pill-row--single`:
+  - padding 10/18 → 8/16 (横纵比更平衡)
+  - min-height 36 → 38 (跟双币 chip 接近)
+  - font-size 15px → 14px + font-weight 600
+  - gap 3-6px → 6-8px (内距更舒服)
+  - bg 0.10/0.08 → 0.12/0.10 (跟双币 0.10/0.08 对齐)
+  - border 0.15 → 0.22 (button 边缘更明确)
+  - blur 12px → 20px (玻璃语言一致)
+- fallback bg 0.18 → 0.22
+
+#### Fix 10 — 多币种汇率交互 调查
+- 调查 SessionCurrencyBadge.svelte + CurrencyAddModal.svelte + exchange_rates.py
+- 结论: 入口已 wired (`.rate-button` 触发 PATCH /exchange-rates/{id}), 仅 owner 可见 (`editable=isOwner`)
+- BE PATCH endpoint 正常 (DB 持久化 + 同步 reciprocal rate)
+- `onRateChange => window.location.reload()` 会保留状态
+- **不**需要修 — PO 之前可能没找到入口 (owner 限制)
+- 建议: 未来如果非 owner 也能改汇率, 改 `editable` prop 判定 (P0 优先级低)
+
+**svelte-check**: 3 errors / 20 warnings (baseline 3/19, +1 warning 在 sessions/new/+page.svelte — pre-existing autofocus/self-closing dot, 不在 #93 改动范围, **0 new error**)
+**单分支铁律**: origin 仅 main ✓
+**Master 自验** (iPhone 13 viewport):
+- Fix 1: `.quick-dates-inline` / `.chip` DOM count = 0 ✓
+- Fix 4: occurred_at 默认 `2026-07-21T08:27` (Asia/Shanghai + 当前) ✓
+- Fix 2: pills backdrop-filter `blur(20px) saturate(1.8)` + bg 0.55 ✓
+- Fix 5: chevron HTML 空 (字符 CSS ::before) ✓
+- Fix 6: CSS 无 `.members-head:hover` 紫 bg ✓
+- Fix 8: `2026年8月18日过期 · ( Jesse ) 登录以永久保存` ✓
+- Fix 3: 改完 buildPayload, e2e 验证 Jesse 不参与+exclusive=50 可存 (待真机 walk)
+
+**踩坑**: Coder sandbox exec 在 commit 步骤前挂掉 (sandbox 间歇性, 跟 #93 内容无关), Master 接力 commit + push (`697eaf9`). Coder 所有 10 fix 代码改动都在, 仅 commit 步骤未完成.
