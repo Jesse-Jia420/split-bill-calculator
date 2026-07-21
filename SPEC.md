@@ -3906,3 +3906,38 @@ image tool 视觉验证 (03 截图):
 - 上游: c8dab5c #85 v3 (PO #7731 5 反馈修, FAB 圆形按钮 / Lucide lock icon)
 - 关联: 「—」选项 (114b216 #107 加的) → 现在真生效 (不再是"功能开发中")
 - 不动: v0.3.21 #100-#106.x (NavBar / Landing / 其它 sprint)
+
+### §11. v0.3.21 #106.3 (2026-07-21 18:17) — Landing tagline 字号继续调小 (PO msg 18:17)
+
+**PO msg 18:17**: "分账够清楚, 友情撕不裂。字号继续调小。"
+
+承接 #106.1 / #106.2 的字重迭代 (700→500→400), 本轮转 **字号**:
+
+| 元素 | 之前 | 现在 | 变化 |
+|------|------|------|------|
+| `.tagline` body | 2.25rem (35.1px @iPhone13) | 1.625rem (25.35px @iPhone13) | **-28%** |
+| `.tagline-emphasis` 「撕不裂」 | 42px | 32px | **-24%** |
+| `.tagline-emphasis` weight | 700 (italic serif) | 700 (不变) | — |
+| `.tagline` weight | 400 (per #106.2) | 400 (不变) | — |
+
+**为什么 25.35px 不是 26px**: `:root` 的 `--font-size-base` = `clamp(0.875rem, 4vw, 1rem)`, 在 iPhone 13 (390px viewport) 下 4vw = 15.6px, 所以 1rem = 15.6px, 1.625rem = 25.35px (按 16px base 算才是 26px). 实际缩了 35.1 → 25.35 = -27.8%, 跟注释的 -28% 一致.
+
+**Hierarchy 保留**: wordmark (125/58px) > emphasis (32px) > tagline body (26px). 比例 1.94:1.23:1.
+
+**实施 commit**: `<fix(fe): v0.3.21 #106.3 — tagline + emphasis 字号继续调小 (-28% / -24%)>` (单文件 +page.svelte)
+- svelte-check 0 new error (baseline 2 + 20 不变)
+- Playwright 验: `taglineFontSizePx=25.35` (root=15.6 × 1.625) ✓ + `emphasisFontSizePx=32` ✓ + `taglineWeight=400` + `emphasisWeight=700` ✓
+- 真机截图: `~/.openclaw/media/v0321-106-3/01-anonymous-landing.png` (image tool 确认 body 明显缩小, emphasis 缩小但仍 sub-emphasis 锚点, 整体 "变轻" 跟 wordmark + 按钮 focus 协调)
+
+**反模式自查**:
+- 反 #150 v2 ✅ PO msg 直接修 (无选项栏, 不列 "继续/暂停" 兑底)
+- 反 #161 v3 ✅ 字面执行 PO "字号继续调小" — body -28% + emphasis -24%, 两部分都缩
+- 反 #162 ✅ §11 sync + fix commit 同一 batch
+- 反 #170 ✅ codeserver_exec_clean.js 写 codeserver
+- 反 #189 ✅ SPEC append 用 heredoc
+
+**关联**:
+- 上游: 4206be5 #106.2 (weight 500→400)
+- 上游: 25323da #106.1 (weight 700→500)
+- 上游: 02bf84b #106 F2-v2 落地
+- 不动: v0.3.19 #85 系列 / v0.3.21 #107 / #108 (其它 sprint)
