@@ -142,8 +142,10 @@
     gap: var(--space-2);
     margin-left: auto; /* v0.3.17 #28.5 #8: .links 隐藏时 (例如 /sessions/new wizard) 也贴右 */
   }
+  /* v0.3.20 #101 (PO msg 14:47): 用户名 改成 ivory 跟按钮统一 — PO 原话
+     "旁边的用户名，通通换成刚刚的白色". 象牙白 #FFFFF0. */
   .email {
-    color: var(--color-text-muted);
+    color: #FFFFF0;
     font-size: var(--font-size-sm);
     max-width: 12ch;
     overflow: hidden;
@@ -157,66 +159,53 @@
      bg 0.06/0.04 → 0.04/0.02 (再 × 0.67 透明, 整站 btn-sm 几乎全透).
      border 0.20 → 0.25 (边缘补偿). inset highlight 0.7 → 0.95 (玻璃上沿加强).
      外阴影 indigo 0.10 → 0.16 (玻璃感更强). */
+  /* v0.3.20 #101 (PO msg 14:47): 登录 / 我的账本 按钮 透明玻璃 ivory —
+     跟 #100 landing .btn-primary 统一语言. 替代原 indigo 渐变 (跟 #100 节奏对齐
+     "通通换成刚刚的白色"). */
   .btn-sm {
     min-height: var(--touch-target);
     padding: var(--space-2) var(--space-3);
     border-radius: var(--radius-full, 999px);
-    border: 1px solid rgba(99, 102, 241, 0.25);
-    background: linear-gradient(
-      135deg,
-      rgba(99, 102, 241, 0.04) 0%,
-      rgba(59, 130, 246, 0.02) 100%
-    );
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    background: rgba(255, 255, 255, 0.20);
     backdrop-filter: saturate(180%) blur(16px);
     -webkit-backdrop-filter: saturate(180%) blur(16px);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.95),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.04),
-      0 1px 3px rgba(99, 102, 241, 0.16);
+      inset 0 1px 0 rgba(255, 255, 255, 0.55),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.05);
     display: inline-flex;
     align-items: center;
     font-size: var(--font-size-sm);
-    color: var(--accent-700, #4338ca);
+    color: #FFFFF0; /* ivory white */
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15); /* 文字阴影让 ivory 在亮 bg 上可读 */
     cursor: pointer;
     text-decoration: none;
     transition: transform 150ms ease, background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
   }
   .btn-sm:hover {
-    /* v0.3.18 #49: hover 0.12/0.09 → 0.08/0.06 (跟 base 0.04/0.02 同比例降级, hover 仍略亮) */
-    background: linear-gradient(
-      135deg,
-      rgba(99, 102, 241, 0.08) 0%,
-      rgba(59, 130, 246, 0.06) 100%
-    );
-    border-color: rgba(99, 102, 241, 0.32);
-    color: var(--accent-800, #3730a3);
+    /* v0.3.20 #101: 跟着 .btn-sm base 改 ivory, hover bg alpha 0.20 -> 0.30 + ivory text */
+    background: rgba(255, 255, 255, 0.30);
+    border-color: rgba(255, 255, 255, 0.55);
+    color: #FFFFF0;
     transform: translateY(-1px);
     text-decoration: none;
   }
   .btn-sm:active { transform: scale(0.97); }
   @supports not (backdrop-filter: blur(1px)) {
-    /* v0.3.18 #49: fallback 0.12 → 0.08 (跟新 base 0.04/0.02 同比例降级) */
-    .btn-sm { background: rgba(99, 102, 241, 0.08); }
+    /* v0.3.20 #101: fallback 0.85 opaque white + ivory text (无 backdrop-filter 时仍可读) */
+    .btn-sm { background: rgba(255, 255, 255, 0.85); }
   }
-  /* .ghost: 注销按钮 — 更弱化 (白玻璃非蓝玻璃)
-     v0.3.18 #49: bg 0.35/0.20 → 0.20/0.10 (跟 .btn-sm 同比例降级). border 0.15 → 0.20. */
+  /* v0.3.20 #101 (PO msg 14:47): .ghost 注销按钮 跟 .btn-sm 统一 ivory —
+     PO 原话 "注销登录按钮，通通换成刚刚的白色". */
   .ghost {
-    background: linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.20) 0%,
-      rgba(255, 255, 255, 0.10) 100%
-    );
-    border-color: rgba(99, 102, 241, 0.20);
-    color: var(--gray-700);
+    background: rgba(255, 255, 255, 0.20);
+    border-color: rgba(255, 255, 255, 0.45);
+    color: #FFFFF0;
   }
-  /* v0.3.18 #48: hover 0.85/0.65 → 0.50/0.35 (跟新 base 同比例降级) */
   .ghost:hover {
-    background: linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.50) 0%,
-      rgba(255, 255, 255, 0.35) 100%
-    );
-    color: var(--accent-700);
+    /* v0.3.20 #101: 跟 .btn-sm:hover 同步 — bg 0.20 -> 0.30 + ivory text */
+    background: rgba(255, 255, 255, 0.30);
+    color: #FFFFF0;
   }
   /* v0.3.18 #48: Safari iOS < 18 backdrop-filter fallback.
      v0.3.20 #99: fallback 用更 opaque white (0.85) 替代前版 indigo 渐变 — 跟新
@@ -226,6 +215,6 @@
     .navbar {
       background: rgba(255, 255, 255, 0.85);
     }
-    .ghost { background: rgba(255, 255, 255, 0.55); }
+    .ghost { background: rgba(255, 255, 255, 0.85); }
   }
 </style>
