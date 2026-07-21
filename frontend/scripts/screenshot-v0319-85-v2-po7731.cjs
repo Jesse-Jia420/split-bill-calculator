@@ -3,14 +3,15 @@
  * SBC Currency Bar Modal Screenshots — v0.3.19 #85 v2 (PO #7731 反馈验证)
  *
  * 验证 4 项反馈:
- *   1) Single pill 居中 (跟 multi bar 一样视觉) — pill x 应该在 viewport 中心
- *   2) 弹窗去全屏深色背景 — backdrop background 应该是 transparent (非 rgba(15,23,42,0.55))
- *   3) Multi+!has_bills 删「修改主币种/副币种功能开发中...」hint — 弹窗 body 内不该有那文案
- *   4) Multi+!has_bills 主+副币种 select 同行 — DOM 上两 select 同一 field 容器, 横排
+ *   1) Single pill 居中 (跟 multi bar 一样视觉)
+ *   2) 弹窗去全屏深色背景 (backdrop transparent)
+ *   3) Multi+!has_bills 删「修改主币种/副币种功能开发中...」hint
+ *   4) Multi+!has_bills 主+副币种 select 同行
  *
  * 当前 DB 状态 (sandbox BE):
- *   session 1: 泰国测试账单 6.19-6.22, currencies=[CNY, THB], bills=32
- *   session 2: 个人测试, currencies=[CNY], bills=0
+ *   session 1: 泰国测试账单 6.19-6.22, currencies=[CNY, THB], bills=32    (multi+has_bills)
+ *   session 2: 个人测试, currencies=[CNY, HKD], bills=0                  (multi+!has_bills) ←
+ *   session 3: 666, currencies=[CNY], bills=0                            (single+!has_bills)
  *
  * 真机 profile: iPhone 13 (390x844 @3x, webkit)
  */
@@ -65,91 +66,127 @@ async function snap(page, label) {
   try {
     await login(page);
 
-    // ========== 验证 #1: 单币种 pill 居中 (session 2) ==========
-    console.log('\n#1 single pill 居中验证 (session 2)');
-    await openSession(page, 2);
+    // ========== #1: single pill 居中 (session 3 — CNY, 0 bills, owner) ==========
+    console.log('\n#1 single pill 居中验证 (session 3)');
+    await openSession(page, 3);
     const pill = await page.$('[data-sbc="currency-pill-add-secondary"]');
-    if (!pill) throw new Error('No single pill on session 2');
+    if (!pill) throw new Error('No single pill on session 3');
     const pillBox = await pill.boundingBox();
-    // viewport 中心 = 390/2 = 195, pill 中心 = (x + w/2)
     const pillCenter = pillBox.x + pillBox.width / 2;
     const viewportCenter = 390 / 2;
-    const offsetFromCenter = Math.abs(pillCenter - viewportCenter);
+    const offsetPill = Math.abs(pillCenter - viewportCenter);
     console.log(`  pill box: x=${pillBox.x.toFixed(1)} y=${pillBox.y.toFixed(1)} w=${pillBox.width.toFixed(1)} h=${pillBox.height.toFixed(1)}`);
-    console.log(`  pill center: ${pillCenter.toFixed(1)} / viewport center: ${viewportCenter} → 偏离 ${offsetFromCenter.toFixed(1)}px`);
-    console.log(`  #1 验证: ${offsetFromCenter < 5 ? '✓ 居中 (容差 <5px)' : '✗ 未居中'}`);
+    console.log(`  pill center: ${pillCenter.toFixed(1)} / viewport center: ${viewportCenter} → 偏离 ${offsetPill.toFixed(1)}px`);
+    console.log(`  #1 验证: ${offsetPill < 5 ? '✓ 居中 (容差 <5px)' : '✗ 未居中'}`);
     await snap(page, '01-single-pill-centered');
 
-    // 触发 multi+has_bills (session 1) bar 也截图对照
+    // ========== [对比] multi bar 居中 (session 1) ==========
     console.log('\n[对比] multi bar 居中 (session 1)');
     await openSession(page, 1);
     const bar = await page.$('[data-sbc="currency-bar-edit"]');
     const barBox = await bar.boundingBox();
     const barCenter = barBox.x + barBox.width / 2;
-    const barOffset = Math.abs(barCenter - viewportCenter);
+    const offsetBar = Math.abs(barCenter - viewportCenter);
     console.log(`  bar box: x=${barBox.x.toFixed(1)} y=${barBox.y.toFixed(1)} w=${barBox.width.toFixed(1)} h=${barBox.height.toFixed(1)}`);
-    console.log(`  bar center: ${barCenter.toFixed(1)} → 偏离 ${barOffset.toFixed(1)}px ✓`);
+    console.log(`  bar center: ${barCenter.toFixed(1)} → 偏离 ${offsetBar.toFixed(1)}px ✓`);
     await snap(page, '02-multi-bar-centered-compare');
 
-    // ========== 验证 #2 + #3 + #4: 打开 multi+has_bills 弹窗, 验证 backdrop + body ==========
-    console.log('\n#2 #3 #4: multi+has_bills 弹窗验证 (session 1)');
-    await bar.click();
-    await page.waitForSelector('[data-sbc="currency-add-modal"][data-mode="multi"][data-has-bills="true"]', { timeout: 5000 });
+    // ========== #2 + #3 + #4: 验证 multi+!has_bills (session 2 现在 multi+0 bills) ==========
+    console.log('\n#2 #3 #4 multi+!has_bills 弹窗验证 (session 2: CNY+HKD, 0 bills)');
+    await openSession(page, 2);
+    const bar2 = await page.$('[data-sbc="currency-bar-edit"]');
+    if (!bar2) throw new Error('No multi bar on session 2 (expected multi mode)');
+    await bar2.click();
+    await page.waitForSelector('[data-sbc="currency-add-modal"][data-mode="multi"][data-has-bills="false"]', { timeout: 5000 });
     await page.waitForTimeout(500);
 
-    // #2: backdrop transparent — 用 evaluate 读 computed style
+    // #2: backdrop transparent
     const backdropBg = await page.evaluate(() => {
       const bd = document.querySelector('.modal-backdrop');
-      if (!bd) return 'NO_BACKDROP';
-      return window.getComputedStyle(bd).backgroundColor;
+      return bd ? window.getComputedStyle(bd).backgroundColor : 'NO_BACKDROP';
     });
-    console.log(`  #2 backdrop bg: ${backdropBg} (期望 transparent 或 rgba(0,0,0,0))`);
-    console.log(`  #2 验证: ${backdropBg === 'rgba(0, 0, 0, 0)' || backdropBg === 'transparent' ? '✓ 透明 (无深色遮罩)' : '✗ 仍有深色'}`);
+    console.log(`  #2 backdrop bg: ${backdropBg}`);
+    console.log(`  #2 验证: ${backdropBg === 'rgba(0, 0, 0, 0)' || backdropBg === 'transparent' ? '✓ 透明' : '✗ 仍有深色'}`);
 
-    // #3: multi+has_bills 没有「修改主币种/副币种功能开发中」hint — 检查 body 文本
+    // #3: 删「修改主币种/副币种」hint
     const bodyText = await page.textContent('.modal-body');
-    const hasDevelopmentHint = bodyText.includes('修改主币种') || bodyText.includes('功能开发中');
-    console.log(`  #3 检查「修改主币种/副币种」hint: ${hasDevelopmentHint ? '✗ 仍存在' : '✓ 已删'}`);
+    const hasHint = bodyText.includes('修改主币种') || bodyText.includes('功能开发中');
+    console.log(`  #3 检查「修改主币种/副币种」hint: ${hasHint ? '✗ 仍存在' : '✓ 已删'}`);
 
-    // multi+has_bills 不需要改 #4 (chips 是 2 行布局合理)
-    await snap(page, '03-multi-has-bills-modal-no-backdrop');
+    // #4: 主+副币种 select 同行
+    const hasPairRow = await page.$('.modal-body .currency-pair-row');
+    const pairCols = await page.$$('.modal-body .currency-pair-row .currency-pair-col');
+    console.log(`  #4 currency-pair-row: ${hasPairRow ? '✓ 存在' : '✗ 不存在'}`);
+    console.log(`  #4 currency-pair-col 数: ${pairCols.length} (期望 2 — 主+副币种各一)`);
+    // 检查两 col 是否同一 row (y 坐标接近)
+    let colYs = [];
+    for (const col of pairCols) {
+      const box = await col.boundingBox();
+      colYs.push(box.y);
+    }
+    console.log(`  #4 col ys: [${colYs.map(y => y.toFixed(0)).join(', ')}] (期望完全相等 / 同行)`);
+    const sameRow = colYs.length === 2 && Math.abs(colYs[0] - colYs[1]) < 2;
+    console.log(`  #4 同行验证: ${sameRow ? '✓ 同一行' : '✗ 错位'}`);
+    // 检查两 col 水平 layout (x 不同, w 接近)
+    let colBoxes = [];
+    for (const col of pairCols) {
+      const box = await col.boundingBox();
+      colBoxes.push(box);
+    }
+    const colsSideBySide = colBoxes.length === 2 && colBoxes[0].x < colBoxes[1].x;
+    console.log(`  #4 水平并排: ${colsSideBySide ? '✓' : '✗'} (${colBoxes.map(b => `x=${b.x.toFixed(0)} w=${b.width.toFixed(0)}`).join(' | ')})`);
+
+    // 验证 select 元素
+    const primarySel = await page.$('[data-testid="currency-edit-primary"]');
+    const secondarySel = await page.$('[data-testid="currency-edit-secondary"]');
+    const primaryBox = await primarySel.boundingBox();
+    const secondaryBox = await secondarySel.boundingBox();
+    console.log(`  primary select box: x=${primaryBox.x.toFixed(0)} w=${primaryBox.width.toFixed(0)}`);
+    console.log(`  secondary select box: x=${secondaryBox.x.toFixed(0)} w=${secondaryBox.width.toFixed(0)}`);
+    console.log(`  two selects x-overlap: ${primaryBox.x < secondaryBox.x + secondaryBox.width && secondaryBox.x < primaryBox.x + primaryBox.width ? '✓ 行内 (overlap)' : '✗ 不在同行'}`);
+
+    await snap(page, '03-multi-no-bills-modal-side-by-side');
 
     // 关闭
     await page.click('.modal-close');
     await page.waitForTimeout(300);
 
-    // ========== 验证 #4 重点: 需要 multi+!has_bills 数据, sandbox 无, 跳过 ==========
-    // 用 DOM 模拟 — 在浏览器 console 改 has_bills reactive 用 setProperty hack
-    // 简单办法: 直接 evaluate 把 modal 改成 multi+!has_bills via prop 改 — 但 Svelte 5 难
-    // 退而求其次: 看下当前 multi+has_bills 弹窗 body section 排列是不是带 currency-pair-row class
-    // (#4 期望: multi+!has_bills 才有 currency-pair-row, multi+has_bills 没有)
-    console.log('\n[代码层验证 #4] multi+has_bills modal body 应该不包含 .currency-pair-row (那给 multi+!has_bills 用)');
+    // ========== [follow-up] multi+has_bills (session 1) 验 #2 backdrop ==========
+    console.log('\n[follow-up] multi+has_bills modal (session 1) #2 验证');
     await openSession(page, 1);
-    const barAgain = await page.$('[data-sbc="currency-bar-edit"]');
-    await barAgain.click();
+    const bar3 = await page.$('[data-sbc="currency-bar-edit"]');
+    await bar3.click();
     await page.waitForSelector('[data-sbc="currency-add-modal"][data-mode="multi"][data-has-bills="true"]', { timeout: 5000 });
     await page.waitForTimeout(500);
-    const hasPairRow = await page.$('.modal-body .currency-pair-row');
-    console.log(`  .currency-pair-row in body: ${hasPairRow ? '存在 (错误!)' : '✓ 不存在 (符合预期 — 这个模式用 chip, 不需要 flex row)'}`);
+    const multiHBBackdrop = await page.evaluate(() => {
+      const bd = document.querySelector('.modal-backdrop');
+      return bd ? window.getComputedStyle(bd).backgroundColor : 'NO_BACKDROP';
+    });
+    console.log(`  multi+has_bills backdrop: ${multiHBBackdrop}`);
+    console.log(`  #2 验证 (multi+has_bills): ${multiHBBackdrop === 'rgba(0, 0, 0, 0)' || multiHBBackdrop === 'transparent' ? '✓ 透明' : '✗ 仍有深色'}`);
+    // multi+has_bills 应该没有 .currency-pair-row (chips, 不是 select)
+    const hasPairRowMHB = await page.$('.modal-body .currency-pair-row');
+    console.log(`  multi+has_bills 不该有 .currency-pair-row: ${hasPairRowMHB ? '✗ 错!' : '✓ 没有 (chips 不是 select)'}`);
+    await snap(page, '04-multi-has-bills-modal-no-backdrop');
+
+    // ========== [follow-up] single+!has_bills (session 3) #2 验证 ==========
+    console.log('\n[follow-up] single+!has_bills modal (session 3) #2 验证');
     await page.click('.modal-close');
     await page.waitForTimeout(300);
-
-    // ========== 同样跑 single+!has_bills (session 2) 验 #2 ==========
-    console.log('\n[follow-up] single+!has_bills modal (session 2) #2 验证');
-    await openSession(page, 2);
+    await openSession(page, 3);
     const pill2 = await page.$('[data-sbc="currency-pill-add-secondary"]');
     await pill2.click();
     await page.waitForSelector('[data-sbc="currency-add-modal"][data-mode="single"][data-has-bills="false"]', { timeout: 5000 });
     await page.waitForTimeout(500);
-    const singleBackdropBg = await page.evaluate(() => {
+    const singleBackdrop = await page.evaluate(() => {
       const bd = document.querySelector('.modal-backdrop');
-      return window.getComputedStyle(bd).backgroundColor;
+      return bd ? window.getComputedStyle(bd).backgroundColor : 'NO_BACKDROP';
     });
-    console.log(`  single modal backdrop bg: ${singleBackdropBg}`);
-    console.log(`  #2 验证 (单币种弹窗): ${singleBackdropBg === 'rgba(0, 0, 0, 0)' || singleBackdropBg === 'transparent' ? '✓ 透明' : '✗ 仍有深色'}`);
-    await snap(page, '04-single-no-bills-modal-no-backdrop');
+    console.log(`  single+!has_bills backdrop: ${singleBackdrop}`);
+    console.log(`  #2 验证 (single+!has_bills): ${singleBackdrop === 'rgba(0, 0, 0, 0)' || singleBackdrop === 'transparent' ? '✓ 透明' : '✗ 仍有深色'}`);
+    await snap(page, '05-single-no-bills-modal-no-backdrop');
 
-    console.log('\n✓ Done — 4 项反馈都通过代码层验证 (multi+!has_bills 需 PO 真机验 §4 同 row 视觉).');
+    console.log('\n✓ All 4 PO #7731 反馈验证完成.');
   } catch (e) {
     console.error(`✗ Error: ${e.message}`);
     console.error(e.stack);
