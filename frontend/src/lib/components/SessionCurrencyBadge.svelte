@@ -312,44 +312,57 @@
    *    - min-height 24px → 36px (iOS touch target 友好, 接近 44pt).
    *    - border 1px → 1.5px solid (跟外阴影 0.06 配合, 边缘更清晰).
    *    - outer shadow 0 1px 4px rgba(99,102,241,0.04) → 0 2px 8px rgba(99,102,241,0.06).
-   *    - **不**改: gradient 角度 + alpha + saturate + blur + border-radius + 点击行为. */
+   *    - **不**改: gradient 角度 + alpha + saturate + blur + border-radius + 点击行为. */  /* v0.3.20 #93 (PO msg 00:04 #7450, Fix 9): 单币种 pill 改 button 形态 —
+     PO 反馈"太细长不像 button". 修法:
+     - padding 10/18 -> 8/16 (横纵比更平衡)
+     - font-size 15px -> 14px + font-weight 600 (跟双币种 Row 1 12px weight 600 形成层级但视觉更圆润)
+     - min-height 36 -> 38 (提高一档, 让 chip 高度接近双币种 .currency-bar ~40px)
+     - gap 3-6px -> 6-8px (chip + plus icon 视觉对称)
+     - bg alpha 0.10/0.08 -> 0.12/0.10 (跟双币种 .currency-bar 0.10/0.08 接近, 视觉对齐)
+     - border 1.5px 0.15 -> 1.5px 0.22 (边缘更清晰, button 视觉更明确)
+     - blur 12px -> 20px (跟 Fix 2 #21/#30/#49 玻璃语言一致)
+     - inset highlight 0.4 -> 0.55 (玻璃上沿加亮, 跟 pill 语言对齐)
+     - 外阴影 0.06 -> 0.08 (button 视觉更突出)
+     保留 border-radius 999px (pill 形态) + gradient 角度 (indigo accent 语言). */
   .currency-pill-row--single {
-    /* 居中 + 上下 margin (跟原 .currency-pill-row 同款) */
     display: inline-flex;
     justify-content: center;
     align-items: center;
     flex-wrap: nowrap;
-    gap: clamp(3px, 1.2vw, 6px);
-    margin: 6px auto;
-    padding: 10px 18px;
+    gap: clamp(6px, 1.5vw, 8px);
+    margin: 8px auto;
+    padding: 8px 16px;
     width: fit-content;
     max-width: calc(100% - 32px);
-    font-size: 15px;
-    line-height: 1.4;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.3;
     color: var(--gray-700);
     overflow: hidden;
-    min-height: 36px;
+    min-height: 38px;
 
     background: linear-gradient(
       135deg,
-      rgba(99, 102, 241, 0.10) 0%,
-      rgba(59, 130, 246, 0.08) 100%
+      rgba(99, 102, 241, 0.12) 0%,
+      rgba(59, 130, 246, 0.10) 100%
     );
-    backdrop-filter: saturate(200%) blur(12px);
-    -webkit-backdrop-filter: saturate(200%) blur(12px);
+    backdrop-filter: saturate(200%) blur(20px);
+    -webkit-backdrop-filter: saturate(200%) blur(20px);
 
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.4),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.03),
-      0 2px 8px rgba(99, 102, 241, 0.06);
+      inset 0 1px 0 rgba(255, 255, 255, 0.55),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.04),
+      0 2px 8px rgba(99, 102, 241, 0.08);
 
     border-radius: 999px;
-    border: 1.5px solid rgba(99, 102, 241, 0.15);
+    border: 1.5px solid rgba(99, 102, 241, 0.22);
   }
 
+
   @supports not (backdrop-filter: blur(1px)) {
+    /* v0.3.20 #93 (Fix 9): fallback alpha 0.18 -> 0.22 配新 bg 0.12/0.10 */
     .currency-pill-row--single {
-      background: rgba(99, 102, 241, 0.18);
+      background: rgba(99, 102, 241, 0.22);
     }
   }
 

@@ -22,10 +22,7 @@
   // defaults to the caller's own SessionMember.id in this session.
   let defaultPayerMemberId: number | null = null;
 
-  // v0.2.1 T03 (smart-date chips): only show "今天 / 昨天 / 上周"
-  // when this session has zero bills yet. Hooked through the
-  // ``existingBillsCount`` prop below.
-  let existingBillsCount = 0;
+  // v0.3.20 #93 (PO msg 00:04 #7450, Fix 1): removed existingBillsCount tracking (smart-date chips deleted).
 
   $: sessionId = Number(page.params.id);
 
@@ -48,16 +45,7 @@
       } else if (result.actingAsMemberId && session) {
         defaultPayerMemberId = result.actingAsMemberId;
       }
-      // v0.2.1 T03: tally the bills to decide whether the smart-date
-      // chips appear. We tolerate the listBills call failing (e.g. the
-      // caller is brand-new without GET /sessions/{id}/bills access)
-      // by defaulting to "0 bills".
-      try {
-        const all = await listBills(sessionId);
-        existingBillsCount = all.length;
-      } catch {
-        existingBillsCount = 0;
-      }
+      // v0.3.20 #93 (Fix 1): removed existingBillsCount tally.
     } catch (e: any) {
       // v0.3.15 (PO #4807): 错误统一走 Toast
       toast.error(e?.message ?? '加载失败');
@@ -84,7 +72,6 @@
       <BillForm
         {session}
         {defaultPayerMemberId}
-        {existingBillsCount}
         onSubmit={handleSubmit}
       />
     </div>
