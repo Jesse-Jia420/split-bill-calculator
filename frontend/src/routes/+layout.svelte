@@ -23,15 +23,12 @@
   import { onMount } from 'svelte';
   import { fade } from 'svelte/transition';
   import { loadUser } from '$stores/user';
-  import { goto } from '$app/navigation';
   import { page } from '$app/state';
 
   // Best-effort user load on every page mount.
   // v0.3.20 #99-fix5 (PO msg 14:29 #7602 padding-top 不够 + 透明度再降):
-  // 把实际 navbar 高度同步到 :root CSS var --navbar-h (供 main.page padding-top 用).
-  // 不同页面 navbar 高度不同 (btn-sm touch target 44px 让 logged-in 页 navbar 比 auth
-  // 页高 ~18px). ResizeObserver 监听 navbar size 变化 + 16px buffer 让出 navbar 下沿
-  // 到首行内容之间 16px 空隙 (PO 原话 "padding top 除了 navbar 高度，还要留一点空余").
+  // v0.3.21 #102 (PO msg 14:53): 删了"已登录从 / 重定向到 /sessions" — 让已登录用户
+  // 也能看 landing, CTA 改"进入我的账本", "已登录为 xxx" + "退出登录" 都在 landing 显.
   function syncNavbarHeight(): void {
     const nav = document.querySelector(".navbar");
     if (!nav) return;
@@ -44,11 +41,7 @@
     const nav = document.querySelector(".navbar");
     if (nav) ro.observe(nav);
     window.addEventListener("resize", syncNavbarHeight);
-    const u = await loadUser();
-    const path = page.url.pathname;
-    if (u && (path === '/' || path === '')) {
-      await goto('/sessions', { replaceState: true });
-    }
+    await loadUser();
   });
 </script>
 
@@ -56,7 +49,12 @@
      整站去背景图改回加 — 用 AppBackground (paper texture) 替代纯色 body bg.
      body bg 仍然保留 var(--gray-50) 作为 image-load 期间占位. -->
 <AppBackground />
-<NavBar />
+<!-- v0.3.21 #102 (PO msg 14:53): landing page (pathname === \"/\") 去掉 header.
+     其他页保持 NavBar (Logout / 我的账本 / 登录按钮 / 用户名仍走 NavBar).
+     landing 上背景图 + 已登录状态 / 退出登录 链接 自成一派 (见 +page.svelte). -->
+{#if page.url.pathname !== "/"}
+  <NavBar />
+{/if}
 <Toast />
 <!-- v0.3.17 #30 (PO msg 14:28 #5957): <main class="page"> 改成内层滚动容器 —
      外层 html/body 已 lock overflow (见 app.css), body 是 flex column,
