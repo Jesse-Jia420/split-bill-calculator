@@ -305,3 +305,29 @@ export async function addSessionCurrency(
     body: JSON.stringify(payload),
   });
 }
+
+/**
+ * v0.3.21 #108 (PO msg 17:54): owner-driven "remove secondary currency"
+ * flow. Mirror of addSessionCurrency — called from CurrencyAddModal when:
+ *  - user picks 「—」 in multi+!has_bills mode → 切回单币种 (modal label "切换单币种")
+ *  - user picks a different currency as new secondary in multi+!has_bills
+ *    → REPLACE flow (DELETE old + POST new + POST rate, atomic intent)
+ *
+ * The primary currency cannot be removed via this endpoint (BE 409).
+ * The cascade deletes every SessionExchangeRate row whose from_currency
+ * OR to_currency matches the removed currency.
+ *
+ * Returns the updated SessionDetail payload (same shape as addSessionCurrency)
+ * so the FE can drop the response into its existing session state and
+ * re-render SessionCurrencyBadge from dual-bar back to single-pill (or to
+ * the new secondary after REPLACE).
+ */
+export async function deleteSessionCurrency(
+  sessionId: number,
+  currency: string
+): Promise<SessionDetail> {
+  return apiFetch<SessionDetail>(
+    `/sessions/${sessionId}/currencies/${encodeURIComponent(currency)}`,
+    { method: 'DELETE' }
+  );
+}

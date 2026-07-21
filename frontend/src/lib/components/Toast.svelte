@@ -69,7 +69,11 @@
     left: 50%;
     bottom: 80px;
     transform: translateX(-50%);
-    z-index: 100;
+    /* v0.3.21 #108 (PO msg 17:54): z-index 100 → 9999, 保证 toast 永远在
+     *   modal-backdrop (z-index 999) 之上 (之前的 100 < 999 让 toast
+     *   在 CurrencyAddModal 弹窗下层, 用户看不到反馈). 9999 远高于所有
+     *   已知 modal/NavBar (NavBar=100, FAB=150, modal=999). */
+    z-index: 9999;
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
