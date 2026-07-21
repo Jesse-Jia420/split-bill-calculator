@@ -111,7 +111,8 @@
        saturate 从 180% → 130% 让纸纹不过饱和失真. */
     /* v0.3.20 #99-fix2 (PO msg 13:56 #7549 再透一点 + 13:57 #7563 让背景漏出来): 0.55 -> 0.20 */
     /* v0.3.20 #99-fix3 (PO msg 14:07 #7571 不行透明度再提高): alpha 0.20 -> 0.05 (几乎全透, paper bg 100% 漏过来) */
-    background: rgba(255, 255, 255, 0.05);
+    /* v0.3.20 #99-fix5 (PO msg 14:29 #7602): alpha 0.05 -> 0.02 (PO 让透明度再降, 几乎纯透明只靠 backdrop-filter blur 撑玻璃感) */
+    background: rgba(255, 255, 255, 0.02);
     backdrop-filter: saturate(130%) blur(20px);
     -webkit-backdrop-filter: saturate(130%) blur(20px);
     box-shadow:

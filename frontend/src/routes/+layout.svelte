@@ -27,10 +27,24 @@
   import { page } from '$app/state';
 
   // Best-effort user load on every page mount.
+  // v0.3.20 #99-fix5 (PO msg 14:29 #7602 padding-top 不够 + 透明度再降):
+  // 把实际 navbar 高度同步到 :root CSS var --navbar-h (供 main.page padding-top 用).
+  // 不同页面 navbar 高度不同 (btn-sm touch target 44px 让 logged-in 页 navbar 比 auth
+  // 页高 ~18px). ResizeObserver 监听 navbar size 变化 + 16px buffer 让出 navbar 下沿
+  // 到首行内容之间 16px 空隙 (PO 原话 "padding top 除了 navbar 高度，还要留一点空余").
+  function syncNavbarHeight(): void {
+    const nav = document.querySelector(".navbar");
+    if (!nav) return;
+    const rect = nav.getBoundingClientRect();
+    document.documentElement.style.setProperty("--navbar-h", rect.height + "px");
+  }
   onMount(async () => {
+    syncNavbarHeight();
+    const ro = new ResizeObserver(syncNavbarHeight);
+    const nav = document.querySelector(".navbar");
+    if (nav) ro.observe(nav);
+    window.addEventListener("resize", syncNavbarHeight);
     const u = await loadUser();
-    // Redirect "/" to "/sessions" when logged in (per spec §1.5).
-    // 忽略 Svelte type 抱怨 pathname union 检查,运行时仍然可能为空字符串
     const path = page.url.pathname;
     if (u && (path === '/' || path === '')) {
       await goto('/sessions', { replaceState: true });
@@ -83,7 +97,8 @@
     /* v0.3.20 #99-fix4 (PO msg 14:26 #7585): 加 padding-top 推内容到固定 navbar 之下
        (NavBar 现在 position:fixed, 不在 flex 流里). padding-top = navbar 内容高 + safe area.
        内容仍可滚动到 navbar 区域下方, 透过 backdrop-filter blur + alpha 0.05 模糊漏出. */
-    padding: calc(var(--navbar-h, 56px) + env(safe-area-inset-top, 0px)) 0 0;
+    /* v0.3.20 #99-fix5 (PO msg 14:29 #7602): padding-top 加 16px buffer — 修 #99-fix4 让 navbar 高度刚好被盖的回归. 让出 navbar 下沿到首行内容之间有 16px 空隙. */
+    padding: calc(var(--navbar-h, 56px) + env(safe-area-inset-top, 0px) + 16px) 0 0;
     overflow-y: auto;
     overflow-x: hidden;
     overscroll-behavior-y: contain;
