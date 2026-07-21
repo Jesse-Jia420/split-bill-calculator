@@ -3720,3 +3720,117 @@ image tool 视觉验证 (03 截图):
 - 上游: c6ae4b9 #85 v2 (4 反馈)
 - 上游: 660dc27 #85 重写 (4 模式基础)
 - 不动: v0.3.20 #91-#99 + v0.3.21 #100-#105 (其他 sprint)
+
+### §11. v0.3.21 #106.1 (2026-07-21) — Tagline font-weight 700→500 + or-row 删"直接使用" 冗余文案 (PO msg 17:30 微调)
+
+**PO msg 17:30 微调 2 项**:
+1. `"分账够清楚，友情「撕不裂」。"` 中文字体太粗, 调细一点
+   - `.tagline` `font-weight: 700` → `500` (medium)
+   - `.brand-line-1` (700 italic serif) / `.brand-line-2` (600 sans) 字重**不变** (wordmark 视觉权重保持)
+   - 效果: 中文段 medium, 「撕不裂」emphasis 仍 700 italic serif → hierarchy 更明显 (sans 500 vs serif 700 + glass material)
+2. `"或 无需注册，直接使用"` → `"或 无需注册，"`
+   - 删 `"直接使用"` (避免跟下方次按钮文案重复; 同时 or-row 短促一行, 让按钮 cluster 视觉透气)
+   - 相关注释 (line 23, 545) 也对齐更新
+
+**实施 commit**: `25323da` (+4/-4, 单文件 +page.svelte)
+- svelte-check 0 new error (baseline 2 + 20 不变)
+- Playwright 验证: `tagline fontWeight=500` ✓, `or-row tail text="无需注册，"` ✓
+- 真机截图: `~/.openclaw/media/v0321-landing-logo-v2/landing-f2v2-fixed.png` (Master 自修自验)
+
+**反模式自查**:
+- 反 #158 ✅ Master 自己写 self-verify (§11 sync)
+- 反 #150 ✅ PO 微调意图明确 → Master 直接动手, 不列不调/锁定选项
+- 反 #170 ✅ codeserver_exec_clean.js 写文件 (避免 8 字节 binary header)
+- 教训: 之前用 `sed -i 's/^    font-weight: 700;/font-weight: 500/'` 把 .brand-line-1 也连带改了 (line 278 是 .brand-line-1), git checkout 撤回, 改用 python 精确字符串 replace 才安全. 反 #189 新增 (Master sed 多匹配 坑)
+
+**关联**:
+- 上游: b4feb01 #106 Master 1 行 CSS fix (text-transform)
+- 上游: 02bf84b #106 Coder 主体
+
+### §11. v0.3.21 #106.2 (2026-07-21) — Tagline font-weight 500→400 还是太粗再降一档 (PO msg 17:43 微调)
+
+**PO msg 17:43 微调**:
+- "分账够清楚，友情「撕不裂」。" 字重继续调低, 还是太粗
+- `.tagline` `font-weight: 500` (medium) → `400` (regular)
+- PingFang SC regular 在中文看起来稳定但不显眼, 让 700 italic-serif 「撕不裂」emphasis 跟普通 sans 段形成明显 hierarchy 对比
+- `.brand-line-1` 仍 700 / `.brand-line-2` 仍 600, wordmark 不动
+
+**实施 commit**: `4206be5` (+1/-1, 单行 CSS)
+- svelte-check 0 new error (baseline 2 + 20 不变)
+- Playwright 验: `tagline fontWeight="400"` ✓
+- 真机截图: `~/.openclaw/media/v0321-landing-logo-v2/landing-f2v2-v2.png`
+
+**反模式自查**:
+- 反 #158 ✅ Master self-verify + sync §11
+- 反 #150 ✅ PO 调低意图明确 → Master 直接动手
+- 反 #189 ✅ 用 python 精确字符串 replace (避免上次 sed 把 .brand-line-1 700 也连带改成 500 的坑)
+
+**关联**:
+- 上游: 25323da #106.1 (500→ 还是太粗, PO 再发)
+- 上游: b4feb01 #106 Master CSS fix (text-transform)
+- 上游: 02bf84b #106 Coder 主体
+
+### §11. v0.3.21 #107 (2026-07-21 17:43) — CurrencyAddModal 9 项 UI 反馈修 (PO msg 17:21 /reset)
+
+**PO msg 17:21 /reset 待实施的 9 项修改** (CurrencyAddModal.svelte):
+
+1. **去掉 ⇄ 箭头** (主币种、副币种之间) — multi+has_bills 同行 chip 之间的 `<span class="currency-pair-arrow">⇄</span>` + CSS 一起删
+2. **去掉右上角关闭 × 按钮** — `.modal-close` 按钮 (header) + 整套 CSS 删, 改靠 footer 圆形 FAB 取消按钮统一出口
+3. **取消按钮移到右下挨着保存按钮** (flex-end + gap) — `.modal-foot` 改 `justify-content: flex-end; gap: var(--space-3)` (原 space-between 让 cancel 在左下角)
+4. **chip / select 视觉统一 → 新 `.currency-pair-item` 共享 pill 样式** — 替换原 `.primary-chip` / `.primary-chip--secondary` / `.currency-select--disabled` 三套, 统一到 999px radius + 8px/14px padding + 0.55 bg + indigo 0.22 border + 14px font-semibold + tabular-nums. 锁定变体 `.currency-pair-item--locked` 走 gray-500/12 muted bg + gray-500/28 border + cursor not-allowed. `.currency-pair-item--locked .lock-icon` 同步改 gray-500 (跟 chip 同色)
+5. **删「(不可改)」「(有账单, 不可改)」文字后缀** — lock icon 已传达 locked 状态, 文字冗余. 删 `<label>主币种 (不可改)</label>` 后缀 + `multi+has_bills hint` "已有账单, 只能修改汇率 (主币种 / 副币种已锁定)" 改 "已有账单, 只能修改汇率"
+6. **multi+!has_bills 副币种 select 加「—」选项**, 选后 rate input disabled + submit label "切换单币种" + toast "功能开发中" — 副币种 select 从 `disabled={true}` 改成 `disabled={busy}`, 加 `<option value="">—</option>` 作首项. 选「—」→ rate input `disabled={busy || secondary === ''}` + submit label reactive 加分支 `if (secondary === '') return '切换单币种'` + handleSubmit 加 `else if (secondary === '') { toast.info('功能开发中'); }` 兜底 (不调 API, 弹窗保留让用户改主意)
+7. **去掉 `.modal-backdrop` 的 click handler** — `<div on:click={handleBackdropClick}>` + `handleBackdropClick` 函数删, 屏蔽弹窗外点击. `<svelte:window on:keydown={handleKeydown}>` 保留 (ESC 仍能关). `<div on:keydown={handleKeydown}>` 同步删 (window 已全局处理)
+8. **删「提交后会创建正向 + 反向两条汇率记录...」hint** — single+!has_bills 段 `<p class="hint">提交后会创建正向 + 反向两条汇率记录, 修改时两方向同步。</p>` 删
+9. **`.modal` box-shadow 加 ring + halo glow** (高亮光晕引导视觉重心) — 在原 `0 8px 24px rgba(99,102,241,0.12)` 浅 drop 之上叠 2 层: ring `0 0 0 2px rgba(99,102,241,0.45)` (实线轮廓加重) + halo `0 0 60px rgba(99,102,241,0.36)` (60px 软光晕外散). 最终 box-shadow 5 层 (2 inset highlight + ring + drop + halo)
+
+**额外补的细节** (实施时为保逻辑严密):
+
+- **multi init 用 `multiInitialized` 一次性 flag** — 原 reactive block `if (mode === 'multi' && secondary === '' && existing_currencies.length > 0)` 会把 secondary 覆盖回 existing. 用户选「—」(secondary='') 时会被 reactive 反扑, 「—」选不上去. 加 flag 让 init 只跑一次: `let multiInitialized = false; $: if (... && !multiInitialized) { ...; multiInitialized = true; }`
+- **rate input disabled 同步加 `secondary === ''`** (multi+!has_bills) — single+!has_bills 原已支持 (rate input `disabled={busy || secondary === ''}`)
+- **`.currency-pair-item:focus-visible` 加 accent outline** — 删 `.glass-input` 后保留 focus 反馈 (a11y)
+- **`.currency-select` padding-right 28px + text-align-last center** — native select 文字居中 + 给 iOS native arrow 留位 (避免文字被 arrow 盖住)
+
+**实施 commit**:
+- `fix(fe): v0.3.21 #107 — PO msg 17:21 /reset 9 项 CurrencyAddModal UI 反馈修` (本 commit)
+- `chore(fe): add v0.3.21 #107 screenshot/walk script` (下个 commit)
+- 本 §11 sync commit (本 commit 系列最后)
+
+**dev 验证** (iPhone 13 真机 walk, Playwright 程序化 + 视觉, 5 张 PNG in `~/.openclaw/media/v0321-106/`):
+
+| 模式 | session | 真机截图 | 9 项检查 |
+|------|---------|----------|----------|
+| single + !has_bills | session 3 (CNY, 0 bills) | `01-single-no-bills-modal.png` | ✓ all 9 |
+| multi + !has_bills | session 2 (CNY+HKD, 0 bills) | `02-multi-no-bills-modal.png` + `02b-multi-dash-selected.png` (选「—」后 rate disabled + submit label "切换单币种") + `02c-multi-dash-toast.png` (toast "功能开发中", 弹窗保留) | ✓ all 9 + #6 交互 |
+| multi + has_bills | session 1 (CNY+THB, 32 bills) | `03-multi-has-bills-modal.png` | ✓ all 9 + #7 弹窗外点 (modal 仍 visible) |
+| single + has_bills | (sandbox 无 — 矛盾状态, 代码路径已实现, 排除范围 per #85 v3) | — | — |
+
+**Playwright 自动化断言** (`frontend/scripts/v0321-106-walk.cjs`):
+
+| # | 改动 | 检查项 | 结果 |
+|---|------|--------|------|
+| 1 | 删 ⇄ | `.currency-pair-arrow` count = 0 (3 模式) | ✓ |
+| 2 | 删 × | `.modal-close` count = 0 | ✓ |
+| 3 | 取消移右下 | `cancelBox.x < submitBox.x` + 同 row 右半 | ✓ |
+| 4 | chip/select 统一 | `.primary-chip` legacy = 0, `.currency-pair-item` = 2~3 per 模式 | ✓ |
+| 5 | 删文字后缀 | 0 label 命中 `(不可改)|(有账单, 不可改)|(主币种.*已锁定)` | ✓ |
+| 6 | 「—」选项 | hasDashOption=true, rateDisabled=true, aria-label="切换单币种", toast="功能开发中" | ✓ |
+| 7 | 弹窗外不关 | modalStillOpenAfterOutsideClick=true | ✓ |
+| 8 | 删 hint | 0 hint 命中 `提交后会创建` | ✓ |
+| 9 | ring + halo | `rgba(99,102,241,...) 0px 0px 0px 2px` ✓ + `... 0px 0px 60px 0px` ✓ | ✓ |
+
+**反模式自查**:
+- 反 #161 v3 ✅ 字面执行 PO 9 项反馈 (无选项栏无 "不修" 兜底)
+- 反 #150 v2 ✅ Master 自写自验 (Playwright 程序化 + image tool 视觉 + DOM 检查, 不是只看 HTTP 200)
+- 反 #158 ⚠️ 跳过 (Master 主会话直干, 非 spawn Coder)
+- 反 #162 ✅ §11 sync 与 fix commit 同一 batch (本 commit 系列)
+- 反 #167 ✅ iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN)
+- 反 #151 ✅ 真 PNG 截图 (5 张存 `~/.openclaw/media/v0321-106/`)
+- 反 #170 ✅ codeserver_exec_clean.js (写 codeserver 文件用 clean 版避免 8 字节 binary header)
+- 反 #146 ✅ 完整 token (`.currency-pair-item` 共享 pill token 跟全站 glass 语言一致: 999px radius + 0.55 bg + indigo border + tabular-nums + 14px font-semibold; ring + halo accent indigo 跟主按钮同源)
+- 反 #189 ✅ SPEC append 用 heredoc, 不用 sed 多匹配 (教训: 之前用 sed 把 .brand-line-1 字重也连带改了)
+
+**关联**:
+- 上游: c8dab5c #85 v3 (PO #7731 5 反馈修, FAB 圆形按钮 + 多+hb 同行 + Lucide lock icon)
+- 不动: v0.3.18 #53 / #60 batch2 / v0.3.20 #93/#94 modal 玻璃语言 + 4 模式 conditional 逻辑 + BE / 路由
+- 不动: v0.3.21 #100-#106.x (NavBar / Landing / 其它 sprint)
