@@ -3236,3 +3236,76 @@ input, textarea, select, [contenteditable] {
 - NavBar 其他 indigo 按钮 不动 (PO 在 #102 已 revert)
 - 路由 / 业务功能 / 壁纸 / paper bg 不动
 - 其他页面 focus 蓝框 (本 commit 只 landing — 其他页 PO 没反馈)
+
+### §11. v0.3.21 #105 (2026-07-21) — SplitIt iOS 26 锁屏时间级 (design sub-agent spec 应用, 144px thin 100) (PO msg 15:08 反馈 #7683 "为啥不找 design agent")
+
+**commit**: `TBD` — `fix(fe): v0.3.21 #105 — SplitIt 真 iOS 26 锁屏时间级 (design sub-agent spec, 144px thin 100)`
+
+**前置 (PO msg 15:08 #7683)**: "你为啥不找 design agent"
+- Master 自我批评: #103 (#103, font-size 88px) 和 #104 (#104, 97.5px) 都是 Master 自己 'design thinking' 凭直觉挑数字, 没真 designer
+- Master spawn 了 1 个 design sub-agent (`subagent:98c2f2e1`, task `design_agent_splitit_ios26`) 给真 designer 视角 spec
+- Design sub-agent 给 3 个迭代 (conservative 125px / balanced 144px RECOMMENDED / max 164px) + 推荐 balanced + alternate direction + SF Compact proposal + 中文备选 + 负例 + typography notes (SF Pro weight numeric mapping, line-height rationale, tracking rule of thumb, font-synthesis warning, rendering hints)
+
+**改动 1 处** (`frontend/src/routes/+page.svelte` `.brand-name`):
+
+**Design agent "balanced" 应用 spec**:
+- font-size: `clamp(8.25rem, 37vw, 13.5rem)` (实测 144.3px @ 390 viewport)
+- font-weight: `100` (SF Pro Display Ultralight, 锁屏时间数字字重)
+- letter-spacing: `-0.06em` (144px 时的 design agent tracking rule: "tracking rule of thumb -0.06em at 144px")
+- line-height: `0.9` (display optical size 设计惯例, 大字紧 leading)
+- font-family: `-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro", system-ui, sans-serif` (Display 优先 — 设计 agent: ">100px 时 Display 和 Text 的 cuts 不同")
+- font-synthesis: `none` (设计 agent 警告: chromium 可能 fake thin strokes)
+- -webkit-font-smoothing: `antialiased` (thin strokes 渲染清晰)
+- text-rendering: `optimizeLegibility`
+- text-shadow: `0 8px 40px rgba(0, 0, 0, 0.40)` (大字 hero bg depth, 从 #104 的 32px → 40px 加深)
+
+**实测 (Playwright iPhone 13 viewport 390)**: ✓
+- fontSize: 144.3px ✓ (37vw of 390)
+- fontWeight: 100 ✓
+- letterSpacing: -8.658px ✓ (-0.06em at 144.3px)
+- lineHeight: 129.87px ✓ (0.9 × 144.3)
+- fontFamily: SF Pro Display 优先 ✓
+- fontSynthesis: none ✓
+- webkitFontSmoothing: antialiased ✓
+
+**Design agent 没应用的 3 alternate direction** (备查, 下次迭代可用):
+1. **SF Pro Display opsz=144** (variable font axis, `font-variation-settings: 'opsz' 144`) — 需要装 Apple developer SDK 下载 SF Pro Display variable font. 这才能真激活 lock-screen 级别的字形 cuts.
+2. **SF Compact Display** (更窄字宽, 给 >164px 大字创造空间 — 因为 'SplitIt' 7 字符在 390 viewport 撑到极限, 8 字符以上 / iPad 横屏可用)
+3. **中文 SplitIt 备选** (PingFang SC Ultralight 200, 56px 副标题跟 144px 主标题双层级)
+
+**Design agent 7 负例 (避免)**:
+- font-size 1.25rem (PO 已 reject)
+- font-size 3.5–5.5rem (PO 已 reject)
+- font-size 6.1rem thin 100 (PO 已 reject, "不够 lock-screen 感")
+- font-family: SF Pro weight 100 (无 -Display 后缀 — Text 不是 Display, cuts 不同)
+- line-height 1.2+ (display-thin 应 0.9)
+- letter-spacing 0 或 正 (反 lock-screen 美学)
+- font-stretch: condensed (distort strokes — 用 SF Compact family 而非 condense)
+
+**截图** (iPhone 13 真机 walk logged-in):
+- `~/.openclaw/media/v0321-105-design/design-agent-spec.png` (1.4MB) — SplitIt 144.3px, 主 CTA + 退出登录 pill 仍 ivory 玻璃, hero bg 仍 unsplash friends
+- vite HMR 自动触发 3:18:44 PM
+
+**反模式自查**:
+- ✅ 反 #162 git pull --ff-only (拉到 38b3728 #104 §11, 无冲突)
+- ✅ 反 #151 真 PNG 截图 + computed style 实测 (144.3px matches 设计)
+- ✅ 反 #158 强制 Telegram 推送
+- ✅ **NEW**: 设计任务 spawn 了真设计 sub-agent (不是 Master 自己脑补数字), 用了 design agent 推荐 balanced spec (不是 conservative / max 也不是 Master pick)
+
+**关联链**:
+- #100 (cbda966): 品牌名 SplitIt
+- #103 (e182531): SplitIt 改大 88px thin (Master 自己拍)
+- #104 (992321b): SplitIt 97.5px thin (Master 自己也拍, PO reject)
+- **#105 (TBD)**: SplitIt 144.3px thin 100 — 设计 agent 真给 spec, Master 用了 balanced (RECOMMENDED) ✓
+
+**下次 design-heavy 任务 Master 流程**:
+1. Spawn design sub-agent with clear brief (font/scale/style intent)
+2. 拿到设计 spec (3 迭代 + rationale + alternate)
+3. Apply design agent's recommended, not Master pick
+4. SPEC.md 写 design rationale 引用
+
+**不**在这个 commit:
+- NavBar / 其他路由 / 壁纸 / paper bg / .btn-sm 在其他文件不动
+- opsz=144 SF Pro Display variable font (需 Apple SDK, 备下次)
+- 中文版 SplitIt / SplitItCompact (PO 没要, 备查)
+- v0.3.20 系列其他不动
