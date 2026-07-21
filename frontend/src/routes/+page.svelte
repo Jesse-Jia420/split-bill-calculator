@@ -64,7 +64,7 @@
 </script>
 
 <svelte:head>
-  <title>Split Bill — 轻松分摊</title>
+  <title>SplitIt — 轻松分摊</title>
 </svelte:head>
 
 <!-- Full-page background container -->
@@ -76,7 +76,7 @@
     <div class="hero">
       <div class="brand-row">
         <span class="brand-icon"><Wallet size={32} strokeWidth={1.75} /></span>
-        <span class="brand-name">Split Bill</span>
+        <span class="brand-name">SplitIt</span>
       </div>
 
       <h1 class="tagline">{TAGLINE}</h1>
@@ -236,14 +236,14 @@
   }
 
   /* 主按钮: 实色蓝 + glass-pill 玻璃化 */
+  /* v0.3.20 #100 (PO msg 14:37): 主按钮改 透明玻璃 + 象牙白文字 — PO 原话
+     "透明玻璃，象牙白文字，不要现在的蓝色按钮". 当前 v0.3.17 #16 蓝紫渐变 + 蓝字
+     跟暗 overlay 强对比但抢戏. 改 rgba 白半透 + ivory 文字让按钮融到玻璃族. */
   .btn-primary {
     min-height: 52px;
-    background: linear-gradient(
-      135deg,
-      rgba(59, 130, 246, 0.85) 0%,
-      rgba(99, 102, 241, 0.78) 100%
-    );
-    border: 1px solid rgba(255, 255, 255, 0.35);
+    color: #FFFFF0; /* v0.3.20 #100 ivory white text */
+    background: rgba(255, 255, 255, 0.20);
+    border: 1px solid rgba(255, 255, 255, 0.45);
     backdrop-filter: saturate(200%) blur(20px);
     -webkit-backdrop-filter: saturate(200%) blur(20px);
     color: #fff;
@@ -256,14 +256,11 @@
   }
 
   .btn-primary:hover:not(:disabled) {
-    background: linear-gradient(
-      135deg,
-      rgba(59, 130, 246, 0.95) 0%,
-      rgba(99, 102, 241, 0.9) 100%
-    );
+    background: rgba(255, 255, 255, 0.30);
+    color: #FFFFF0;
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.5),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.55),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.08),
       0 8px 24px rgba(59, 130, 246, 0.45);
   }
 

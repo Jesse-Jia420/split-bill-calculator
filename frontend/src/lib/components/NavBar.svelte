@@ -35,7 +35,7 @@
      · 改法用 outer {#if} 包整个 .right div, 不用每个分支单独包, 因为三
        分支 (login btn / login-以保存 / logout btn) 都不该出现在登录页 -->
 <header class="navbar">
-  <a href="/" class="brand">Split Bill</a>
+  <a href="/" class="brand">SplitIt</a>
   {#if !['/auth/login', '/sessions/new'].includes(page.url.pathname) && $user}
     <nav class="links">
       <!-- v0.3.17 #30: 「我的账本」class 改为 btn-sm links-item, 跟「注销登录」
@@ -127,7 +127,8 @@
     color: var(--color-text);
     text-decoration: none;
   }
-  .brand:hover { color: var(--color-accent); }
+  /* v0.3.20 #100 (PO msg 14:37): hover 象牙白替代蓝色. 象牙白 #FFFFF0 在白纸上 = 低对比 = logo hover 时视觉 'fade' — PO 原话 "象牙白色，不要现在的蓝色". */
+  .brand:hover { color: #FFFFF0; }
   .links { flex: 1; display: flex; gap: var(--space-3); }
   /* v0.3.17 #30 (PO msg 14:28): 删 .links a 独立样式 — 之前给 <a class="glass-pill">
      提供 fallback layout, 现在「我的账本」已经升级为 .btn-sm, 自己的 display /

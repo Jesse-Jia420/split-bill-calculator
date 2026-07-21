@@ -122,7 +122,7 @@
 </script>
 
 <svelte:head>
-  <title>加入账本 · Split Bill</title>
+  <title>加入账本 · SplitIt</title>
 </svelte:head>
 
 <main class="container" style="padding-top: 4rem; text-align: center;">
