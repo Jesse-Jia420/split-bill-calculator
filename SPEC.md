@@ -3110,3 +3110,77 @@ seed 脚本 (`backend/scripts/seed_dev_data.py`) 已有 find-or-create 逻辑：
 - routes 其他功能 / 路由 改动
 - v0.3.20 系列 (壁纸, sessions) 不动
 - 移动 /sessions 路由 (登已登录访问 / 不再跳, 但用户主动点 sessions bookmark 还是去 /sessions)
+
+### §11. v0.3.21 #103 (2026-07-21) — Landing SplitIt 改大改细 + 蓝→ivory + 全站禁长按 (PO msg 15:03)
+
+**commit**: `e182531` — `refactor(fe): v0.3.21 #103 — landing SplitIt 改大改细去 icon + 按钮蓝光晕改象牙白 + 全站禁长按选择 (PO msg 15:03)`
+
+#### 3 项改动 (2 文件):
+
+**1) `frontend/src/routes/+page.svelte` — SplitIt 大字 + 细字 + 去 icon**
+- 模板: `<span class="brand-icon">Wallet ...</span>` 删除 (连同 `.brand-icon` CSS block)
+- `.brand-name` CSS:
+  - font-size `1.25rem` → `clamp(3.5rem, 14vw, 5.5rem)` (56-88px @ 390 viewport)
+  - font-weight `700` (bold) → `200` (extra-light, 数字时尚感)
+  - letter-spacing `0.02em` → `-0.03em` (紧)
+  - 加 `text-shadow: 0 4px 24px rgba(0,0,0,0.25)` (hero bg 可读)
+  - 加 `line-height: 1` (无上下 padding)
+- 实现 iOS 26 lock screen 美学 (PO 原话 "超大超细数字时尚感")
+
+**2) `frontend/src/routes/+page.svelte` — 按钮蓝光晕 → 象牙白**
+- `.btn-primary` base box-shadow `rgba(59, 130, 246, 0.35)` → `rgba(255, 255, 240, 0.30)` (ivory #FFFFF0 alpha 0.30)
+- `.btn-primary:hover` box-shadow `rgba(59, 130, 246, 0.45)` → `rgba(255, 255, 240, 0.35)` (ivory alpha 0.35 略亮)
+- Safari <18 fallback `.btn-primary` bg `rgba(59, 130, 246, 0.9)` → `rgba(255, 255, 240, 0.85)` (ivory opaque)
+- `.btn-primary:active` 仍只 `transform: scale(0.98)` (无色)
+- `.btn-ghost` 没动 (黑 box-shadow, 非蓝色)
+- 三处蓝全删 (base / hover / fallback)
+
+**3) `frontend/src/app.css` — 全站禁手机长按选择**
+- 新块插在文件顶部 (Design Tokens 注释之前):
+```css
+* {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+input, textarea, select, [contenteditable] {
+  -webkit-user-select: text;
+  -khtml-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+```
+- 全局禁 `user-select` + `webkit-touch-callout` (iOS 长按菜单)
+- input/textarea/select/[contenteditable] 仍 `text` (表单域豁免, 用户在输入框还能长按选词粘贴)
+
+**实测 (Playwright iPhone 13 viewport)**: ✓
+- body `user-select: none` ✓ (全站禁)
+- h2 `user-select: none` ✓ (标题也禁)
+- input `user-select: text` ✓ (表单域豁免)
+- 0 个 `rgba(59, 130, 246)` 蓝留在 +page.svelte ✓ (replace 全成功)
+- SplitIt font-size 视觉效果: 大, 细, 无 icon (iOS 26 lock screen 风) ✓
+
+**截图** (iPhone 13 真机 walk):
+- `~/.openclaw/media/v0321-103/landing-big-splitit.png` — SplitIt 大字细字无 icon
+- `~/.openclaw/media/v0321-103/sessions-1-after-103.png` — 其他页面不崩
+- vite HMR 自动触发 3 次: 3:04:34 PM + 3:04:34 PM + 3:05:19 PM
+
+**反模式自查**:
+- ✅ 反 #162 git pull --ff-only (拉到 8f468bc #102 §11, 无冲突)
+- ✅ 反 #151 真 PNG 截图 + computed style 实测
+- ✅ 反 #158 强制 Telegram 推送
+
+**关联**:
+- #102 (8f468bc): 已登录 landing logout link + landing 无 header (跟 #103 共存)
+- #100 (cbda966): brand "SplitIt" + brand hover ivory + landing .btn-primary ivory 玻璃 — #103 把 SplitIt 加大做 iOS 26 lock screen
+- #99-fix5 (8448a17): NavBar bg 透明 paper 风格 — 跟 #103 整站 user-select: none 共存 (NavBar 上各元素也禁长按, 防止 toolbar 元素被选择)
+
+**不**在这个 commit:
+- NavBar / 其他路由 / v0.3.20 系列 (壁纸, sessions) 不动
+- AppBackground paper bg z=-1 不动
+- .btn-sm / .ghost / .email (其他页面的 indigo 按钮 — #102 状态保留)
+- footer (从 v0.3.18 #54 开始撤了的 — 仍是撤的, 不恢复)
