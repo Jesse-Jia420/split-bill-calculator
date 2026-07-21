@@ -47,6 +47,12 @@
   export let onDelete: ((billId: number) => void | Promise<void>) | null = null;
   /** Sprint 3 T13: true 时显示 N 个 SkeletonBill 骨架 */
   export let loading: boolean = false;
+  /** v0.3.20 #95 Fix 3 (PO msg 02:41 #7459): payer 头像位置在 session.members
+     数组里的 index 用于查 AVATAR_COLORS[5 色循环]. 父页面 (sessions/[id]/+page.svelte)
+     传 session.members 完整数组 (含 id + display_name), BillListGrouped 用
+     payer_id → member index → 颜色. 头像本身的渲染仍归 SessionMemberList
+     (共享 5 色循环), 此处只取颜色不画头像。 */
+  export let members: Array<{ id: number; display_name: string }> = [];
   /**
    * v0.3.18 #68: 主币种 (session.primary_currency)。
    * - 提供时, 该币种的 chip 用 indigo 玻璃 (主币种视觉).
@@ -246,6 +252,25 @@
 
   function payerName(b: Bill): string {
     return memberIdToName[b.payer_id] ?? ('#' + b.payer_id);
+  }
+
+  // v0.3.20 #95 Fix 3 (PO msg 02:41 #7459): payer 文字颜色 = 头像主色.
+  // 跟 SessionMemberList.svelte AVATAR_GRADIENTS 共享同一 5 色循环, 此处只取
+  // 实色用于 "xx 付" inline color. 反: #144 不要碰 avatar 渲染本身, 此处只
+  // 改文字; avatar 仍由 SessionMemberList 用 linear-gradient 渲染.
+  const AVATAR_COLORS = [
+    '#6366f1', // indigo (#6366f1 → #a855f7 第 1 色)
+    '#ec4899', // pink (#ec4899 → #f43f5e 第 1 色)
+    '#10b981', // emerald (#10b981 → #14b8a6 第 1 色)
+    '#f59e0b', // amber (#f59e0b → #eab308 第 1 色)
+    '#3b82f6', // blue (#3b82f6 → #06b6d4 第 1 色)
+  ];
+  function payerColor(b: Bill): string {
+    // 找 payer_id 在 members 数组里的 index (顺序跟 SessionMemberList 头像一致)
+    // 找不到 (members 没传 / payer_id 是孤儿) fallback 到默认第一色 indigo.
+    const idx = members.findIndex((m) => m.id === b.payer_id);
+    if (idx < 0) return AVATAR_COLORS[0];
+    return AVATAR_COLORS[idx % AVATAR_COLORS.length];
   }
 
   function yourShare(b: Bill): number | null {
@@ -782,7 +807,11 @@
                               </svg>
                               <span>{b.participants.length}人</span>
                             </span>
-                            <span class="bill-meta-text">{fmtBillTime(b.occurred_at)} · {payerName(b)} 付</span>
+                            <!-- v0.3.20 #95 Fix 3 (PO msg 02:41 #7459): "xx 付"
+                                 文字颜色 = 该 payer 的头像主色 (5 色循环, 跟 SessionMemberList 共享).
+                                 时间部分保持灰色 (默认 .bill-meta-text color). 拆成两个 span 让颜色
+                                 仅作用在 "xx 付" 这 2 字符上. -->
+                            <span class="bill-meta-text">{fmtBillTime(b.occurred_at)} · </span><span class="bill-meta-text" style="color: {payerColor(b)};">{payerName(b)} 付</span>
                           </span>
                           {#if share !== null}
                             <span class="your-share">分摊 {fmtAmount(share)}<span class="unit">{b.currency}</span></span>

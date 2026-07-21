@@ -774,6 +774,7 @@
           loading={loading}
           primaryCurrency={session.primary_currency}
           currencies={session.currencies}
+          members={session.members}
         />
       {/if}
     </div>
@@ -1608,6 +1609,14 @@
     color: var(--gray-900);
     padding: 4px 0;
     min-width: 0;
+    /* v0.3.20 #95 Fix 4 (PO msg 02:41 #7459): <input type="search"> 在 iOS Safari
+       上默认 line-height ≈ 1.2 (normal), 跟 padding 4px 叠加后 input 物理高度
+       ~25px, 但 flex 父 .bills-search 有 padding 18 + 8 = 26px, 加上 .Search icon,
+       实际视觉高度 ~62px. 默认 line-height 在 iOS 让 input text "top-aligned".
+       修法: line-height: 1 (跟 font-size 同高 14px), text 精确居中在 font 高度.
+       不改 input 高度 (padding 4 + content 14 + 4 = 22px) — 仍由 flex
+       align-items: center 把它放在父容器中央. */
+    line-height: 1;
   }
   .bills-search-input:focus {
     outline: none;

@@ -527,19 +527,14 @@
   </div>
 
   <div>
-    <label class="label" for="occurredAt">发生时间</label>
-    <!-- v0.3.2 (Bug 3 — 2026-07-07): 右上空白 box。
-         iOS Safari / mobile Chrome 上 <input type="datetime-local"> 不渲染
-         ::-webkit-calendar-picker-indicator 但仍给 picker icon 留出固定宽度。
-         在 360-390px viewport 下, 该空白正好搭在屏幕右边 → 看起来像一个
-         "empty white box overlapping the right edge"。
-         修法: 包一层 .datetime-row (relative), 隐藏原生 indicator,
-         用 .datetime-icon 显示一个真正的 📅 emoji (pointer-events: none)。
-         Tap / focus 输入框仍能正常唤起 native picker (iOS wheel / Chrome modal). -->
-    <div class="datetime-row">
-      <input id="occurredAt" type="datetime-local" bind:value={occurredAt} />
-      <span class="datetime-icon" aria-hidden="true">📅</span>
-    </div>
+    <!-- v0.3.20 #95 Fix 2 (PO msg 02:41 #7459): 标签 "发生时间" → "时间" +
+         删日历 📅 emoji span + 删 .datetime-row wrapper. input 单行撑满宽度.
+         原 (v0.3.2) 用 emoji 占位是因为 iOS Safari 不渲染原生 picker indicator
+         但留出固定空白 → 在 ~360px viewport 形成"右上空白 box". 后续 iOS Safari
+         已修 (不再留固定空白), 且 PO 反馈 emoji 多余, 这次一并去掉
+         + 删整段 .datetime-row / .datetime-icon CSS. -->
+    <label class="label" for="occurredAt">时间</label>
+    <input id="occurredAt" type="datetime-local" bind:value={occurredAt} />
   </div>
 
   <div>
@@ -933,46 +928,11 @@
     cursor: not-allowed;
   }
 
-  /* v0.3.2 (Bug 3 — 2026-07-07): datetime-local 上 ::-webkit-calendar-picker-indicator
-     在 iOS Safari / mobile Chrome 上不渲染但仍占位, 在 ~360-390px viewport
-     形成"右上空白 box"。修法 = 隐藏原生 indicator + 用 .datetime-icon 占位。 */
-  .datetime-row {
-    position: relative;
-    display: block;
-  }
-  .datetime-row input[type="datetime-local"] {
-    width: 100%;
-    /* 给右侧 .datetime-icon 留位置 — 即使原生 indicator 偷偷出现也压住 */
-    padding-right: 40px;
-    /* iOS / mobile 上不要显示原生 picker indicator (空 box 根因) */
-    -webkit-appearance: none;
-    appearance: none;
-  }
-  /* 隐藏原生 picker indicator 但保留点击区 — display:none 会让 iOS wheel 不再唤起 */
-  .datetime-row input[type="datetime-local"]::-webkit-calendar-picker-indicator {
-    opacity: 0;
-    position: absolute;
-    right: 0;
-    top: 0;
-    width: 40px;
-    height: 100%;
-    cursor: pointer;
-  }
-  .datetime-row input[type="datetime-local"]::-webkit-inner-spin-button,
-  .datetime-row input[type="datetime-local"]::-webkit-clear-button {
-    display: none;
-    -webkit-appearance: none;
-  }
-  .datetime-icon {
-    position: absolute;
-    right: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    pointer-events: none;
-    font-size: 18px;
-    line-height: 1;
-    opacity: 0.55;
-  }
+  /* v0.3.2 (Bug 3 — 2026-07-07, archived 2026-07-21 v0.3.20 #95 Fix 2): 
+     以下 .datetime-row / .datetime-icon 整套 CSS 已删除 —
+     iOS Safari 已不渲染原生 picker indicator (留固定空白) 问题;
+     PO msg 02:41 #7459 也反馈日历 📅 emoji span 是视觉噪音, 一并去掉。
+     原 style 保留在 git history 里以备需要时恢复。 */
 
   /* v0.3.15 §3.15.2 #6 v2 (PO msg #4752+#4763): 删掉 sticky action bar 整段 CSS。
      FAB 圆形按钮样式 (`.fab / .fab-left / .fab-right`) 移到父页面
