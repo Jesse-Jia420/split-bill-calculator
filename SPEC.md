@@ -2930,3 +2930,58 @@ seed 脚本 (`backend/scripts/seed_dev_data.py`) 已有 find-or-create 逻辑：
 **不**在这个 commit:
 - AppBackground / paper bg / .btn-sm / .ghost 不动
 - @supports Safari <18 fallback 保留 0.85 opaque
+
+### §11. v0.3.20 #100 (2026-07-21) — 全站品牌 Split Bill → SplitIt + NavBar brand hover ivory + landing 主按钮透明玻璃 ivory (PO msg 14:37)
+
+**commit**: `cbda966` — `refactor(fe): v0.3.20 #100 — 全站 Split Bill 改名 SplitIt + NavBar 品牌 hover ivory + landing 主按钮 透明玻璃 ivory (PO msg 14:37)`
+
+**3 项改动** (PO msg 14:37 一次性整改):
+
+#### 1) 全站 "Split Bill" → "SplitIt" (5 文件)
+- `frontend/src/app.html` line 7: `<title>split-bill-calculator</title>` → `<title>SplitIt</title>` (默认 tab 标题)
+- `frontend/src/lib/components/NavBar.svelte` line 41: `<a class="brand">Split Bill</a>` → `SplitIt`
+- `frontend/src/routes/+page.svelte` line 67: `<title>Split Bill — 轻松分摊</title>` (landing page title)
+- `frontend/src/routes/+page.svelte` line 79: `<span class="brand-name">Split Bill</span>` (landing page brand big text)
+- `frontend/src/routes/invites/[token]/+page.svelte` line 125: `<title>加入账本 · Split Bill</title>`
+- `frontend/src/routes/s/[code]/+page.svelte` line 38: `<title>打开账本 · Split Bill</title>`
+- 留 `app.css` 头部注释 `split-bill-calculator v0.1.3` 不动 (code ref 不是 user-visible)
+
+#### 2) NavBar `.brand:hover` ivory (1 文件)
+- `frontend/src/lib/components/NavBar.svelte` line 130: `color: var(--color-accent)` → `color: #FFFFF0` (象牙白)
+- PO 原话 "象牙白色，不要现在的蓝色" — 替代原 hover 蓝紫色
+- 实测 Playwright computed: brand 默认 `rgb(38, 38, 38)` (var(--color-text) gray-800), hover 后 `rgb(255, 255, 240)` ✓ ivory
+
+#### 3) Landing `.btn-primary` 透明玻璃 + ivory 文字 (1 文件)
+- `frontend/src/routes/+page.svelte` `.btn-primary`:
+  - bg: `linear-gradient(135deg, rgba(59,130,246,0.85) → rgba(99,102,241,0.78))` (蓝紫渐变) → `rgba(255, 255, 255, 0.20)` (透明玻璃白)
+  - color: (默认 — 浏览器 button 默认黑) → `color: #FFFFF0` (象牙白显式)
+  - border: `1px solid rgba(255, 255, 255, 0.35)` → `1px solid rgba(255, 255, 255, 0.45)` (增 0.10 透明度让边缘更清)
+  - backdrop-filter `saturate(200%) blur(20px)` 保留
+- `.btn-primary:hover:not(:disabled)`:
+  - bg: `linear-gradient(...0.95, 0.9)` → `rgba(255, 255, 255, 0.30)` (浅 hover bg)
+  - box-shadow inset highlight 保留 (玻璃语言)
+- `.btn-primary:disabled` fallback bg `0.9 蓝` 不动 (dev/loading 状态)
+- PO 原话 "透明玻璃，象牙白文字，不要现在的蓝色按钮"
+
+**保留**:
+- `.btn-ghost` 已有玻璃风格 (不动, 跟 .btn-primary 配套改)
+- 暗 overlay `rgba(0, 0, 0, 0.42)` (玻璃按钮要在暗 bg 上才显眼)
+- AppBackground / paper bg / .btn-sm / .ghost / NavBar / etc 不动
+- AppBackground (z=-1 paper texture) 不动
+
+**dev 验证** (iPhone 13 viewport Playwright 真机 walk):
+- /sessions/1 → 顶部 SplitIt brand (gray-800 dark) ✓
+- /sessions/1 + brand hover → SplitIt 变 ivory (rgb(255,255,240) = #FFFFF0) ✓
+- / (anon landing) → 中央主 CTA 按钮 半透明白色玻璃 + ivory 文字 + 描边, 按钮背景可见暗 overlay (玻璃质感) ✓
+- 4 张截图: `~/.openclaw/media/v0320-100-rename/{landing-glass-ivory,landing-brand-hover,sessions-1-splitit,sessions-1-brand-hover}.png`
+- vite HMR: app.html page reload + NavBar + +page.svelte hmr update (2:46:07 PM)
+
+**反模式自查**:
+- ✅ 反 #162 git pull --ff-only (拉到 11a6a9f #99-fix5 §11, 无冲突)
+- ✅ 反 #151 真 PNG 截图 (iPhone 13 真机 walk, computed style 实测)
+- ✅ 反 #158 强制 Telegram 推送
+
+**关联** (3 项合 1 commit 因为是同一时点 PO 一次性整改):
+- #99-fix5 (8448a17): NavBar bg alpha + padding 仍是最新版 (透明玻璃) — 跟 brand hover ivory 兼容
+- 前文所有 v0.3.20 任务 (#91-#99 系列) 不动
+- v0.3.20 整体进入收尾阶段 (v0.3.21 准备中)
