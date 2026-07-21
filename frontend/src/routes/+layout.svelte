@@ -16,9 +16,10 @@
   import '../app.css';
   import NavBar from '$components/NavBar.svelte';
   import Toast from '$components/Toast.svelte';
-  // v0.3.18 #51 (PO msg 23:17 #6526): 整站去背景图 — AppBackground 文件保留作为 archive,
-  // 但不再 import / 挂载. 未来想恢复玻璃背景图直接重新 import 即可.
-  // import AppBackground from '$components/AppBackground.svelte';
+  // v0.3.20 #97 (PO msg 13:24 #7503): 整站加回背景图 — 用 textured-paper.jpg
+  // (纸张纹理, 不可改) 替代 v0.3.18 #51 之前的纯色. AppBackground 之前是 archive,
+  // 现在重新挂载作为 body 第一层 (在 <slot/> 之前的 <main> 之前).
+  import AppBackground from '$components/AppBackground.svelte';
   import { onMount } from 'svelte';
   import { fade } from 'svelte/transition';
   import { loadUser } from '$stores/user';
@@ -37,9 +38,10 @@
   });
 </script>
 
-<!-- v0.3.18 #51 (PO msg 23:17 #6526): 整站去背景图 — 退回 v0.3.18 之前的纯色
-     (body bg = var(--gray-50), 见 app.css). AppBackground.svelte + glass-bg.jpg
-     文件保留作为 archive, 未来想恢复玻璃背景图直接恢复 import + 此处调用即可. -->
+<!-- v0.3.18 #51 (PO msg 23:17 #6526) → v0.3.20 #97 (PO msg 13:24 #7503):
+     整站去背景图改回加 — 用 AppBackground (paper texture) 替代纯色 body bg.
+     body bg 仍然保留 var(--gray-50) 作为 image-load 期间占位. -->
+<AppBackground />
 <NavBar />
 <Toast />
 <!-- v0.3.17 #30 (PO msg 14:28 #5957): <main class="page"> 改成内层滚动容器 —
