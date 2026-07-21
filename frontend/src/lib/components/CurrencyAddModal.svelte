@@ -48,7 +48,8 @@
     - locked 提示: 12px gap + 20px emoji + gray-600 文字 (跟 form 风格区分)
 -->
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount } from 'svelte';
+  import { Lock, X as XIcon, Check } from 'lucide-svelte';
   import { toast } from '$stores/toast';
   import { ApiError } from '$api/client';
   import { addSessionCurrency, type SessionDetail } from '$api/sessions';
@@ -151,6 +152,24 @@
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape' && !busy) close();
   }
+
+  /** v0.3.19 #85 v3 PO #7731 (#2): 弹窗存在时锁住页面滚动.
+   *  +layout.svelte 在 v0.3.17 #30 已经把 body overflow:hidden + main overflow-y:auto
+   *  (iOS app-shell pattern), 所以页面滚动发生在 <main> 元素. 弹窗 mount 时把 main
+   *  overflow 也设 hidden, disable 滚轮 + 触屏 swipe. unmount 时恢复.
+   *  overscroll-behavior: contain 防止 modal 边缘 rubber-band 触到 body 滚动. */
+  onMount(() => {
+    const mainEl = document.querySelector('main');
+    if (!mainEl) return;
+    const origOverflow = mainEl.style.overflow;
+    const origOverscroll = mainEl.style.overscrollBehavior;
+    mainEl.style.overflow = 'hidden';
+    mainEl.style.overscrollBehavior = 'contain';
+    return () => {
+      mainEl.style.overflow = origOverflow;
+      mainEl.style.overscrollBehavior = origOverscroll;
+    };
+  });
 
   /** v0.3.19 #85: 找 primary → secondary 的 forward rate row (multi 模式 PATCH 用). */
   function findForwardRate(): SessionExchangeRate | null {
@@ -333,7 +352,9 @@
         <section class="field">
           <label class="field-label">主币种 (不可改)</label>
           <div class="primary-chip" aria-label="主币种: {primary_currency}">
-            <span class="lock-icon" aria-hidden="true">🔒</span>
+            <span class="lock-icon" aria-hidden="true">
+              <Lock size={11} strokeWidth={2.5} />
+            </span>
             <span class="primary-code">{primary_currency}</span>
           </div>
         </section>
@@ -372,7 +393,7 @@
               aria-label="汇率 (1 {primary_currency} = X {secondary})"
               data-testid="currency-add-rate"
             />
-            <span class="rate-suffix">{secondary || '副币种'}/{primary_currency}</span>
+            <span class="rate-suffix">{secondary || '副币种'}</span>
           </div>
           <p class="hint">
             提交后会创建正向 + 反向两条汇率记录, 修改时两方向同步。
@@ -382,7 +403,9 @@
         <!-- ===== single + has_bills: 矛盾状态 (locked 提示) ===== -->
         <section class="field">
           <div class="locked-message" role="status" data-testid="currency-add-locked">
-            <span class="locked-icon" aria-hidden="true">🔒</span>
+            <span class="locked-icon" aria-hidden="true">
+              <Lock size={20} strokeWidth={2.2} />
+            </span>
             <div class="locked-text">
               <p class="locked-title">当前账单已锁定, 无法添加副币种</p>
               <p class="locked-sub">
@@ -446,24 +469,32 @@
               aria-label="汇率 (1 {primary} = X {secondary})"
               data-testid="currency-edit-rate"
             />
-            <span class="rate-suffix">{secondary}/{primary}</span>
+            <span class="rate-suffix">{secondary}</span>
           </div>
         </section>
       {:else if mode === 'multi' && has_bills}
-        <!-- ===== multi + has_bills: 仅修改汇率 (主/副币种 locked chip) ===== -->
-        <section class="field">
-          <div class="field-label">主币种 (有账单, 不可改)</div>
-          <div class="primary-chip" aria-label="主币种: {primary_currency}">
-            <span class="lock-icon" aria-hidden="true">🔒</span>
-            <span class="primary-code">{primary_currency}</span>
+        <!-- ===== multi + has_bills: 仅修改汇率 (主/副币种 locked chip 同行) ===== -->
+        <!-- v0.3.19 #85 v3 PO #7731 (#3 跟进): 主+副币种 chip 也同行 — 跟 multi bar 一致的
+             CNY ⇄ THB 视觉. reuse .currency-pair-row / .currency-pair-col (multi+!has_bills 同款). -->
+        <section class="field currency-pair-row">
+          <div class="currency-pair-col">
+            <div class="field-label">主币种</div>
+            <div class="primary-chip" aria-label="主币种: {primary_currency}">
+              <span class="lock-icon" aria-hidden="true">
+                <Lock size={11} strokeWidth={2.5} />
+              </span>
+              <span class="primary-code">{primary_currency}</span>
+            </div>
           </div>
-        </section>
-
-        <section class="field">
-          <div class="field-label">副币种 (有账单, 不可改)</div>
-          <div class="primary-chip primary-chip--secondary" aria-label="副币种: {secondary}">
-            <span class="lock-icon" aria-hidden="true">🔒</span>
-            <span class="primary-code">{secondary}</span>
+          <span class="currency-pair-arrow" aria-hidden="true">⇄</span>
+          <div class="currency-pair-col">
+            <div class="field-label">副币种</div>
+            <div class="primary-chip primary-chip--secondary" aria-label="副币种: {secondary}">
+              <span class="lock-icon" aria-hidden="true">
+                <Lock size={11} strokeWidth={2.5} />
+              </span>
+              <span class="primary-code">{secondary}</span>
+            </div>
           </div>
         </section>
 
@@ -483,7 +514,7 @@
               aria-label="汇率 (1 {primary} = X {secondary})"
               data-testid="currency-edit-rate-bills"
             />
-            <span class="rate-suffix">{secondary}/{primary}</span>
+            <span class="rate-suffix">{secondary}</span>
           </div>
           <p class="hint">
             已有账单, 只能修改汇率 (主币种 / 副币种已锁定)。
@@ -492,24 +523,31 @@
       {/if}
     </div>
 
+    <!-- v0.3.19 #85 v3 PO #7731 (#5): 取消 + 保存 改圆形按钮 (跟账单保存 consistency).
+         左圆形 X 按钮 = 取消 / 右圆形 ✓ 按钮 = 保存(submit). 视觉一致: 圆形 44×44 +
+         glass material + Lucide X / Check icon + aria-label 替代 text label.
+         单币种矛盾 (showSubmit=false) 状态: 仅左圆形 X (关闭按钮), 跟弹窗右上 X 同义. -->
     <footer class="modal-foot">
       <button
         type="button"
-        class="btn btn-ghost"
+        class="fab fab--cancel"
         on:click={close}
         disabled={busy}
+        aria-label={showSubmit ? '取消' : '关闭'}
+        data-testid="currency-add-cancel"
       >
-        {showSubmit ? '取消' : '关闭'}
+        <XIcon size={22} strokeWidth={2.5} />
       </button>
       {#if showSubmit}
         <button
           type="button"
-          class="btn btn-primary"
+          class="fab fab--submit"
           on:click={handleSubmit}
           disabled={!canSubmit}
+          aria-label={submitLabel}
           data-testid="currency-add-submit"
         >
-          {submitLabel}
+          <Check size={22} strokeWidth={2.5} />
         </button>
       {/if}
     </footer>
@@ -625,9 +663,15 @@
     background: rgba(148, 163, 184, 0.10);
     color: var(--gray-700);
   }
+  /* v0.3.19 #85 v3 PO #7731 (#1): lock icon 改 Lucide Lock (跟其它 Lucide icon 同款).
+   *  原 🔒 emoji 视觉不一致 (emoji 字体不同, 描边颜色不一) — 改 Lucide SVG icon, 用
+   *  display:inline-flex 居中 + color var(--accent-700) 跟 chip 配. */
   .lock-icon {
-    font-size: 12px;
-    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent-700, #4338ca);
+    flex-shrink: 0;
   }
   .primary-code {
     font-weight: var(--font-weight-semibold);
@@ -682,8 +726,9 @@
     line-height: 1.4;
   }
 
-  /* v0.3.19 #85 PO #7731 (#4): 主+副币种 select 同行并排 flex 横排.
-   *   1:1 等宽分栏, gap 12px (跟全站 field gap 16px 减半, 让两栏更紧凑). */
+  /* v0.3.19 #85 PO #7731 (#4) + v3 (#3 跟进): 主+副币种 select / chip 同行并排.
+   *   1:1 等宽分栏, gap 12px — 跟全站 field gap 16px 减半, 让两栏更紧凑.
+   *   .currency-pair-arrow 用于 multi+has_bills 主⇄副 chip 之间的双向箭头 (居中). */
   .currency-pair-row {
     flex-direction: row;
     gap: var(--space-3);
@@ -695,10 +740,20 @@
     flex-direction: column;
     gap: var(--space-2);
   }
+  .currency-pair-arrow {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent-500, #6366f1);
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    flex-shrink: 0;
+    padding-bottom: 22px; /* 跟 chip baseline 视觉对齐 (chip 总高 ~34px 居中) */
+  }
 
   /* v0.3.19 #85 (PO #7308 改动 5): single + has_bills 矛盾状态显示灰色提示文案.
-   * 跟 form 字段区分: 12px gap + 20px emoji + 大段文字 (gray-600).
-   * tooltip 用 title 属性 (简单跨平台, 不用自定义 popover). */
+   * 跟 form 字段区分: 12px gap + 20px Lucide Lock icon (跟其它 app icon 统一)
+   * + 大段文字 (gray-600) + tooltip 用 title 属性 (简单跨平台). */
   .locked-message {
     display: flex;
     align-items: flex-start;
@@ -709,8 +764,10 @@
     border-radius: 12px;
   }
   .locked-icon {
-    font-size: 20px;
-    line-height: 1.2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--gray-500);
     flex-shrink: 0;
   }
   .locked-text {
@@ -732,21 +789,91 @@
     line-height: 1.4;
   }
 
+  /* v0.3.19 #85 v3 PO #7731 (#5): 圆形 FAB button (跟账单保存 consistency).
+   *   圆形 44×44 + glass material (跟全站 .fab .glass-pill 同源 token) +
+   *   accent indigo 边框 + 紫蓝阴影. cancel 用 gray 主色 (secondary),
+   *   submit 用 indigo→blue gradient (primary).
+   *   space-between 让 X 左 / ✓ 右 并列 (跟 iOS modal alert 同款). */
   .modal-foot {
     display: flex;
-    justify-content: flex-end;
-    gap: var(--space-2);
-    padding: 0 var(--space-4) var(--space-4);
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px var(--space-5) var(--space-4);
   }
-
-  .btn-ghost {
-    background: transparent;
-    border-color: transparent;
-    color: var(--gray-700);
+  .fab {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    appearance: none;
+    cursor: pointer;
+    font-family: inherit;
+    transition:
+      background 150ms ease,
+      transform 100ms ease,
+      box-shadow 150ms ease,
+      opacity 150ms ease;
   }
-  .btn-ghost:hover:not(:disabled) {
-    border-color: var(--gray-200);
-    color: var(--gray-900);
+  .fab:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+  /* cancel FAB (左) — gray/white 玻璃 (secondary action). */
+  .fab--cancel {
+    background: rgba(255, 255, 255, 0.45);
+    border: 1px solid rgba(148, 163, 184, 0.30);
+    color: var(--gray-600, #475569);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.6),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.03),
+      0 2px 8px rgba(148, 163, 184, 0.18);
+  }
+  .fab--cancel:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.65);
+    border-color: rgba(148, 163, 184, 0.45);
+    transform: scale(1.03);
+  }
+  .fab--cancel:active:not(:disabled) {
+    transform: scale(0.95);
+  }
+  .fab--cancel:focus-visible {
+    outline: 2px solid var(--gray-400);
+    outline-offset: 2px;
+  }
+  /* submit FAB (右) — indigo→blue gradient 玻璃 (primary action). */
+  .fab--submit {
+    background: linear-gradient(
+      135deg,
+      rgba(99, 102, 241, 0.95) 0%,
+      rgba(59, 130, 246, 0.95) 100%
+    );
+    border: 1px solid rgba(99, 102, 241, 0.40);
+    color: #fff;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.4),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.05),
+      0 4px 12px rgba(99, 102, 241, 0.32);
+  }
+  .fab--submit:hover:not(:disabled) {
+    background: linear-gradient(
+      135deg,
+      rgba(99, 102, 241, 1) 0%,
+      rgba(59, 130, 246, 1) 100%
+    );
+    transform: scale(1.03);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.5),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.05),
+      0 6px 16px rgba(99, 102, 241, 0.40);
+  }
+  .fab--submit:active:not(:disabled) {
+    transform: scale(0.95);
+  }
+  .fab--submit:focus-visible {
+    outline: 2px solid var(--accent-500);
+    outline-offset: 2px;
   }
 
   /* v0.3.19 #85 PO #7731 (#2): 去掉 fadeIn (backdrop 透明无 opacity 变化). */
