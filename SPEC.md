@@ -2591,3 +2591,42 @@ seed 脚本 (`backend/scripts/seed_dev_data.py`) 已有 find-or-create 逻辑：
 - Fix 3: 改完 buildPayload, e2e 验证 Jesse 不参与+exclusive=50 可存 (待真机 walk)
 
 **踩坑**: Coder sandbox exec 在 commit 步骤前挂掉 (sandbox 间歇性, 跟 #93 内容无关), Master 接力 commit + push (`697eaf9`). Coder 所有 10 fix 代码改动都在, 仅 commit 步骤未完成.
+
+### §11. v0.3.20 #97 (2026-07-21) — 整站加背景图 (paper texture, 不可改) (PO msg 13:24 #7503)
+
+**commit**: `feat(fe): v0.3.20 #97 — AppBackground 加回 — 用 textured-paper.jpg 替代 v0.3.18 #51 撤掉的玻璃 bg`
+
+**改动 3 项**:
+- **AppBackground.svelte 重写** — 沿用 v0.3.18 #47 fixed z=-1 模式, 3 处替换:
+  - 图: `glass-bg.jpg` → `textured-paper.jpg` (1700×2200, ~640KB)
+  - fallback: indigo gradient → paper-white `#fafafa` (跟 app.css body bg 同色, 加载完不闪)
+  - noise overlay: 完整删除 (paper 自带 grain, 加 noise 糊掉细节)
+- **+layout.svelte 重挂 import** — `import AppBackground` + `<AppBackground />` 挂载在 `<NavBar />` 之前 (z=-1, 仍是 body 第一层)
+- **static/textured-paper.jpg** — 从 `/static/wallpaper/` 移到 `/static/` 根 (vite root serve 直链 `/textured-paper.jpg`)
+
+**背景语义**:
+- z-index: -1 + position: fixed → 在所有内容之下, 不占文档流, 不影响 main flex column 滚动
+- bg-size: cover + bg-position: center → 3:4 portrait 图在 9:16 viewport 上裁左右 (paper 边缘无内容, 视觉无感)
+- 加载流程: probe Image() → onload 加 `.loaded` class → bg-image 切到 url(...); onerror 加 `.failed` → 保留 fallback (不做重试)
+
+**保留不动**:
+- v0.3.18 #54 Footer 取消 — 仍不挂 footer
+- /  landing 页 — 仍用 Unsplash friends hero (v0.3.1 沉浸式 splash 是设计选择, paper 在它后面看不见, **不**动)
+- body bg = var(--gray-50) — 保留作为 image-load 期间占位
+
+**dev 验证**:
+- browser 截图 `/auth/login` paper texture 可见 (`/home/node/.openclaw/media/v0320-97-wallpaper/login-with-paper-bg.png`)
+- /  landing 仍用 Unsplash hero (lifestyle 沉浸 splash) (`landing-friends-hero.png`)
+- /sessions 未登录重定向到 /auth/login (同上 paper bg)
+- vite HMR 自动更新 (1:26:58 PM hmr update /src/routes/+layout.svelte)
+- curl `/textured-paper.jpg` HTTP 200, size 655316 bytes
+- uvicorn PID 77984 仍 39644d3f = #96 commit (此任务**不**动 BE)
+
+**反模式自查**:
+- 反 #162 ✅ git pull --ff-only before commit (容器已在 origin/main HEAD 39644d3, 无 race)
+- 反 #158 ✅ 强制 Telegram 推送 (立刻给 Jesse 报)
+- 反 #151 ✅ 真 PNG 截图 (browser viewport 真截图, 不是 ASCII)
+- 反 #146 ✅ 完整 token (从 /home/node/.openclaw/media/wallpaper/ 复制)
+
+**不**在这个 commit:
+- 4 个无关文件 modified (CurrencyAddModal / SessionCurrencyBadge / sessions/[id]/+page / sessions/[id]/settle/+page) — pre-existing local mods, **不**纳入本次 commit (跟 wallpaper 无关, 避免污染 diff)
