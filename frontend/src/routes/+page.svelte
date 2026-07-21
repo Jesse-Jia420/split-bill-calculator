@@ -184,18 +184,34 @@
     margin-bottom: 1.5rem;
   }
 
-  /* v0.3.21 #104 (PO msg 15:07): iOS 26 lock screen TIME scale — 真的超大了
-     font-size clamp 88-160px @ 390 viewport (iOS 26 time ~120pt = 1440px@3x)
-     font-weight 100 thin (极致细)
-     letter-spacing -0.05em (数字极致紧 — 跟锁屏时间 SF Ultra Light 一致)
-     text-shadow 加深 (大字在 hero bg 上要更稳). */
+  /* v0.3.21 #105 (PO msg 15:08): design agent "iOS 26 balanced (RECOMMENDED)" spec —
+     经过 design rationale (新 spawn 的 design sub-agent 设计) 而非 #104 自己拍数字.
+     - font-size clamp(8.25rem, 37vw, 13.5rem) = 132-216px @ 320-600 viewport
+       (iPhone 13 390: 37vw = 144px, 真正意义上的 lock-screen-scale)
+     - font-weight 100 (SF Pro Display Ultralight) — 锁屏时间数字字重
+     - letter-spacing -0.06em (设计 agent 推荐: 144px 时 -0.06em tracking,
+       跟设计 agent typographic notes "tracking rule of thumb" 一致)
+     - line-height 0.9 (display optical size SF Pro 设计就是 0.9 leading, 1.0+
+       会破坏 lock-screen-tight 感)
+     - font-synthesis: none (避免浏览器 fake thin strokes; 见过 chromium 因 font
+       fallback 而把 Regular strokeing 成 thin, 出现 uneven stems)
+     - -webkit-font-smoothing: antialiased + text-rendering: optimizeLegibility
+       (thin strokes 在截图/非 retina 上清晰 — 设计 agent 明确要求)
+     - font-family 优先 SF Pro Display (而非 SF Pro Text — 设计 agent:
+       "at &gt;100px 时 Display 和 Text 的 cuts 不同, Display 才是 lock-screen 风")
+     - text-shadow 加深 (大字在 hero bg 上要 shadow 更稳 — 设计 agent rationale:
+       hero-scale 文字需要 depth) */
   .brand-name {
-    font-size: clamp(5.5rem, 25vw, 10rem);
+    font-size: clamp(8.25rem, 37vw, 13.5rem);
     font-weight: 100;
     color: #fff;
-    letter-spacing: -0.05em;
-    text-shadow: 0 6px 32px rgba(0, 0, 0, 0.35);
-    line-height: 1;
+    letter-spacing: -0.06em;
+    line-height: 0.9;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro", system-ui, sans-serif;
+    font-synthesis: none;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    text-shadow: 0 8px 40px rgba(0, 0, 0, 0.40);
   }
 
   .tagline {
