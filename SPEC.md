@@ -2454,3 +2454,57 @@ seed 脚本 (`backend/scripts/seed_dev_data.py`) 已有 find-or-create 逻辑：
 **并发冲突注**: Master `01968a4 feat(deploy): v1.0 release prep` 跟 Coder `c4326b1` 并发 push, history 是 sequential (55ef4e3 → 01968a4 → c4326b1), 单分支铁律 OK, 无冲突.
 
 **Tester 验证待**: 等 Tester subagent `42d9eb70` 完成 e2e + svelte-check + 全站 checklist + 截图 + Telegram push.
+
+### §11. v0.3.20 #91 (2026-07-21) — BillForm 参与者 section (pill + 头像 + 文本重命名) (PO msg 03:06 #7375)
+
+**commit**: `65470f0e7b0f3be042f41ec30d6721c7485a6a28` — `feat(fe): v0.3.20 #91 — BillForm participants pill+avatar+个人消费 (PO msg 03:06 #7375)`
+**改动** (1 file, +274/-123):
+- `frontend/src/lib/components/BillForm.svelte`
+  - **新增头像**: 每行参与者前加 avatar (圆形 + 1 首字母 + 36×36), 复用 SessionMemberList.svelte 5 色 palette
+  - **pill 改造**: 两态 102×32 钉死, 共享态虚 (浅白+淡紫+个人消费 ¥) / 独占态实 (浅紫+accent+¥+input+stepper)
+  - **文本重命名**: UI 独占 → 个人消费 (含 aria-label)
+  - State 不变
+
+**svelte-check**: 3 errors / 19 warnings (baseline 一致, 0 new error)
+**Master 自验**: pill 5 个全部 102×32, avatar 5 色 palette 对齐 session detail, aria-label 全 rename, DB session 11 在场
+
+### §11. v0.3.20 #92 (2026-07-21) — 5 处 UI 修复 (PO msg 07:13 #7409 一次提, 一并修)
+
+**commit**: `b022a3cc28b2f1bcec7bc138b057b94697c69232`
+**改动** (3 files, +139/-127):
+
+#### Fix 1 — BillForm.svelte 独占 pill 去 stepper
+- 删 .pill-stepper / .pill-step up/down + stepAmount 函数
+- pill 改纯 ¥+input, padding 6px→10px, 102×32 钉死
+- 根因: stepper 让 pill 视觉混乱 (PO 红圈标注)
+
+#### Fix 2 — session/[id]/+page.svelte 邀请按钮 row1 → row2
+- row1: 成员·N人 + 过期 pill (always)
+- row2: avatar 折叠态独有 + InviteLinkButton (always, space-between)
+- row3: chevron + 查看 N 人 (折叠态独有)
+- 修 #7300 regression: 邀请按钮两态都可见
+
+#### Fix 3 — BillListGrouped day header 右对齐
+- .day-row-2 / .day-row-3: justify-content: flex-end
+- 单/双币统一视觉对齐
+
+#### Fix 4 — BillListGrouped day header 双币 人均 dedupe
+- 单币: 人均 X CCY (不变)
+- 双币: 单一 人均 label + 多 value " · " 分隔 (人均 82.33 CNY·1,245.33 THB)
+- 迭代 perCapitaBreakdown 避免空币种 "—"
+
+#### Fix 5 — BillListGrouped bill item 3 行重排
+- 新增 billExclusiveTotal(b) helper
+- row2 仅当 exclusive > 0 时渲染 独占 ¥X CCY (muted, 右)
+- row3: 人数+时间+付款 (左) + 分摊 (右, space-between)
+- 不改 backend, 用 b.participants 推导
+
+**svelte-check**: 3 errors / 19 warnings (0 new)
+**单分支铁律**: origin 仅 main ✓
+
+**Master 自验**: stepperCount=0 / 邀请 row2 / day-row-2/3 flex-end / bill #95 3 行结构全过
+
+**踩坑 (反 #170)**:
+- `scripts/codeserver_exec.js` 把 docker exec 8 字节流帧 header (0x0100000000000000 + size BE) 嵌入 cat 输出文件, 污染 BillForm.svelte CSS `transition-duration` 行
+- 修法: 用 `scripts/codeserver_exec_clean.js` 解析帧格式剥离 header
+- 后续 codeserver 文件传输必须用 clean 版本
