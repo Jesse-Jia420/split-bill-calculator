@@ -2670,3 +2670,45 @@ seed 脚本 (`backend/scripts/seed_dev_data.py`) 已有 find-or-create 逻辑：
 **不**在这个 commit:
 - Coder 1 #98 的 BillListGrouped / sessions/[id]/+page.svelte 改动 — 那是另一 coder 的活, 等他自己 push
 - 4 个 pre-existing local mods (CurrencyAddModal / SessionCurrencyBadge / sessions/[id]/+page / sessions/[id]/settle/+page) — 不纳入本次 commit (跟 NavBar 无关, 避免污染 diff) — 已 stash 在 `stash@{0}: coder2-v0320-99-preserve-pending-local-changes-before-pull`, 留给后续 coder 处理
+
+### §11. v0.3.20 #98 (2026-07-21) — 3 处 UI 微调 (PO msg 13:36 #7532 #1+#2+#3)
+
+**commit**: `7340297` — `fix(fe): v0.3.20 #98 — 3 处 UI 微调 (PO #7532 #1+#2+#3)`
+**改动** (1 file, +47/-8 net): `frontend/src/routes/sessions/[id]/+page.svelte`
+
+#### Fix 1 — 搜索框内文字垂直居中
+- `.bills-search` padding `18px var(--space-3) var(--space-2)` → `13px var(--space-3) 13px` (上下对称)
+- `.bills-search-input` 加 `height: 22px; line-height: 22px; -webkit-appearance: none; appearance: none; margin: 0; text-align: left;` (Safari <input type=search> 重置 + 显式 height)
+- 之前 v0.3.20 #95 只 `line-height: 1` 不够: iOS Safari `<input type="search">` 有 intrinsic min-height (~22px) + native X button 内部 padding 占位, 让 placeholder 仍偏顶部 ~2-3px
+- 真修法: 显式 height + line-height 匹配 (22 = 22) + `appearance: none` 重置 Safari native search 样式 + `margin: 0` 去 Safari 默认外边距
+- `--bills-search-h` 不变 (那是 region 高度, sticky top offset 是另一回事, BillListGrouped day-header 偏移由 `--bills-search-h` 推算)
+
+#### Fix 2 — sticky 搜索框上方间距 (贴 NavBar 太紧)
+- `.bills-search` `top: 0` → `top: var(--space-2)` (~8px @ 390px viewport)
+- 之前 `top: 0` 让 sticky 搜索框贴 NavBar 下边 (z-index 50 vs 20, NavBar 盖在上), 视觉零间距
+- 改用 `--space-2` spacing token 跟全站 spacing 一致; `--bills-search-h` 不动
+
+#### Fix 3 — 删 .members-head 下方 line
+- `.members-head` `border-bottom: 1px solid rgba(0, 0, 0, 0.05)` → `none` (整条删, 不用 opacity)
+- PO 反馈 "成员 section 的 查看 x 人的下方有一条线, 是分割线还是 button 的底边框? 我不想要这条线"
+- 视觉分隔交给 `margin-bottom: 12px` (.members-card 跟 .bills-card 之间已有 12px 间距 + .bills-card 自带 padding-top, 足够断开两块)
+- row3 的 `border-top` (上方 row2 <-> row3 affordance 分隔) 不动, 跟本次删的 line 是不同 line
+
+**真机验证** (iPhone 13 viewport 390×664 @3x, session 1 泰国测试):
+- Fix 1: `getBoundingClientRect` 实测 `.bills-search-input` `gap_above = gap_below = 14px` (对称 = 视觉居中); `getComputedStyle` `appearance: none; height: 22px; line-height: 22px`
+- Fix 2: 滚动 1200px 后 sticky, `navbar_bottom = 68.375`, `search_top = 76.172`, `gap = 7.797px` ≈ `--space-2` = 7.8px (var 精确匹配)
+- Fix 3: `getComputedStyle` `.members-head border-bottom = "0px none"` ✓
+- 3 张截图: `~/.openclaw/media/v0320-98-bills-tweak/{1-search-center,2-search-gap,3-member-noline}.png`
+
+**反模式自查**:
+- 反 #162 ✅ git pull --ff-only (拉到 08ac6e6 #99 NavBar 玻璃化 commit, 跟本次 #98 无冲突)
+- 反 #151 ✅ 真 PNG 截图 + image tool 视觉验证 (反 ASCII, 反只看 computed CSS)
+- 反 #150 ✅ iPhone 13 真机 walk (3 项 getBoundingClientRect 数值验证)
+- 反 #158 ✅ 强制 Telegram 推送 (立刻给 Jesse 报)
+
+**不**在这个 commit:
+- v0.3.20 #99 (NavBar 玻璃化) — Coder2 独立 push `08ac6e6`, 本次 brief 不含 (PO 单独 brief #4 项)
+- row3 的 `border-top` — 那是 row2 <-> row3 affordance 分隔 (上方), 跟本次删的 line (下方) 是不同 line
+- v0.3.20 #95 `line-height: 1` — 保留作为 fallback 防御 (跟 Fix 1 新的 `line-height: 22px` 不冲突)
+- 4 个 untracked screenshot/test 脚本 (`frontend/scripts/{diag,diag2,gap_zoom,v0320-98-shot}.cjs`) — 仅本地调试用, 不纳入 diff (跟 #97 / #99 留永久 screenshot 脚本的策略不同, 这批只是 throwaway)
+
