@@ -104,10 +104,12 @@
   /** 主币种可选 = SUPPORTED (multi 模式 disabled 显示用). */
   $: primary_options = SUPPORTED_CURRENCIES.slice();
 
-  /** v0.3.19 #85: multi 模式初始化 secondary/rate 从 existing_currencies + exchange_rates 推导.
-   *  single 模式保持 secondary='' (用户必选), rate='' (用户必填). */
+  /** v0.3.21 #106 (PO msg 17:21): multi 模式从 existing_currencies 初始化 secondary/rate.
+   *  用 multiInitialized 一次性 flag 防止 user 选「—」(secondary='') 时被 reactive 覆盖回 existing. */
+  let multiInitialized = false;
   $: if (
     mode === 'multi' &&
+    !multiInitialized &&
     secondary === '' &&
     existing_currencies.length > 0
   ) {
@@ -123,6 +125,7 @@
         if (row) rate = row.rate;
       }
     }
+    multiInitialized = true;
   }
 
   $: rateNumber = rate.trim() === '' ? NaN : Number(rate.trim());
@@ -143,10 +146,6 @@
   function close() {
     if (busy) return;
     dispatch('close');
-  }
-
-  function handleBackdropClick(e: MouseEvent) {
-    if (e.target === e.currentTarget) close();
   }
 
   function handleKeydown(e: KeyboardEvent) {
@@ -249,9 +248,12 @@
         );
         onAdded?.({ session: updated, rates });
         dispatch('close');
+      } else if (secondary === '') {
+        // v0.3.21 #106 (PO msg 17:21): multi + 「—」→ 切换单币种 (功能开发中) — toast 提示, 不调 API, 弹窗保留
+        toast.info('功能开发中');
       } else {
         // multi (任何 has_bills 状态): 本期只 PATCH 汇率
-        // primary/secondary select disabled 兜底 — 即使前端选了别的, PATCH 只对
+        // primary/secondary select 兜底 — 即使前端选了别的, PATCH 只对
         // 当前 primary→secondary 行生效 (BE 不接受改 primary/secondary).
         const rates = await patchForwardRate();
         // 给 parent 一个最小 stub session payload (parent onAdded 回调通常会
@@ -310,6 +312,8 @@
   $: submitLabel = (() => {
     if (busy) return mode === 'single' ? '添加中…' : '保存中…';
     if (mode === 'single') return '添加';
+    // mode === 'multi': 副币种选「—」(secondary='') 时显示「切换单币种」→ toast 提示开发中
+    if (secondary === '') return '切换单币种';
     return has_bills ? '保存汇率' : '修改';
   })();
   /** single + has_bills 矛盾状态: 只有「关闭」按钮, 无 submit. */
@@ -320,8 +324,6 @@
 
 <div
   class="modal-backdrop"
-  on:click={handleBackdropClick}
-  on:keydown={handleKeydown}
   role="presentation"
 >
   <div
@@ -335,23 +337,14 @@
   >
     <header class="modal-head">
       <h3 class="modal-title">{modalTitle}</h3>
-      <button
-        type="button"
-        class="modal-close"
-        on:click={close}
-        disabled={busy}
-        aria-label="关闭"
-      >
-        ×
-      </button>
     </header>
 
     <div class="modal-body">
       {#if mode === 'single' && !has_bills}
         <!-- ===== single + !has_bills: 添加副币种 (add flow) ===== -->
         <section class="field">
-          <label class="field-label">主币种 (不可改)</label>
-          <div class="primary-chip" aria-label="主币种: {primary_currency}">
+          <label class="field-label">主币种</label>
+          <div class="currency-pair-item currency-pair-item--locked" aria-label="主币种: {primary_currency}">
             <span class="lock-icon" aria-hidden="true">
               <Lock size={11} strokeWidth={2.5} />
             </span>
@@ -363,7 +356,7 @@
           <label class="field-label" for="sbc-secondary-currency">副币种</label>
           <select
             id="sbc-secondary-currency"
-            class="glass-input currency-select"
+            class="currency-pair-item currency-select"
             bind:value={secondary}
             disabled={busy}
             data-testid="currency-add-secondary"
@@ -395,9 +388,6 @@
             />
             <span class="rate-suffix">{secondary || '副币种'}</span>
           </div>
-          <p class="hint">
-            提交后会创建正向 + 反向两条汇率记录, 修改时两方向同步。
-          </p>
         </section>
       {:else if mode === 'single' && has_bills}
         <!-- ===== single + has_bills: 矛盾状态 (locked 提示) ===== -->
@@ -426,7 +416,7 @@
             <label class="field-label" for="sbc-primary-currency">主币种</label>
             <select
               id="sbc-primary-currency"
-              class="glass-input currency-select currency-select--disabled"
+              class="currency-pair-item currency-pair-item--locked currency-select"
               bind:value={primary}
               disabled={true}
               title="改主币种功能开发中 (BE 未支持)"
@@ -441,12 +431,13 @@
             <label class="field-label" for="sbc-secondary-currency">副币种</label>
             <select
               id="sbc-secondary-currency"
-              class="glass-input currency-select currency-select--disabled"
+              class="currency-pair-item currency-select"
               bind:value={secondary}
-              disabled={true}
-              title="改副币种功能开发中 (BE 未支持)"
+              disabled={busy}
+              title="选择「—」可切换单币种 (功能开发中)"
               data-testid="currency-edit-secondary"
             >
+              <option value="">—</option>
               {#each primary_options as opt}
                 <option value={opt}>{opt}</option>
               {/each}
@@ -464,7 +455,7 @@
               inputmode="decimal"
               class="glass-input rate-input"
               bind:value={rate}
-              disabled={busy}
+              disabled={busy || secondary === ''}
               placeholder="0.00"
               aria-label="汇率 (1 {primary} = X {secondary})"
               data-testid="currency-edit-rate"
@@ -479,17 +470,16 @@
         <section class="field currency-pair-row">
           <div class="currency-pair-col">
             <div class="field-label">主币种</div>
-            <div class="primary-chip" aria-label="主币种: {primary_currency}">
+            <div class="currency-pair-item currency-pair-item--locked" aria-label="主币种: {primary_currency}">
               <span class="lock-icon" aria-hidden="true">
                 <Lock size={11} strokeWidth={2.5} />
               </span>
               <span class="primary-code">{primary_currency}</span>
             </div>
           </div>
-          <span class="currency-pair-arrow" aria-hidden="true">⇄</span>
           <div class="currency-pair-col">
             <div class="field-label">副币种</div>
-            <div class="primary-chip primary-chip--secondary" aria-label="副币种: {secondary}">
+            <div class="currency-pair-item currency-pair-item--locked" aria-label="副币种: {secondary}">
               <span class="lock-icon" aria-hidden="true">
                 <Lock size={11} strokeWidth={2.5} />
               </span>
@@ -517,7 +507,7 @@
             <span class="rate-suffix">{secondary}</span>
           </div>
           <p class="hint">
-            已有账单, 只能修改汇率 (主币种 / 副币种已锁定)。
+            已有账单, 只能修改汇率。
           </p>
         </section>
       {/if}
@@ -585,10 +575,15 @@
     backdrop-filter: saturate(200%) blur(20px);
     -webkit-backdrop-filter: saturate(200%) blur(20px);
     border: 1px solid rgba(99, 102, 241, 0.22);
+    /* v0.3.21 #106 (PO msg 17:21): 加 ring (2px accent) + halo glow (60px 软光晕)
+     *   引导视觉重心到弹窗本体, 跟原 8px 浅阴影叠成 3 层效果 (ring + drop + halo).
+     *   ring 1.5→2px + alpha 0.35→0.45 加重轮廓, halo alpha 0.32→0.36 加强软光晕. */
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.5),
       inset 0 -1px 0 rgba(0, 0, 0, 0.03),
-      0 8px 24px rgba(99, 102, 241, 0.12);
+      0 0 0 2px rgba(99, 102, 241, 0.45),
+      0 12px 36px rgba(99, 102, 241, 0.22),
+      0 0 60px rgba(99, 102, 241, 0.36);
     animation: slideUp 200ms cubic-bezier(0.16, 1, 0.3, 1);
   }
   @supports not (backdrop-filter: blur(1px)) {
@@ -610,22 +605,6 @@
     font-weight: var(--font-weight-semibold);
     color: var(--gray-900);
   }
-  .modal-close {
-    appearance: none;
-    background: transparent;
-    border: 0;
-    font-size: 24px;
-    line-height: 1;
-    color: var(--gray-500);
-    cursor: pointer;
-    padding: 4px 8px;
-    border-radius: 6px;
-    transition: color 150ms ease, background 150ms ease;
-  }
-  .modal-close:hover:not(:disabled) {
-    color: var(--gray-800);
-    background: rgba(0, 0, 0, 0.04);
-  }
 
   .modal-body {
     padding: var(--space-4);
@@ -645,27 +624,46 @@
     font-weight: var(--font-weight-medium);
   }
 
-  .primary-chip {
+  /* v0.3.21 #106 (PO msg 17:21): chip + select 视觉统一 → .currency-pair-item 共享 pill.
+   *   替换原 .primary-chip / .primary-chip--secondary + .currency-select--disabled,
+   *   三者统一到同一组 pill token: 999px radius + 8px/14px padding + 0.55 bg + indigo
+   *   border. 锁定变体 (.currency-pair-item--locked) 走灰 muted bg (gray-500/12).
+   *   width: 100% 让 chip / select 在 .field (flex column) / .currency-pair-col 内
+   *   撑满宽度, 跟原 chip auto-width 视觉不同 (但跨模式 chip / select 统一). */
+  .currency-pair-item {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: var(--space-2);
-    align-self: flex-start;
-    padding: 6px 12px;
-    background: rgba(255, 255, 255, 0.45);
-    border: 1px solid rgba(99, 102, 241, 0.18);
+    width: 100%;
+    padding: 8px 14px;
+    background: rgba(255, 255, 255, 0.55);
+    border: 1px solid rgba(99, 102, 241, 0.22);
     border-radius: 999px;
     font-size: var(--font-size-sm);
-    color: var(--gray-600);
-    cursor: not-allowed;
-  }
-  .primary-chip--secondary {
-    border-color: rgba(148, 163, 184, 0.30);
-    background: rgba(148, 163, 184, 0.10);
+    font-weight: var(--font-weight-semibold);
     color: var(--gray-700);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
+    box-sizing: border-box;
+    text-align: center;
+    transition: background 150ms ease, border-color 150ms ease;
+  }
+  .currency-pair-item:focus-visible {
+    outline: 2px solid var(--accent-500, #6366f1);
+    outline-offset: 2px;
+  }
+  .currency-pair-item--locked {
+    background: rgba(148, 163, 184, 0.12);
+    border-color: rgba(148, 163, 184, 0.28);
+    color: var(--gray-500);
+    cursor: not-allowed;
   }
   /* v0.3.19 #85 v3 PO #7731 (#1): lock icon 改 Lucide Lock (跟其它 Lucide icon 同款).
    *  原 🔒 emoji 视觉不一致 (emoji 字体不同, 描边颜色不一) — 改 Lucide SVG icon, 用
-   *  display:inline-flex 居中 + color var(--accent-700) 跟 chip 配. */
+   *  display:inline-flex 居中 + color var(--accent-700) 跟 chip 配.
+   *  v0.3.21 #106: 锁定变体下 lock icon 改 gray-500 (跟 .currency-pair-item--locked 同色). */
   .lock-icon {
     display: inline-flex;
     align-items: center;
@@ -673,23 +671,28 @@
     color: var(--accent-700, #4338ca);
     flex-shrink: 0;
   }
+  .currency-pair-item--locked .lock-icon {
+    color: var(--gray-500);
+  }
   .primary-code {
-    font-weight: var(--font-weight-semibold);
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.02em;
   }
 
+  /* native select 在 .currency-pair-item pill 上叠加:
+   *   - appearance: auto 保留 iOS Safari native dropdown arrow (OS 渲染, 跨平台一致)
+   *   - text-align-last: center 让 selected option 文字居中 (text-align: center
+   *     对 native select 内文字不生效, 用 text-align-last 兜底)
+   *   - padding-right 给 native arrow 留位, 避免文字被 arrow 盖住 */
   .currency-select {
-    /* Keep native select arrow visible on iOS Safari (where dropdown
-     * overlay is OS-rendered). */
     appearance: auto;
     -webkit-appearance: menulist;
+    padding-right: 28px;
+    text-align-last: center;
+    cursor: pointer;
   }
-  .currency-select--disabled {
-    opacity: 0.55;
+  .currency-select:disabled {
     cursor: not-allowed;
-    background: rgba(148, 163, 184, 0.10);
-    color: var(--gray-500);
   }
 
   .rate-row {
@@ -728,7 +731,7 @@
 
   /* v0.3.19 #85 PO #7731 (#4) + v3 (#3 跟进): 主+副币种 select / chip 同行并排.
    *   1:1 等宽分栏, gap 12px — 跟全站 field gap 16px 减半, 让两栏更紧凑.
-   *   .currency-pair-arrow 用于 multi+has_bills 主⇄副 chip 之间的双向箭头 (居中). */
+   *   v0.3.21 #106 (PO msg 17:21): 删 .currency-pair-arrow (改 #1 删 ⇄ 箭头). */
   .currency-pair-row {
     flex-direction: row;
     gap: var(--space-3);
@@ -739,16 +742,6 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
-  }
-  .currency-pair-arrow {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--accent-500, #6366f1);
-    font-size: var(--font-size-base);
-    font-weight: 600;
-    flex-shrink: 0;
-    padding-bottom: 22px; /* 跟 chip baseline 视觉对齐 (chip 总高 ~34px 居中) */
   }
 
   /* v0.3.19 #85 (PO #7308 改动 5): single + has_bills 矛盾状态显示灰色提示文案.
@@ -793,11 +786,13 @@
    *   圆形 44×44 + glass material (跟全站 .fab .glass-pill 同源 token) +
    *   accent indigo 边框 + 紫蓝阴影. cancel 用 gray 主色 (secondary),
    *   submit 用 indigo→blue gradient (primary).
-   *   space-between 让 X 左 / ✓ 右 并列 (跟 iOS modal alert 同款). */
+   *   v0.3.21 #106 (PO msg 17:21): 改 #3 — 取消按钮移到右下挨着保存 (flex-end + gap),
+   *   原 space-between 让 cancel 在左下角改成右下角并列, 视觉重心更聚拢. */
   .modal-foot {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-end;
     align-items: center;
+    gap: var(--space-3);
     padding: 4px var(--space-5) var(--space-4);
   }
   .fab {
