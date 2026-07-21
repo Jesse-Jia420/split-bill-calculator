@@ -3979,3 +3979,68 @@ image tool 视觉验证 (03 截图):
 - 上游: a3c798c #106.3 (Landing tagline 字号迭代, 同 session 上一项)
 - 不动: v0.3.21 #107 / #108 (CurrencyAddModal sprint)
 - 不动: 已登录态的 "选择已有昵称（绑定到你的账号）" (没 "先到先得" 字样, 不在 PO 范围)
+
+### §11. v0.3.21 #110 (2026-07-21 18:46) — Bills 表单时间选框紧凑 + 成员 section 紧凑 + 「查看 N 人」贴底 (PO msg 18:46)
+
+**PO msg 18:46** (Telegram direct, 消息 #6103 左右):
+1. 账单新建，编辑页面，时间选框超长了，伸到页面外了。
+2. 成员 section "查看 x 人" 的字样，靠 section 底部对齐。同时缩小一些 section 的垂直高度。
+
+**改动** (2 文件, 47 行加 16 行删, 净 +31):
+
+**Bug 1: BillForm.svelte 时间选框超长** (`frontend/src/lib/components/BillForm.svelte`)
+- 旧: `<input id="occurredAt" type="datetime-local" bind:value={occurredAt} />` 继承全局 `input { width:100%; padding:var(--space-3); }` → 实测 height=56px / padding-block=12px / font=16-17px / 内部左右留白 145px (浪费 ~45% 宽度)
+- 新: scoped CSS `input[type="datetime-local"]#occurredAt` 加 min-width:0 / max-width:100% / padding-block:8px / font-size:15px / letter-spacing:-0.01em
+  - 三件事: (1) min-width:0 允许缩到 iOS Safari picker indicator 隐式 min-width 以下 (2) max-width:100% 兜底不溢出父容器 (3) padding-block 减半 + 略缩字号, 让 input 高度 56→39px (-30%), 跟金额/付款人 row 节奏对齐, 减少纵向松散
+- 实测 (Playwright iPhone 13 @3x):
+  * height: 39px (was 56px, -30%)
+  * cssPaddingTop/Bottom: 8px (was 12px, -33%)
+  * cssFontSize: 15px (was 16px, -6%)
+  * inputWidthPx: 325.625px (维持全宽, 跟其他 input 一致)
+  * inputFitsInViewport: true (7 viewports 320/360/375/390/393/430 + iPhone 13 mini 全部不溢出)
+
+**Bug 2: members section 紧凑 + 「查看 N 人」贴底** (`frontend/src/routes/sessions/[id]/+page.svelte`)
+- 5 处 CSS 改动:
+  1. `.members-card` padding: 16px → 12px (-25%, 上下各减 4px)
+  2. `.members-head` gap: 4px → 2px (-50%, 3 行间间距减半) + padding-bottom: 2px → 0
+  3. `.members-head-row1` min-height: 32px → 26px (-19%, "成员 · N人" 标题行紧凑)
+  4. `.members-head-row2` min-height: 40px → 36px (-10%) + `--invite-btn-h`: 48/44/36 → 40/40/32 (mobile 邀按钮略缩)
+  5. `.members-head-row3` min-height: 20→16 + margin-top: 4→2 + padding-top: 6→2 + **align-items: center → flex-end** (关键: "查看 N 人" 字样贴 row3 底边, 配合 .members-head padding-bottom:0 + .members-card padding-bottom:12, 视觉上贴 section 底边)
+- 实测 (Playwright iPhone 13 @3x, session 1 泰国测试 6 成员, 折叠态):
+  * memberSection boundingHeight: **132.375px** (was 150.375px, **-18px = -12%**)
+  * membersHead boundingHeight: 94.375px (was 112.375px, -18px = -16%)
+  * childrenHeights: [26, 46.375, 16] (was [32, 46.375, 20], row1 -6 / row3 -4)
+  * row3 paddingTop: 2px (was 6px), marginTop: 2px (was 4px)
+  * row3 alignItems: flex-end (was center), 验证 hintRelativeTopInRow3 = 5px (hint 12px 在 row3 16px box 内的 y=5~17, 即贴底部)
+- 真机截图: `~/.openclaw/media/v0321-110b/members-card-v2.png` (image tool 确认 "查看 6 人" 视觉贴底 + section 整体更紧凑 + 节奏平衡)
+
+**实施 commit**:
+- `fix(fe): v0.3.21 #110 — BillForm 时间选框紧凑 + members section 「查看 N 人」贴底`
+- 本 §11 sync commit
+
+**dev 验证**:
+- 测试数据: session 1 (泰国测试, CNY+THB, 32 bills, 6 members) — 数据在场
+- Playwright `frontend/scripts/v0321-110-bug-check.cjs` (iPhone 13 @3x 真机 profile):
+  * Bug 1 (dt): inputFitsInViewport=true, inputWidthPx=325.625, cssWidth=325.625px ✓
+  * Bug 2 (members): memberSection.boundingHeight=132.375px ✓ (期望 <150), row3 hint 贴底 ✓
+- Playwright `frontend/scripts/dt-overflow-check.cjs` (7 viewports 320/360/375×2/390/393/430):
+  * 全部 docOverflowX=false, inputFitsInViewport=true, cssMinWidth=0px, cssMaxWidth=100% ✓
+- svelte-check: 2 errors / 20 warnings (baseline 同, 0 new error — 2 pre-existing errors 在 `+page.svelte:553 session_code` 和 `join/+page.svelte:32 SessionPreviewMember`, 跟 #110 无关)
+- 真机截图 (iPhone 13 @3x):
+  * `~/.openclaw/media/v0321-110b/full-page-v2.png` — bills/new 完整页 (image tool: 时间框与金额/说明高度一致, 整体节奏更紧凑)
+  * `~/.openclaw/media/v0321-110b/members-card-v2.png` — members section 折叠态 (image tool: "查看 6 人" 贴底, section 高度 ~180px)
+  * `~/.openclaw/media/v0321-110b/session-detail-v2.png` — session 详情页 (image tool: 布局正常, 折叠态 section 整体 -18px)
+
+**反模式自查**:
+- 反 #150 v2 ✅ PO msg 直接修 (无选项栏, "不修/接受 cosmetic/延后" 不出现)
+- 反 #161 v3 ✅ 字面执行 PO 两项 (时间框紧凑 + 成员紧凑 + 查看贴底, 不脑补额外改动)
+- 反 #162 ✅ §11 sync 与 fix commit 同一 batch (本 commit 系列)
+- 反 #170 ✅ codeserver_exec_clean.js 写 codeserver 文件 (transfer 截图用 clean 版)
+- 反 #189 ✅ SPEC append 用 heredoc (不用 sed 多匹配)
+- 反 #158 ✅ Telegram 推送 (本任务用 message 工具直接发, 不等批次)
+
+**排除范围** (本任务不修, 待 PO 决定):
+- 邀请按钮实际渲染高度 46.375px 不受 --invite-btn-h 影响 — 因为 .btn 全局 min-height: var(--touch-target)=44px, 跨容器. 完整修法是在 .invite-btn 加 `min-height: var(--invite-btn-h, 44px)`, 但会涉及 InviteLinkButton 跨页面影响. 本轮 row2 46.375 不变 (PO 没要求改邀按钮本身, 只要求 section 紧凑), 先观察
+- members section 下方到 bills section 之间留白 — image tool 提示稍大, 但属于 bills section 自身 padding-top 范畴, 不在本任务范围
+- bills section 600+pt 长列表 — 自然长 (32 bills), 不在本任务范围
+- bills section 底部被右下 FAB 部分遮挡 — pre-existing, 跟 #110 无关
