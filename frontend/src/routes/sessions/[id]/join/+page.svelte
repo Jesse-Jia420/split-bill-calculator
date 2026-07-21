@@ -286,7 +286,7 @@
       <div class="stack" style="max-width: 480px;">
         {#if availableSlots.length > 0}
           <div>
-            <p class="label">选择已有昵称（先到先得）</p>
+            <p class="label">选择已有昵称</p>
             <div class="slot-list">
               {#each availableSlots as slot (slot.id)}
                 <button
