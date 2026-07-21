@@ -3500,3 +3500,117 @@ Playwright 自动化断言 (`scripts/screenshot-v0319-85-rewrite.cjs`):
   - Coder 1 #98 BillListGrouped / sessions/[id] 微调: 已在 origin/main `7340297` + `f5b7edf` commit, 不动
   - v0.3.21 #100-#105 (SplitIt / NavBar ivory / iOS 26 锁屏时间级): 已在 origin/main `cbda966` ~ `659ee45` commit, 不动
   - BE: 无新 endpoint, multi 模式用现有 `PATCH /api/sessions/{sid}/exchange-rates/{rate_id}` (owner-only, 自动同步 reciprocal)
+
+### §11. v0.3.19 #85 v2 (2026-07-21 16:30) — PO #7731 4 项反馈修
+
+**commit**: `c6ae4b9` — `fix(fe): v0.3.19 #85 v2 — PO #7731 4 项反馈修`
+**commit**: `fea46f4` + `c40270a` — verification script
+
+**PO msg 16:27 #7731**: 4 项反馈:
+1. 单币种 pill 也要和多币种 pill 一样, 居中
+2. 币种设置页面无需全屏的深色背景, 直接弹浮窗即可
+3. 币种设置弹窗中"修改主币种/副币种功能开发中……"这句话删除
+4. 币种设置弹窗中, 主币种选择和副币种选择放在同一行即可
+
+**改动 2 文件** (+61 / -45):
+
+#### 1) SessionCurrencyBadge.svelte (1 处):
+
+**#1 单币种 pill 居中**:
+- `.currency-meta` 加 `text-align: center` — 单币种 `<button class="...inline-flex">` 继承
+  text-align 居中 (inline 元素靠 text-align 居中), 多币种 `<div class="...flex">` 仍 margin auto
+  居中 — 两条路径汇合, 视觉一致
+- 行为不变: pill 仍 clickable (owner), 仍 44px 高, 仍带 + icon (单币种 case)
+
+#### 2) CurrencyAddModal.svelte (3 处):
+
+**#2 去全屏深色背景**:
+- `.modal-backdrop` 从 `background: rgba(15, 23, 42, 0.55); backdrop-filter: saturate(180%) blur(16px);`
+  改为 `background: transparent;` (无 backdrop-filter)
+- backdrop 仍保留作为 click-to-close 透明 wrapper (e.target === e.currentTarget 仍工作)
+- @keyframes fadeIn 删除 (backdrop 透明无 opacity 变化, dead code)
+- 视觉: 弹窗浮在原内容之上, 不再有深色遮罩 + 模糊 — 内容仍清晰可见 (paper bg / 成员列表 / 账单等)
+
+**#3 multi + !has_bills 删 hint**:
+- 删除 `<p class="hint">修改主币种 / 副币种功能开发中 (BE 未支持), 当前仅支持修改汇率。</p>`
+- 仅删除 visible hint. disabled select + title tooltip (hover 显示) 保留
+  (PO 没说要删, 留作 disabled 状态说明)
+
+**#4 multi + !has_bills 主+副币种 select 同行**:
+- 2 个 `<section class="field">` 各自一行 → 合并到 1 个 `<section class="field currency-pair-row">`
+  包 2 个 `<div class="currency-pair-col">` (各含 label + select)
+- 新 CSS:
+  ```css
+  .currency-pair-row {
+    flex-direction: row;
+    gap: var(--space-3);
+  }
+  .currency-pair-col {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  ```
+- 1:1 等宽分栏, modal max-width 360px 内 fit
+- 仅 multi + !has_bills (selects) 用此 layout. multi + has_bills 仍 2 行 stacked chips (chips 不是 select, 单独行合理)
+
+**保持不动**:
+- multi + has_bills 主/副币种 locked chip 仍 2 行 (chips 不是 select)
+- single + !has_bills 现有 3-section 布局
+- single + has_bills locked 提示框
+- BE / 路由 / 其他组件
+
+**dev 验证** (iPhone 13 真机 walk, 5 张 PNG in `~/.openclaw/media/v0319-85-v2-po7731/`):
+
+实测 Playwright 断言 (`scripts/screenshot-v0319-85-v2-po7731.cjs`):
+
+| # | 验证项 | 实测值 | 期望 | 结论 |
+|---|------|------|------|------|
+| 1 | single pill 中心 x | 195.0 | 195 (viewport 中心) | ✓ 偏离 0.0px |
+| 1' | multi bar 中心 x (对比) | 195.0 | 195 | ✓ 偏离 0.0px |
+| 2 | multi+!has_bills backdrop bg | rgba(0, 0, 0, 0) | transparent | ✓ 透明 |
+| 2 | multi+has_bills backdrop bg | rgba(0, 0, 0, 0) | transparent | ✓ 透明 |
+| 2 | single+!has_bills backdrop bg | rgba(0, 0, 0, 0) | transparent | ✓ 透明 |
+| 3 | modal body 包含「修改主币种」| false | false | ✓ 已删 |
+| 3 | modal body 包含「功能开发中」| false | false | ✓ 已删 |
+| 4 | .currency-pair-row 存在 | true | true (multi+!has_bills) | ✓ |
+| 4 | 2 .currency-pair-col 数 | 2 | 2 | ✓ |
+| 4 | 两 col y 相同 | [240, 240] | 完全相同 | ✓ 同行 |
+| 4 | 两 col x 不同 | [32, 201] | 横向并排 | ✓ |
+| 4 | 两 col w 接近 | [157, 157] | 1:1 | ✓ |
+| 4 | multi+has_bills 无 .currency-pair-row | true | true | ✓ (chips 不是 select) |
+
+5 张截图 (`~/.openclaw/media/v0319-85-v2-po7731/`):
+- `01-single-pill-centered.png` — session 3 single pill 居中
+- `02-multi-bar-centered-compare.png` — session 1 multi bar 居中 (对比)
+- `03-multi-no-bills-modal-side-by-side.png` — multi+!has_bills: 透明 backdrop + 同行 select + 无 hint
+- `04-multi-has-bills-modal-no-backdrop.png` — multi+has_bills: 透明 backdrop + locked chips + rate 4.65116279
+- `05-single-no-bills-modal-no-backdrop.png` — single+!has_bills: 透明 backdrop + add flow
+
+image tool 视觉验证 (03 截图):
+- backdrop 完全透明, 底层「个人测试」+ CNY↔HKD + 「还没有账单」等清晰可见 ✓
+- modal body 内**无**「修改主币种/副币种」+「功能开发中」文案 ✓
+- 主币种(CNY) + 副币种(HKD) select 同行左右并排 ✓
+- 汇率 input 0.80000000 + 「修改」按钮布局合理 ✓
+
+**#1 + #2 跨 3 模式全覆盖** (multi+!has_bills / multi+has_bills / single+!has_bills): 所有 3 backdrop
+都 transparent, 3 弹窗都"浮起"不遮罩.**#4 完整覆盖** multi+!has_bills.
+
+**未真机验证** (代码评审覆盖, 无对应数据):
+- single + has_bills — sandbox 无 single N-bills session. 修法 backdrop 改动跟 single+!has_bills 共享 (transparent), #4 currency-pair-row 不适用 (single 模式只有 single+!has_bills, 没 multi 没用 select). 视觉应该跟 single+!has_bills 同 (透明 backdrop + add flow).
+
+**反模式自查**:
+- 反 #161 v3 ✅ 字面执行 PO 4 项反馈 (居中 / 去背景 / 删 hint / 同行 — 全部按 brief 字面)
+- 反 #158 ✅ 强制 Telegram 推送
+- 反 #162 ✅ git pull --ff-only before commit (本地无落后)
+- 反 #150 ✅ Master 自写自验 (Playwright 程序化断言 + 视觉截图)
+- 反 #167 ✅ iPhone 13 真机 profile
+- 反 #151 ✅ 真 PNG 截图 + 视觉验证
+- 反 #170 ✅ codeserver_exec_clean.js (script 部署用 clean 版)
+
+**关联**:
+- 上游: 660dc27 #85 重写基础 commit (4 模式核心)
+- 上游: fea46f4 + c40270a verification scripts
+- 不动: v0.3.20 #91-#99 + v0.3.21 #100-#105 (其他 sprint 无关)
