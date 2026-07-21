@@ -36,6 +36,13 @@
   import { Pencil, Trash2 } from 'lucide-svelte';
   import { formatMoney, formatDate } from '$lib/utils/format';
   import { currencySymbol } from '$lib/utils/currency';
+  // v0.3.20 #96 (PO msg 02:41 #7467): extracted the per-bill "分摊" and
+  // per-day "人均" math out of this component so the algorithm can be
+  // unit-tested without spinning up Svelte. Bug: previous implementation
+  // did ``b.amount / n`` which ignored ``exclusive_amount`` and produced
+  // the wrong per-person share for any bill with an exclusive portion.
+  // See bill-share.test.ts for the regression cases (bill #95 PO example).
+  import { yourShare, computePerCapitaBreakdown } from '$lib/utils/bill-share';
   import type { Bill } from '$api/bills';
   import SkeletonBill from './SkeletonBill.svelte';
   import CategoryIcon from './CategoryIcon.svelte';
@@ -156,21 +163,9 @@
     return `${get('year')}-${get('month')}-${get('day')}`;
   }
 
-  /**
-   * v0.3.1: per-currency per-capita. Sums (b.amount / n) grouped by currency
-   * so a multi-currency day's per-capita is shown as e.g. "136 CNY + 1000 THB"
-   * (not a naive cross-currency sum).
-   */
-  function computePerCapitaBreakdown(groupBills: Bill[]): { ccy: string; amount: number }[] {
-    const byCcy = new Map<string, number>();
-    for (const b of groupBills) {
-      const n = b.participants?.length ?? 0;
-      if (n > 0) {
-        byCcy.set(b.currency, (byCcy.get(b.currency) ?? 0) + b.amount / n);
-      }
-    }
-    return [...byCcy.entries()].map(([ccy, amount]) => ({ ccy, amount }));
-  }
+  // v0.3.20 #96: computePerCapitaBreakdown moved to $lib/utils/bill-share
+  // (was duplicating ``b.amount / n`` here, which ignored exclusive
+  // portions and gave the wrong per-person share for bills like #95).
 
   function fmtBreakdown(parts: { ccy: string; amount: number }[]): string {
     return parts
@@ -273,14 +268,9 @@
     return AVATAR_COLORS[idx % AVATAR_COLORS.length];
   }
 
-  function yourShare(b: Bill): number | null {
-    if (currentUserMemberId === null || currentUserMemberId === undefined) return null;
-    const inPart = (b.participants ?? []).some((p) => p.member_id === currentUserMemberId);
-    if (!inPart) return null;
-    const n = b.participants?.length ?? 0;
-    if (n <= 0) return null;
-    return b.amount / n;
-  }
+  // v0.3.20 #96: yourShare moved to $lib/utils/bill-share (now takes
+  // currentMemberId as a parameter so the algorithm is testable in
+  // isolation). Local callsite updated below to pass currentUserMemberId.
 
   // v0.3.20 #92 (PO msg 07:13 #7409): 聚合 bill.participants 中所有 is_exclusive 的 exclusive_amount.
   // 仅在该 bill 有独占消费时返回 > 0, 用于决定 .bill-row-exclusive 行是否渲染.
@@ -663,7 +653,7 @@
                      bill row 直接贴在 day header 下,共享同一背景色 -->
                 <ul class="day-bills">
                   {#each g.bills as b, bi (b.id)}
-                    {@const share = yourShare(b)}
+                    {@const share = yourShare(b, currentUserMemberId)}
                     <!-- v0.3.16 #11 (PO msg 21:07): swipe 动画重做 — bill info 不动,
                          按钮随 --swipe-progress 从 0 → 80px clip-path 展开 -->
                     <!-- v0.3.16 #13 (PO msg 23:56 续): 改用 $store auto-subscription
