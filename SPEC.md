@@ -3941,3 +3941,41 @@ image tool 视觉验证 (03 截图):
 - 上游: 25323da #106.1 (weight 700→500)
 - 上游: 02bf84b #106 F2-v2 落地
 - 不动: v0.3.19 #85 系列 / v0.3.21 #107 / #108 (其它 sprint)
+
+### §11. v0.3.21 #109 (2026-07-21 18:17) — 回到/加入账本页面去掉"先到先得"表述 (PO msg 18:17)
+
+**PO msg 18:17**: "回到/加入账本页面, 去掉 (先到先得) 的表述"
+
+**改动**: 单文件 `frontend/src/routes/sessions/[id]/join/+page.svelte` 1 行改
+- 原: `<p class="label">选择已有昵称（先到先得）</p>`
+- 现: `<p class="label">选择已有昵称</p>`
+
+只在**匿名用户**段 (line 289, anonymous user `{:#else}` 分支下 `{#if availableSlots.length > 0}` 块) — 已登录态那条是 "选择已有昵称（绑定到你的账号）", 没有 "先到先得" 字样, 不动.
+
+注: "先到先得" 语义上是对的 (谁先点谁认领), 但 PO 觉得太直白像 "抢" — 文案去除, 保留 slot 按钮本身的可点击暗示.
+
+**实施 commit**:
+- `fix(fe): v0.3.21 #109 — Join 页 "选择已有昵称" 去 "(先到先得)" 表述`
+- `chore(fe): add v0.3.21 #109 verify script (anon join 页面 label 严格 "选择已有昵称")`
+- 本 §11 sync commit
+
+**dev 验证**:
+- 测试数据: API 创建 session 5 (name "测试加入页", member_nicknames ["小明","小红","小刚"], 单币种 CNY, anon owner), 3 个 available slots
+- Playwright 匿名 context 访问 `/sessions/5/join`:
+  * `.label` allTextContents = ["选择已有昵称", "新建昵称以加入账本"] ✓
+  * `chooseExistingLabel === "选择已有昵称"` (严格 match, 无括号副标) ✓
+  * `hasFirstComeFirstServed = false` (任何 .label 都不含 "先到先得") ✓
+- svelte-check: 2 errors / 20 warnings (baseline 同, 0 new error)
+- 真机截图: `~/.openclaw/media/v0321-109/01-anon-join-page.png` (image tool 确认 label 干净, 3 slot 按钮正常显示)
+
+**反模式自查**:
+- 反 #150 v2 ✅ PO msg 直接修 (无选项栏, 1 行改)
+- 反 #161 v3 ✅ 字面执行 PO "去掉表述"
+- 反 #162 ✅ §11 sync 与 fix commit 同一 batch (3 commit 系列)
+- 反 #170 ✅ codeserver_exec_clean.js 写 codeserver
+- 反 #189 ✅ SPEC append 用 heredoc
+
+**关联**:
+- 上游: a3c798c #106.3 (Landing tagline 字号迭代, 同 session 上一项)
+- 不动: v0.3.21 #107 / #108 (CurrencyAddModal sprint)
+- 不动: 已登录态的 "选择已有昵称（绑定到你的账号）" (没 "先到先得" 字样, 不在 PO 范围)
