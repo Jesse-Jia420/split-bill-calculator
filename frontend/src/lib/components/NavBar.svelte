@@ -66,13 +66,32 @@
 </header>
 
 <style>
+  /* v0.3.20 #99-fix4 (PO msg 14:26 #7585): NavBar 升 fixed 让 backdrop-filter
+     真正接住下方滚动内容 — 原版 position:relative 时, main 内容在 navbar 下方
+     flex row, 滚动时根本不会到 navbar 区域, backdrop-filter 没东西模糊.
+     fixed + z-index:100 让 navbar 浮在 main 之上面, 当用户滚动账单, 内容会
+     滚到 navbar 区域下方被 saturate(130%) blur(20px) + alpha 0.05 white bg 柔和
+     模糊透出来 — PO 原意图 (bar 不抢戏 + 背景图案部分漏出). */
+  :global(:root) {
+    /* 暴露给 +layout.svelte main.page padding-top 用, 跟 navbar 内容高度同步 */
+    --navbar-h: calc(2 * var(--space-3) + 24px); /* ~48px, 不含 safe-area */
+  }
   .navbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    width: 100%;
     display: flex;
     align-items: center;
     gap: var(--space-3);
     /* v0.3.17 #30 (PO msg 14:28): 加 env(safe-area-inset-top) — iOS 全面屏
        刘海/灵动岛区域不挡 brand 文字。body 已 lock 外层滚 (见 app.css),
-       .navbar 是 body flex column 第一项, 始终贴顶。 */
+       v0.3.20 #99-fix4 (PO msg 14:26 #7585): 升 fixed (从 flex layout 第一项 → 浮在所有
+       内容之上 z-index 100). main.page 加 padding-top 让内容起步于 navbar 之下,
+       滚动后内容从下方滚到 navbar 区域被 saturate(130%) blur(20px) + 0.05 white
+       模糊透出来 — PO 原意图 (bar 不抢戏 + 背景内容部分漏出). */
     padding: calc(var(--space-3) + env(safe-area-inset-top, 0px)) var(--space-4) var(--space-3);
     /* v0.3.20 #99 (PO msg 13:36 #7532 第 4 项, msg 13:39 #7536 缩范围:
        只做 header, footer 不管): NavBar 半透明玻璃化.

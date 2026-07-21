@@ -80,7 +80,10 @@
     width: 100%;
     max-width: 720px;
     margin: 0 auto;
-    padding: 0;
+    /* v0.3.20 #99-fix4 (PO msg 14:26 #7585): 加 padding-top 推内容到固定 navbar 之下
+       (NavBar 现在 position:fixed, 不在 flex 流里). padding-top = navbar 内容高 + safe area.
+       内容仍可滚动到 navbar 区域下方, 透过 backdrop-filter blur + alpha 0.05 模糊漏出. */
+    padding: calc(var(--navbar-h, 56px) + env(safe-area-inset-top, 0px)) 0 0;
     overflow-y: auto;
     overflow-x: hidden;
     overscroll-behavior-y: contain;
