@@ -950,4 +950,19 @@
     padding-bottom: 96px;
   }
 
+  /* v0.3.21 #110 (PO msg 18:46): <input type="datetime-local"> 在 iOS Safari
+     有天然的 picker indicator + 隐式 min-width (~280px), 单纯 width: 100% 不会
+     让它在小屏 (<=360px) 缩到合适宽度, 视觉上"超长+伸到页面外". 三件事:
+     (1) min-width: 0 允许缩到小于 picker indicator 暗示的最小值
+     (2) max-width: 100% 安全兜底, 永不超出父容器 (避免横向 overflow)
+     (3) padding-block 减半 + 略缩字号, 让 56px 默认高度降到 ~40px, 跟
+         上方"金额/付款人"等 row 节奏对齐, 减少纵向松散 */
+  input[type="datetime-local"]#occurredAt {
+    min-width: 0;
+    max-width: 100%;
+    padding-block: 8px;
+    font-size: 15px;
+    letter-spacing: -0.01em;
+  }
+
 </style>
