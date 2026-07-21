@@ -253,11 +253,11 @@
               <svg
                 class="edit-icon"
                 viewBox="0 0 24 24"
-                width="12"
-                height="12"
+                width="13"
+                height="13"
                 fill="none"
                 stroke="currentColor"
-                stroke-width="1.75"
+                stroke-width="2"
                 stroke-linecap="round"
                 stroke-linejoin="round"
                 aria-hidden="true"
@@ -324,6 +324,42 @@
      - inset highlight 0.4 -> 0.55 (玻璃上沿加亮, 跟 pill 语言对齐)
      - 外阴影 0.06 -> 0.08 (button 视觉更突出)
      保留 border-radius 999px (pill 形态) + gradient 角度 (indigo accent 语言). */
+  /* v0.3.17 #36fix: 内部 .currency-pill-row (Row 1 — 货币对) 退化为分隔行.
+   *   不再有 bg / border-radius / border — 跟外层 .currency-bar 共享同一玻璃基底.
+   *   仅通过 width: 100% 撑满 bar, 内部 3 chip 居中.
+   *
+   *   v0.3.18 #43: min-height 16px 跟 .rate-row 对齐, 保证两行视觉同高 unit.
+   *
+   *   v0.3.20 #94 Fix 2c (PO msg 02:13 #7455): 移到 .currency-pill-row--single **之前**.
+   *   之前在 --single 之后, 同特异性 (0,2,0) 后写覆盖前写, --single 的 min-height 44
+   *   / padding 12px 24px 都被这里 min-height 16 / padding 0 覆盖, 单币 pill 永远 20px 高.
+   *   Fix 2b 移到 --single 之后仍错; Fix 2c 真正移到前面, --single 后写 wins, 44/12-24 生效. */
+  .currency-pill-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: clamp(4px, 1.5vw, 8px);
+    width: 100%;
+    min-height: 16px;
+    padding: 0;
+    margin: 0;
+  }
+
+
+  /* v0.3.20 #94 Fix 2 (PO msg 02:13 #7455): #93 Fix 9 改完 PO 还是嫌"太细长不像
+     button". 这次真修 — 让单币种 pill 视觉上明确是 button 形态:
+     - min-height 38 → 44 (iOS touch target 44pt 标准, 跟全局 --touch-target 一致)
+     - font-size 14 → 15 (主信息字号略大, 可读性更强)
+     - font-weight 600 → 700 (更粗, button 视觉权重)
+     - padding 8/16 → 12/24 (横纵比更平衡, 更接近方形 — 32x24 比例 vs 之前 32x16)
+     - box-shadow 0 2px 8px (0.08) → 0 4px 14px (0.15) (shadow 更明显, button 抬起感)
+     - bg alpha 0.12/0.10 → 0.16/0.14 (更显眼, button 视觉)
+     - 保留 border-radius 999px (pill 形态, 跟双币种 .currency-bar 一致)
+     - 保留 gradient 135deg 角度 (跟全站 indigo accent 渐变语言一致)
+     - **不**改双币种 .currency-bar 形态 (独立 keep)
+     - **不**改 hover state (已经够明显 — bg 0.16/0.13 + shadow 0.08)
+     fallback alpha 0.22 → 0.28 配新 bg 0.16/0.14. */
   .currency-pill-row--single {
     display: inline-flex;
     justify-content: center;
@@ -331,38 +367,37 @@
     flex-wrap: nowrap;
     gap: clamp(6px, 1.5vw, 8px);
     margin: 8px auto;
-    padding: 8px 16px;
+    padding: 12px 24px;
     width: fit-content;
     max-width: calc(100% - 32px);
-    font-size: 14px;
-    font-weight: 600;
+    font-size: 15px;
+    font-weight: 700;
     line-height: 1.3;
     color: var(--gray-700);
     overflow: hidden;
-    min-height: 38px;
+    min-height: 44px;
 
     background: linear-gradient(
       135deg,
-      rgba(99, 102, 241, 0.12) 0%,
-      rgba(59, 130, 246, 0.10) 100%
+      rgba(99, 102, 241, 0.16) 0%,
+      rgba(59, 130, 246, 0.14) 100%
     );
     backdrop-filter: saturate(200%) blur(20px);
     -webkit-backdrop-filter: saturate(200%) blur(20px);
 
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.55),
+      inset 0 1px 0 rgba(255, 255, 255, 0.6),
       inset 0 -1px 0 rgba(0, 0, 0, 0.04),
-      0 2px 8px rgba(99, 102, 241, 0.08);
+      0 4px 14px rgba(99, 102, 241, 0.15);
 
     border-radius: 999px;
-    border: 1.5px solid rgba(99, 102, 241, 0.22);
+    border: 1.5px solid rgba(99, 102, 241, 0.28);
   }
 
-
   @supports not (backdrop-filter: blur(1px)) {
-    /* v0.3.20 #93 (Fix 9): fallback alpha 0.18 -> 0.22 配新 bg 0.12/0.10 */
+    /* v0.3.20 #94 (Fix 2): fallback alpha 0.22 -> 0.28 配新 bg 0.16/0.14 */
     .currency-pill-row--single {
-      background: rgba(99, 102, 241, 0.22);
+      background: rgba(99, 102, 241, 0.28);
     }
   }
 
@@ -370,10 +405,16 @@
    * (replaces the previous <div> for owner case). Adds cursor + hover/active
    * feedback without changing the glass surface (so the read-only and
    * clickable variants look almost identical at rest, only differ on hover). */
+  /* v0.3.20 #94 Fix 2b (PO msg 02:13 #7455): `font: inherit` 改 `font-family: inherit`.
+     之前 `font: inherit` 是 CSS shorthand, 会重置所有 font 子属性 (font-size, font-weight,
+     line-height, font-style, font-variant, font-stretch) 到 inherited 值. 而 .currency-pill-row--single
+     设了 font-size: 15px / font-weight: 700, 因为 button.currency-pill-row--single 特异性更高
+     (0,2,1 vs 0,2,0) 所以 font: inherit 后写覆盖前写, 实际生效是 16px / 400 (body 默认).
+     改成 font-family: inherit 只继承字体族 (保留原意图: 字体跟 body 走), 不影响 size/weight. */
   button.currency-pill-row--single {
     appearance: none;
     cursor: pointer;
-    font: inherit;
+    font-family: inherit;
     color: inherit;
     transition:
       background 150ms ease,
@@ -470,22 +511,6 @@
     .currency-bar {
       background: rgba(99, 102, 241, 0.18);
     }
-  }
-
-  /* v0.3.17 #36fix: 内部 .currency-pill-row (Row 1 — 货币对) 退化为分隔行.
-   *   不再有 bg / border-radius / border — 跟外层 .currency-bar 共享同一玻璃基底.
-   *   仅通过 width: 100% 撑满 bar, 内部 3 chip 居中. */
-  /* v0.3.18 #43: min-height 16px 跟 .rate-row 对齐, 保证两行视觉同高 unit */
-  .currency-pill-row {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    flex-wrap: nowrap;
-    gap: clamp(4px, 1.5vw, 8px);
-    width: 100%;
-    min-height: 16px;
-    padding: 0;
-    margin: 0;
   }
 
   /* 内部 chip 透明 (无独立 bg, 融入外层 .currency-bar / .currency-pill-row--single) */
@@ -590,11 +615,31 @@
      base button 的 min-height: var(--touch-target) = 44px, 普通态 bar 撑高到 ~71px (vs 编辑态 49px).
      这次真修: min-height 16 跟 .rate-row + .rate-input 对齐, line-height 14 跟 .rate-input 一致,
      保证 rate-button 内容跟 rate-input 内容视觉同高 — 编辑态/普通态切换 pill 高度不变. */
+  /* v0.3.20 #94 Fix 1 (PO msg 02:13 #7455, 反 #93 调查结论错了):
+     rate-button 视觉从「裸文字」改成「glass pill 按钮」— 之前 bg transparent +
+     border 0 + padding 0, 16px 高, 跟普通文本无视觉差别, 用户根本看不出来
+     能点击 (唯一 affordance 是 12×12 pencil SVG, 极易漏看).
+     修法 (跟现有 .rate-input glass 语言对齐 — 视觉一致):
+     - bg transparent → rgba(255,255,255,0.35) (同款半透明白, 跟 input base 0.35 一致)
+     - border 0 → 1px solid rgba(99,102,241,0.30) (跟 input border 0.30 同款)
+     - border-radius 0 → 999px (pill 形态, 跟 input radius 一致)
+     - padding 0 → 1px 6px 1px 8px (asymmetric — 左 8px 跟 input 一致留数字位, 右 6px 留 pencil)
+     - box-shadow 加 inset highlight (玻璃上沿加亮, 跟全站 glass 语言一致)
+     - min-height 16 → 18 (row 2 从 16 → 18, bar 总高 40 → 42, 仍然紧凑, 但 button 触感更明确)
+     - line-height 14 (不变, 保持内容视觉同高)
+     - hover: bg 0.35 → 0.55, border 0.30 → 0.45 (更强反馈)
+     - :active scale(0.97) (iOS 触摸反馈)
+     保留 min-height 18px (iOS 标准 44px 不可达 — bar 整体保持紧凑, button 视觉 buttony 即可,
+     实际 tap target 仍靠 row 2 padding + bar bg 扩大. 之前是 0 padding 0 border 完全隐形.)
+     保留 cursor: pointer (基础 affordance).
+     e2e 验证 (修前): button visible, click → input, blur → PATCH 200, DB 更新,
+     page reload, 全部 OK. 真 bug 是 "用户看不出能点". */
   .rate-button {
     appearance: none;
-    background: transparent;
-    border: 0;
-    padding: 0;
+    background: rgba(255, 255, 255, 0.35);
+    border: 1px solid rgba(99, 102, 241, 0.30);
+    border-radius: 999px;
+    padding: 1px 6px 1px 8px;
     margin: 0;
     font: inherit;
     color: inherit;
@@ -602,24 +647,39 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    min-height: 16px;
+    min-height: 18px;
     line-height: 14px;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.7),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.04);
+    transition:
+      background 150ms ease,
+      border-color 150ms ease,
+      box-shadow 150ms ease,
+      transform 100ms ease;
   }
-  .rate-button:hover .rate-num {
-    color: var(--accent-700, #4338ca);
+  .rate-button:hover {
+    background: rgba(255, 255, 255, 0.55);
+    border-color: rgba(99, 102, 241, 0.45);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.8),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.04);
   }
-  .rate-button:hover .edit-icon {
-    color: var(--accent-500);
+  .rate-button:active {
+    transform: scale(0.97);
   }
   .rate-button:focus-visible {
     outline: 2px solid var(--accent-500);
     outline-offset: 2px;
-    border-radius: 4px;
   }
 
   .edit-icon {
     color: var(--accent-500);
     flex-shrink: 0;
+    transition: color 150ms ease;
+  }
+  .rate-button:hover .edit-icon {
+    color: var(--accent-700, #4338ca);
   }
 
   /* v0.3.17 #21 (PO msg 13:51 item 5): 汇率 bar 编辑态重构。
