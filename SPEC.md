@@ -2985,3 +2985,57 @@ seed 脚本 (`backend/scripts/seed_dev_data.py`) 已有 find-or-create 逻辑：
 - #99-fix5 (8448a17): NavBar bg alpha + padding 仍是最新版 (透明玻璃) — 跟 brand hover ivory 兼容
 - 前文所有 v0.3.20 任务 (#91-#99 系列) 不动
 - v0.3.20 整体进入收尾阶段 (v0.3.21 准备中)
+
+### §11. v0.3.20 #101 (2026-07-21) — NavBar 我的账本/注销登录/登录/用户通通象牙白 (PO msg 14:47)
+
+**commit**: `0958060` — `refactor(fe): v0.3.20 #101 — NavBar 上我的账本/注销登录/登录/用户名通通象牙白 (PO msg 14:47)`
+
+**前置 (PO #100 cbda966)**: landing .btn-primary + 全局 brand 已 ivory.
+**继续 (PO msg 14:47)**: "landing page的 我的账本按钮，注销登录按钮，登录按钮，以及旁边的用户名。通通换成刚刚的白色" — 把 NavBar 里 4 个元素都统一 ivory
+
+#### 4 项改动 (1 文件):
+- **NavBar.svelte `.btn-sm`**: 蓝紫 渐变 bg + indigo border + indigo text → 透明玻璃 ivory
+  - bg: `linear-gradient(135deg, indigo 0.04, blue 0.02)` → `rgba(255, 255, 255, 0.20)`
+  - border: `rgba(99, 102, 241, 0.25)` → `rgba(255, 255, 255, 0.45)`
+  - color: `var(--accent-700, #4338ca)` (indigo) → `#FFFFF0` (ivory)
+  - box-shadow 去 indigo halo (0 1px 3px rgba(99,102,241,0.16) → 没外阴影)
+  - inset highlight + inset bottom 保
+  - 加 `text-shadow: 0 1px 2px rgba(0,0,0,0.15)` 让 ivory 在纸纹 bg 上有底色可读
+  - backdrop-filter `saturate(180%) blur(16px)` 保留
+- **`.btn-sm:hover`** (idx 215): bg 0.20 → 0.30 bright glass
+- **`.btn-sm @supports not (backdrop-filter)` fallback**: bg 从 `rgba(99,102,241,0.08)` → `rgba(255,255,255,0.85)` opaque (无 blur 仍 ivory 可读)
+- **`.ghost`** (idx 313): 白渐变 → 透明玻璃 ivory (跟 .btn-sm 完全统一)
+  - bg: `linear-gradient(white 0.20 → 0.10)` → `rgba(255, 255, 255, 0.20)`
+  - border: `rgba(99,102,241,0.20)` → `rgba(255, 255, 255, 0.45)`
+  - color: `var(--gray-700)` → `#FFFFF0` ivory
+- **`.ghost:hover`** (idx 327): bg 0.50/0.35 → 0.30 single glass
+- **`.ghost @supports fallback`**: `rgba(255,255,255,0.55)` → `rgba(255,255,255,0.85)` opaque
+- **`.email`** (idx 234): `var(--color-text-muted)` (gray-500) → `#FFFFF0` ivory
+
+**实测 (Playwright computed iPhone 13 viewport)**:
+- `.email` color: `rgb(255, 255, 240)` (ivory) ✓
+- `.btn-sm` bg: `rgba(255, 255, 255, 0.20)`, color: `rgb(255, 255, 240)` ✓
+- `.ghost` bg: `rgba(255, 255, 255, 0.20)`, color: `rgb(255, 255, 240)` ✓
+- 4 个 NavBar 元素全部 ivory 跟 #100 .btn-primary 同族 ✓
+
+**dev 验证** (iPhone 13 真机 walk):
+- /sessions/1 — NavBar 上 SplitIt + 我的账本 + Jesse + 注销登录 通通 ivory glass style 一致
+- /auth/login — 登录 按钮 ivory
+- /sessions/[id]/join — 登录以保存 按钮 ivory (anon 路径)
+- 截图: `~/.openclaw/media/v0320-101-ivory-nav/{sessions-1-ivory-nav,sessions-1-ivory-top}.png`
+- vite HMR 2:48:57 PM 自动
+
+**反模式自查**:
+- ✅ 反 #162 git pull --ff-only (拉到 f40d006 #100 §11, 无冲突)
+- ✅ 反 #151 真 PNG 截图 + computed style 实测
+- ✅ 反 #158 强制 Telegram 推送
+
+**关联** (跟 #100 同族 ivory):
+- #100 (cbda966): landing .btn-primary transparent glass ivory
+- **#101 (0958060)**: NavBar .btn-sm / .ghost / .email 全 ivory → NavBar 跟 landing 风格统一
+
+**不**在这个 commit:
+- AppBackground (paper bg) 不动
+- NavBar bg 自身 (alpha 0.02 #99-fix5) 不动
+- 路由功能 / 其他组件不动
+- 留 v0.3.20 其它任务 (#91-#99 系列) 不动
