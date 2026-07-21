@@ -74,12 +74,30 @@
        刘海/灵动岛区域不挡 brand 文字。body 已 lock 外层滚 (见 app.css),
        .navbar 是 body flex column 第一项, 始终贴顶。 */
     padding: calc(var(--space-3) + env(safe-area-inset-top, 0px)) var(--space-4) var(--space-3);
-    border-bottom: 1px solid var(--color-border);
-    /* v0.3.18 #49 (PO msg 21:16 #6508 极透明化 sweep): nav bg 0.40 → 0.20
-       整站 nav 几乎全透, 让冷色调背景图清晰可见. 玻璃语言保留 (blur 18px + saturate 180%). */
-    background: rgba(255, 255, 255, 0.20);
-    backdrop-filter: saturate(180%) blur(18px);
-    -webkit-backdrop-filter: saturate(180%) blur(18px);
+    /* v0.3.20 #99 (PO msg 13:36 #7532 第 4 项, msg 13:39 #7536 缩范围:
+       只做 header, footer 不管): NavBar 半透明玻璃化 — 跟 v0.3.17 #30 /
+       v0.3.17 #21 玻璃族统一, 升级 .navbar 为 Liquid Glass 容器.
+       - bg 从 rgba(255,255,255,0.20) flat-white → indigo→blue 135deg gradient @ 0.55
+         (跟 .glass-pill / .btn-sm 同色 token, 但 NavBar 是大容器需要更高 alpha
+         保证 brand/按钮文字可读性, 跟 chip 0.04/0.02 透明拉开层级)
+       - backdrop-filter saturate(180%) blur(20px) (跟 .glass-pill saturate(200%) blur(20px)
+         同族, 这里 saturate 微调 180 让背景 paper texture 不要过饱和)
+       - inset highlight top 1px rgba(255,255,255,0.4) (跟 glass-pill 0.45 同源)
+       - border-bottom 1px rgba(255,255,255,0.2) 当 separator (玻璃边沿, 跟 #97
+         paper bg 形成柔和分割, 不要 .color-border 实色硬切)
+       - Safari iOS < 18 fallback @supports 提供更 opaque 实色保证可读 */
+    background: linear-gradient(
+      135deg,
+      rgba(99, 102, 241, 0.55) 0%,
+      rgba(59, 130, 246, 0.55) 100%
+    );
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.4),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.04),
+      0 1px 6px rgba(99, 102, 241, 0.12);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
     flex-wrap: wrap;
   }
   .brand {
@@ -179,10 +197,17 @@
     color: var(--accent-700);
   }
   /* v0.3.18 #48: Safari iOS < 18 backdrop-filter fallback.
-     .navbar 0.40 → 0.70 (跟新 bg 比例 +0.30 opaque 补足 fallback 可读性).
+     v0.3.20 #99: 跟新 gradient bg 对齐 — fallback 用 indigo 实色 0.65 (跟新
+     gradient 0.55 + 边缘补偿 0.10 提供无 backdrop-filter 时的 fallback 可读性).
      .ghost 0.35/0.20 → 0.55/0.40 (同源). */
   @supports not (backdrop-filter: blur(1px)) {
-    .navbar { background: rgba(255, 255, 255, 0.70); }
+    .navbar {
+      background: linear-gradient(
+        135deg,
+        rgba(99, 102, 241, 0.65) 0%,
+        rgba(59, 130, 246, 0.65) 100%
+      );
+    }
     .ghost { background: rgba(255, 255, 255, 0.55); }
   }
 </style>

@@ -2630,3 +2630,43 @@ seed 脚本 (`backend/scripts/seed_dev_data.py`) 已有 find-or-create 逻辑：
 
 **不**在这个 commit:
 - 4 个无关文件 modified (CurrencyAddModal / SessionCurrencyBadge / sessions/[id]/+page / sessions/[id]/settle/+page) — pre-existing local mods, **不**纳入本次 commit (跟 wallpaper 无关, 避免污染 diff)
+
+### §11. v0.3.20 #99 (2026-07-21) — NavBar 半透明玻璃化 (PO msg 13:36 #7532 第 4 项, msg 13:39 #7536 缩范围: 只做 header, footer 不管)
+
+**commit**: `feat(fe): v0.3.20 #99 — NavBar 半透明玻璃化 — indigo→blue gradient @ 0.55 + blur(20px) (PO #7532 #4 项, footer 缩范围)`
+
+**改动 1 项**:
+- **NavBar.svelte `.navbar` block** — 跟 v0.3.17 #30 / v0.3.17 #21 玻璃族统一, 升级为 Liquid Glass 容器:
+  - `background`: `rgba(255,255,255,0.20)` flat-white → `linear-gradient(135deg, rgba(99,102,241,0.55) 0%, rgba(59,130,246,0.55) 100%)` (跟 .glass-pill / .btn-sm 同色 token `99,102,241` indigo + `59,130,246` blue, 但 NavBar 是大容器需要更高 alpha 0.55 保证 brand/按钮可读性, 跟 chip 0.04/0.02 拉开层级)
+  - `backdrop-filter`: `saturate(180%) blur(18px)` → `saturate(180%) blur(20px)` (跟 .glass-pill `saturate(200%) blur(20px)` 同族, 这里 saturate 微调 180 让 paper texture 不过饱和)
+  - `box-shadow`: 新增 `inset 0 1px 0 rgba(255,255,255,0.4)` (顶部 inset highlight 玻璃上沿, 跟 .glass-pill 0.45 同源) + `inset 0 -1px 0 rgba(0,0,0,0.04)` (底部 ambient) + `0 1px 6px rgba(99,102,241,0.12)` (外阴影, 玻璃浮起感)
+  - `border-bottom`: `1px solid var(--color-border)` → `1px solid rgba(255,255,255,0.2)` (玻璃边沿当 separator, 跟 #97 paper bg 形成柔和分割, 不要硬切)
+- **Safari iOS < 18 `@supports` fallback** — 跟新 gradient bg 对齐, fallback 用 indigo 实色 0.65 (`linear-gradient(135deg, rgba(99,102,241,0.65) 0%, rgba(59,130,246,0.65) 100%)` 跟新 gradient 0.55 + 边缘补偿 0.10 提供无 backdrop-filter 时的 fallback 可读性)
+
+**保持不动**:
+- v0.3.20 #97 AppBackground + paper bg — 完全不动 (paper 已定, NavBar 玻璃效果依赖它)
+- v0.3.18 #54 Footer 取消 — PO msg 13:39 #7536 缩范围: 本批**不**恢复 footer
+- 其他组件的 glass (.glass-pill / .btn-sm / .ghost / .fab) — 完全不动, 聚焦 NavBar
+- AppBackground.svelte / +layout.svelte / sessions/[id]/+page.svelte / BillListGrouped 等 — 完全不动 (Coder 1 #98 改这俩, 不在我 brief)
+
+**dev 验证**:
+- iPhone 13 真机 walk (390×844 @3x), 3 张 PNG (`~/.openclaw/media/v0320-99-navbar-glass/`):
+  - `1-landing.png` — `/` landing 页, 玻璃化效果最明显 (背后是 Unsplash hero photo, gradient @ 0.55 + blur 20px 把 photo 模糊化, NavBar 区域呈温暖 taupe 色)
+  - `2-auth.png` — `/auth/login`, 玻璃在 flat body bg 上的纯 indigo→blue gradient 表现 (pixel sample A #9FA4E0 → B #A8ACE6 → C #A4A8E3, 渐变清晰可见)
+  - `3-sessions-list.png` — `/sessions` 账本列表页, 玻璃在列表内容上的视觉锚定 (pixel sample A #A8AEF0 → B #A0B8F5 → C #A8AEF4, 跟 auth 同源颜色)
+- `inspect-navbar-v0320-99.cjs` computed style 验证 3 页 `.navbar` 都正确生效 (gradient + blur + inset highlight + border-bottom 全部 match spec)
+- vite HMR 自动更新 (`13:42 page reload src/lib/components/NavBar.svelte`)
+- 后端 (8449) 不可达, 走 anon SSR (`/sessions` 未登录会重定向但 NavBar SSR 先渲染可见) — 真机 walk 走 `/sessions` 替代 `/sessions/1` (PO brief 给的 OR 选项)
+
+**反模式自查**:
+- 反 #162 ✅ git pull --ff-only before commit (容器本地 HEAD 落后 remote 8 commits, stash 后拉到 24f6622)
+- 反 #161 ✅ 字面执行 PO 多次拍板 (alpha 0.55 / blur 20px / saturate 1.8 / inset 0.4 / border 0.2 全部按 brief)
+- 反 #158 ✅ 强制 Telegram 推送 (立刻给 Jesse 报)
+- 反 #151 ✅ 真 PNG 截图 + 真视觉验证 (pixel sample 验证 gradient 颜色, 不是 ASCII)
+- 反 #150 ✅ iPhone 真机 walk (反 #167: iPhone 13 真机 profile, 3 张 viewport screenshot)
+- 反 #146 ✅ 完整 token (跟现有 glass-pill / btn-sm 同源色 token + alpha 比例)
+- 反 #146 ✅ 缩范围 (footer 不做 / AppBackground 不动 / 其他组件 glass 不动)
+
+**不**在这个 commit:
+- Coder 1 #98 的 BillListGrouped / sessions/[id]/+page.svelte 改动 — 那是另一 coder 的活, 等他自己 push
+- 4 个 pre-existing local mods (CurrencyAddModal / SessionCurrencyBadge / sessions/[id]/+page / sessions/[id]/settle/+page) — 不纳入本次 commit (跟 NavBar 无关, 避免污染 diff) — 已 stash 在 `stash@{0}: coder2-v0320-99-preserve-pending-local-changes-before-pull`, 留给后续 coder 处理
