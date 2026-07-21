@@ -2753,3 +2753,41 @@ seed 脚本 (`backend/scripts/seed_dev_data.py`) 已有 find-or-create 逻辑：
 - v0.3.20 #97 paper bg `24f6622` — #99-fix 让 NavBar 玻璃正确为 paper 服务 (不盖死)
 - v0.3.20 #98 `7340297` — 跟 #99-fix 无文件冲突 (我改 NavBar, Coder 1 改 +page.svelte)
 - v0.3.18 #47/#51 — 删 #47 玻璃 bg, #51 撤回 footer; 这条 #99-fix 是新设计 (paper bg 上的真透明玻璃)
+
+### §11. v0.3.20 #99-fix2 (2026-07-21) — NavBar alpha 再降到 0.20 (PO msg 13:56 #7549 再透一点)
+
+**commit**: `8083e15` — `fix(fe): v0.3.20 #99-fix2 — NavBar bg alpha 0.55 → 0.20 (PO msg 13:56 #7549 再透一点)`
+
+**前置问题** (commit `54a03d4` #99-fix):
+- bg alpha 0.55 white + saturate(130%) blur(20px) → paper 纹透 ~45% 残影
+- PO msg 13:56 #7549 "再透一点" + 13:57 #7563 "让背景图案部分漏出来" 明确要求更透
+
+**改动 1 处**:
+- `.navbar` bg `rgba(255, 255, 255, 0.55)` → `rgba(255, 255, 255, 0.20)`
+- 1 行 CSS 替换 + 1 行注释加 #99-fix2 注记
+
+**保留** (跟 #99-fix 一致):
+- backdrop-filter `saturate(130%) blur(20px)` (blur 让纸纹糊但仍可见, saturate 不加太高免纸纹失真)
+- inset highlight + border-bottom (玻璃语言)
+- @supports Safari <18 fallback bg 0.85 opaque white (保证 fallback 可读)
+
+**dev 验证** (iPhone 13 viewport 截图 /auth/login):
+- paper 纹理从模糊残影 (~45% 透) → 清楚 grain (~80% 透), "Split Bill" 文字仍可读, 但 NavBar 仅起分隔作用不抢戏
+- 整站仍是 paper bg 为视觉主角, NavBar 是浮在上面的轻薄玻璃
+- 截图: `~/.openclaw/media/v0320-99-fix2/navbar-alpha-020-paper-shows-through.png` (355KB)
+
+**反模式自查**:
+- 反 #162 ✅ git pull --ff-only before commit (拉到 54a03d4 #99-fix, 无冲突)
+- 反 #151 ✅ 真 PNG 截图 (iPhone 13 真机 walk)
+- 反 #158 ✅ 强制 Telegram 推送
+
+**关联链**:
+- v0.3.20 #97 `24f6622` paper bg ← 主角
+- v0.3.20 #99 `08ac6e6` indigo gradient ← 失败, 被 #99-fix 覆盖
+- v0.3.20 #99-fix `54a03d4` 0.55 white ← 还是太实
+- v0.3.20 #99-fix2 `8083e15` 0.20 white ← 当前最终 (3 步逼近 PO 视觉诉求)
+
+**不**在这个 commit:
+- Footer 不动 (PO #7536 明确"不管 footer", 撤了的 footer 不恢复)
+- AppBackground / paper bg 不动 (#97 已稳, 跟 NavBar 玻璃配合正好)
+- .btn-sm / .ghost 仍 indigo→blue 渐变 (跟 NavBar 不同容器, 交互按钮需颜色标识)
