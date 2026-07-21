@@ -891,16 +891,21 @@
     backdrop-filter: saturate(180%) blur(20px);
     -webkit-backdrop-filter: saturate(180%) blur(20px);
     border-radius: 16px;
-    padding: 16px;
+    /* v0.3.21 #110 (PO msg 18:46): padding 16 → 12.
+       PO 反馈 section 垂直高度太高 + "查看 N 人" 离 section 底部太远.
+       减少上下 padding 给 row1+row2+row3 留更多紧凑空间. */
+    padding: 12px;
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
   }
 
   /* v0.3.19 #83 (PO #7300): 折叠态 header 重构成 3 行布局 —
-     row1 (40px) / row2 (36px) / row3 (24px). 整段仍 onclick + aria-expanded. */
+     row1 (40px) / row2 (36px) / row3 (24px). 整段仍 onclick + aria-expanded.
+     v0.3.21 #110 (PO msg 18:46): gap 4 → 2 (整体更紧凑),
+     padding-bottom 2 → 0 (去掉 row3 下方多余空白, 让 hint 更贴 section 底边). */
   .members-head {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 2px;
     /* v0.3.20 #96 (PO msg 02:41 #7467): padding-bottom 10 -> 2.
        PO "查看 5 人下边空白太多". 保留 border-bottom (members section
        跟下面账单 section 的视觉分隔, 不是 row3 的底边)
@@ -910,8 +915,10 @@
        我不想要这条线". 整条线 (1px solid rgba(0,0,0,0.05)) 直接 none 掉, 不用 opacity.
        视觉分隔交给 margin-bottom: 12px (.members-card 跟下方 .bills-card 之间已有 12px 间距,
        加上 .bills-card 自带 padding-top, 足够断开两块). row3 的 border-top (在上方) 不动,
-       那是 row2 <-> row3 之间的 affordance 分割 (跟这条线是不同 line). */
-    padding: 0 0 2px 0;
+       那是 row2 <-> row3 之间的 affordance 分割 (跟这条线是不同 line).
+       v0.3.21 #110: padding-bottom 2 → 0. 配合 .members-card padding 减半 + row3
+       align-items: flex-end, "查看 N 人" 字样现在视觉上贴 section 底边. */
+    padding: 0;
     margin: 0 0 12px 0;
     border-bottom: none;
     cursor: pointer;
@@ -930,7 +937,9 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    min-height: 32px;
+    /* v0.3.21 #110 (PO msg 18:46): min-height 32 → 26.
+       row1 内容只装 "成员 · N人" 标题 + 可选 expiry pill, 26px 足够. */
+    min-height: 26px;
   }
   /* v0.3.20 #92 (PO msg 07:13 #7409): row2 改成左右两栏 —
      左 (members-row2-left) = avatars (折叠态独有), 右 (members-row2-right) = InviteLinkButton (always).
@@ -938,23 +947,25 @@
      确保即使 left 是空 placeholder, invite 仍在最右.
      v0.3.20 #94 Fix 3 (PO msg 02:13 #7455): --invite-btn-h CSS var 跟 InviteLinkButton 高度联动,
      默认 48px (desktop), 767px 以下 44px (mobile 标准), 380px 以下 36px (按钮自带 mobile override).
-     row min-height 28px → 40px (允许 var 48px 内容装下, 不被截). */
+     row min-height 28px → 40px (允许 var 48px 内容装下, 不被截).
+     v0.3.21 #110 (PO msg 18:46): --invite-btn-h mobile 40/36/32 (默认 44 → 40, 380- 36 → 32),
+     + min-height 40 → 36, 整 row 紧凑 ~6-8px. */
   .members-head-row2 {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    min-height: 40px;
-    --invite-btn-h: 48px;
+    min-height: 36px;
+    --invite-btn-h: 40px;
   }
   @media (max-width: 767px) {
     .members-head-row2 {
-      --invite-btn-h: 44px;
+      --invite-btn-h: 40px;
     }
   }
   @media (max-width: 380px) {
     .members-head-row2 {
-      --invite-btn-h: 36px;
+      --invite-btn-h: 32px;
     }
   }
   .members-row2-left {
@@ -976,7 +987,11 @@
      min-height 20 → 24 (border 1px + padding-top 视觉更平衡, 不被 border 挤). */
   .members-head-row3 {
     display: flex;
-    align-items: center;
+    /* v0.3.21 #110 (PO msg 18:46): align-items: center → flex-end.
+       PO 反馈 "查看 N 人" 字样靠 section 底部对齐. 改 flex-end 后, chevron + hint
+       在 row3 box 内贴底, 配合 .members-head padding-bottom:0 + .members-card
+       padding-bottom:12, "查看 N 人" 视觉上贴 section 底边. */
+    align-items: flex-end;
     justify-content: center;
     gap: 4px;
     /* v0.3.20 #96 (PO msg 02:41 #7467): min-height 24 -> 20.
@@ -985,10 +1000,12 @@
        border-bottom 之间).
        PO 明确 "上边有分割线就行, 下边不需要分割线" -- row3 本就没
        border-bottom (上方 border-top 保留作 row2 <-> row3 分隔),
-       这里只调内部 min-height. */
-    min-height: 20px;
-    margin-top: 4px;
-    padding-top: 6px;
+       这里只调内部 min-height.
+       v0.3.21 #110: min-height 20 → 16, padding-top 6 → 2. 整体 row3 更紧凑,
+       + align-items flex-end 让 hint 贴 row3 底边. */
+    min-height: 16px;
+    margin-top: 2px;
+    padding-top: 2px;
     border-top: 1px solid rgba(0, 0, 0, 0.05);
     color: var(--gray-400, #9ca3af);
   }
