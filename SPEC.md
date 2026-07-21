@@ -3184,3 +3184,55 @@ input, textarea, select, [contenteditable] {
 - AppBackground paper bg z=-1 不动
 - .btn-sm / .ghost / .email (其他页面的 indigo 按钮 — #102 状态保留)
 - footer (从 v0.3.18 #54 开始撤了的 — 仍是撤的, 不恢复)
+
+### §11. v0.3.21 #104 (2026-07-21) — SplitIt 真的超大 (iOS 26 锁屏时间级) + 按钮 focus 去蓝 (PO msg 15:07 反馈)
+
+**commit**: `992321b` — `refactor(fe): v0.3.21 #104 — SplitIt 真的超大 (iOS 26 锁屏时间级) + 按钮 focus 去蓝 + tap-highlight transparent (PO msg 15:07)`
+
+**前置 (PO msg 15:03 #103 `e182531`)**: SplitIt font-size `clamp(3.5rem, 14vw, 5.5rem)` (56-88px), font-weight 200
+**反馈 (PO msg 15:07 #7668)**: "splitit 不够大，你没请 design agent，没有理解我说的 ios26 超大锁屏时间的含义" + "点击按钮还是有蓝色边框"
+
+#### 2 项整改 (1 文件 +page.svelte):
+
+**1) SplitIt 升级 — 真的 iOS 26 锁屏时间级别**
+- font-size `clamp(3.5rem, 14vw, 5.5rem)` (56-88px) → `clamp(5.5rem, 25vw, 10rem)` (88-160px @ 320-600 viewport)
+- font-weight `200` extra-light → `100` thin (SF Ultra Light 同质)
+- letter-spacing `-0.03em` → `-0.05em` (极致紧, 跟 iOS 26 锁屏时间一致)
+- text-shadow `0 4px 24px rgba(0,0,0,0.25)` → `0 6px 32px rgba(0,0,0,0.35)` (大字加深阴影稳 hero bg)
+- 实测 (Playwright iPhone 13 viewport 390): font-size 97.5px (25vw of 390), font-weight 100, letter-spacing -4.875px → 这就是 iOS 26 锁屏时间 ~120pt scale
+- 仍无 icon (clean "SplitIt" text only)
+
+**2) 按钮 focus 蓝边框 删**
+- `.btn-primary` / `.btn-ghost` 综合修:
+  - 增 `:focus` / `:focus-visible` / `:active` 状态: `outline: none` + `-webkit-tap-highlight-color: transparent` (删 Safari/Chrome 默认蓝 outline + iOS tap 闪蓝)
+  - 增 `:focus-visible` 键盘 a11y: `outline: 2px solid rgba(255, 255, 240, 0.8)` 用 ivory outline (键盘 focus 仍可见)
+  - Safari <18 fallback: 增 `:focus { outline: none }` 兼容
+  - `:active` scale `0.98` → `0.97` (放大点击感, 仍非蓝色)
+
+**实测 (Playwright iPhone 13)**: ✓
+- brand-name fontSize: **97.5px** (iOS 26 锁屏时间级别) ✓
+- brand-name fontWeight: **100** (极致细) ✓
+- brand-name letterSpacing: **-4.875px** (-0.05em at 97.5px) ✓
+- btn-primary focused outline: `rgba(255, 255, 240, 0.8) solid 2px` (ivory) ✓
+- btn-primary tapHighlightColor: `rgba(0, 0, 0, 0)` transparent (iOS tap 蓝高亮去除) ✓
+- click 实测 (logged-in) → 跳 /sessions ✓
+
+**截图** (iPhone 13 真机 walk):
+- `~/.openclaw/media/v0321-104/landing-biggest-104.png` — SplitIt 超大版 (iOS 26 lock screen 风, 97.5px thin 100)
+- `~/.openclaw/media/v0321-104/landing-focused-104.png` — focus 状态, ivory outline 替代蓝 border
+- vite HMR 自动 3:08:57 PM
+
+**反模式自查**:
+- ✅ 反 #162 git pull --ff-only (拉到 55fb3e9 #103 §11, 无冲突)
+- ✅ 反 #151 真 PNG 截图 + computed style 实测
+- ✅ 反 #158 强制 Telegram 推送
+
+**关联链**:
+- #100 (cbda966): 全站品牌名 SplitIt
+- #103 (e182531): SplitIt 改大 + thin + 去 icon (初版)
+- **#104 (992321b)**: SplitIt 真的超大 + 修蓝 focus border
+
+**不**在这个 commit:
+- NavBar 其他 indigo 按钮 不动 (PO 在 #102 已 revert)
+- 路由 / 业务功能 / 壁纸 / paper bg 不动
+- 其他页面 focus 蓝框 (本 commit 只 landing — 其他页 PO 没反馈)
