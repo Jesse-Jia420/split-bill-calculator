@@ -1422,6 +1422,156 @@ async def add_session_currency(
 
 
 # ---------------------------------------------------------------------------
+# DELETE /sessions/{id}/currencies/{code} (v0.3.21 #108 - PO msg 17:54)
+# ---------------------------------------------------------------------------
+
+
+@router.delete(
+    "/{session_id}/currencies/{currency_code}",
+    response_model=SessionDetail,
+)
+async def remove_session_currency(
+    currency_code: str,
+    sm: Annotated[SessionMember, Depends(require_session_owner)],
+    db: Annotated[Session, Depends(get_db)],
+    session_id: int = Path(..., description="sessions.id"),
+) -> dict:
+    """v0.3.21 #108 (PO msg 17:54): owner-only "remove secondary currency" endpoint.
+
+    Mirror of POST /sessions/{id}/currencies: removes a secondary currency
+    from the session + cascades its exchange rates. Triggered from
+    CurrencyAddModal when the user picks 「—」 (代表 "切回单币种") OR when
+    the user picks a different currency as new secondary (replace flow).
+
+    Guards:
+      * require_session_owner -> 403 if not owner (or not a member).
+      * 404 if the session does not exist.
+      * 404 if the currency is NOT in the session's currencies set
+        (idempotent error rather than silent no-op).
+      * 409 if the currency IS the session's primary_currency -- we never
+        let owners delete the primary currency via this endpoint (per
+        PRD §3.7.5 the primary is locked at the metadata level).
+      * 422 if the currency code is not in SUPPORTED_CURRENCIES.
+
+    Cascade:
+      * Remove the currency from session.currencies (filter the JSON list).
+      * DELETE every SessionExchangeRate row whose from_currency OR
+        to_currency matches (forward + reciprocal legs, both gone).
+
+    On success: returns the full SessionDetail payload (same shape as
+    POST /sessions/{id}/currencies + claim_session + get_session) so the
+    FE can drop the response into its existing session state and
+    re-render the SessionCurrencyBadge without a second round-trip.
+    """
+    code = currency_code.strip().upper()
+    if code not in SUPPORTED_CURRENCIES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "error": "currency_not_supported",
+                "currency": code,
+                "supported_currencies": list(SUPPORTED_CURRENCIES),
+            },
+        )
+
+    session = db.query(SessionModel).filter_by(id=session_id).first()
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "session not found"},
+        )
+
+    current_currencies = list(session.currencies or ["CNY"])
+
+    if code not in current_currencies:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": "currency_not_in_session",
+                "currency": code,
+                "session_currencies": current_currencies,
+            },
+        )
+
+    if code == session.primary_currency:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error": "cannot_remove_primary_currency",
+                "currency": code,
+            },
+        )
+
+    # Cascade: remove from currencies list + delete every rate row
+    # that references this currency in either direction.
+    new_currencies = [c for c in current_currencies if c != code]
+    session.currencies = new_currencies
+    db.flush()
+
+    rates_to_delete = (
+        db.query(SessionExchangeRate)
+        .filter(
+            SessionExchangeRate.session_id == session_id,
+            (SessionExchangeRate.from_currency == code)
+            | (SessionExchangeRate.to_currency == code),
+        )
+        .all()
+    )
+    for r in rates_to_delete:
+        db.delete(r)
+
+    db.commit()
+    db.refresh(session)
+
+    # Build the same inline SessionDetail payload as POST /currencies +
+    # claim_session + get_session so the FE can drop it in.
+    members = (
+        db.query(SessionMember, User)
+        .outerjoin(User, User.id == SessionMember.user_id)
+        .filter(SessionMember.session_id == session.id)
+        .order_by(SessionMember.joined_at.asc())
+        .all()
+    )
+    last_bill_participants = _compute_last_bill_participants(db, session.id)
+    remaining_rates = (
+        db.query(SessionExchangeRate)
+        .filter(SessionExchangeRate.session_id == session.id)
+        .order_by(
+            SessionExchangeRate.from_currency.asc(),
+            SessionExchangeRate.to_currency.asc(),
+        )
+        .all()
+    )
+
+    payload_out: dict = {
+        "id": session.id,
+        "session_code": session.session_code or "",
+        "name": session.name,
+        "owner_user_id": session.owner_user_id,
+        "owner_email": session.owner_email,
+        "members": [
+            {
+                "id": sm_row.id,
+                "user_id": sm_row.user_id,
+                "email": u.email if u else None,
+                "display_name": sm_row.display_name,
+                "role": sm_row.role,
+                "joined_at": _iso(sm_row.joined_at),
+            }
+            for sm_row, u in members
+        ],
+        "created_at": _iso(session.created_at),
+        "invite_token_preview": session.invite_token,
+        "invite_expires_at": _iso(session.invite_expires_at),
+        "last_bill_participants": last_bill_participants,
+        "currencies": list(session.currencies or ["CNY"]),
+        "primary_currency": session.primary_currency or "CNY",
+        "exchange_rates": [_exchange_rate_dict(r) for r in remaining_rates],
+    }
+    return payload_out
+
+
+# ---------------------------------------------------------------------------
 # PATCH /sessions/{id}/members/{mid}
 # ---------------------------------------------------------------------------
 
