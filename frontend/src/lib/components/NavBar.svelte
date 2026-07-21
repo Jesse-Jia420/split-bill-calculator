@@ -90,7 +90,8 @@
     /* v0.3.20 #99-fix (PO msg 13:54): 透明玻璃 — 不再加颜色 (前版 indigo→blue 渐变
        把 paper 纹盖死). 改用纯白 alpha + blur 让 paper 纹部分透过来.
        saturate 从 180% → 130% 让纸纹不过饱和失真. */
-    background: rgba(255, 255, 255, 0.55);
+    /* v0.3.20 #99-fix2 (PO msg 13:56 #7549 再透一点 + 13:57 #7563 让背景漏出来): 0.55 -> 0.20 */
+    background: rgba(255, 255, 255, 0.20);
     backdrop-filter: saturate(130%) blur(20px);
     -webkit-backdrop-filter: saturate(130%) blur(20px);
     box-shadow:
