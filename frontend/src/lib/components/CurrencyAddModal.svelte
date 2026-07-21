@@ -1,36 +1,51 @@
 <!--
-  CurrencyAddModal.svelte — v0.3.18 #53 (PO msg 10:49 #6542)
+  CurrencyAddModal.svelte — v0.3.19 #85 重写 (PO msg 23:?? #7308)
 
-  Owner-only "add secondary currency" flow. Triggered when an owner clicks
-  the SessionCurrencyBadge single-pill (which renders as a + button on the
-  primary chip). Opens a glass-style modal with:
+  单一弹窗统一管理「添加副币种」+「修改币种设置」+「修改汇率」三种场景。
+  由 SessionCurrencyBadge 在单币种 pill / 多币种整 bar click 时触发。
 
-    * Section 1 — Primary currency (locked, shown for context only).
-    * Section 2 — Secondary currency <select>, options = SUPPORTED_CURRENCIES
-      minus the primary + any currencies already on the session.
-    * Section 3 — Forward rate input (1 primary = X secondary), decimal.
-    * Footer — Cancel + Add buttons (Add disabled until secondary + rate > 0).
+  4 模式规则 (PO #7308 拍板):
+    | mode \ has_bills | !has_bills                  | has_bills                |
+    |------------------|-----------------------------|--------------------------|
+    | single           | 添加副币种 (add flow)       | 矛盾状态: locked 提示    |
+    | multi            | 修改币种设置 (本期仅汇率)   | 仅修改汇率               |
 
-  Submit flow:
-    1. POST /sessions/{id}/currencies {currency: secondary} → 200 + updated
-       SessionDetail (extend currencies set; primary unchanged).
-    2. POST /sessions/{id}/exchange-rates {from, to, rate} → 201 + forward
-       + reciprocal rate rows (handled by exchange_rates.py auto-pair).
-    3. onAdded() callback → parent reloads session → SessionCurrencyBadge
-       re-renders as the dual-currency bar (the modal disappears first).
+  单币种 + 没账单 (single + !has_bills):
+    * 主币种 locked chip
+    * 副币种 <select> (从 SUPPORTED 减去 primary + existing)
+    * 汇率 <input>
+    * 按钮「添加」→ POST /currencies + POST /exchange-rates
 
-  Failure handling:
-    * 409 currency_already_in_session → toast + close (state is already
-      consistent, no point retrying).
-    * 422 max_2_currencies_per_session → toast (should not happen since
-      the single-pill gate prevents opening this modal in dual-currency
-      sessions, but defensive).
-    * 422 rate out of range → toast + keep modal open.
-    * Generic network error → toast + keep modal open so user can retry.
+  单币种 + 有账单 (single + has_bills):
+    * 矛盾状态 (按 PO 规则有账单 = 不可改币种)
+    * 显示 🔒 + 灰色文案「当前账单已锁定, 无法添加副币种」
+    * 仅显示「关闭」按钮 (no submit)
 
-  Style: glass-card-soft + .glass-input (existing global utilities from
-  app.css). z-index above the page content (999) but below no other UI
-  layer (no overlapping modals in v0.3.18 scope).
+  多币种 + 没账单 (multi + !has_bills):
+    * 主币种 + 副币种 <select> (本期 BE 未支持改, disabled + tooltip)
+    * 汇率 <input>
+    * 按钮「修改」→ 仅 PATCH 汇率 (主/副币种 disabled 兜底)
+
+  多币种 + 有账单 (multi + has_bills):
+    * 主币种 + 副币种 locked chip (灰 bg + 🔒 icon)
+    * 汇率 <input> (唯一可改字段)
+    * 按钮「保存汇率」→ PATCH /exchange-rates/{rate_id}
+
+  Props:
+    - session_id: number
+    - primary_currency: string
+    - existing_currencies: string[]  (含 primary; 用于过滤 select options)
+    - mode: 'single' | 'multi'  (默认 'single' 兼容旧调用)
+    - has_bills: boolean  (默认 false, 父组件传 bills.length > 0)
+    - exchange_rates: SessionExchangeRate[]  (默认 [], multi 模式必传用于 PATCH)
+    - onAdded: (detail: {session, rates}) => void  (提交成功回调, parent 通常 reload)
+
+  视觉沿用 v0.3.18 #53 + v0.3.18 #60 batch2 + v0.3.18 #64 modal 玻璃语言:
+    - 遮罩 rgba(15,23,42,0.55) + saturate(180%) blur(16px)
+    - modal rgba(255,255,255,0.55) + saturate(200%) blur(20px) + 1px indigo 0.22 border
+    - inset highlight + 外阴影 (跟全站 glass 语言一致)
+    - 锁字段: .glass-input:disabled → 灰 bg + 半透明 + cursor not-allowed
+    - locked 提示: 12px gap + 20px emoji + gray-600 文字 (跟 form 风格区分)
 -->
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
@@ -39,10 +54,8 @@
   import { addSessionCurrency, type SessionDetail } from '$api/sessions';
   import type { SessionExchangeRate } from '$api/sessions';
 
-  /** SUPPORTED_CURRENCIES — keep in sync with backend/app/api/sessions.py.
-   *  Inline here rather than import to avoid creating a new shared module
-   *  just for one constant (PRD §3.7.5 hard codes the same 10 ISO codes
-   *  on both sides; FE uses it to render the <select> options). */
+  /** SUPPORTED_CURRENCIES — 跟 backend/app/api/sessions.py 保持一致.
+   *  内联而非 import 避免为单个常量建共享模块 (PRD §3.7.5 双端硬编 10 个 ISO). */
   const SUPPORTED_CURRENCIES: readonly string[] = [
     'CNY',
     'USD',
@@ -56,16 +69,18 @@
     'AUD',
   ] as const;
 
-  export let primary_currency: string;
   export let session_id: number;
-  /** Already-tracked currencies (excluding the primary). Used to filter
-   *  the <select> options — the user shouldn't pick a currency that's
-   *  already on the session. */
+  export let primary_currency: string;
+  /** 已跟踪的币种 (含 primary). 用于过滤 <select> options. */
   export let existing_currencies: string[] = [];
+  /** v0.3.19 #85: 'single' = 单币种 (add new) | 'multi' = 多币种 (edit settings). */
+  export let mode: 'single' | 'multi' = 'single';
+  /** v0.3.19 #85: 父组件传 bills.length > 0, 决定锁哪些字段. 本期不要求 BE 加字段. */
+  export let has_bills: boolean = false;
+  /** v0.3.19 #85: multi 模式 PATCH 汇率时需要 rate_id, 从 exchange_rates 找. */
+  export let exchange_rates: SessionExchangeRate[] = [];
 
-  /** v0.3.18 #53: callback when the user successfully adds a currency +
-   *  rate pair. Parent typically does `window.location.reload()` or
-   *  refetches the session to re-render the badge as a dual-bar. */
+  /** 提交成功回调 (parent 通常 reload). detail 含 session payload + rates 数组. */
   export let onAdded: ((detail: {
     session: SessionDetail;
     rates: SessionExchangeRate[];
@@ -73,22 +88,56 @@
 
   const dispatch = createEventDispatcher<{ close: void }>();
 
-  /** Secondary currency selection (locked until user picks one). */
+  // ---- 表单状态 (single 模式用 secondary + rate, multi 模式用 primary + secondary + rate) ----
   let secondary = '';
-  /** Forward rate input: "1 primary = X secondary". Decimal-as-string so
-   *  we don't lose precision via JS Number round-trip (BE serialises
-   *  Decimal as string per v0.2.2 wire format). */
+  let primary = primary_currency;
+  /** Forward rate (1 primary = X secondary). Decimal-as-string 保留精度 (BE wire format). */
   let rate = '';
   let busy = false;
 
-  /** §1 — selectable currencies = SUPPORTED minus primary minus existing. */
-  $: options = SUPPORTED_CURRENCIES.filter(
-    (c) => c !== primary_currency && !existing_currencies.includes(c)
+  /** §1 — 副币种可选 = SUPPORTED minus primary minus existing.
+   *  multi 模式本期保留过滤逻辑 (BE 未支持改主/副币种, select 仍 disabled 兜底). */
+  $: secondary_options = SUPPORTED_CURRENCIES.filter(
+    (c) => c !== primary && !existing_currencies.includes(c)
   );
+  /** 主币种可选 = SUPPORTED (multi 模式 disabled 显示用). */
+  $: primary_options = SUPPORTED_CURRENCIES.slice();
+
+  /** v0.3.19 #85: multi 模式初始化 secondary/rate 从 existing_currencies + exchange_rates 推导.
+   *  single 模式保持 secondary='' (用户必选), rate='' (用户必填). */
+  $: if (
+    mode === 'multi' &&
+    secondary === '' &&
+    existing_currencies.length > 0
+  ) {
+    const ex = existing_currencies.find((c) => c !== primary_currency);
+    if (ex) {
+      secondary = ex;
+      primary = primary_currency;
+      // 找 primary → secondary 的 forward rate row
+      if (rate === '') {
+        const row = exchange_rates.find(
+          (r) => r.from_currency === primary && r.to_currency === ex
+        );
+        if (row) rate = row.rate;
+      }
+    }
+  }
 
   $: rateNumber = rate.trim() === '' ? NaN : Number(rate.trim());
   $: rateValid = Number.isFinite(rateNumber) && rateNumber > 0;
-  $: canSubmit = secondary !== '' && rateValid && !busy;
+
+  /** Submit gating:
+   *  - single + !has_bills: secondary + rate
+   *  - single + has_bills: 矛盾状态, 不渲染 submit 按钮 (canSubmit = false 兜底)
+   *  - multi 任何情况: rate 即可 (primary/secondary disabled 不可改)
+   */
+  $: canSubmit =
+    mode === 'single' && !has_bills
+      ? secondary !== '' && rateValid && !busy
+      : mode === 'multi'
+        ? rateValid && !busy
+        : false;
 
   function close() {
     if (busy) return;
@@ -103,48 +152,125 @@
     if (e.key === 'Escape' && !busy) close();
   }
 
+  /** v0.3.19 #85: 找 primary → secondary 的 forward rate row (multi 模式 PATCH 用). */
+  function findForwardRate(): SessionExchangeRate | null {
+    return (
+      exchange_rates.find(
+        (r) => r.from_currency === primary && r.to_currency === secondary
+      ) ?? null
+    );
+  }
+
+  async function patchForwardRate(): Promise<SessionExchangeRate[]> {
+    const rate_row = findForwardRate();
+    if (!rate_row) {
+      throw new Error(
+        `找不到 ${primary}→${secondary} 的汇率记录, 请刷新页面重试`
+      );
+    }
+    const resp = await fetch(
+      `/api/sessions/${session_id}/exchange-rates/${rate_row.id}`,
+      {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rate: rate.trim() }),
+      }
+    );
+    if (!resp.ok) {
+      let detail: any = {};
+      try {
+        detail = await resp.json();
+      } catch {
+        /* ignore */
+      }
+      const msg =
+        detail?.detail?.error ?? `汇率更新失败 (HTTP ${resp.status})`;
+      throw new ApiError(resp.status, msg, detail);
+    }
+    return (await resp.json()) as SessionExchangeRate[];
+  }
+
   async function handleSubmit() {
     if (!canSubmit) return;
     busy = true;
     try {
-      // Step 1 — extend the session's currencies set with the new
-      // secondary currency (primary is preserved).
-      const updated = await addSessionCurrency(session_id, {
-        currency: secondary,
-      });
-      // Step 2 — create the exchange rate row (forward + reciprocal auto-paired
-      // by exchange_rates.py).
-      const rateResp = await fetch('/api/sessions/' + session_id + '/exchange-rates', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          from_currency: primary_currency,
-          to_currency: secondary,
-          rate: rate.trim(),
-        }),
-      });
-      if (!rateResp.ok) {
-        let detail: any = {};
-        try { detail = await rateResp.json(); } catch { /* ignore */ }
-        const msg = detail?.detail?.error ?? `汇率创建失败 (HTTP ${rateResp.status})`;
-        throw new ApiError(rateResp.status, msg, detail);
+      if (mode === 'single') {
+        // single + !has_bills: add flow (现有 v0.3.18 #53 行为)
+        const updated = await addSessionCurrency(session_id, {
+          currency: secondary,
+        });
+        const rateResp = await fetch(
+          `/api/sessions/${session_id}/exchange-rates`,
+          {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              from_currency: primary_currency,
+              to_currency: secondary,
+              rate: rate.trim(),
+            }),
+          }
+        );
+        if (!rateResp.ok) {
+          let detail: any = {};
+          try {
+            detail = await rateResp.json();
+          } catch {
+            /* ignore */
+          }
+          const msg =
+            detail?.detail?.error ?? `汇率创建失败 (HTTP ${rateResp.status})`;
+          throw new ApiError(rateResp.status, msg, detail);
+        }
+        const rates: SessionExchangeRate[] = await rateResp.json();
+        toast.success(
+          `已添加 ${secondary}, 汇率 ${rate} ${secondary}/${primary_currency}`
+        );
+        onAdded?.({ session: updated, rates });
+        dispatch('close');
+      } else {
+        // multi (任何 has_bills 状态): 本期只 PATCH 汇率
+        // primary/secondary select disabled 兜底 — 即使前端选了别的, PATCH 只对
+        // 当前 primary→secondary 行生效 (BE 不接受改 primary/secondary).
+        const rates = await patchForwardRate();
+        // 给 parent 一个最小 stub session payload (parent onAdded 回调通常会
+        // 自己 reload 拉完整数据, 这里给个能渲染的最小形态即可).
+        const stubSession = {
+          id: session_id,
+          session_code: '',
+          name: '',
+          owner_user_id: 0,
+          owner_email: null,
+          members: [],
+          created_at: '',
+          invite_token_preview: null,
+          invite_expires_at: null,
+          last_bill_participants: null,
+          currencies: existing_currencies,
+          primary_currency: primary,
+          exchange_rates: rates,
+        } as unknown as SessionDetail;
+        toast.success(
+          has_bills
+            ? `汇率已更新 ${rate} ${secondary}/${primary}`
+            : `币种设置已更新, 汇率 ${rate} ${secondary}/${primary}`
+        );
+        onAdded?.({ session: stubSession, rates });
+        dispatch('close');
       }
-      const rates: SessionExchangeRate[] = await rateResp.json();
-      toast.success(`已添加 ${secondary}, 汇率 ${rate} ${secondary}/${primary_currency}`);
-      onAdded?.({ session: updated, rates });
-      dispatch('close');
     } catch (e: any) {
-      let msg = e?.message ?? '添加副币种失败';
+      let msg = e?.message ?? '操作失败';
       if (e instanceof ApiError && e?.detail?.detail?.error) {
         msg = e.detail.detail.error;
       } else if (e?.detail?.error) {
         msg = e.detail.error;
       }
-      // 409 currency_already_in_session → close modal, state is already
-      // consistent (the parent will reload and the badge will reflect
-      // the dual state). Other errors keep the modal open for retry.
-      if (e?.status === 409 || e?.detail?.detail?.error === 'currency_already_in_session') {
+      if (
+        e?.status === 409 ||
+        e?.detail?.detail?.error === 'currency_already_in_session'
+      ) {
         toast.info('该币种已在账本中');
         dispatch('close');
       } else {
@@ -154,6 +280,21 @@
       busy = false;
     }
   }
+
+  /** v0.3.19 #85: 标题 / 按钮文案按 mode + has_bills 切换. */
+  $: modalTitle =
+    mode === 'single' && has_bills
+      ? '无法添加副币种'
+      : mode === 'single'
+        ? '添加副币种'
+        : '币种设置';
+  $: submitLabel = (() => {
+    if (busy) return mode === 'single' ? '添加中…' : '保存中…';
+    if (mode === 'single') return '添加';
+    return has_bills ? '保存汇率' : '修改';
+  })();
+  /** single + has_bills 矛盾状态: 只有「关闭」按钮, 无 submit. */
+  $: showSubmit = !(mode === 'single' && has_bills);
 </script>
 
 <svelte:window on:keydown={handleKeydown} />
@@ -168,11 +309,13 @@
     class="modal"
     role="dialog"
     aria-modal="true"
-    aria-label="添加副币种"
+    aria-label={modalTitle}
     data-sbc="currency-add-modal"
+    data-mode={mode}
+    data-has-bills={has_bills ? 'true' : 'false'}
   >
     <header class="modal-head">
-      <h3 class="modal-title">添加副币种</h3>
+      <h3 class="modal-title">{modalTitle}</h3>
       <button
         type="button"
         class="modal-close"
@@ -185,57 +328,168 @@
     </header>
 
     <div class="modal-body">
-      <!-- Section 1 — primary (locked chip) -->
-      <section class="field">
-        <label class="field-label">主币种 (不可改)</label>
-        <div class="primary-chip" aria-label="主币种: {primary_currency}">
-          <span class="lock-icon" aria-hidden="true">🔒</span>
-          <span class="primary-code">{primary_currency}</span>
-        </div>
-      </section>
+      {#if mode === 'single' && !has_bills}
+        <!-- ===== single + !has_bills: 添加副币种 (add flow) ===== -->
+        <section class="field">
+          <label class="field-label">主币种 (不可改)</label>
+          <div class="primary-chip" aria-label="主币种: {primary_currency}">
+            <span class="lock-icon" aria-hidden="true">🔒</span>
+            <span class="primary-code">{primary_currency}</span>
+          </div>
+        </section>
 
-      <!-- Section 2 — secondary selector -->
-      <section class="field">
-        <label class="field-label" for="sbc-secondary-currency">副币种</label>
-        <select
-          id="sbc-secondary-currency"
-          class="glass-input currency-select"
-          bind:value={secondary}
-          disabled={busy}
-          data-testid="currency-add-secondary"
-        >
-          <option value="" disabled>选择币种…</option>
-          {#each options as opt}
-            <option value={opt}>{opt}</option>
-          {/each}
-        </select>
-        {#if options.length === 0}
-          <p class="hint">没有可选的副币种了 (10 个币种全在账本中)。</p>
-        {/if}
-      </section>
+        <section class="field">
+          <label class="field-label" for="sbc-secondary-currency">副币种</label>
+          <select
+            id="sbc-secondary-currency"
+            class="glass-input currency-select"
+            bind:value={secondary}
+            disabled={busy}
+            data-testid="currency-add-secondary"
+          >
+            <option value="" disabled>选择币种…</option>
+            {#each secondary_options as opt}
+              <option value={opt}>{opt}</option>
+            {/each}
+          </select>
+          {#if secondary_options.length === 0}
+            <p class="hint">没有可选的副币种了 (10 个币种全在账本中)。</p>
+          {/if}
+        </section>
 
-      <!-- Section 3 — forward rate -->
-      <section class="field">
-        <label class="field-label" for="sbc-secondary-rate">汇率</label>
-        <div class="rate-row">
-          <span class="rate-prefix">1 {primary_currency} =</span>
-          <input
-            id="sbc-secondary-rate"
-            type="text"
-            inputmode="decimal"
-            class="glass-input rate-input"
-            bind:value={rate}
-            disabled={busy || secondary === ''}
-            placeholder="0.00"
-            aria-label="汇率 (1 {primary_currency} = X {secondary})"
-            data-testid="currency-add-rate"
-          />
-          <span class="rate-suffix">{secondary || '副币种'}/{primary_currency}</span>
-        </div>
-        <p class="hint">
-          提交后会创建正向 + 反向两条汇率记录, 修改时两方向同步。
-        </p>
-      </section>
+        <section class="field">
+          <label class="field-label" for="sbc-secondary-rate">汇率</label>
+          <div class="rate-row">
+            <span class="rate-prefix">1 {primary_currency} =</span>
+            <input
+              id="sbc-secondary-rate"
+              type="text"
+              inputmode="decimal"
+              class="glass-input rate-input"
+              bind:value={rate}
+              disabled={busy || secondary === ''}
+              placeholder="0.00"
+              aria-label="汇率 (1 {primary_currency} = X {secondary})"
+              data-testid="currency-add-rate"
+            />
+            <span class="rate-suffix">{secondary || '副币种'}/{primary_currency}</span>
+          </div>
+          <p class="hint">
+            提交后会创建正向 + 反向两条汇率记录, 修改时两方向同步。
+          </p>
+        </section>
+      {:else if mode === 'single' && has_bills}
+        <!-- ===== single + has_bills: 矛盾状态 (locked 提示) ===== -->
+        <section class="field">
+          <div class="locked-message" role="status" data-testid="currency-add-locked">
+            <span class="locked-icon" aria-hidden="true">🔒</span>
+            <div class="locked-text">
+              <p class="locked-title">当前账单已锁定, 无法添加副币种</p>
+              <p class="locked-sub">
+                已有账单后, 只能修改汇率, 不能改币种。
+              </p>
+            </div>
+          </div>
+          <p class="hint">
+            如需添加副币种, 请先删除所有账单 (本应用暂不支持)。
+          </p>
+        </section>
+      {:else if mode === 'multi' && !has_bills}
+        <!-- ===== multi + !has_bills: 修改币种设置 (本期仅汇率可改) ===== -->
+        <section class="field">
+          <label class="field-label" for="sbc-primary-currency">主币种</label>
+          <select
+            id="sbc-primary-currency"
+            class="glass-input currency-select currency-select--disabled"
+            bind:value={primary}
+            disabled={true}
+            title="改主币种功能开发中 (BE 未支持)"
+            data-testid="currency-edit-primary"
+          >
+            {#each primary_options as opt}
+              <option value={opt}>{opt}</option>
+            {/each}
+          </select>
+        </section>
+
+        <section class="field">
+          <label class="field-label" for="sbc-secondary-currency">副币种</label>
+          <select
+            id="sbc-secondary-currency"
+            class="glass-input currency-select currency-select--disabled"
+            bind:value={secondary}
+            disabled={true}
+            title="改副币种功能开发中 (BE 未支持)"
+            data-testid="currency-edit-secondary"
+          >
+            {#each primary_options as opt}
+              <option value={opt}>{opt}</option>
+            {/each}
+          </select>
+        </section>
+
+        <section class="field">
+          <label class="field-label" for="sbc-secondary-rate">汇率</label>
+          <div class="rate-row">
+            <span class="rate-prefix">1 {primary} =</span>
+            <input
+              id="sbc-secondary-rate"
+              type="text"
+              inputmode="decimal"
+              class="glass-input rate-input"
+              bind:value={rate}
+              disabled={busy}
+              placeholder="0.00"
+              aria-label="汇率 (1 {primary} = X {secondary})"
+              data-testid="currency-edit-rate"
+            />
+            <span class="rate-suffix">{secondary}/{primary}</span>
+          </div>
+          <p class="hint">
+            修改主币种 / 副币种功能开发中 (BE 未支持), 当前仅支持修改汇率。
+          </p>
+        </section>
+      {:else if mode === 'multi' && has_bills}
+        <!-- ===== multi + has_bills: 仅修改汇率 (主/副币种 locked chip) ===== -->
+        <section class="field">
+          <div class="field-label">主币种 (有账单, 不可改)</div>
+          <div class="primary-chip" aria-label="主币种: {primary_currency}">
+            <span class="lock-icon" aria-hidden="true">🔒</span>
+            <span class="primary-code">{primary_currency}</span>
+          </div>
+        </section>
+
+        <section class="field">
+          <div class="field-label">副币种 (有账单, 不可改)</div>
+          <div class="primary-chip primary-chip--secondary" aria-label="副币种: {secondary}">
+            <span class="lock-icon" aria-hidden="true">🔒</span>
+            <span class="primary-code">{secondary}</span>
+          </div>
+        </section>
+
+        <section class="field">
+          <label class="field-label" for="sbc-secondary-rate">汇率</label>
+          <div class="rate-row">
+            <span class="rate-prefix">1 {primary} =</span>
+            <input
+              id="sbc-secondary-rate"
+              type="text"
+              inputmode="decimal"
+              class="glass-input rate-input"
+              bind:value={rate}
+              disabled={busy}
+              placeholder="0.00"
+              title="已有账单, 只能修改汇率"
+              aria-label="汇率 (1 {primary} = X {secondary})"
+              data-testid="currency-edit-rate-bills"
+            />
+            <span class="rate-suffix">{secondary}/{primary}</span>
+          </div>
+          <p class="hint">
+            已有账单, 只能修改汇率 (主币种 / 副币种已锁定)。
+          </p>
+        </section>
+      {/if}
     </div>
 
     <footer class="modal-foot">
@@ -245,17 +499,19 @@
         on:click={close}
         disabled={busy}
       >
-        取消
+        {showSubmit ? '取消' : '关闭'}
       </button>
-      <button
-        type="button"
-        class="btn btn-primary"
-        on:click={handleSubmit}
-        disabled={!canSubmit}
-        data-testid="currency-add-submit"
-      >
-        {busy ? '添加中…' : '添加'}
-      </button>
+      {#if showSubmit}
+        <button
+          type="button"
+          class="btn btn-primary"
+          on:click={handleSubmit}
+          disabled={!canSubmit}
+          data-testid="currency-add-submit"
+        >
+          {submitLabel}
+        </button>
+      {/if}
     </footer>
   </div>
 </div>
@@ -264,7 +520,7 @@
   .modal-backdrop {
     position: fixed;
     inset: 0;
-    /* v0.3.18 #60 batch2 (PO #6837): 遮罩层更暗 + 模糊度加重, 让 modal 内容更突出. */
+    /* v0.3.18 #60 batch2 (PO #6837): 遮罩层更暗 + 模糊度加重. */
     background: rgba(15, 23, 42, 0.55);
     backdrop-filter: saturate(180%) blur(16px);
     -webkit-backdrop-filter: saturate(180%) blur(16px);
@@ -276,12 +532,6 @@
     animation: fadeIn 180ms cubic-bezier(0.16, 1, 0.3, 1);
   }
 
-  /* Self-contained glass surface: the modal does not rely on the
-   * .glass-card-soft global utility (not yet defined — only mentioned
-   * aspirationally in app.css). Inline here so the modal can drop into
-   * any page without touching app.css. Style matches the .glass-pill /
-   * .glass-input language: semi-transparent white + saturate(180%) blur(12px)
-   * + indigo border + soft inset highlight. */
   .modal {
     width: 100%;
     max-width: 360px;
@@ -292,7 +542,7 @@
     display: flex;
     flex-direction: column;
     background: rgba(255, 255, 255, 0.55);
-    /* v0.3.18 #60 batch2 (PO #6837): modal 内部玻璃模糊度加重, 跟遮罩层呼应. */
+    /* v0.3.18 #60 batch2: modal 内部玻璃模糊度加重. */
     backdrop-filter: saturate(200%) blur(20px);
     -webkit-backdrop-filter: saturate(200%) blur(20px);
     border: 1px solid rgba(99, 102, 241, 0.22);
@@ -369,6 +619,11 @@
     color: var(--gray-600);
     cursor: not-allowed;
   }
+  .primary-chip--secondary {
+    border-color: rgba(148, 163, 184, 0.30);
+    background: rgba(148, 163, 184, 0.10);
+    color: var(--gray-700);
+  }
   .lock-icon {
     font-size: 12px;
     line-height: 1;
@@ -379,15 +634,19 @@
     letter-spacing: 0.02em;
   }
 
-  /* Use .glass-input global utility (semitransparent + blur). The
-   * modal uses its own glass surface (defined inline below), so the input
-   * background contrast stays subtle. */
   .currency-select {
     /* Keep native select arrow visible on iOS Safari (where dropdown
      * overlay is OS-rendered). */
     appearance: auto;
     -webkit-appearance: menulist;
   }
+  .currency-select--disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    background: rgba(148, 163, 184, 0.10);
+    color: var(--gray-500);
+  }
+
   .rate-row {
     display: flex;
     align-items: center;
@@ -413,6 +672,49 @@
     color: var(--gray-600);
     white-space: nowrap;
     flex-shrink: 0;
+  }
+
+  .hint {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    color: var(--gray-500);
+    line-height: 1.4;
+  }
+
+  /* v0.3.19 #85 (PO #7308 改动 5): single + has_bills 矛盾状态显示灰色提示文案.
+   * 跟 form 字段区分: 12px gap + 20px emoji + 大段文字 (gray-600).
+   * tooltip 用 title 属性 (简单跨平台, 不用自定义 popover). */
+  .locked-message {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    background: rgba(148, 163, 184, 0.08);
+    border: 1px solid rgba(148, 163, 184, 0.20);
+    border-radius: 12px;
+  }
+  .locked-icon {
+    font-size: 20px;
+    line-height: 1.2;
+    flex-shrink: 0;
+  }
+  .locked-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .locked-title {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--gray-700);
+    line-height: 1.4;
+  }
+  .locked-sub {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    color: var(--gray-600);
+    line-height: 1.4;
   }
 
   .modal-foot {
