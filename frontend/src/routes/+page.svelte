@@ -16,7 +16,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { Wallet } from 'lucide-svelte';
-  import { user } from '$stores/user';
+  import { user, logout } from '$stores/user';
   import { FRONTEND_VERSION } from '$lib/version';
 
   // Background image: travel / friends sharing good times
@@ -41,6 +41,18 @@
       document.body.style.touchAction = '';
     };
   });
+
+  // v0.3.21 #102 (PO msg 14:53): logout 处理器 — landing 已登录显示退出超链接, 点击调用 logout() 清 user store
+  async function handleLogout() {
+    if (busy) return;
+    busy = true;
+    try {
+      await logout();
+    } catch (e) {
+      console.error("logout failed:", e);
+    }
+    busy = false;
+  }
 
   async function handleStartUsing() {
     if (busy) return;
@@ -105,6 +117,12 @@
       <p class="hint">
         {#if $user}
           已登录为 {$user.default_name}
+          <button
+            class="logout-link"
+            type="button"
+            onclick={handleLogout}
+            disabled={busy}
+          >退出登录</button>
         {:else}
           无需注册，直接使用
         {/if}
@@ -317,5 +335,34 @@
     margin-top: 1.25rem;
     font-size: 0.8125rem;
     color: rgba(255, 255, 255, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+  /* v0.3.21 #102 (PO msg 14:53): landing 已登录态 退出登录 超链接 — 跟主按钮同透明玻璃 ivory. */
+  .logout-link {
+    background: rgba(255, 255, 255, 0.20);
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    backdrop-filter: saturate(180%) blur(16px);
+    -webkit-backdrop-filter: saturate(180%) blur(16px);
+    color: #FFFFF0;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    cursor: pointer;
+    transition: background 0.18s, transform 0.1s;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  }
+  .logout-link:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.30);
+    border-color: rgba(255, 255, 255, 0.55);
+    transform: translateY(-1px);
+  }
+  .logout-link:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 </style>
