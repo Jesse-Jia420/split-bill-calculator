@@ -325,7 +325,6 @@
     font-size: 58px;
     letter-spacing: 0.18em;
     line-height: 1;
-    text-transform: lowercase;
 
     color: #E6ECF2;
     -webkit-text-stroke: 2px #FFFFFF;
