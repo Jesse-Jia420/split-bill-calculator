@@ -70,13 +70,9 @@
   /** v0.1.2 (fix #3): when mode === 'edit', prefill the form. */
   export let existingBill: Bill | null = null;
 
-  /**
-   * v0.2.1 T03 (PRD §3.6.3): when this prop > 0 the smart-date chips
-   * are suppressed (the session already has bills). When 0 — i.e. the
-   * first bill of the session — we render "今天 / 昨天 / 上周" quick
-   * chips above the date input. Only consulted in create mode.
-   */
-  export let existingBillsCount: number = 0;
+  // v0.3.20 #93 (PO msg 00:04 #7450): removed smart-date-chips prop + UI (T03).
+  // occurred_at default is now driven by getDefaultOccurredAt(primaryCurrency)
+  // (see Fix 4 — currency TZ default), so the chips were redundant.
 
   $: isEdit = mode === 'edit';
   $: canEditDescription = !isEdit;
@@ -89,7 +85,9 @@
   let amountExpression: string = '';
   let payerMemberId: number | null = null;
   let description = '';
-  let occurredAt: string = new Date().toISOString().slice(0, 16); // datetime-local
+  // v0.3.20 #93 (PO msg 00:04 #7450, Fix 4): occurred_at default = current time in session primary currency TZ.
+  // User can still manually edit the time (datetime-local input not locked).
+  let occurredAt: string = getDefaultOccurredAt(session.primary_currency);
   let currency = 'CNY';
 
   // v0.3.15 (PRD §3.15.2 #2): currencySymbol moved to
@@ -135,10 +133,8 @@
   let submitting = false;
   let descriptionPristine = true;
 
-  // v0.2.1 T02+T03: last-bill participants + smart date suggestions.
-  // These are read once on mount so the form can prefetch defaults before
-  // the user starts interacting.
-  let smartDateChips: Array<{ label: string; dateLocal: string }> = [];
+  // v0.2.1 T02: last-bill participants prefetched on mount.
+  // v0.3.20 #93 (PO msg 00:04 #7450): smartDateChips state removed (UI deleted).
   let lastParticipantsApplied = false;
 
   // v0.1.2 (T19 + fix #3): apply the caller-supplied default payer once
@@ -213,22 +209,9 @@
       lastParticipantsApplied = true;
     }
 
-    // v0.2.1 T03: 首笔 session (没有账单) 显示 3 个 chip 「今天 / 昨天 / 上周」。
-    // 非空时不显示 (避免不停呈现「今天」)。PRD §3.6.3。
-    if (existingBillsCount === 0 && !isEdit && session.members.length >= 1) {
-      const today = new Date();
-      const fmt = (d: Date) => {
-        const pad = (n: number) => String(n).padStart(2, '0');
-        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T08:00`;
-      };
-      const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
-      const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-      smartDateChips = [
-        { label: '今天', dateLocal: fmt(today) },
-        { label: '昨天', dateLocal: fmt(yesterday) },
-        { label: '上周', dateLocal: fmt(lastWeek) },
-      ];
-    }
+    // v0.3.20 #93 (PO msg 00:04 #7450): removed smart-date chips block (T03).
+    // Default-value behavior of occurredAt (today) is now driven by
+    // getDefaultOccurredAt(primaryCurrency) — see Fix 4.
   });
 
   function applyParticipantsDefault(memberIds: number[]) {
@@ -323,13 +306,47 @@
    * exclusive 金额调整走原生 number input (mobile keyboard 自带 + / - 控件).
    */
 
-
+  /**
+   * v0.3.20 #93 (PO msg 00:04 #7450, Fix 4): occurred_at default = current time in session primary currency TZ.
+   *
+   * Uses Intl.DateTimeFormat to fetch Y/M/D/H/m in the target TZ, then joins to
+   * datetime-local string. Avoids toLocaleString (which emits localised month names).
+   *
+   * Mapping:
+   *   CNY -> Asia/Shanghai   (UTC+8)
+   *   THB -> Asia/Bangkok   (UTC+7)
+   *   JPY -> Asia/Tokyo     (UTC+9)
+   *   USD -> America/New_York (UTC-5/-4 DST)
+   *   EUR -> Europe/Berlin  (UTC+1/+2 DST)
+   *   others -> UTC
+   */
+  function getDefaultOccurredAt(primaryCurrency: string): string {
+    const TZ_MAP: Record<string, string> = {
+      CNY: 'Asia/Shanghai',
+      THB: 'Asia/Bangkok',
+      JPY: 'Asia/Tokyo',
+      USD: 'America/New_York',
+      EUR: 'Europe/Berlin',
+    };
+    const tz = TZ_MAP[primaryCurrency] || 'UTC';
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).formatToParts(new Date());
+    const get = (t: string) => parts.find((p) => p.type === t)?.value || '00';
+    return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
+  }
 
   function buildPayload() {
     const participants: Array<{ member_id: number; is_exclusive: boolean; exclusive_amount: number }> = [];
     for (const m of session.members) {
       const st = participantState[m.id];
-      if (!st || !st.included) continue;
+      if (!st) continue;
       // v0.3.20 #91: amount 非法 (空 / NaN / ≤ 0) 时把 is_exclusive 也归零,
       // 避免发 "is_exclusive=true, exclusive_amount=0" 这种自相矛盾的状态.
       let is_exclusive = st.exclusive;
@@ -342,6 +359,15 @@
           is_exclusive = false;
         }
       }
+      // v0.3.20 #93 (PO msg 00:04 #7450, Fix 3): allow save when not-included but has exclusive amount.
+      // - included=true: in shared pool, exclusive adds own_exclusive on top (existing).
+      // - included=false AND is_exclusive=true AND excl>0: still push as participant
+      //   (is_exclusive=true, exclusive_amount=excl), so BE persists exclusive amount.
+      //   Trade-off: BE _compute_share_amounts counts presence in divisor, so other
+      //   participants share shrinks by excl/num_share. Full semantic (excluded_from_share)
+      //   needs future BE schema upgrade -- not blocking POs 'can save' goal.
+      // - Skip entirely: !included AND !(is_exclusive && excl > 0).
+      if (!st.included && !(is_exclusive && excl > 0)) continue;
       participants.push({
         member_id: m.id,
         is_exclusive,
@@ -514,22 +540,6 @@
       <input id="occurredAt" type="datetime-local" bind:value={occurredAt} />
       <span class="datetime-icon" aria-hidden="true">📅</span>
     </div>
-    <!-- v0.3.15 #4 (PO #4828): 把"快速选择日期"挪到发生时间段内, 行内快捷入口.
-         原 .smart-dates 是独立 segment; 现在跟 datetime-local input 视觉关联. -->
-    {#if smartDateChips.length > 0 && !isEdit}
-      <div class="quick-dates-inline" aria-label="快速日期">
-        <span class="muted hint">首笔账本 — 快速选择日期:</span>
-        <div class="chips">
-          {#each smartDateChips as chip}
-            <button
-              type="button"
-              class="chip"
-              on:click={() => (occurredAt = chip.dateLocal)}
-            >{chip.label}</button>
-          {/each}
-        </div>
-      </div>
-    {/if}
   </div>
 
   <div>
@@ -636,43 +646,6 @@
 </form>
 
 <style>
-  /* v0.3.15 #4 (PO #4828): 把"快速选择日期"挪到发生时间段内, 行内快捷入口.
-     - 父容器: gap 8px + margin-top 8px 跟 datetime-local input 视觉关联
-     - chip 本身样式 (背景 / 边框 / 圆角 / 字号 / min-height / active 颜色)
-       保持 v0.2.1 T03 原文不变, 只把 selector 从 .smart-dates → .quick-dates-inline */
-  .quick-dates-inline {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin-top: 8px;
-  }
-  .quick-dates-inline .chips {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-  .quick-dates-inline .chip {
-    appearance: none;
-    background: var(--color-bg, #fff);
-    border: 1px solid var(--color-border, #e5e7eb);
-    color: var(--color-text, #111827);
-    padding: 6px 14px;
-    border-radius: 999px;
-    font-size: var(--font-size-sm, 13px);
-    font-weight: 500;
-    min-height: 36px;
-    cursor: pointer;
-    transition: background-color 120ms ease, transform 80ms ease;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .quick-dates-inline .chip:active {
-    background: var(--accent-500, #3b82f6);
-    color: #fff;
-    border-color: var(--accent-500, #3b82f6);
-    transform: scale(0.97);
-  }
-
   /* v0.2.3 T14 (PRD §3.9.2): participants row layout.
      Each row = single main button (checkbox icon + name + optional
      exclusive-amount badge) + a chevron button. The chevron expands
@@ -798,22 +771,35 @@
     }
   }
 
-  /* shared (虚) — 浅白 bg + 淡紫 border + "个人消费 ¥"
-     hover: bg 提升 0.85→0.95 + border 0.18→0.30 */
+  /* v0.3.20 #93 (PO msg 00:04 #7450, Fix 2): unified glass on shared pill,
+     matches site-wide #21/#30/#49 glass language (backdrop-filter blur + saturate).
+     Shared still softer visually (white 0.55 vs exclusive indigo 0.18), but real glass.
+     hover: bg 0.55 -> 0.70 + border 0.18 -> 0.30. */
   .excl-pill-shared {
-    background: rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.55);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
     border: 1px solid rgba(99, 102, 241, 0.18);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.50),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.03),
+      0 2px 8px rgba(99, 102, 241, 0.06);
     padding: 0 12px;
     gap: 6px;
     justify-content: space-between;
     color: var(--gray-700, #334155);
   }
   .excl-pill-shared:hover {
-    background: rgba(255, 255, 255, 0.95);
+    background: rgba(255, 255, 255, 0.70);
     border-color: rgba(99, 102, 241, 0.30);
   }
   .excl-pill-shared:active {
-    background: rgba(99, 102, 241, 0.06);
+    background: rgba(99, 102, 241, 0.10);
+  }
+  @supports not (backdrop-filter: blur(1px)) {
+    .excl-pill-shared {
+      background: rgba(255, 255, 255, 0.85);
+    }
   }
   .pill-label {
     font-size: 13px;
@@ -828,19 +814,33 @@
     letter-spacing: -0.01em;
   }
 
-  /* v0.3.20 #92 (PO msg 07:13 #7409): exclusive (实) — 浅紫 bg + accent border + ¥ + input 双元素
-     focus: border 加深 accent-600. 删 stepper 后 pill 内只剩两个元素, padding 拉到对称 10px
-     让 ¥ 和 input 视觉居中, gap 4px 让两个元素不挤. */
+  /* v0.3.20 #92 (PO msg 07:13 #7409): exclusive (实) - indigo bg + accent border + ¥ + input 双元素.
+     focus: border 加深 accent-700.
+     v0.3.20 #93 (Fix 2): add backdrop-filter glass, same blur(20px) saturate(180%) as shared pill.
+     Exclusive visually stronger (bg 0.18 + border 0.55 + 12% outer shadow) to emphasise "实" feel. */
   .excl-pill-exclusive {
-    background: rgba(99, 102, 241, 0.10);
+    background: rgba(99, 102, 241, 0.18);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
     border: 1px solid rgba(99, 102, 241, 0.55);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.50),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.04),
+      0 2px 8px rgba(99, 102, 241, 0.12);
     padding: 0 10px;
     gap: 4px;
     cursor: default;
   }
   .excl-pill-exclusive:focus-within {
-    border-color: var(--accent-600, #4f46e5);
-    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+    border-color: var(--accent-700, #4338ca);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.55),
+      0 0 0 2px rgba(99, 102, 241, 0.20);
+  }
+  @supports not (backdrop-filter: blur(1px)) {
+    .excl-pill-exclusive {
+      background: rgba(99, 102, 241, 0.32);
+    }
   }
   .pill-currency {
     flex: 0 0 auto;
@@ -854,10 +854,12 @@
     line-height: 1;
     font-family: inherit;
   }
+  /* v0.3.20 #93 (Fix 2): exclusive pill-currency accent-600 -> accent-700 (deeper indigo) 配新玻璃 bg 0.18 */
   .excl-pill-exclusive .pill-currency {
-    color: var(--accent-600, #4f46e5);
+    color: var(--accent-700, #4338ca);
     font-weight: 600;
   }
+  /* v0.3.20 #93 (Fix 2): pill-input accent-600 -> accent-700 跟新 pill-currency 一致 */
   .pill-input {
     flex: 0 0 auto;
     width: 40px;
@@ -869,7 +871,7 @@
     margin: 0;
     font-size: 13px;
     font-weight: 600;
-    color: var(--accent-600, #4f46e5);
+    color: var(--accent-700, #4338ca);
     text-align: center;
     font-variant-numeric: tabular-nums;
     font-family: inherit;

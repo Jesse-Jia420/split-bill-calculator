@@ -570,7 +570,8 @@
                 <span class="day-date" data-testid="day-date">{formatDate(g.date, { weekday: true })}</span>
                 <span class="day-row-1-right">
                   <span class="day-count" data-testid="day-count">{g.bills.length} 笔</span>
-                  <span class="day-chevron" data-testid="day-chevron">{'›'}</span>
+                  <!-- v0.3.20 #93 (PO msg 00:04 #7450, Fix 5): chevron text moved to CSS ::before so details[open] can swap character (collapsed SINGLE-RIGHT-CHEVRON / expanded DOWN-CHEVRON) -->
+                  <span class="day-chevron" data-testid="day-chevron" aria-hidden="true"></span>
                 </span>
               </div>
               <div class="day-row-2">
@@ -893,10 +894,13 @@
      提升. saturate 180% 保留 (玻璃质感).
      v0.3.18 #68: 保留 sticky 行为 + mask-image 16px opaque (v0.3.17 #20),
      header 高度固定 = 3 行后滚动节奏绝对一致. */
+  /* v0.3.20 #93 (PO msg 00:04 #7450, Fix 7): day-header sticky top 改成 var(--bills-search-h, 50px),
+     让出 .bills-search (sticky top:0, ~46px 高) 给搜索框常驻.
+     z-index 从 10 -> 9 (低于 .bills-search 的 20, 让搜索框视觉浮在 day-header 上). */
   .section-header {
     position: sticky;
-    top: 0;
-    z-index: 10;
+    top: var(--bills-search-h, 50px);
+    z-index: 9;
     background: rgba(255, 255, 255, 0.65);
     backdrop-filter: saturate(180%) blur(20px);
     -webkit-backdrop-filter: saturate(180%) blur(20px);
@@ -1419,5 +1423,31 @@
     font-variant-numeric: tabular-nums;
     font-size: var(--font-size-sm);
     white-space: nowrap;
+  }
+
+  /* v0.3.20 #93 (PO msg 00:04 #7450, Fix 5): chevron collapse/expand flip.
+     Collapsed (default): single right chevron (matches existing).
+     Expanded (details[open]): down chevron.
+     Text content of .day-chevron is empty; pseudo-element renders the char. */
+  .day-chevron {
+    position: relative;
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    line-height: 14px;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--gray-500, #737373);
+    flex-shrink: 0;
+  }
+  .day-chevron::before {
+    content: "\203A"; /* single right chevron, collapsed state */
+  }
+  /* v0.3.20 #93 (Fix 5 v2): dropped .day-chevron.open::before fallback
+     (Svelte flags as unused since open class only set via runtime JS classList.toggle,
+     but parent's details[open] selector covers same use case visually). */
+  details[open] .day-chevron::before {
+    content: "\2304"; /* down chevron, expanded state */
   }
 </style>

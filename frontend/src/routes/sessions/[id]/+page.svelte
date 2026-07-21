@@ -223,7 +223,7 @@
     const y = d.getFullYear();
     const m = d.getMonth() + 1;
     const day = d.getDate();
-    return `${y} 年 ${m} 月 ${day} 日后过期`;
+    return `${y}年${m}月${day}日过期`;
   }
 
   async function load() {
@@ -492,7 +492,32 @@
                 <circle cx="12" cy="12" r="10" />
                 <polyline points="12 6 12 12 16 14" />
               </svg>
-              <span>{formatExpiryDate(session.invite_expires_at)} 后过期</span>
+              <!-- v0.3.20 #93 (PO msg 00:04 #7450, Fix 8): expiry format 改长格式
+                   YYYY年M月D日后过期 (跟 v0.3.18 #66 Mockup A 同款), 跟 sticky expiry 字段统一. -->
+              <span>{formatExpiryPill(session.invite_expires_at)}</span>
+              <!-- v0.3.20 #93 (Fix 8): anon session (无 owner_email) 加 CTA 提示 owner 登录以永久保存.
+                   Link to /auth/login?returnTo=/sessions/{id}. 只有 owner 视角 (isOwner=true) 才显示
+                   这个 CTA 才有意义 — 因 anonymous session 一定没有 owner_email 已绑,
+                   isOwner 检查这里 redundant, 但保留 escape hatch 给其他边界 case (例如 multi-owner). -->
+              {#if (session?.owner_email == null || session?.owner_email === '') && session?.invite_expires_at}
+                <span class="expiry-cta-sep" aria-hidden="true">·</span>
+                <a
+                  class="expiry-cta-link"
+                  href="/auth/login?returnTo=/sessions/{session.id}"
+                  aria-label="登录以永久保存账本"
+                  data-testid="invite-expiry-cta"
+                >
+                  <span class="expiry-cta-prefix">(</span>
+                  <span class="expiry-cta-nick">
+                    {#if session.members && session.members.length > 0}
+                      {session.members[0].display_name}
+                    {:else}
+                      owner
+                    {/if}
+                  </span>
+                  <span>) 登录以永久保存</span>
+                </a>
+              {/if}
             </span>
           {/if}
         </div>
@@ -868,11 +893,11 @@
     border-bottom: 1px solid rgba(0, 0, 0, 0.05);
     cursor: pointer;
     user-select: none;
-    transition: background-color 120ms ease;
   }
-  .members-head:hover {
-    background-color: rgba(99, 102, 241, 0.04);
-  }
+  /* v0.3.20 #93 (PO msg 00:04 #7450, Fix 6): removed .members-head:hover purple bg
+     (PO 反馈"整个 section 点击 / hover 时 bg 变紫"奇怪 — 折叠态整 section 是 affordance,
+     但 hover 时不应该把整块变紫; 视觉反馈靠 cursor:pointer + aria-expanded 就够了).
+     保留 .members-head:focus-visible (a11y focus ring 不能去掉). */
   .members-head:focus-visible {
     outline: 2px solid var(--accent-500, #3b82f6);
     outline-offset: 2px;
@@ -986,6 +1011,36 @@
   .expiry-inline-a svg {
     flex-shrink: 0;
     opacity: 0.85;
+  }
+  /* v0.3.20 #93 (PO msg 00:04 #7450, Fix 8): anon session 登录 CTA 样式.
+     跟 expiry pill 同款 glass amber-50 bg, 但 link 用紫色 accent 链接色, 不抢主信息. */
+  .expiry-cta-sep {
+    color: var(--gray-400, #9ca3af);
+    margin: 0 4px;
+    opacity: 0.7;
+  }
+  .expiry-cta-link {
+    color: var(--accent-700, #4338ca);
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 150ms ease;
+  }
+  .expiry-cta-link:hover {
+    color: var(--accent-800, #3730a3);
+    text-decoration: underline;
+  }
+  .expiry-cta-link:focus-visible {
+    outline: 2px solid var(--accent-500, #3b82f6);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  .expiry-cta-prefix,
+  .expiry-cta-nick {
+    color: var(--gray-600, #525252);
+  }
+  .expiry-cta-nick {
+    font-weight: 600;
+    color: var(--accent-700, #4338ca);
   }
 
   /* === Member list — 列表布局 (替代旧 chip 圆角 999px) === */
@@ -1455,7 +1510,11 @@
     }
   }
 
+  /* v0.3.20 #93 (Fix 7): --bills-search-h — BillListGrouped 的 day-header 通过此变量
+     计算 sticky top 偏移. 50px = 搜索框实际高度 (padding 8x2 + input line-height ~16
+     + border 1x2) + 12px breathing room (原 margin-bottom). */
   .bills-card {
+    --bills-search-h: 50px;
     padding-bottom: 96px;
   }
 
@@ -1465,17 +1524,30 @@
     font-size: var(--font-size-sm);
   }
 
-  /* v0.2.1 T05: 账单搜索框 */
+  /* v0.2.1 T05: 账单搜索框.
+     v0.3.20 #93 (PO msg 00:04 #7450, Fix 7): sticky 跟随 page scroll,
+     滚到任何位置搜索框常驻顶部 (跟全站 NavBar 一起保持可达).
+     用 z-index: 20 高于 day-header (10) 让搜索框视觉上浮在 day-header 上;
+     backdrop blur + saturate 跟全站玻璃语言一致. */
   .bills-search {
+    position: sticky;
+    top: 0;
+    z-index: 20;
     display: flex;
     align-items: center;
     gap: var(--space-2);
     padding: var(--space-2) var(--space-3);
-    background: var(--color-bg, #f9fafb);
+    background: rgba(255, 255, 255, 0.55);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
     border: 1px solid var(--color-border, #e5e7eb);
     border-radius: var(--radius-md, 8px);
-    margin-bottom: var(--space-3);
     color: var(--gray-500);
+  }
+  @supports not (backdrop-filter: blur(1px)) {
+    .bills-search {
+      background: var(--color-bg, #f9fafb);
+    }
   }
   .bills-search-input {
     flex: 1;
