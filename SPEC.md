@@ -2888,3 +2888,45 @@ seed 脚本 (`backend/scripts/seed_dev_data.py`) 已有 find-or-create 逻辑：
 - Footer (PO #7536 不管, 撤了的 footer 不恢复)
 - .btn-sm / .ghost indigo 渐变 (互动按钮要颜色)
 - AppBackground (z=-1 paper bg 不动)
+
+### §11. v0.3.20 #99-fix5 (2026-07-21) — NavBar alpha 再降 0.02 + 动态 navbar-h + 16px buffer (PO msg 14:29 #7602)
+
+**commit**: `8448a17` — `fix(fe): v0.3.20 #99-fix5 — NavBar alpha 0.05 → 0.02 + 动态 navbar-h + 16px buffer (PO msg 14:29 #7602)`
+
+**前置问题** (commit `9662f3d` #99-fix4, alpha 0.05 + fixed + padding 47.4px):
+- PO msg 14:29 #7602 反馈:
+  1. 降低透明度 — alpha 0.05 仍觉得有 wash
+  2. padding-top 除 navbar 高度外还要留空余 (navbar 实际 68.375px > padding 47.4px = 内容被盖 ~5px)
+
+**改动 2 处**:
+
+1. **NavBar.svelte (.navbar)**: `background: rgba(255, 255, 255, 0.05)` → `rgba(255, 255, 255, 0.02)`
+   - 几乎纯透明 (98% 透明), 只靠 backdrop-filter saturate(130%) blur(20px) 撑玻璃感
+   - paper bg 透 ~98% 接近完全无障碍看到原始 paper grain
+
+2. **+layout.svelte**:
+   - 加 `syncNavbarHeight()` 函数 (onMount + ResizeObserver): 把 `.navbar.getBoundingClientRect().height` 动态写回 `:root --navbar-h` CSS var
+   - 不同页面 navbar 高度不同 (logged-in 有 btn-sm touch-target 44px → navbar 68px, /auth/login 只有 brand → ~50px), 动态适应
+   - `.page` padding: `calc(var(--navbar-h) + env(safe-area-inset-top, 0px) + 16px) 0 0` — 自适应 navbar 实际高度 + safe-area + 16px buffer (PO 原话)
+
+**dev 验证** (iPhone 13 viewport 容器内 playwright 真机 walk):
+- computed: navbar height 68.375px, main padding-top 84.375px (= 68.375 + 16 buffer) ✓
+- 截图: `~/.openclaw/media/v0320-99-fix5/{navbar-alpha-002-padding-buffer,navbar-alpha-002-scroll60}.png`
+- /sessions/1 打开 navbar 浮顶部, 5 个成员头像在 navbar 下方 16px buffer (avatar 顶部不被盖)
+
+**反模式自查**:
+- ✅ 反 #162 git pull --ff-only (拉到 0142d26 #99-fix4 §11, 无冲突)
+- ✅ 反 #151 真 PNG 截图 (iPhone 13 真机 walk)
+- ✅ 反 #158 强制 Telegram 推送
+- ✅ 反 #150 真机 walk (login + 真 navigate + 看 pad+blur)
+
+**关联链 (5 步逼近 PO 视觉诉求)**:
+- #99 (08ac6e6): indigo gradient (错, 0 透)
+- #99-fix (54a03d4): white 0.55 (透 ~45%)
+- #99-fix2 (8083e15): white 0.20 (透 ~80%)
+- #99-fix3 (03a645c): white 0.05 + fixed 但 padding 不够 (透 ~95% + 部分被盖)
+- **#99-fix5 (8448a17)**: white 0.02 (近全透) + 动态 navbar-h + 16px buffer (PO 完整诉求)
+
+**不**在这个 commit:
+- AppBackground / paper bg / .btn-sm / .ghost 不动
+- @supports Safari <18 fallback 保留 0.85 opaque
