@@ -3039,3 +3039,74 @@ seed 脚本 (`backend/scripts/seed_dev_data.py`) 已有 find-or-create 逻辑：
 - NavBar bg 自身 (alpha 0.02 #99-fix5) 不动
 - 路由功能 / 其他组件不动
 - 留 v0.3.20 其它任务 (#91-#99 系列) 不动
+
+### §11. v0.3.21 #102 (2026-07-21) — NavBar ivory revert + landing 去 header + 已登录 logout (PO msg 14:53)
+
+**commit**: `e40eff4` — `refactor(fe): v0.3.21 #102 — NavBar ivory revert + landing 去 header + 已登录态 logout 链接 (PO msg 14:53)`
+
+**前置 (PO msg 14:47 #101)**: NavBar 4 元素 (.btn-sm / .ghost / .email) ivory
+**继续 (PO msg 14:53)**: "刚刚 header 里的各种文字颜色全部改回来" 等 4 项整改 — 这条 commit 把 #101 回滚 + landing 加 logout
+
+#### 4 项改动 (3 文件):
+
+**1) `frontend/src/lib/components/NavBar.svelte`** — 回滚到 cbda966 状态 (跟 #100 一致, 去掉 #101 加的 ivory)
+- `git checkout cbda966 -- frontend/src/lib/components/NavBar.svelte`
+- `.email` gray-500 muted (不是 ivory)
+- `.btn-sm` 蓝紫渐变 + indigo 0.25 border + accent-700 indigo text (不是 ivory 玻璃)
+- `.btn-sm:hover` 蓝紫更深 + indigo 0.32 border + accent-800 indigo
+- `.btn-sm` @supports fallback `rgba(99,102,241,0.08)` (不是 ivory 0.85)
+- `.ghost` 白渐变 + indigo 0.20 border (不是 ivory)
+- `.ghost:hover` 白渐变更亮 (不是 ivory 0.30)
+- `.ghost` @supports fallback `rgba(255,255,255,0.55)`
+- **保留 (没 revert)**: `.brand:hover { color: #FFFFF0 }` (PO #100 ivory hover 不在 #101 revert 范围)
+- 实测 Playwright computed `.btn-sm` color: `rgb(29, 78, 216)` = `#1D4ED8` indigo ✓
+
+**2) `frontend/src/routes/+layout.svelte`** — landing 不显示 NavBar + 删 / 重定向
+- 条件渲染: `{#if page.url.pathname !== '/'} <NavBar /> {/if}`
+- 删 `import { goto } from '$app/navigation'` (goto 不再用了)
+- onMount 删 `if (u && path === '/') await goto('/sessions')` — 让已登录用户访问 / 时能看到 landing (不会跳走)
+- onMount 只剩: `syncNavbarHeight()` + ResizeObserver + `await loadUser()`
+- 实测 Playwright:
+  - `/` (anon) navbar count = 0 ✓
+  - `/` (logged-in) navbar count = 0 ✓
+  - `/sessions/1` navbar count = 1 ✓
+
+**3) `frontend/src/routes/+page.svelte`** — 已登录态 button text + logout 链接
+- import: 增 `import { user, logout } from '$stores/user'` (login 路径)
+- handler: 加 `handleLogout` 函数, 调用 `logout()` 清 user store
+- button text 切换 (条件渲染已有): `$user` truthy → "进入我的账本" / "打开账本中…"; falsy → "直接开始使用" / "创建中…"
+- .hint block: 已登录态加 `<button class="logout-link" onclick={handleLogout}>退出登录</button>` 在 "已登录为 xxx" 文字右边
+- `.logout-link` CSS (新增):
+  - bg: `rgba(255,255,255,0.20)` (透明玻璃)
+  - border: `1px solid rgba(255,255,255,0.45)` (白 alpha)
+  - color: `#FFFFF0` (象牙白 text)
+  - backdrop-filter: `saturate(180%) blur(16px)`
+  - text-shadow: `0 1px 2px rgba(0,0,0,0.15)` (背景 readability)
+  - padding: `0.25rem 0.75rem` (小 pill 尺寸)
+  - border-radius: `9999px`
+  - hover: bg 0.30 + border 0.55 + translateY(-1px) lift
+  - disabled: opacity 0.5 + cursor not-allowed
+- `.hint` 升级: 加 `display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap` 让 "已登录为 xxx" + 退出登录 pill 同行排
+
+**dev 验证** (iPhone 13 真机 walk):
+- / anon — `直接开始使用` ivory 玻璃 主按钮 + 登录 link, 无 navbar ✓
+- / logged-in — `进入我的账本` ivory 玻璃 主按钮 + `已登录为 Jesse` + 退出登录 pill, 无 navbar ✓
+- /sessions/1 — NavBar 完整 (.btn-sm 回到 indigo 蓝色), 5 个 成员 avatars + 账单 ✓
+- 截图: `~/.openclaw/media/v0320-102-landing-cleanup/{landing-anon-no-header,landing-loggedin-no-header,sessions-1-reverted-indigo}.png`
+- vite HMR 2:54:35 PM + 2:54:43 PM + 2:55:00 PM 自动
+
+**反模式自查**:
+- ✅ 反 #162 git pull --ff-only (拉到 79e988e #101 §11, 无冲突)
+- ✅ 反 #151 真 PNG 截图 + computed style 实测
+- ✅ 反 #158 强制 Telegram 推送
+
+**关联** (4 项整改闭环):
+- #100 (cbda966): brand SplitIt + brand hover ivory + landing .btn-primary ivory 玻璃
+- #101 (0958060): NavBar 4 元素 ivory (今被 #102 revert)
+- **#102 (e40eff4)**: revert #101 NavBar ivory + landing 去 header + 已登录 logout 链接 — PO 原意图闭环
+
+**不**在这个 commit:
+- AppBackground (paper bg z=-1) 不动
+- routes 其他功能 / 路由 改动
+- v0.3.20 系列 (壁纸, sessions) 不动
+- 移动 /sessions 路由 (登已登录访问 / 不再跳, 但用户主动点 sessions bookmark 还是去 /sessions)
