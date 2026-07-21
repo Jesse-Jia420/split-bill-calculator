@@ -898,10 +898,16 @@
     /* v0.3.20 #96 (PO msg 02:41 #7467): padding-bottom 10 -> 2.
        PO "查看 5 人下边空白太多". 保留 border-bottom (members section
        跟下面账单 section 的视觉分隔, 不是 row3 的底边)
-       + margin-bottom 12px (section 间分隔, 跟 row3 无关). */
+       + margin-bottom 12px (section 间分隔, 跟 row3 无关).
+       v0.3.20 #98 (PO msg 13:36 #7532 #3): 删 border-bottom.
+       PO 反馈 "成员 section 的 查看 x 人的下方有一条线, 是分割线还是 button 的底边框?
+       我不想要这条线". 整条线 (1px solid rgba(0,0,0,0.05)) 直接 none 掉, 不用 opacity.
+       视觉分隔交给 margin-bottom: 12px (.members-card 跟下方 .bills-card 之间已有 12px 间距,
+       加上 .bills-card 自带 padding-top, 足够断开两块). row3 的 border-top (在上方) 不动,
+       那是 row2 <-> row3 之间的 affordance 分割 (跟这条线是不同 line). */
     padding: 0 0 2px 0;
     margin: 0 0 12px 0;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    border-bottom: none;
     cursor: pointer;
     user-select: none;
   }
@@ -1591,15 +1597,31 @@
      v0.3.20 #94 Fix 5 (PO msg 02:13 #7455): padding-top 8px → 18px (加 10px),
      给搜索框上方留呼吸空间 (sticky top:0 紧贴 nav bar, 视觉太挤).
      其他 padding-bottom 8px + 左右 12px 不变.
-     同步 --bills-search-h 50px → 60px (search region 加 10px, day-header sticky top 偏移跟着加). */
+     同步 --bills-search-h 50px → 60px (search region 加 10px, day-header sticky top 偏移跟着加).
+     v0.3.20 #98 (PO msg 13:36 #7532 #2): sticky top 0 → var(--space-2) (~8px).
+     之前 top:0 让 sticky 搜索框贴 NavBar 下边 (z-index 50 vs 20, NavBar 盖在上),
+     视觉零间距. PO 反馈"搜索框上方贴页面 header 贴的太多紧了, 要留点空隙".
+     改用 --space-2 spacing token 跟全站 spacing 一致; 不动 --bills-search-h
+     (那是搜索框自身高度, sticky top offset 是另一回事, BillListGrouped day-header
+     偏移由 --bills-search-h 推算, 不受 top 影响). */
   .bills-search {
     position: sticky;
-    top: 0;
+    top: var(--space-2);
     z-index: 20;
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    padding: 18px var(--space-3) var(--space-2);
+    /* v0.3.20 #98 (PO msg 13:36 #7532 #1): padding 上下对称.
+       原 18px var(--space-3) var(--space-2) (18 top + 8 bottom) 让 content area
+       偏 search box 顶部 ~5px (input 22px 填满 content area, flex 居中在
+       content area 内, 但 content area 不在 search box 中央). PO 反馈
+       "搜索框内文字还是没居中" — 文字在搜索框视觉上还是偏高.
+       padding 改 13px var(--space-3) 13px 让 content area 22px 精确居中在
+       search box 50px 高度里 (search top +13 + content 22 + 13 + 2 border = 50).
+       input 跟 .Search icon 都垂直居中于搜索框, placeholder 跟实际文字
+       在视觉中央. --bills-search-h 60px 不变 (那是 region 计算用, search 高度
+       仍是 50px, 实际 region 高度由 BillListGrouped 偏移自行处理). */
+    padding: 13px var(--space-3) 13px;
     background: rgba(255, 255, 255, 0.55);
     backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
@@ -1618,7 +1640,7 @@
     background: transparent;
     font-size: var(--font-size-sm, 14px);
     color: var(--gray-900);
-    padding: 4px 0;
+    padding: 0;
     min-width: 0;
     /* v0.3.20 #95 Fix 4 (PO msg 02:41 #7459): <input type="search"> 在 iOS Safari
        上默认 line-height ≈ 1.2 (normal), 跟 padding 4px 叠加后 input 物理高度
@@ -1626,8 +1648,25 @@
        实际视觉高度 ~62px. 默认 line-height 在 iOS 让 input text "top-aligned".
        修法: line-height: 1 (跟 font-size 同高 14px), text 精确居中在 font 高度.
        不改 input 高度 (padding 4 + content 14 + 4 = 22px) — 仍由 flex
-       align-items: center 把它放在父容器中央. */
-    line-height: 1;
+       align-items: center 把它放在父容器中央.
+       v0.3.20 #98 (PO msg 13:36 #7532 #1): placeholder 文字仍未 vertical-center.
+       v0.3.20 #95 只设了 line-height: 1, 但 <input type="search"> 在 iOS Safari
+       有自己的 intrinsic min-height (~22px) + native search 控件 padding (X button
+       内部留位), 让 placeholder 文字 baseline 偏 input 顶部 ~2-3px. PO 在 iPhone 13
+       (iOS Safari) 真机实测仍 "文字贴上边".
+       修法: 显式 height + line-height 匹配 (height 22px = font-size 14 + 内边距 8),
+       -webkit-appearance: none 重置 Safari native search 样式 (去 X button 内部
+       padding 占位, 去默认 min-height), margin: 0 去 Safari 默认外边距.
+       font: inherit (隐含) 保证 placeholder 跟 input 用同一 font metrics.
+       text-align: left 显式声明 (Safari <input type="search"> 默认 center 在某些
+       iOS 版本, 跟 text input 不一致). 整个 input 高度 22px 后, flex 父 align-items: center
+       把它放在搜索框中央, placeholder 跟实际输入文字位置完全一致. */
+    height: 22px;
+    line-height: 22px;
+    margin: 0;
+    -webkit-appearance: none;
+    appearance: none;
+    text-align: left;
   }
   .bills-search-input:focus {
     outline: none;
