@@ -288,7 +288,12 @@
     left: 0;
     right: 0;
     bottom: 0;
-    z-index: 100;
+    /* v0.3.20 #95 Fix 1 (PO msg 02:41 #7459): z-index 100 → 150. FAB (返回 + 保存)
+       z-index=100, sheet 100 会让 FAB 浮在 sheet 上 → 视觉上"键盘遮不住 FAB"。
+       提到 150 后 sheet 视觉上盖住 FAB, 跟桌面端 floating-bottom-keyboard
+       一致。backdrop (z=99) 仍低于 FAB (z=100) → FAB 在 backdrop 之上可见,
+       键盘弹起时 backdrop 不灭 FAB, sheet 直接接管覆盖。 */
+    z-index: 150;
     background: var(--color-bg, #fff);
     border-top: 1px solid var(--color-border, #e5e7eb);
     box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.06);
