@@ -2834,3 +2834,57 @@ seed 脚本 (`backend/scripts/seed_dev_data.py`) 已有 find-or-create 逻辑：
 **不**在这个 commit:
 - Footer / AppBackground / .btn-sm 不动 (PO 没否定)
 - @supports fallback bg 0.85 保留 (Safari <18 fallback 时仍要 opaque, 不跟着 alpha 降)
+
+### §11. v0.3.20 #99-fix4 (2026-07-21) — NavBar 升 fixed 让内容能透过来 (PO msg 14:26 #7585)
+
+**commit**: `9662f3d` — `fix(fe): v0.3.20 #99-fix4 — NavBar 升 position:fixed + main 加 padding-top (PO msg 14:26 #7585 下边页面东西不能透过 header)`
+
+**前置问题** (commit `03a645c` #99-fix3, alpha 0.05):
+- PO msg 14:26 #7585: "看起来不是透明度的问题。为什么下边页面的东西不能通过 header 透过来"
+- 根因: NavBar 是 `display: flex` 默认 `position: relative` 静态布局, 在 body flex
+  column 里占单独一 row; main.page 内容在它下面, flex 纵向排列, 滚动时 main 内容
+  不重叠 navbar 区域 → backdrop-filter blur 找不到可模糊内容 (没东西在 navbar 后面)
+
+**改动 2 处**:
+- **NavBar.svelte (.navbar)**: 加 `position: fixed; top:0; left:0; right:0; z-index: 100; width: 100%;`
+  - 出 body flex column 流 (其他 flex 子项自动重排: AppBackground(0) / Toast(0) / main(flex 1))
+  - z-index 100 让 navbar 浮在所有内容之上 (AppBackground z=-1, main 默认 z=auto=0)
+  - bg `rgba(255, 255, 255, 0.05)` + `backdrop-filter saturate(130%) blur(20px)` 保留
+- **NavBar.svelte (+):global(:root) { --navbar-h: calc(2 * var(--space-3) + 24px); }** 
+  暴露 navbar 高度给 layout.svelte padding-top 用
+- **+layout.svelte (.page)**: `padding: 0` → `padding: calc(var(--navbar-h, 56px) + env(safe-area-inset-top, 0px)) 0 0`
+  - 推内容起步到 navbar 之下 (避免首屏被盖)
+  - 滚动后内容从下方滑过 navbar 区域被 backdrop-filter blur 模糊 (PO 诉求)
+- **NavBar.svelte comment**: 修正 "navbar 是 body flex column 第一项" → "fixed 浮在内容之上 z-100"
+
+**不变**:
+- bg alpha 0.05 + saturate(130%) blur(20px) (玻璃语言)
+- inset highlight + border-bottom (玻璃分隔)
+- @supports Safari <18 fallback 0.85 opaque
+- .btn-sm / .ghost 仍 indigo→blue 渐变
+- AppBackground (paper bg) z=-1, 永远在底
+
+**dev 验证** (iPhone 13 viewport 容器内 playwright real-machine walk):
+- /auth/login — Split Bill 浮顶部, paper texture 透过 navbar (跟 #99-fix3 一致)
+- /sessions/1 — Split Bill + 我的账本 + Jesse + 注销登录 + 汇率都浮顶部 (z-100 fixed), 5 个成员 avatars 区域在 navbar 正下方 (padding-top 47.4px)
+- computed style 实测: .navbar `position=fixed, z-index=100, bg=rgba(255,255,255,0.05), backdrop-filter=saturate(1.3) blur(20px)` ✓
+- 截图: `~/.openclaw/media/sbc-shots/{navbar-session-real,navbar-session-scroll60,navbar-session-scroll200}.png`
+- HMR 自动更新 (2:28:07 PM NavBar + 2:28:13 PM +layout)
+
+**反模式自查**:
+- ✅ 反 #162 git pull --ff-only (拉到 3999f9f #99-fix3 SPEC, 无冲突)
+- ✅ 反 #151 真 PNG (iPhone 13 真机 walk, computed style 实测)
+- ✅ 反 #158 强制 Telegram 推送 (本条)
+- ✅ 反 #150 真机验证 (登录 + 真 navigate /sessions/1)
+
+**关联链 (4 步逼近 PO 视觉诉求)**:
+- #99 (08ac6e6): indigo gradient (错, 0 透)
+- #99-fix (54a03d4): white 0.55 (透 ~45%)
+- #99-fix2 (8083e15): white 0.20 (透 ~80%)
+- #99-fix3 (03a645c): white 0.05 (透 ~95%)
+- **#99-fix4 (9662f3d): 升 fixed + padding-top, 让 backdrop-filter 真正接住下面滚动内容** — 解决 PO "下边东西不能透过来" 问题
+
+**不**在这个 commit:
+- Footer (PO #7536 不管, 撤了的 footer 不恢复)
+- .btn-sm / .ghost indigo 渐变 (互动按钮要颜色)
+- AppBackground (z=-1 paper bg 不动)
