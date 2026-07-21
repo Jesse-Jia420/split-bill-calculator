@@ -3614,3 +3614,109 @@ image tool 视觉验证 (03 截图):
 - 上游: 660dc27 #85 重写基础 commit (4 模式核心)
 - 上游: fea46f4 + c40270a verification scripts
 - 不动: v0.3.20 #91-#99 + v0.3.21 #100-#105 (其他 sprint 无关)
+
+### §11. v0.3.19 #85 v3 (2026-07-21 16:46) — PO #7731 5 项反馈再修
+
+**commit**: `fb6cd24` — `fix(fe): v0.3.19 #85 v3 — PO #7731 5 项反馈修`
+**commit**: `6444892` — verification script
+
+**PO msg 16:44 #7731 (5 项)**:
+1. 币种弹窗中, 有账单不可改币种时, 把锁的 icon 换成与 app 其它 icon 统一风格的锁 icon
+2. 币种弹窗存在时, 目前还可上下滑动页面, 改为不可滑动
+3. 刚刚说币种弹窗中, 主币种、副币种放在同一行, 怎么没做? (跟进: 把 multi+has_bills 也做)
+4. 币种弹窗中, 汇率处表述不清楚: "1 主币种 = xx 副币种/主币种". 应该是: "1 主币种 = xx 副币种"
+5. 币种弹窗中, 取消和保存汇率按钮换为圆形按钮, 取消为叉, 保存为对勾 (与账单保存 consistency)
+
+**改动 1 文件** (`CurrencyAddModal.svelte` +169 / -42):
+
+#### #1 Lock icon 统一 Lucide 风格
+- `import { Lock, X as XIcon, Check } from 'lucide-svelte'`
+- 3 处 🔒 emoji → `<Lock size={11/20} strokeWidth={2.5/2.2} />` (size 11 chip 内 / size 20 locked 提示框)
+- `.lock-icon` CSS 改 `display: inline-flex` 居中 + `color: var(--accent-700)` 跟 chip 配
+- `.locked-icon` 同改 (single+has_bills 大 locked 提示框)
+- 视觉: 跟其它 Lucide icon (ArrowLeft / XIcon / Check) 同款 SVG 风格, 描边一致
+
+#### #2 弹窗存在锁页面滚动
+- `import { onMount } from 'svelte'`
+- onMount find `<main>` 设 `overflow: hidden` + `overscroll-behavior: contain`
+- 返回 cleanup 函数恢复原值
+- 基础: `+layout.svelte` 在 v0.3.17 #30 已经 `body overflow: hidden + main overflow-y: auto` (iOS app-shell pattern),
+  所以页面滚动发生在 `<main>`, 锁 main 即可
+- `overscrollBehavior: contain` 防止 modal 边缘 rubber-band 触到 body 滚动 (iOS Safari quirk)
+
+#### #3 多+有账单 chip 也同行 (PO 跟进)
+- 2 个 stacked `<section class="field">` 主/副 chip → 1 个 `.currency-pair-row` 包 2 `.currency-pair-col` + `.currency-pair-arrow` "⇄" 居中
+- 跟 multi+!has_bills (selects) 同款 layout — 视觉一致: `CNY ⇄ THB` 同行
+- 新 CSS `.currency-pair-arrow` (居中 + accent-500 color + padding-bottom 22px 跟 chip baseline 视觉对齐)
+- 1:1 等宽分栏, modal max-width 360px 内 fit
+
+#### #4 汇率表述简化
+- `rate-suffix` 删 `/主币种` 冗余 (单位已经在 meaning 里 forward rate = 1 primary = X secondary):
+  - `single + !has_bills`: `{secondary || '副币种'}/{primary_currency}` → `{secondary || '副币种'}`
+  - `multi + !has_bills`: `{secondary}/{primary}` → `{secondary}`
+  - `multi + has_bills`: `{secondary}/{primary}` → `{secondary}`
+- 最终显示: `1 CNY = 4.65116279 THB` (无 /CNY)
+
+#### #5 圆形 FAB button (跟账单保存 consistency)
+- 删除 `.btn .btn-ghost .btn-primary` 整组 (text button 无用)
+- 新增 `.fab` 圆形 44×44 button (display:grid + place-items:center 居中 icon)
+- `.fab--cancel` (左, gray/white 玻璃 secondary): white 0.45 bg + gray border + gray icon
+- `.fab--submit` (右, indigo→blue gradient glass primary): gradient bg + 蓝紫阴影 + white icon
+- `.modal-foot` 改 `justify-content: space-between` (X 左 / ✓ 右 并列, 跟 iOS modal alert 同款)
+- icon:
+  - cancel → `<XIcon size={22} strokeWidth={2.5} />` (lucide-X)
+  - submit → `<Check size={22} strokeWidth={2.5} />` (lucide-check)
+- aria-label 替代 text label: "取消"/"保存汇率"/"添加"/"修改"/"关闭"
+- hover scale 1.03 + active scale 0.95 (iOS touch 反馈)
+- focus-visible outline (a11y)
+
+**保持不动**:
+- v0.3.18 #53 / v0.3.18 #60 batch2 / v0.3.20 #93 Fix 9 / #94 Fix 2 modal glass language
+- modal max-width 360px + 内边距
+- 4 模式 conditional 逻辑不变 (single+!has_bills / single+has_bills / multi+!has_bills / multi+has_bills)
+- BE / 路由 / SessionCurrencyBadge
+
+**dev 验证** (iPhone 13 真机 walk, 3 张 PNG in `~/.openclaw/media/v0319-85-v3-5items/`):
+
+实测 Playwright 断言 (`scripts/screenshot-v0319-85-v3-po7731-5items.cjs`):
+
+| # | 验证项 | 实测 | 期望 | 结论 |
+|---|------|------|------|------|
+| 1 | multi+has_bills chip lock 数 | 2 | 2 | ✓ |
+| 1 | lock 是否 SVG (lucide SVG) | ✓ | true | ✓ |
+| 1 | single primary chip lock | SVG 11×11 | SVG 11×11 | ✓ |
+| 2 | 弹窗打开 main.overflow | "hidden" | "hidden" | ✓ 锁滚动 |
+| 2 | 多+无账单 main.overflow | "hidden" | "hidden" | ✓ |
+| 2 | 关闭弹窗恢复 | "hidden auto" | 默认 (hidden auto #30 layout) | ✓ |
+| 3 | multi+has_bills .currency-pair-row | 存在 | true | ✓ |
+| 3 | 2 .currency-pair-col | 2 | 2 | ✓ |
+| 3 | .currency-pair-arrow (⇄) | 存在 | true | ✓ |
+| 3 | 两 chip y | [239, 239] | 同 y | ✓ 同行 |
+| 4 | multi+has_bills rate-suffix | "THB" | "THB" 无 /CNY | ✓ |
+| 4 | multi+!has_bills rate-suffix | "HKD" | "HKD" | ✓ |
+| 4 | single+!has_bills rate-suffix | "副币种" | "副币种" (空占位) | ✓ |
+| 5 | cancel 按钮 44×44 圆形 | ✓ 真圆 | 44×44 | ✓ |
+| 5 | submit 按钮 44×44 圆形 | ✓ 真圆 | 44×44 | ✓ |
+| 5 | cancel SVG class | lucide-icon lucide lucide-x | lucide-x | ✓ |
+| 5 | submit SVG class | lucide-icon lucide lucide-check | lucide-check | ✓ |
+| 5 | 3 模式 (multi+hb / multi+!hb / single+!hb) cancel + submit 都圆形 | ✓ × 3 | ✓ × 3 | ✓ |
+
+3 张截图 (`~/.openclaw/media/v0319-85-v3-5items/`):
+- `01-multi-has-bills-all-5-items.png` — session 1 (CNY+THB) 主+副 chip 同行 + 圆形按钮
+- `02-multi-no-bills-all-5-items.png` — session 2 (CNY+HKD 0 bills) 主+副 select 同行 + 圆形按钮
+- `03-single-no-bills-all-5-items.png` — session 3 (CNY 0 bills) 单 chip 锁 + 圆形按钮
+
+**反模式自查**:
+- 反 #161 v3 ✅ 字面执行 PO 5 项反馈 (Lucide / 锁滚动 / 多+hb 也同行 / 汇率去冗余 / 圆形 FAB)
+- 反 #158 ✅ 强制 Telegram 推送
+- 反 #162 ✅ git pull --ff-only before commit (本地 0 ahead)
+- 反 #150 ✅ Master 自写自验 (Playwright 程序化 + 视觉)
+- 反 #167 ✅ iPhone 13 真机 profile
+- 反 #151 ✅ 真 PNG 截图
+- 反 #170 ✅ codeserver_exec_clean.js
+- 反 #146 ✅ 完整 token (Lucide icon 同款 / .fab 跟 .glass-pill 同源 token / 44×44 iOS touch target 标准)
+
+**关联**:
+- 上游: c6ae4b9 #85 v2 (4 反馈)
+- 上游: 660dc27 #85 重写 (4 模式基础)
+- 不动: v0.3.20 #91-#99 + v0.3.21 #100-#105 (其他 sprint)
