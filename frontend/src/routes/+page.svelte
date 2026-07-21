@@ -20,7 +20,7 @@
    * + soft cool drop shadow). Tagline emphasis「撕不裂」— same italic-serif glass
    * material at 42px (not 40 — at 40 the 1.5px stroke / top specular degrades to
    * faint at @1x; 42 + 1.8px keeps rim crisp). Buttons swapped (primary = 登录,
-   * ghost = 直接开始使用), with .or-row middle divider ("或 · 无需注册，直接使用")
+   * ghost = 直接开始使用), with .or-row middle divider ("或 · 无需注册，")
    * and removed bottom .hint for anonymous state (hint copy migrated to .or-row).
    * Logged-in state keeps .hint with logout link (unchanged).
    */
@@ -138,7 +138,7 @@
           <a href="/auth/login" class="btn-primary">登录</a>
           <div class="or-row">
             <span class="or-char">或</span>
-            <span>无需注册，直接使用</span>
+            <span>无需注册，</span>
           </div>
           <button
             type="button"
@@ -349,7 +349,7 @@
 
   .tagline {
     font-size: 2.25rem;
-    font-weight: 700;
+    font-weight: 500;  /* v0.3.21 #106.1 (PO msg 17:30): 700 -> 500 让中文段细一点 */
     color: #fff;
     margin: 0 0 0.75rem;
     line-height: 1.15;
@@ -542,7 +542,7 @@
     .btn-primary:focus, .btn-ghost:focus { outline: none; }
   }
 
-  /* v0.3.21 #106 (PO msg 16:58 #4): "或 · 无需注册，直接使用" middle row —
+  /* v0.3.21 #106 (PO msg 16:58 #4): "或 · 无需注册，" middle row —
      坐在两个按钮之间, 同删掉的底部 .hint 同灰色保持视觉重量不变. "或"
      略重 (500) 作 soft divider glyph; 紧 padding 让两个按钮仍读作
      一个 CTA cluster. */
