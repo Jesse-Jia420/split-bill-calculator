@@ -895,7 +895,11 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
-    padding: 0 0 10px 0;
+    /* v0.3.20 #96 (PO msg 02:41 #7467): padding-bottom 10 -> 2.
+       PO "查看 5 人下边空白太多". 保留 border-bottom (members section
+       跟下面账单 section 的视觉分隔, 不是 row3 的底边)
+       + margin-bottom 12px (section 间分隔, 跟 row3 无关). */
+    padding: 0 0 2px 0;
     margin: 0 0 12px 0;
     border-bottom: 1px solid rgba(0, 0, 0, 0.05);
     cursor: pointer;
@@ -963,7 +967,14 @@
     align-items: center;
     justify-content: center;
     gap: 4px;
-    min-height: 24px;
+    /* v0.3.20 #96 (PO msg 02:41 #7467): min-height 24 -> 20.
+       配合 .members-head padding-bottom 10 -> 2, 整体 row3 下方空白
+       从 ~24px 降到 ~5px ("查看 N 人" 文字下到 .members-head
+       border-bottom 之间).
+       PO 明确 "上边有分割线就行, 下边不需要分割线" -- row3 本就没
+       border-bottom (上方 border-top 保留作 row2 <-> row3 分隔),
+       这里只调内部 min-height. */
+    min-height: 20px;
     margin-top: 4px;
     padding-top: 6px;
     border-top: 1px solid rgba(0, 0, 0, 0.05);

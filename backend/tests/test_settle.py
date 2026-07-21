@@ -752,6 +752,201 @@ class TestSettlePerMemberBreakdown:
         assert _f(pm[alice_mid]["total_paid"]) == 1000.0
         assert _f(pm[alice_mid]["net"]) == 400.0  # paid 1000, owes 600
 
+    # ----------------------------------------------------------------
+    # v0.3.20 #96 regression tests (PO msg 02:41 #7467)
+    # ----------------------------------------------------------------
+    # PO case: bill #95 (早餐 336 CNY, 2 参与者, Jesse 独占 36 CNY).
+    # FE previously showed "分摊 168" (= 336 / 2, ignoring exclusive).
+    # Expected "分摊 150" for Q (non-exclusive) and "分摊 186" for Jesse
+    # (150 shared + 36 exclusive). The BE math was already correct via
+    # _compute_share_amounts; the bug was in the FE that did
+    # ``b.amount / n`` instead of using p.share_amount. These tests
+    # pin the BE math so a future refactor cannot silently regress.
+
+    def test_share_amount_subtracts_exclusive_po_bill95(
+        self, client: TestClient
+    ) -> None:
+        """v0.3.20 #96 (PO msg 02:41 #7467, bill #95).
+
+        Bill = 336 CNY, 2 participants (Alice exclusive 36 + Bob non-exclusive).
+        Expected per BE: shared_pool = 300, per_user_shared = 150.
+          - Alice (exclusive 36): share = 150 + 36 = 186.
+          - Bob   (no exclusive):  share = 150 +  0 = 150.
+
+        PO reported the FE was rendering 168 (= 336/2). The BE math
+        here is the source of truth the FE should consume.
+        """
+        c = _login_as("alice@settle.local")
+        sid, mids = _make_session_with_members(
+            member_emails=[("bob@settle.local", "Bob")],
+        )
+        alice_mid = mids["alice@settle.local"]
+        bob_mid = mids["bob@settle.local"]
+        _insert_bill(
+            session_id=sid,
+            payer_id=alice_mid,
+            amount=336.0,
+            parts=[
+                {"member_id": alice_mid, "is_exclusive": True, "exclusive_amount": 36.0},
+                {"member_id": bob_mid},
+            ],
+            description="breakfast",
+        )
+
+        r = c.get(f"/sessions/{sid}/settle")
+        pm = {p["member_id"]: p for p in r.json()["per_member"]}
+
+        alice_share = _f(pm[alice_mid]["consumed_bills"][0]["share_amount"])
+        bob_share = _f(pm[bob_mid]["consumed_bills"][0]["share_amount"])
+
+        assert alice_share == 186.0  # 150 shared + 36 exclusive
+        assert bob_share == 150.0    # 150 shared, no exclusive
+
+    def test_share_amount_single_participant_all_exclusive(
+        self, client: TestClient
+    ) -> None:
+        """v0.3.20 #96 edge case: 1 participant, all-exclusive.
+
+        Bill = 100, 1 participant, exclusive 100 (covers entire bill).
+        shared_pool = 0; per_user_shared = 0 / 1 = 0.
+        share = 0 + 100 = 100 (full bill). No money leaks.
+        Net = paid 100 - consumed 100 = 0.
+        """
+        c = _login_as("alice@settle.local")
+        sid, mids = _make_session_with_members(member_emails=[])
+        alice_mid = mids["alice@settle.local"]
+        _insert_bill(
+            session_id=sid,
+            payer_id=alice_mid,
+            amount=100.0,
+            parts=[{"member_id": alice_mid, "is_exclusive": True, "exclusive_amount": 100.0}],
+            description="solo dinner",
+        )
+
+        r = c.get(f"/sessions/{sid}/settle")
+        pm = {p["member_id"]: p for p in r.json()["per_member"]}
+
+        assert _f(pm[alice_mid]["consumed_bills"][0]["share_amount"]) == 100.0
+        assert _f(pm[alice_mid]["consumed_bills"][0]["exclusive_amount"]) == 100.0
+        assert _f(pm[alice_mid]["total_consumed"]) == 100.0
+        assert _f(pm[alice_mid]["total_paid"]) == 100.0
+        assert _f(pm[alice_mid]["net"]) == 0.0  # paid 100, owes 100
+
+    def test_share_amount_two_participants_both_exclusive(
+        self, client: TestClient
+    ) -> None:
+        """v0.3.20 #96 edge case: 2 participants, both fully exclusive.
+
+        Bill = 100, 2 participants each with exclusive 30 (60 total).
+        exclusive_total = 60; shared_pool = 40; per_user_shared = 40/2 = 20.
+          - Alice: share = 20 + 30 = 50.
+          - Bob:   share = 20 + 30 = 50.
+        Sum of shares = 100 == bill amount (no money leaks).
+        """
+        c = _login_as("alice@settle.local")
+        sid, mids = _make_session_with_members(
+            member_emails=[("bob@settle.local", "Bob")],
+        )
+        alice_mid = mids["alice@settle.local"]
+        bob_mid = mids["bob@settle.local"]
+        _insert_bill(
+            session_id=sid,
+            payer_id=alice_mid,
+            amount=100.0,
+            parts=[
+                {"member_id": alice_mid, "is_exclusive": True, "exclusive_amount": 30.0},
+                {"member_id": bob_mid,   "is_exclusive": True, "exclusive_amount": 30.0},
+            ],
+            description="both exclusive",
+        )
+
+        r = c.get(f"/sessions/{sid}/settle")
+        pm = {p["member_id"]: p for p in r.json()["per_member"]}
+
+        assert _f(pm[alice_mid]["consumed_bills"][0]["share_amount"]) == 50.0
+        assert _f(pm[bob_mid]["consumed_bills"][0]["share_amount"]) == 50.0
+        # Conservation: sum of shares == bill amount.
+        assert _f(pm[alice_mid]["total_consumed"]) + _f(pm[bob_mid]["total_consumed"]) == 100.0
+
+    def test_share_amount_no_exclusive_back_compat(
+        self, client: TestClient
+    ) -> None:
+        """v0.3.20 #96 regression: with no exclusives, per-user share
+        is the naive ``amount / num_participants`` (preserves v0.3.1
+        and earlier behaviour). This is the same code path the FE
+        used to mimic (and why the bug stayed invisible for years
+        when bills had no exclusive portions).
+        """
+        c = _login_as("alice@settle.local")
+        sid, mids = _make_session_with_members(
+            member_emails=[
+                ("bob@settle.local", "Bob"),
+                ("carol@settle.local", "Carol"),
+                ("dave@settle.local", "Dave"),
+            ],
+        )
+        alice_mid = mids["alice@settle.local"]
+        _insert_bill(
+            session_id=sid,
+            payer_id=alice_mid,
+            amount=200.0,
+            parts=[
+                {"member_id": alice_mid},
+                {"member_id": mids["bob@settle.local"]},
+                {"member_id": mids["carol@settle.local"]},
+                {"member_id": mids["dave@settle.local"]},
+            ],
+            description="4-way AA",
+        )
+
+        r = c.get(f"/sessions/{sid}/settle")
+        pm = {p["member_id"]: p for p in r.json()["per_member"]}
+
+        # Naive 200 / 4 = 50 per person; exclusive_amount = 0 for everyone.
+        for mid in (alice_mid, mids["bob@settle.local"], mids["carol@settle.local"], mids["dave@settle.local"]):
+            assert _f(pm[mid]["consumed_bills"][0]["share_amount"]) == 50.0
+            assert _f(pm[mid]["consumed_bills"][0]["exclusive_amount"]) == 0.0
+
+    def test_bills_endpoint_share_amount_subtracts_exclusive_po_bill95(
+        self, client: TestClient
+    ) -> None:
+        """v0.3.20 #96 (PO msg 02:41 #7467): same bill #95 case via the
+        bills list endpoint (``GET /sessions/{id}/bills``), which the FE
+        BillListGrouped consumes. The ``participants[*].share_amount``
+        field MUST return 150 for Q so the FE can render the correct
+        per-bill "分摊" value.
+
+        This is the exact shape the FE utility ``yourShare`` (in
+        ``frontend/src/lib/utils/bill-share.ts``) now reads.
+        """
+        c = _login_as("alice@settle.local")
+        sid, mids = _make_session_with_members(
+            member_emails=[("bob@settle.local", "Bob")],
+        )
+        alice_mid = mids["alice@settle.local"]
+        bob_mid = mids["bob@settle.local"]
+        _insert_bill(
+            session_id=sid,
+            payer_id=alice_mid,
+            amount=336.0,
+            parts=[
+                {"member_id": alice_mid, "is_exclusive": True, "exclusive_amount": 36.0},
+                {"member_id": bob_mid},
+            ],
+            description="breakfast",
+        )
+
+        r = c.get(f"/sessions/{sid}/bills")
+        bills = r.json()
+        assert len(bills) == 1
+        parts = {p["member_id"]: p for p in bills[0]["participants"]}
+
+        # Both shapes the FE relies on:
+        assert _f(parts[alice_mid]["share_amount"]) == 186.0
+        assert _f(parts[alice_mid]["exclusive_amount"]) == 36.0
+        assert _f(parts[bob_mid]["share_amount"]) == 150.0
+        assert _f(parts[bob_mid]["exclusive_amount"]) == 0.0
+
     def test_per_member_exclusive_amount_field_always_present(
         self, client: TestClient
     ) -> None:
