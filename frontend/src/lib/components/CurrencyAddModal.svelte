@@ -52,7 +52,7 @@
   import { Lock, X as XIcon, Check } from 'lucide-svelte';
   import { toast } from '$stores/toast';
   import { ApiError } from '$api/client';
-  import { addSessionCurrency, type SessionDetail } from '$api/sessions';
+  import { addSessionCurrency, deleteSessionCurrency, type SessionDetail } from '$api/sessions';
   import type { SessionExchangeRate } from '$api/sessions';
 
   /** SUPPORTED_CURRENCIES — 跟 backend/app/api/sessions.py 保持一致.
@@ -103,10 +103,20 @@
   );
   /** 主币种可选 = SUPPORTED (multi 模式 disabled 显示用). */
   $: primary_options = SUPPORTED_CURRENCIES.slice();
+  /** v0.3.21 #108 (PO msg 17:54): multi 模式副币种可选 = SUPPORTED minus primary.
+   *  原 primary_options 不过滤 (含 primary), 但 PO 要替换时选 primary 会 409.
+   *  这里过滤 primary (其他所有币种可选, 包括 existing secondary → PATCH 路径
+   *  + 其他币种 → REPLACE 路径). */
+  $: multi_secondary_options = SUPPORTED_CURRENCIES.filter(
+    (c) => c !== primary_currency
+  );
 
   /** v0.3.21 #106 (PO msg 17:21): multi 模式从 existing_currencies 初始化 secondary/rate.
-   *  用 multiInitialized 一次性 flag 防止 user 选「—」(secondary='') 时被 reactive 覆盖回 existing. */
+   *  用 multiInitialized 一次性 flag 防止 user 选「—」(secondary='') 时被 reactive 覆盖回 existing.
+   *  v0.3.21 #108 (PO msg 17:54): 同步跟踪 originalSecondary 用于 submit handler 3 case 分支
+   *  (「—」/existing/new), 用 let 持久化 (跟 multiInitialized 同步, 不会随 secondary 改变). */
   let multiInitialized = false;
+  let originalSecondary = '';
   $: if (
     mode === 'multi' &&
     !multiInitialized &&
@@ -115,6 +125,7 @@
   ) {
     const ex = existing_currencies.find((c) => c !== primary_currency);
     if (ex) {
+      originalSecondary = ex;
       secondary = ex;
       primary = primary_currency;
       // 找 primary → secondary 的 forward rate row
@@ -134,13 +145,16 @@
   /** Submit gating:
    *  - single + !has_bills: secondary + rate
    *  - single + has_bills: 矛盾状态, 不渲染 submit 按钮 (canSubmit = false 兜底)
-   *  - multi 任何情况: rate 即可 (primary/secondary disabled 不可改)
+   *  - multi + 「—」(secondary=''): 只要不 busy (删副币种, 不需要 rate)
+   *  - multi + existing/new: rate 即可 (PATCH 现有 or REPLACE 新, 都需新 rate)
    */
   $: canSubmit =
     mode === 'single' && !has_bills
       ? secondary !== '' && rateValid && !busy
       : mode === 'multi'
-        ? rateValid && !busy
+        ? secondary === ''
+          ? !busy
+          : rateValid && !busy
         : false;
 
   function close() {
@@ -249,15 +263,17 @@
         onAdded?.({ session: updated, rates });
         dispatch('close');
       } else if (secondary === '') {
-        // v0.3.21 #106 (PO msg 17:21): multi + 「—」→ 切换单币种 (功能开发中) — toast 提示, 不调 API, 弹窗保留
-        toast.info('功能开发中');
-      } else {
-        // multi (任何 has_bills 状态): 本期只 PATCH 汇率
-        // primary/secondary select 兜底 — 即使前端选了别的, PATCH 只对
-        // 当前 primary→secondary 行生效 (BE 不接受改 primary/secondary).
+        // v0.3.21 #108 (PO msg 17:54): multi + 「—」→ 切换单币种, 真调 DELETE
+        //   /sessions/{id}/currencies/{code}, 后端 cascade 删 forward + reciprocal
+        //   两条 exchange_rates + 移除 session.currencies. 返回 SessionDetail 给
+        //   parent 触发 reload, 弹窗关闭 + success toast.
+        const removed = await deleteSessionCurrency(session_id, originalSecondary);
+        toast.success(`已移除 ${originalSecondary}, 账本回到单币种 (${primary_currency})`);
+        onAdded?.({ session: removed, rates: removed.exchange_rates ?? [] });
+        dispatch('close');
+      } else if (secondary === originalSecondary) {
+        // multi + existing secondary: PATCH 现有汇率 (唯一一条 forward + reciprocal 自动同步)
         const rates = await patchForwardRate();
-        // 给 parent 一个最小 stub session payload (parent onAdded 回调通常会
-        // 自己 reload 拉完整数据, 这里给个能渲染的最小形态即可).
         const stubSession = {
           id: session_id,
           session_code: '',
@@ -279,6 +295,48 @@
             : `币种设置已更新, 汇率 ${rate} ${secondary}/${primary}`
         );
         onAdded?.({ session: stubSession, rates });
+        dispatch('close');
+      } else {
+        // v0.3.21 #108 (PO msg 17:54): multi + 任意其他币种 → REPLACE 流程
+        //   (PO bug 3: 之前 findForwardRate 找不到新币种的汇率记录, 报
+        //   “找不到 ${primary}→${secondary} 的汇率记录” 错误). 现在:
+        //   1) DELETE 旧副币种 (cascade 删其汇率)
+        //   2) POST 新副币种
+        //   3) POST 新汇率 (forward + reciprocal)
+        //   跟 single+!has_bills ADD 流程的 add + create-rate 同源.
+        const afterDelete = await deleteSessionCurrency(session_id, originalSecondary);
+        const afterAdd = await addSessionCurrency(session_id, { currency: secondary });
+        const rateResp = await fetch(
+          `/api/sessions/${session_id}/exchange-rates`,
+          {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              from_currency: primary_currency,
+              to_currency: secondary,
+              rate: rate.trim(),
+            }),
+          }
+        );
+        if (!rateResp.ok) {
+          let detail: any = {};
+          try {
+            detail = await rateResp.json();
+          } catch {
+            /* ignore */
+          }
+          const msg =
+            detail?.detail?.error ?? `汇率创建失败 (HTTP ${rateResp.status})`;
+          throw new ApiError(rateResp.status, msg, detail);
+        }
+        const newRates: SessionExchangeRate[] = await rateResp.json();
+        toast.success(
+          `已从 ${originalSecondary} 切换到 ${secondary}, 汇率 ${rate} ${secondary}/${primary_currency}`
+        );
+        // 用 addSessionCurrency 返回的 SessionDetail (含最新 currencies + exchange_rates)
+        void afterDelete; // 告诉 TS / 读者 afterDelete 仅用于中间状态跳转语义, 最终 payload 用 afterAdd + newRates
+        onAdded?.({ session: afterAdd, rates: newRates });
         dispatch('close');
       }
     } catch (e: any) {
@@ -434,11 +492,11 @@
               class="currency-pair-item currency-select"
               bind:value={secondary}
               disabled={busy}
-              title="选择「—」可切换单币种 (功能开发中)"
+              title="选择「—」切回单币种; 选其他币种替换当前副币种"
               data-testid="currency-edit-secondary"
             >
               <option value="">—</option>
-              {#each primary_options as opt}
+              {#each multi_secondary_options as opt}
                 <option value={opt}>{opt}</option>
               {/each}
             </select>
