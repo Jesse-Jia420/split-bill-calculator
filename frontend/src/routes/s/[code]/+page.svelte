@@ -35,7 +35,7 @@
 </script>
 
 <svelte:head>
-  <title>打开账本 · Split Bill</title>
+  <title>打开账本 · SplitIt</title>
 </svelte:head>
 
 <main class="container" style="padding-top: 4rem; text-align: center;">
