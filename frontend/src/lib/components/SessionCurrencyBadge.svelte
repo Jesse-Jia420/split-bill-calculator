@@ -190,9 +190,13 @@
 </div>
 
 <style>
-  /* 容器: 仅负责外边距 (variant 决定) */
+  /* 容器: 仅负责外边距 (variant 决定).
+   * v0.3.19 #85 PO #7731 (#1): 加 text-align: center 让单币种 inline-flex pill
+   * 跟多币种 block-flex bar 一样视觉居中 (单币种 inline 元素靠 text-align
+   * 继承居中, 多币种 block 元素靠 margin auto 居中 — 两路径汇合). */
   .currency-meta {
     margin: var(--space-2) 0 var(--space-4);
+    text-align: center;
   }
   .currency-meta--compact {
     margin: 0 0 var(--space-3);
