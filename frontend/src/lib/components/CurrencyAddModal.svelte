@@ -41,7 +41,7 @@
     - onAdded: (detail: {session, rates}) => void  (提交成功回调, parent 通常 reload)
 
   视觉沿用 v0.3.18 #53 + v0.3.18 #60 batch2 + v0.3.18 #64 modal 玻璃语言:
-    - 遮罩 rgba(15,23,42,0.55) + saturate(180%) blur(16px)
+    - 弹窗直接浮起 (无 backdrop 遮罩, v0.3.19 #85 PO #7731 删)
     - modal rgba(255,255,255,0.55) + saturate(200%) blur(20px) + 1px indigo 0.22 border
     - inset highlight + 外阴影 (跟全站 glass 语言一致)
     - 锁字段: .glass-input:disabled → 灰 bg + 半透明 + cursor not-allowed
@@ -395,37 +395,40 @@
           </p>
         </section>
       {:else if mode === 'multi' && !has_bills}
-        <!-- ===== multi + !has_bills: 修改币种设置 (本期仅汇率可改) ===== -->
-        <section class="field">
-          <label class="field-label" for="sbc-primary-currency">主币种</label>
-          <select
-            id="sbc-primary-currency"
-            class="glass-input currency-select currency-select--disabled"
-            bind:value={primary}
-            disabled={true}
-            title="改主币种功能开发中 (BE 未支持)"
-            data-testid="currency-edit-primary"
-          >
-            {#each primary_options as opt}
-              <option value={opt}>{opt}</option>
-            {/each}
-          </select>
-        </section>
-
-        <section class="field">
-          <label class="field-label" for="sbc-secondary-currency">副币种</label>
-          <select
-            id="sbc-secondary-currency"
-            class="glass-input currency-select currency-select--disabled"
-            bind:value={secondary}
-            disabled={true}
-            title="改副币种功能开发中 (BE 未支持)"
-            data-testid="currency-edit-secondary"
-          >
-            {#each primary_options as opt}
-              <option value={opt}>{opt}</option>
-            {/each}
-          </select>
+        <!-- ===== multi + !has_bills: 修改币种设置 (本期仅汇率可改) =====
+             v0.3.19 #85 PO #7731 (#4): 主+副币种 select 同行并排 — flex 横排 1:1 分栏.
+             v0.3.19 #85 PO #7731 (#3): 删「修改主/副币种功能开发中...」hint (disables + tooltip 已说明). -->
+        <section class="field currency-pair-row">
+          <div class="currency-pair-col">
+            <label class="field-label" for="sbc-primary-currency">主币种</label>
+            <select
+              id="sbc-primary-currency"
+              class="glass-input currency-select currency-select--disabled"
+              bind:value={primary}
+              disabled={true}
+              title="改主币种功能开发中 (BE 未支持)"
+              data-testid="currency-edit-primary"
+            >
+              {#each primary_options as opt}
+                <option value={opt}>{opt}</option>
+              {/each}
+            </select>
+          </div>
+          <div class="currency-pair-col">
+            <label class="field-label" for="sbc-secondary-currency">副币种</label>
+            <select
+              id="sbc-secondary-currency"
+              class="glass-input currency-select currency-select--disabled"
+              bind:value={secondary}
+              disabled={true}
+              title="改副币种功能开发中 (BE 未支持)"
+              data-testid="currency-edit-secondary"
+            >
+              {#each primary_options as opt}
+                <option value={opt}>{opt}</option>
+              {/each}
+            </select>
+          </div>
         </section>
 
         <section class="field">
@@ -445,9 +448,6 @@
             />
             <span class="rate-suffix">{secondary}/{primary}</span>
           </div>
-          <p class="hint">
-            修改主币种 / 副币种功能开发中 (BE 未支持), 当前仅支持修改汇率。
-          </p>
         </section>
       {:else if mode === 'multi' && has_bills}
         <!-- ===== multi + has_bills: 仅修改汇率 (主/副币种 locked chip) ===== -->
@@ -520,16 +520,17 @@
   .modal-backdrop {
     position: fixed;
     inset: 0;
-    /* v0.3.18 #60 batch2 (PO #6837): 遮罩层更暗 + 模糊度加重. */
-    background: rgba(15, 23, 42, 0.55);
-    backdrop-filter: saturate(180%) blur(16px);
-    -webkit-backdrop-filter: saturate(180%) blur(16px);
+    /* v0.3.19 #85 PO #7731 (#2): 去掉全屏深色背景 + 模糊遮罩, 弹窗直接浮起.
+     *   原 v0.3.18 #60 batch2 (PO #6837) 加的 rgba(15,23,42,0.55) + saturate blur
+     *   全去掉, background 改 transparent. backdrop click-to-close 仍可工作
+     *   (透明 wrapper 仍捕获 click 事件, handleBackdropClick 走 e.target ===
+     *   e.currentTarget 判断). */
+    background: transparent;
     z-index: 999;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: var(--space-4);
-    animation: fadeIn 180ms cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .modal {
@@ -681,6 +682,20 @@
     line-height: 1.4;
   }
 
+  /* v0.3.19 #85 PO #7731 (#4): 主+副币种 select 同行并排 flex 横排.
+   *   1:1 等宽分栏, gap 12px (跟全站 field gap 16px 减半, 让两栏更紧凑). */
+  .currency-pair-row {
+    flex-direction: row;
+    gap: var(--space-3);
+  }
+  .currency-pair-col {
+    flex: 1 1 0;
+    min-width: 0; /* 防止 flex item 内容撑出 */
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
   /* v0.3.19 #85 (PO #7308 改动 5): single + has_bills 矛盾状态显示灰色提示文案.
    * 跟 form 字段区分: 12px gap + 20px emoji + 大段文字 (gray-600).
    * tooltip 用 title 属性 (简单跨平台, 不用自定义 popover). */
@@ -734,10 +749,7 @@
     color: var(--gray-900);
   }
 
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
+  /* v0.3.19 #85 PO #7731 (#2): 去掉 fadeIn (backdrop 透明无 opacity 变化). */
   @keyframes slideUp {
     from { opacity: 0; transform: translateY(8px) scale(0.98); }
     to { opacity: 1; transform: translateY(0) scale(1); }
