@@ -4553,3 +4553,24 @@ image tool 视觉验证 (03 截图):
 - 反 #170 ✅ codeserver_exec_clean.js 写文件 (base64 pipe 避免 escape)
 - 反 #189 ✅ SPEC append 用 heredoc
 - UAT 流程 ✅ 分析 → 核对 (PO 拍对) → 顺序修 (trivial 起步) → 标 ✅
+
+### §11. v0.3.22 #124 (2026-07-22 16:17) — UAT bug #6: 搜索框 2 个 X 按钮去掉左 (native) 留右 (custom) (PO msg 16:05 #8064)
+
+**触发**: PO 16:05 #8064 UAT bug #6 "搜索框内会出现两个删除按钮，去掉左边的".
+
+**改动** (sandbox `frontend/src/routes/sessions/[id]/+page.svelte:1764-1772`):
+- 加 `:global(.bills-search-input::-webkit-search-cancel-button) { display: none !important }`
+- 现有 `.bills-search-input { -webkit-appearance: none }` 只重置样式**不**真隐藏 native X, Chromium computed 实测 `display=block width=246px` (跟 input 同宽), 显示在 input 右侧 → 跟项目自定义 `.bills-search-clear` button 一起渲染 → 用户看到 2 个 X (左 native, 右 custom)
+- Svelte scoped style (.bills-search-input.s-XXXX::-webkit-search-cancel-button) 在 webkit 伪元素上下文兼容性不可靠 → 用 `:global()` 强制不 scope, `!important` 保证 specificity
+
+**实测** (Playwright iPhone 13 @3x 真机 walk, session 1, 输入"打车" 触发 X 状态):
+- [data] BEFORE 截图 (`v0322-124-bug6-before.png`): image tool 描述 "蓝色实心 X (左 native)" + "灰色 X (右 custom)" 2 个并存
+- [data] AFTER 截图 (`v0322-124-bug6-after.png`): image tool 描述 "**只有 1 个 X 灰色 cross 形状 (custom)**" — native 已隐藏 ✓
+- svelte-check baseline: 2 errors / 20 warnings (无变动)
+
+**反模式自查**:
+- 反 #101 ✅ 双截图视觉对比 (BEFORE 2 X / AFTER 1 X)
+- 反 #162 ✅ §11 sync 与 fix commit 同一 batch
+- 反 #170 ✅ codeserver_exec_clean.js 写文件 (base64 pipe)
+- 反 #189 ✅ SPEC append 用 heredoc
+- UAT 流程 ✅ #6 → 等简 → DOM 实测 + 视觉对比
