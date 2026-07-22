@@ -4717,3 +4717,17 @@ image tool 视觉验证 (03 截图):
 - 反 #170 ✅ codeserver_exec_clean.js 写文件
 - 反 #189 ✅ SPEC append 用 heredoc
 - 反 #101 ⏳ 待 Master 真机 walk 验 UI 真渲染 (Playwright 程序化检查 dom 已过)
+
+### §11. v0.3.23 #130 (2026-07-22 16:55) — UAT bug #2 (new): BillListGrouped `.your-share` 颜色蓝色 → 黑色 (PO msg 16:35 UAT 新批)
+
+**根因**: UAT 测出 `.your-share` 的"分摊 X 元"颜色用 `var(--accent-500)` (indigo 蓝), 在 glass 透明背景下视觉过抢, 跟账本主色调冲突 (share 是"我应分摊多少"次要信息, 不该抢主色)
+
+**改动** (`frontend/src/lib/components/BillListGrouped.svelte:1483`):
+- `.your-share` color: `var(--accent-500)` → `var(--gray-900)` (slate-900, 跟 `.bill-amount` 同一色, 视觉一级家族)
+
+**实测**: Playwright iPhone 13 `/sessions/1` bill row 右下"分摊 80.00 CNY" computed style color=slate-900, font-weight=600, 文字主次清晰 (amount=主色, share=次色但仍读得清).
+
+**反模式自查**:
+- 反 #162 ✅ §11 sync 与 fix commit 同一 batch
+- 反 #170 ✅ codeserver_exec_clean.js 写文件
+- 反 #189 ✅ SPEC append 用 heredoc

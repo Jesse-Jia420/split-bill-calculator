@@ -1481,8 +1481,9 @@
     flex-shrink: 0;
   }
   .your-share {
+    /* UAT v0.3.23 #129: color black (was blue accent-500) per PO */  
     font-weight: 600;
-    color: var(--accent-500);
+    color: var(--gray-900); /* UAT v0.3.23 #129 */  
     font-variant-numeric: tabular-nums;
     font-size: var(--font-size-sm);
     white-space: nowrap;
