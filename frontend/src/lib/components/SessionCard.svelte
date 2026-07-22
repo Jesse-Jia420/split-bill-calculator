@@ -71,24 +71,27 @@
    *   2. backdrop-filter blur(24px)→blur(28px) brightness(1.04)→brightness(1.05)
    *      (补偿玻璃厚度)
    *   3. hover 状态 bg alpha 0.78/0.55 (同步加深)
-   *   4. .row-bottom DOM 拆 3 段 — .users-count (左) | .avatars (中) | .date (右)
+   *   4. .row-bottom DOM 拆 3 段 — .date (左) | .avatars (中右) | .users-count (右)
+   *      (v0.3.24 #9.3 flip — PO msg #8299 反馈: "日期放在最左边,人数放在最右边,
+   *      头像放在人数的左边,挨着人数".)
    *   5. .users-count 新增 (users icon + N, 替换原 .meta .count "N 人")
-   *   6. .row-bottom .date 独立 (无 .dot 分隔符)
+   *   6. .row-bottom .date 独立 (无 .dot 分隔符, 在 row 最左)
    *   7. .avatar-mini 新增 5 palette × 18×18 (跟 /sessions/[id] 折叠态一致)
    *   8. 删 .meta / .meta .count / .meta .dot / .muted 旧样式
    *   avatars 占位: SessionSummary 当前不含 avatars 数组 (后端 #9 后续 sprint 补),
    *   前端先用 N 个 palette 渐变实心圆点占位 (member_count 决定数量, MAX_AVATARS=6).
    *   视觉仍跟 mockup refined 的 avatar stack 一致, 只是无 initial 文字.
    *
-   * v0.3.24 #9.1 (续 #9 PO msg #8269 反馈): row-bottom layout fix —
-   *   users-count + avatars 紧挨, date 独立最右.
-   *   PO 字面反馈: "人 icon 人数的右侧应紧接着头像, 不应该空这么多"
-   *   原 layout (flex space-between) 三段均匀分布, users-count 和 avatars 中间空隙过大, 视觉割裂.
-   *   现改 .row-bottom 只做 align-items: center (删 justify-content: space-between),
-   *   给 .row-bottom .date 加 margin-left: auto — flex 自然流:
-   *     users-count — gap(10px) — avatars — gap(10px) — [auto-fill] — date (right).
-   *   users-count 和 avatars 中间仅隔 10px gap, date 单独最右.
-   *   其他不动 (row-top / glass params / avatar palette / comment 都保留 #9 设置).
+   * v0.3.24 #9.1 (续 #9 PO msg #8269 反馈, 已被 #9.3 flip 取代): row-bottom layout fix —
+   *   users-count + avatars 紧挨, date 独立最右. (后续被 #9.3 反向.)
+   *
+   * v0.3.24 #9.3 (续 #9.1 PO msg #8299 反馈 flip): 日期最左 + 人数最右 + 头像挨人数.
+   *   PO 字面反馈: "日期放在最左边,人数放在最右边,头像放在人数的左边,挨着人数"
+   *   修法 (flip #9.1 方向):
+   *     1. DOM 重排: date | avatars | users-count (之前 users-count | avatars | date)
+   *     2. CSS: .row-bottom .date margin-left: auto → 删 (date 不再 auto 推到右)
+   *     3. CSS: .avatars 加 margin-left: auto (avatars + users-count 整组被推到右)
+   *   结果: date — gap(10px) — [auto-fill] — avatars — gap(10px) — users-count (right).
    *
    * v0.3.24 #9.2 (续 avatar size 调整, PO msg #8280 反馈 "太小看不清有谁"):
    *   原 .avatar-mini 18×18 在 iPhone 13 @3x 仅占 54 logical pixel, 头像内文字糊掉.
@@ -135,9 +138,10 @@
       </span>
     </div>
     <!-- v0.3.24 #9 (UAT bug 账本 item 重设计): row-bottom 拆 3 段
-         - 左: .users-count (icon + N) — 跟原 .meta .count "N 人" 视觉一致, 但挪到 row 最左
+         v0.3.24 #9.3 flip (PO msg #8299 反馈):
+         - 左: .date 独立 — 跟原 .meta .muted 一致, 但脱离 .dot 分隔符
          - 中: .avatars stack (palette 渐变实心圆点占位, 后续 sprint 后端补 avatars 字段)
-         - 右: .date 独立 — 跟原 .meta .muted 一致, 但脱离 .dot 分隔符
+         - 右: .users-count (icon + N) — 跟原 .meta .count "N 人" 视觉一致, 紧挨 avatars 在右
          flex space-between 自动三段分布.
 
          v0.3.24 #9.1 (续 #9 PO msg #8269 反馈): row-bottom layout fix —
@@ -146,7 +150,20 @@
          users-count — gap(10px) — avatars — gap(10px) — [auto-fill] — date.
          详见顶部 script 注释 #9.1 段. -->
     <div class="row-bottom">
-      <!-- LEFTMOST: users icon + 人数 -->
+      <!-- LEFTMOST (v0.3.24 #9.3): 日期独立 (脱离 .meta / .dot).
+           #9.3 flip 把 date 从最右挪到最左, 整组 avatars + users-count 推右 -->
+      <div class="date">{formatDate(session.created_at)}</div>
+      <!-- MIDDLE→RIGHT (v0.3.24 #9.3): avatars stack (palette 渐变实心圆点占位 — 后端 avatars 字段后续 sprint 补).
+           #9.3 加 margin-left: auto 把整组 (avatars + users-count) 推到右 -->
+      <div class="avatars" aria-label="{memberCount} 个成员头像">
+        {#each Array(displayAvatars) as _, i (i)}
+          <span class="avatar-mini palette-{i % 5}" aria-hidden="true"></span>
+        {/each}
+        {#if overflowCount > 0}
+          <span class="avatar-mini avatar-mini-overflow" aria-label="还有 {overflowCount} 个成员">+{overflowCount}</span>
+        {/if}
+      </div>
+      <!-- RIGHTMOST (v0.3.24 #9.3): users icon + 人数 (紧挨 avatars 在右) -->
       <div class="users-count" aria-label="{memberCount} 个成员">
         <svg class="users-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
@@ -156,17 +173,6 @@
         </svg>
         <span class="count">{memberCount}</span>
       </div>
-      <!-- MIDDLE: avatars stack (palette 渐变实心圆点占位 — 后端 avatars 字段后续 sprint 补) -->
-      <div class="avatars" aria-label="{memberCount} 个成员头像">
-        {#each Array(displayAvatars) as _, i (i)}
-          <span class="avatar-mini palette-{i % 5}" aria-hidden="true"></span>
-        {/each}
-        {#if overflowCount > 0}
-          <span class="avatar-mini avatar-mini-overflow" aria-label="还有 {overflowCount} 个成员">+{overflowCount}</span>
-        {/if}
-      </div>
-      <!-- RIGHTMOST: 日期独立 (脱离 .meta / .dot) -->
-      <div class="date">{formatDate(session.created_at)}</div>
     </div>
   </div>
 </a>
@@ -318,19 +324,22 @@
   }
 
   /* v0.3.24 #9 (UAT bug 账本 item 重设计): row-bottom 三段布局
-     - 左: .users-count (users icon + N) — flex space-between 自动 leftmost
-     - 中: .avatars stack (palette 渐变实心圆点 + +N overflow)
-     - 右: .date 独立 (脱离原 .meta / .dot 分隔符)
+     v0.3.24 #9.3 flip (PO msg #8299 反馈): 日期最左 + 人数最右 + 头像挨人数.
+     - 左: .date 独立 (脱离原 .meta / .dot 分隔符, flex start 自然流)
+     - 中: .avatars stack (palette 渐变实心圆点 + +N overflow, margin-left: auto 推右)
+     - 右: .users-count (users icon + N) — 紧挨 avatars
      替代原 .meta / .meta .count / .dot / .muted 旧结构.
 
-     v0.3.24 #9.1 (续 #9 PO msg #8269 反馈): row-bottom layout fix —
-     users-count + avatars 紧挨, date 独立最右.
-     原 flex space-between 让三段均匀分布, users-count 和 avatars 中间空隙过大.
-     现只做 align-items: center (删 justify-content: space-between),
-     .row-bottom .date 加 margin-left: auto 把剩余空间推到 date 左侧, date 独立最右.
-     flex 自然流: users-count — gap(10px) — avatars — gap(10px) — [auto-fill] — date.
-     (.avatars 不加 margin-left: auto, 那个会把 auto 填在 avatars 左边, 让 users-count 和 avatars
-      反而更远, 跟 PO 意图反.) */
+     v0.3.24 #9.1 (续 #9 PO msg #8269 反馈, 已被 #9.3 flip 取代): row-bottom layout fix —
+     users-count + avatars 紧挨, date 独立最右. 修法: .row-bottom 删 space-between,
+     .row-bottom .date 加 margin-left: auto. 结果: users-count — gap(10px) — avatars —
+     gap(10px) — [auto-fill] — date (right).
+
+     v0.3.24 #9.3 (续 #9.1 PO msg #8299 反馈 flip): 修法 (flip #9.1 方向):
+       1. DOM 重排: date | avatars | users-count (之前 users-count | avatars | date)
+       2. CSS: .row-bottom .date margin-left: auto → 删 (date 不再 auto 推到右)
+       3. CSS: .avatars 加 margin-left: auto (avatars + users-count 整组被推到右)
+     结果: date — gap(10px) — [auto-fill] — avatars — gap(10px) — users-count (right). */
   .row-bottom {
     margin-top: 14px;
     display: flex;
@@ -358,26 +367,27 @@
     font-size: 12.5px;
     line-height: 1;
   }
-  /* MIDDLE: avatars stack (palette 渐变实心圆点 — 跟 /sessions/[id] 折叠态 .avatar-mini 一致).
-     v0.3.24 #9.1: 不加 margin-left: auto (会让 avatars 被推到右边, users-count 和 avatars 反而
-     更远). 保留 flex-shrink: 1 + min-width: 0 (跟 #9 一致, long overflow 可压缩).
-     auto-fill 由 .row-bottom .date margin-left: auto 提供, date 独立最右 (PO msg #8269 反馈 #9.1). */
+  /* MIDDLE→RIGHT (v0.3.24 #9.3): avatars stack (palette 渐变实心圆点 — 跟 /sessions/[id] 折叠态 .avatar-mini 一致).
+     #9.3 flip: 加 margin-left: auto 把整组 (avatars + users-count) 推到右.
+     跟 date (margin-left: 0) 之间留 auto-fill 中段, 视觉重心左 date + 右 avatars+users-count.
+     保留 flex-shrink: 1 + min-width: 0 (跟 #9 一致, long overflow 可压缩). */
   .avatars {
     display: flex;
     align-items: center;
     flex-shrink: 1;
     min-width: 0;
+    margin-left: auto;
   }
-  /* RIGHTMOST: date 独立 (脱离 .meta / .dot).
-     v0.3.24 #9.1: margin-left: auto 把剩余空间推到 date 左侧, date 独立最右.
-     flex 自然流: users-count — gap(10px) — avatars — gap(10px) — [auto-fill] — date. */
+  /* LEFTMOST (v0.3.24 #9.3): date 独立 (脱离 .meta / .dot).
+     #9.3 flip 把 date 从最右挪到最左, 删 margin-left: auto (不再 auto 推到右).
+     flex 自然流 (gap 10px + .avatars margin-left: auto):
+       date — gap(10px) — [auto-fill] — avatars — gap(10px) — users-count (right). */
   .row-bottom .date {
     font-size: 12.5px;
     color: var(--gray-500);
     font-variant-numeric: tabular-nums;
     flex-shrink: 0;
     line-height: 1;
-    margin-left: auto;
   }
 
   /* v0.3.24 #9: row-bottom avatars (跟 /sessions/[id] 折叠态 .avatar-mini 视觉一致).
