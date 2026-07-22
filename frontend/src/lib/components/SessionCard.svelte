@@ -64,7 +64,15 @@
 <a href="/sessions/{session.id}" class="card-link">
   <div class="session-card">
     <div class="row between">
-      <div class="title">{session.name}</div>
+      <!-- v0.3.23 #140 (UAT bug #7): 账本名称加 pill 玻璃效果.
+           原 .title 是裸 16px/600/gray-900 文字, 现加 inline-flex + 浅 indigo 玻璃 + backdrop-filter,
+           跟 v0318-62 owner pill 同源视觉 (alpha + 白边 + blur). -->
+      <div class="title title-pill">
+        <span class="title-text">{session.name}</span>
+      </div>
+      <!-- v0.3.23 #140 (UAT bug #7): owner 标识去 pill 玻璃.
+           原 .role.owner 是完整 indigo 玻璃 pill (渐变 + 白边 + blur), 现去背景框 + 去 backdrop,
+           留 .dot-led + indigo-700 text 纯文字. 跟 mockup B/C 一致. -->
       <span class="role" class:owner={session.role === "owner"}>
         {#if session.role === "owner"}<span class="dot-led"></span>{/if}
         {session.role === "owner" ? "owner" : "member"}
@@ -89,26 +97,31 @@
    *   - saturate 220% → 180%, blur 28px → 20px (玻璃感保留但不过强).
    *   - 顶部 sheen ::before overlay (玻璃厚度).
    *   - 灰阴影 (inset top highlight + inset bottom lowlight + 微投影 + 主浮起).
-   *   - 跟全站 #30 iOS app-shell 克制感对齐. */
+   *   - 跟全站 #30 iOS app-shell 克制感对齐.
+   *
+   * v0.3.23 #139 (UAT bug #6): 玻璃质感增强 — 减白透明度 (0.82→0.75, 0.65→0.50)
+   *   让 backdrop-filter blur/saturate 更明显, 模糊背景透出来. saturate 180→200%,
+   *   blur 20→24px. border 1px → 1.5px (更厚边缘), shadow 主浮起加深 18→22px.
+   *   hover 同步加深 (12→16px 外阴影) 让悬停更显眼. */
   .session-card {
     position: relative;
     background: linear-gradient(
       135deg,
-      rgba(255, 255, 255, 0.82) 0%,
-      rgba(255, 255, 255, 0.65) 100%
+      rgba(255, 255, 255, 0.75) 0%,
+      rgba(255, 255, 255, 0.50) 100%
     );
-    backdrop-filter: saturate(180%) blur(20px) brightness(1.02);
-    -webkit-backdrop-filter: saturate(180%) blur(20px) brightness(1.02);
+    backdrop-filter: saturate(200%) blur(24px) brightness(1.04);
+    -webkit-backdrop-filter: saturate(200%) blur(24px) brightness(1.04);
 
-    border: 1px solid rgba(255, 255, 255, 0.75);
+    border: 1.5px solid rgba(255, 255, 255, 0.78);
     border-radius: 18px;
     padding: 18px;
 
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.85),
+      inset 0 1px 0 rgba(255, 255, 255, 0.88),
       inset 0 -1px 0 rgba(15, 23, 42, 0.04),
-      0 1px 2px rgba(15, 23, 42, 0.04),
-      0 6px 18px rgba(15, 23, 42, 0.05);
+      0 1px 2px rgba(15, 23, 42, 0.05),
+      0 8px 22px rgba(15, 23, 42, 0.07);
 
     transition:
       transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1),
@@ -135,27 +148,58 @@
     transform: translateY(-2px);
     background: linear-gradient(
       135deg,
-      rgba(255, 255, 255, 0.92) 0%,
-      rgba(255, 255, 255, 0.78) 100%
+      rgba(255, 255, 255, 0.88) 0%,
+      rgba(255, 255, 255, 0.68) 100%
     );
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.95),
       inset 0 -1px 0 rgba(15, 23, 42, 0.05),
       0 2px 4px rgba(15, 23, 42, 0.05),
-      0 12px 28px rgba(15, 23, 42, 0.08);
+      0 14px 32px rgba(15, 23, 42, 0.09);
   }
 
-  /* v0.3.18 #67: title 16px / 600 / gray-900 (回 v0318-62 拍板, 跟全站克制感对齐). */
+  /* v0.3.18 #67: title 16px / 600 / gray-900 (回 v0318-62 拍板, 跟全站克制感对齐).
+   * v0.3.23 #140 (UAT bug #7): title 加 pill 玻璃 — 浅 indigo 玻璃 + 白边 + backdrop-filter.
+   *   跟 v0318-62 owner pill 同源视觉 (linear-gradient indigo + 白边 + inset highlight).
+   *   max-width 240px + text-overflow ellipsis 跟 list 卡片宽度对齐. */
   .title {
     font-size: 16px;
     font-weight: 600;
     color: var(--gray-900);
     letter-spacing: -0.2px;
   }
+  .title-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: linear-gradient(
+      135deg,
+      rgba(165, 180, 252, 0.28) 0%,
+      rgba(99, 102, 241, 0.18) 100%
+    );
+    border: 1px solid rgba(99, 102, 241, 0.30);
+    backdrop-filter: blur(8px) saturate(180%);
+    -webkit-backdrop-filter: blur(8px) saturate(180%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.55),
+      0 1px 3px rgba(99, 102, 241, 0.08);
+    flex-shrink: 1;
+    min-width: 0;
+    max-width: 240px;
+  }
+  .title-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
 
-  /* v0.3.18 #67: role-pill 共享样式 (回 v0318-62 拍板).
-   *   - owner: 浅 indigo 玻璃 + indigo-700 text + 紫光晕 (身份信息保留).
-   *   - member: 白色半透明 + gray-500 (克制). */
+  /* v0.3.23 #140 (UAT bug #7): owner 标识去 pill 玻璃 — 纯文字标签.
+   *   原 owner 有完整 indigo 玻璃 pill (渐变 + 白边 + blur), 现去背景框 + 去 backdrop,
+   *   留 .dot-led + indigo-700 text 纯文字. 跟 mockup B/C 一致.
+   *   member 维持纯文字 (无玻璃, gray-500), 跟 owner 视觉对齐 (都纯文字).
+   *   padding 仍保留让文字区域有呼吸空间. */
   .role {
     display: inline-flex;
     align-items: center;
@@ -165,31 +209,14 @@
     letter-spacing: 0.04em;
     text-transform: uppercase;
     padding: 3px 9px;
-    border-radius: 999px;
     line-height: 1;
     flex-shrink: 0;
   }
   .role.member {
     color: var(--gray-500);
-    background: rgba(255, 255, 255, 0.55);
-    border: 1px solid rgba(15, 23, 42, 0.08);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
   }
   .role.owner {
     color: #4338ca;
-    background: linear-gradient(
-      135deg,
-      rgba(165, 180, 252, 0.45) 0%,
-      rgba(99, 102, 241, 0.22) 100%
-    );
-    border: 1px solid rgba(99, 102, 241, 0.28);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.6),
-      0 1px 3px rgba(99, 102, 241, 0.10);
   }
   .role .dot-led {
     width: 6px;
