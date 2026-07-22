@@ -956,11 +956,21 @@
      (1) min-width: 0 允许缩到小于 picker indicator 暗示的最小值
      (2) max-width: 100% 安全兜底, 永不超出父容器 (避免横向 overflow)
      (3) padding-block 减半 + 略缩字号, 让 56px 默认高度降到 ~40px, 跟
-         上方"金额/付款人"等 row 节奏对齐, 减少纵向松散 */
+         上方"金额/付款人"等 row 节奏对齐, 减少纵向松散
+
+     v0.3.21 #113 (PO msg 02:54 #7810): #110 只缩了 height, 没改 width.
+     实际输入框还是 width:100% = 325.625px (iPhone 13), 内容 (date text
+     "07/22/2026, 11:19 AM" + picker icon) 只占 ~240px, 中间 118px 空白,
+     "超长" 视觉问题没解决. 改 max-width 100% → 240px, 让 input 收缩
+     到刚好装下内容 + picker indicator, 视觉平衡. iPhone 13 (content 宽
+     326px) 240 留 86px 空; iPhone SE 375 (content 311px) 240 留 71px 空;
+     小屏 320 (content 256px) 240 超出 → 用 max-width: min(240px, 100%)
+     兜底. */
   input[type="datetime-local"]#occurredAt {
     min-width: 0;
-    max-width: 100%;
+    max-width: min(240px, 100%);
     padding-block: 8px;
+    padding-inline: 12px;
     font-size: 15px;
     letter-spacing: -0.01em;
   }
