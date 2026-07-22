@@ -226,6 +226,9 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
+    /* v0.3.23 #136 (UAT bug #3): 在 BillForm flex:1 单元格里撑满 cell (否则仅 110px
+       intrinsic, 不填 157px cell, 导致金额 input 仅 26px 不可点). */
+    width: 100%;
   }
   .amount-calc.disabled {
     opacity: 0.55;

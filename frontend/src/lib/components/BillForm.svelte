@@ -500,23 +500,31 @@
   <!-- v0.3.15 (PO #4807 + Designer 报告): form-level error 改走 Toast 系统,
        不再渲染 inline 错误块. form 仍保留 padding-bottom: 96px 让最后
        一行 member 不被左右下角 FAB 遮挡 (5-member session 测过). -->
-  <div style="width: 100%;">
-    <label class="label" for="amount">金额</label>
-    <!-- v0.2.1 T01: AmountCalculatorInput replaces the bare number input.
-         Calculator preview lives inside the component; this row holds the
-         currency suffix only. -->
-    <AmountCalculatorInput
-      bind:value={amountExpression}
-      bind:evaluated={amount}
-      {currency}
-      disabled={submitting}
-      on:change={(e) => (amountExpression = e.detail)}
-      on:amountChange={(e) => (amount = e.detail)}
-    />
+  <!-- v0.3.23 #136 (UAT bug #3): 金额 + 时间 一行, flex:1 each 让输入框长度一致 -->
+  <div class="row" style="gap: var(--space-3); align-items: flex-start;">
+    <div style="flex: 1; min-width: 0;">
+      <label class="label" for="amount">金额</label>
+      <!-- v0.2.1 T01: AmountCalculatorInput replaces the bare number input.
+           Calculator preview lives inside the component; this row holds the
+           currency suffix only. -->
+      <AmountCalculatorInput
+        bind:value={amountExpression}
+        bind:evaluated={amount}
+        {currency}
+        disabled={submitting}
+        on:change={(e) => (amountExpression = e.detail)}
+        on:amountChange={(e) => (amount = e.detail)}
+      />
+    </div>
+    <div style="flex: 1; min-width: 0;">
+      <!-- v0.3.20 #95 Fix 2 (PO msg 02:41 #7459): 标签 "发生时间" → "时间" -->
+      <label class="label" for="occurredAt">时间</label>
+      <input id="occurredAt" type="datetime-local" bind:value={occurredAt} />
+    </div>
   </div>
 
   <div class="row" style="gap: var(--space-3); align-items: flex-start;">
-    <div style="flex: 1;">
+    <div style="flex: 1; min-width: 0;">
       <label class="label" for="payer">付款人</label>
       <select id="payer" bind:value={payerMemberId}>
         <option value={null}>— 选择 —</option>
@@ -525,7 +533,7 @@
         {/each}
       </select>
     </div>
-    <div style="flex: 1; min-width: 100px;">
+    <div style="flex: 1; min-width: 0;">
       <span class="label" id="currency-pills-label">币种</span>
       <!-- v0.2.2 (T10): currency pill selector. The session may declare
            1 or 2 allowed currencies; we render chips so the user can
@@ -563,14 +571,7 @@
   </div>
 
   <div>
-    <!-- v0.3.20 #95 Fix 2 (PO msg 02:41 #7459): 标签 "发生时间" → "时间" +
-         删日历 📅 emoji span + 删 .datetime-row wrapper. input 单行撑满宽度.
-         原 (v0.3.2) 用 emoji 占位是因为 iOS Safari 不渲染原生 picker indicator
-         但留出固定空白 → 在 ~360px viewport 形成"右上空白 box". 后续 iOS Safari
-         已修 (不再留固定空白), 且 PO 反馈 emoji 多余, 这次一并去掉
-         + 删整段 .datetime-row / .datetime-icon CSS. -->
-    <label class="label" for="occurredAt">时间</label>
-    <input id="occurredAt" type="datetime-local" bind:value={occurredAt} />
+    <!-- 时间 input 已迁到金额同一行 (v0.3.23 #136), 此 div 删掉 -->
   </div>
 
   <div>
