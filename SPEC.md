@@ -4601,3 +4601,26 @@ image tool 视觉验证 (03 截图):
 - 反 #162 ✅ §11 sync 与 fix commit 同一 batch
 - 反 #170 ✅ codeserver_exec_clean.js 写文件 (base64 pipe)
 - 反 #189 ✅ SPEC append 用 heredoc
+
+### §11. v0.3.22 #126 (2026-07-22 16:25) — UAT bug #3: 成员 section 去掉 email 前 "-" 占位 + email 跟昵称左对齐 (PO msg 16:05 #8064)
+
+**触发**: PO 16:05 #8064 UAT bug #3 "成员 section 内，邮箱前的- 符号去除，邮箱和昵称左侧对齐".
+
+**根因**: 原代码 net amount placeholder `'—'` (em-dash) 在 owner/me 自视 net undefined 时 render, 视觉上变成 email 前的分隔符 (e.g. `— demo@example.com`). 跟用户期望"email 跟前没有 -" 冲突; 加 meta row 是 `display: flex` `gap: 8px`, email 在 — 之后 → email 不跟昵称左对齐.
+
+**改动** (sandbox `frontend/src/routes/sessions/[id]/+page.svelte:678-689`):
+- 把 `<span class="member-net-a">…'—'}</span>` 拆出模板, 包 `{#if memberIdToNet[m.id] !== undefined}` 守卫
+- undefined 时**不**渲染 net span, meta row 仅含 email, flex 自然 flex-start 左对齐
+- 不动 non-owner 路径 (real net 仍显示, email 仍跟在 net 右边 — 已工作良好)
+
+**实测** (Playwright iPhone 13 @3x 真机 walk, session 1):
+- [data] first member-row text: BEFORE = `👑 J Jesse me · owner — demo@example.com`, AFTER = `👑 J Jesse me · owner  demo@example.com` (— 消失) ✓
+- [data] email HTML 区域: `member-meta-a > <!----> <span class="member-email-a">` (net span 不 render, email 独占 row) ✓
+- 视觉确认 (image tool 描述): "所有邮箱 x/j/c/q/r 起始位置完全垂直对齐在 J/J/C/Q/像 同一垂直线下, 没有 '—' 占位符"
+- svelte-check baseline: 2 errors / 20 warnings (无变动)
+
+**反模式自查**:
+- 反 #101 ✅ 双证 (DOM textContent + 视觉)
+- 反 #162 ✅ §11 sync 与 fix commit 同一 batch
+- 反 #170 ✅ codeserver_exec_clean.js 写文件
+- 反 #189 ✅ SPEC append 用 heredoc
