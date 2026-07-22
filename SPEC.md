@@ -4624,3 +4624,36 @@ image tool 视觉验证 (03 截图):
 - 反 #162 ✅ §11 sync 与 fix commit 同一 batch
 - 反 #170 ✅ codeserver_exec_clean.js 写文件
 - 反 #189 ✅ SPEC append 用 heredoc
+
+### §11. v0.3.22 #127 (2026-07-22 16:27) — UAT bug #2: members "· N人" 去除 + expiry yyyy.mm.dd + xx 登录即可永久保存 (PO msg 16:05 #8064)
+
+**触发**: PO 16:05 #8064 UAT bug #2 "成员 section 内的成员右侧的 x 人 删除。过期提醒更改为 yyyy.mm.dd 过期，xx 登录即可永久保存" (PO 16:11 拍板: "x 人" 指"成员"二字右侧的 N, 所有人都显示 CTA, xx = owner).
+
+**2 子 bug**:
+
+**#2.a** "成员 · N人" → "成员":
+- 删 `+page.svelte:525` 标题 span 里的 `· {session.members.length}人`
+- 成员数仍在 .members-list-a 下面的 chevron "查看 N 人" 显示 (保留冗余不重复)
+
+**#2.b** expiry text 改 yyyy.mm.dd + xx 登录即可永久保存:
+- `formatExpiryPill` 函数:
+  * 原: `return \`${y}年${m}月${day}日过期\``
+  * 新: `return \`${y}.${m}.${day} 过期\``, `padStart(2, '0')` 月日补零 → "2026.08.20 过期"
+- outer + inner `{#if (owner_email == null || owner_email === '') && invite_expires_at}` → outer 简化为 `{#if session?.invite_expires_at}` (invite_expires_at 存在就显, 所有人)
+- 新增 `ownerDisplayName = $derived(session?.members?.find(m => m.role === 'owner')?.display_name ?? 'owner')` — 找 owner by role, **不**依赖 members[0] index (e.g. members[0] 不一定永远是 owner)
+- 模板: `<span class="expiry-cta-nick">{ownerDisplayName}</span> <span class="expiry-cta-suffix">登录即可永久保存</span>` (删 `members[0]` 分支 + fallback "owner" 字面; "以" → "即可" 跟 bug spec 对齐)
+- aria-label 同步 "登录即可永久保存账本"
+
+**实测** (Playwright iPhone 13 @3x 真机 walk, session 1):
+- [data] members title textContent = `"成员"` (no "人") ✓
+- [data] expiry pill textContent = `"2026.08.20 过期 · Jesse 登录即可永久保存"` ✓
+- [data] yyyy.mm.dd 格式正则匹配 ✓
+- 视觉 (image tool): "title 只'成员'二字, expiry pill 显示 '2026.08.20 过期 · Jesse 登录即可永久保存' 数字格式, 没有年/月/日"
+- svelte-check baseline: 2 errors / 20 warnings (无变动)
+
+**反模式自查**:
+- 反 #101 ✅ DOM + 视觉双证
+- 反 #125 ✅ owner by role 不 members[0] index (避免"第一个成员永远是 owner"假设)
+- 反 #162 ✅ §11 sync 与 fix commit 同一 batch
+- 反 #170 ✅ codeserver_exec_clean.js 写文件
+- 反 #189 ✅ SPEC append 用 heredoc
