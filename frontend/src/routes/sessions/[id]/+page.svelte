@@ -676,13 +676,15 @@
                     {/if}
                   </div>
                   <div class="member-meta-a">
-                    <span
-                      class="member-net-a"
-                      class:pos={(memberIdToNet[m.id] ?? 0) > 0}
-                      class:neg={(memberIdToNet[m.id] ?? 0) < 0}
-                    >
-                      {memberIdToNet[m.id] !== undefined ? fmtNet(memberIdToNet[m.id]) : '—'}
-                    </span>
+                    {#if memberIdToNet[m.id] !== undefined}
+                      <span
+                        class="member-net-a"
+                        class:pos={(memberIdToNet[m.id] ?? 0) > 0}
+                        class:neg={(memberIdToNet[m.id] ?? 0) < 0}
+                      >
+                        {fmtNet(memberIdToNet[m.id])}
+                      </span>
+                    {/if}
                     {#if m.email}
                       <span class="member-email-a">{m.email}</span>
                     {:else if $user && m.user_id === $user.user_id}
