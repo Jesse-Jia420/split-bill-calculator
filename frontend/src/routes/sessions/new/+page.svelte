@@ -189,7 +189,7 @@
         <p class="step-hint">比如：曼谷之旅 2026 / 毕业聚餐 / 合租记账</p>
         <div class="field">
           <input id="session-name" class="glass-input" type="text" bind:value={sessionName}
-            placeholder="比如：曼谷之旅 2026" maxlength="200"
+            placeholder="比如：曼谷之旅 2026" maxlength="25"
             onkeydown={(e) => e.key === "Enter" && nameValid && goNext()}
             autofocus />
         </div>
