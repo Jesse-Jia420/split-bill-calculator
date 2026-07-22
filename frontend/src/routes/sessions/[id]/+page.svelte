@@ -795,8 +795,8 @@
           <input
             type="search"
             bind:value={billsSearchQuery}
-            placeholder="搜索账单说明"
-            aria-label="搜索账单说明"
+            placeholder="搜索账单名称"
+            aria-label="搜索账单名称"
             class="bills-search-input"
             onfocus={scrollSearchToSticky}
           />

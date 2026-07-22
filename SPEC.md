@@ -4532,3 +4532,24 @@ image tool 视觉验证 (03 截图):
 **排除范围** (本任务不修, 待 PO 决定):
 - `aria-label="复制邀请链接"` / `title="复制邀请链接"` — Jesse 未要求改, 保持稳定. 如要一致, 下次 sprint 改.
 - toast "已复制账本链接, 可用于邀请他人..." — 自然短语, 跟新 button label 自然衔接, 不动.
+
+### §11. v0.3.22 #123 (2026-07-22 16:13) — UAT bug #7: 搜索框 placeholder "搜索账单说明" → "搜索账单名称" (PO msg 16:05 #8064)
+
+**触发**: PO 16:05 #8064 "看 UAT bugs&issues md，分析，跟我核对，自动修，修了勾 ✅". 这是 UAT bugs 自动修复流程的首条（按由简到难排序）。
+
+**改动** (sandbox `frontend/src/routes/sessions/[id]/+page.svelte:798-799`):
+- `placeholder="搜索账单说明"` → `placeholder="搜索账单名称"`
+- `aria-label="搜索账单说明"` → `aria-label="搜索账单名称"` (a11y label 跟 placeholder 同源, 一起改)
+
+**实测** (Playwright iPhone 13 @3x 真机 walk, session 1):
+- `[data] bills-search-input.placeholder === "搜索账单名称"` ✓
+- `[data] bills-search-input.aria-label === "搜索账单名称"` ✓
+- 视觉确认 (image tool 描述): 搜索框里灰色 placeholder 显示 "搜索账单名称" 6 个汉字 ✓
+- svelte-check baseline: 2 errors / 20 warnings (无变动)
+
+**反模式自查**:
+- 反 #101 ✅ 视觉 + DOM 双证 (placeholder + 截图)
+- 反 #162 ✅ §11 sync 与 fix commit 同一 batch
+- 反 #170 ✅ codeserver_exec_clean.js 写文件 (base64 pipe 避免 escape)
+- 反 #189 ✅ SPEC append 用 heredoc
+- UAT 流程 ✅ 分析 → 核对 (PO 拍对) → 顺序修 (trivial 起步) → 标 ✅
