@@ -206,8 +206,29 @@
    * - handleMembersToggle: click 任意 header 区域切换 (InviteLinkButton 自己 stopPropagation)
    * - handleMembersKeydown: keyboard accessibility (Enter/Space)
    * 持久化逻辑不变 (localStorage sbc.membersOpen.{sessionId})
+   *
+   * v0.3.24 #3 (PO msg 16:35 UAT line #3 字面 "点击邀请按钮, 复制邀请链接时, 目前会同时展开或折叠 成员 section, 期望只复制, 不要影响成员 section 的状态"):
+   *   - 根因: InviteLinkButton 的 modal (.invite-modal / .invite-modal-backdrop / 知道了 按钮) 渲染在 InviteLinkButton 组件内,
+   *     InviteLinkButton 又是 header 的后代, 所以 modal 的点击事件 (含 知道了 关闭按钮) 会冒泡到 header 的 onclick, 触发 toggle.
+   *     InviteLinkButton 自己的按钮 click 有 stopPropagation, 但 modal 是异步渲染的 (复制成功后才弹),
+   *     关闭 modal 时按钮 click 冒泡到 header.
+   *   - 修法: handleMembersToggle 接受 event 参数, 用 closest() 过滤掉 InviteLinkButton 区域 (.invite-row 含整个组件树)
+   *     + expiry CTA link (.expiry-cta-link 含过期链接区域) — 这两类内部点击不应触发 section toggle.
+   *     其他区域 (chevron, title, avatar, 空 row2 区域) 维持原有 toggle 行为.
+   *     不引入新 CSS class / data attr, 用现有 selector 精确匹配.
    */
-  function handleMembersToggle() {
+  function handleMembersToggle(e?: MouseEvent) {
+    if (e) {
+      const target = e.target as HTMLElement | null;
+      // InviteLinkButton 在 InviteLinkButton.svelte 顶层渲染 2 个 sibling:
+      //   <div class="invite-row">...</div>  (button 容器)
+      //   {#if modalOpen}<div class="invite-modal-backdrop">...</div>{/if}  (modal)
+      // 两个都直接是 header 的 child (因为 InviteLinkButton 是 header 的 child),
+      // 所以 modal 点击事件会冒泡到 header 的 onclick → 触发 toggle (user 反馈 #3).
+      // 用 closest() 排除: 邀请按钮 + modal 区域 + 过期 CTA link.
+      // 其他区域 (chevron, title, avatar, 空 row2 区域) 维持原有 toggle 行为.
+      if (target?.closest('.invite-row, .invite-modal-backdrop, .expiry-cta-link')) return;
+    }
     membersOpen = !membersOpen;
     try {
       localStorage.setItem(membersStorageKey(sessionId), String(membersOpen));

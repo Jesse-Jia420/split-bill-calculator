@@ -5276,3 +5276,57 @@ DOM 验证 (14 项 — 全 pass):
 - 结果布局: date — gap(10px) — [auto-fill 中段] — avatars — gap(10px) — users-count (right)
 - 视觉重心: 左 date + 右 avatars+users-count 整组紧挨, 中段留呼吸空间
 - 验证: Playwright iPhone 13 @3x 真机 /sessions, DOM 检查三段 x 坐标
+
+### §11. v0.3.24 #3 (2026-07-22 22:55) — UAT bug #3: 邀请按钮复制时不应 toggle members section (PO msg 16:35 UAT line #3 字面 "点击邀请按钮, 复制邀请链接时, 目前会同时展开或折叠 成员 section, 期望只复制, 不要影响成员 section 的状态")
+
+**触发**: PO msg 16:35 UAT line #3 字面 "点击邀请按钮, 复制邀请链接时, 目前会同时展开或折叠 成员 section, 期望只复制, 不要影响成员 section 的状态".
+
+**根因**: InviteLinkButton 在 InviteLinkButton.svelte 顶层渲染 2 个 sibling (不是嵌套):
+```
+<div class="invite-row">...</div>  (button 容器)
+{#if modalOpen}<div class="invite-modal-backdrop">...</div>{/if}  (modal)
+```
+两个都直接是 header 的 child (因为 InviteLinkButton 组件本身是 header 的 child), 所以:
+- InviteLinkButton 的 button 有 `e.stopPropagation()` → 按钮点击不冒泡
+- 但 modal (.invite-modal-backdrop / .invite-modal / .invite-modal-btn) 是**异步渲染** (复制成功后), 关闭 modal 时按钮 click 事件**会**冒泡到 header 的 onclick, 触发 handleMembersToggle → membersOpen toggle
+
+实测 Playwright iPhone 13 /sessions/1:
+- 点击 知道了 (modal 关闭按钮) → aria-expanded "true" → "false" (误 toggle)
+
+**修法**: `frontend/src/routes/sessions/[id]/+page.svelte` handleMembersToggle(e) 接受 event 参数, 用 closest() 过滤 3 个非 toggle 区域:
+- `.invite-row` — InviteLinkButton 按钮容器 (含 button 自身, 即使 stopPropagation 失效也兜底)
+- `.invite-modal-backdrop` — InviteLinkButton modal 容器 (含 modal + backdrop + 知道了 按钮)
+- `.expiry-cta-link` — header 内唯一的 `<a>` 元素 (过期 CTA 登录链接)
+
+其他区域 (chevron, title, avatar, 空 row2 区域) 维持原有 toggle 行为.
+
+不引入新 CSS class / data attr, 用现有 selector 精确匹配. 不用 event delegation disable (避免破坏 Svelte 5 默认行为).
+
+**验证**: Playwright iPhone 13 @3x 真机 walk (`frontend/scripts/v0324-3-verify.cjs`) 7 项全 PASS:
+- A. 点击 invite 按钮 → modal 弹出 → aria-expanded 不变 ✓
+- B. 点击 modal 知道了 → modal 关闭 → aria-expanded 不变 ✓ (核心修复验证)
+- C. 点击 modal backdrop (外层空白) → modal 关闭 → aria-expanded 不变 ✓ (核心修复验证)
+- D. 点击 chevron → aria-expanded "false" → "true" ✓ (正向行为保留)
+- E. 点击 title → aria-expanded "true" → "false" ✓ (正向行为保留)
+- F. expiry CTA link href = "/auth/login?returnTo=/sessions/1" ✓ (导航契约保留)
+- G. 点击 row2 avatars (折叠态) → toggle ✓ (正向行为保留)
+
+**svelte-check**: 2 errors / 19 warnings (baseline 同, 0 new error — pre-existing errors 在 `+page.svelte:553` `session_code` 和 `join/+page.svelte:32` `SessionPreviewMember`, 跟 #3 无关).
+
+**数据在场**: session 1 泰国测试 CNY+THB 32 bills 6 members 仍在 DB (verify 前查 DB), invite_expires_at 存在 CTA link 渲染.
+
+**反模式自查**:
+- 反 #150 v2 ✅ Master 自写自验 (Playwright 7 项程序化 + DOM aria 检查, 不是只看 HTTP 200)
+- 反 #159 ✅ BE/FE 重启按 sbc skill 模板 (sandbox pull 同步 origin, codeserver HMR 生效)
+- 反 #161 v3 ✅ 字面执行 PO "只复制, 不要影响" (filter 3 处非 toggle 区域)
+- 反 #162 ✅ §11 sync 与 fix commit 同一 batch (待 commit)
+- 反 #167 ✅ iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN)
+- 反 #170 ✅ codeserver_exec_clean.js (写 +page.svelte 跨 sandbox/codeserver 同步, base64 pipe)
+- 反 #189 ✅ SPEC append 用 heredoc (不用 sed 多匹配)
+- 反 #53 ✅ Gitea PAT token-only URL push (待 commit)
+
+**6 张 PNG 截图**: `~/.openclaw/media/browser/v0324-3-invite-click-fix/{01..06}-*.png` (image tool 待 Jesse 真机 review).
+
+**排除范围** (本任务不修, 待 PO 决定):
+- Modal 用 `position: fixed` 替代 portal — 当前 modal 是 InviteLinkButton 组件内的 fixed div, 概念上 OK 但跟 React portal 模式不同. PO 不报, 不改.
+- InviteLinkButton 改成 portal — 同上, 当前实现可行.
