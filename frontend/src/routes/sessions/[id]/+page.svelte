@@ -139,6 +139,40 @@
         )
   );
 
+  // v0.3.21 #112 (PO msg 02:53): 账单搜索框输入文字时和输入文字后, 页面
+  // 都应自动滚动到搜索框 刚好 sticky 的位置.
+  // .bills-search 是 position: sticky; top: var(--space-2) (~8px from scroll
+  // container top). iOS app-shell 架构 (body.overflow:hidden + main.overflow-y:auto
+  // 来自 #30) 让 main 成为 scroll container, 不是 window. scrollIntoView 在
+  // 这种情况只滚到能滚的最远, 不能保证 search 顶部对齐到 container 顶部.
+  // 手动算 scrollTop = search.offsetTop - 8 设到 main.scrollTop.
+  // 注意: iOS Safari 键盘弹起时 main.clientHeight 收缩, max scroll 变大,
+  // 此时 handler 能真正把 search 滚到 sticky 位. 键盘关闭后浏览器自动
+  // clamp (因为 contentHeight 没变), 这是预期行为, 不强行保留.
+  // Playwright 测试要 setViewportSize 模拟键盘才能看到 sticky 位效果.
+  function scrollSearchToSticky() {
+    if (typeof document === 'undefined') return;
+    requestAnimationFrame(() => {
+      const main = document.querySelector('main');
+      const el = document.querySelector('.bills-search');
+      if (!(main instanceof HTMLElement) || !(el instanceof HTMLElement)) return;
+      const STICKY_OFFSET = 8;  // 跟 .bills-search { top: var(--space-2) } 对齐
+      // offsetTop 累加到 main
+      let target: HTMLElement | null = el;
+      let top = 0;
+      while (target && target !== main) {
+        top += target.offsetTop;
+        target = target.offsetParent as HTMLElement | null;
+      }
+      const desired = Math.max(0, top - STICKY_OFFSET);
+      const maxScroll = main.scrollHeight - main.clientHeight;
+      const targetScroll = Math.min(desired, maxScroll);
+      if (Math.abs(main.scrollTop - targetScroll) > 4) {
+        main.scrollTo({ top: targetScroll, behavior: 'smooth' });
+      }
+    });
+  }
+
   // v0.1.4 round 2 改动 1: 重新加回 members 折叠 toggle。
   // 默认展开; 用户折叠后按 sessionId 持久化到 localStorage。
   let membersOpen = $state(true);
@@ -755,6 +789,8 @@
             placeholder="搜索账单说明"
             aria-label="搜索账单说明"
             class="bills-search-input"
+            onfocus={scrollSearchToSticky}
+            oninput={scrollSearchToSticky}
           />
           {#if billsSearchQuery}
             <button
@@ -893,8 +929,15 @@
     border-radius: 16px;
     /* v0.3.21 #110 (PO msg 18:46): padding 16 → 12.
        PO 反馈 section 垂直高度太高 + "查看 N 人" 离 section 底部太远.
-       减少上下 padding 给 row1+row2+row3 留更多紧凑空间. */
-    padding: 12px;
+       减少上下 padding 给 row1+row2+row3 留更多紧凑空间.
+       v0.3.21 #112 (PO msg 02:53): padding-bottom 12 → 4.
+       PO 反馈 "查看 6 人再往下移动一些". #110 让 hint 距 row3 底 0px,
+       但距 section 视觉底边仍有 12 (card padding-bottom) + 12 (head margin-bottom)
+       = 24px 空白. 把 card padding-bottom 减到 4px 让 hint 往下挪 8px;
+       + head margin-bottom 12 → 0 再挪 12px (折叠态 6+ 成员 section
+       head 下面没其他 element, margin 没用). 合计 hint 下移 20px,
+       距 section 底边 4px (视觉贴底). */
+    padding: 12px 12px 4px;
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
   }
 
@@ -917,12 +960,23 @@
        加上 .bills-card 自带 padding-top, 足够断开两块). row3 的 border-top (在上方) 不动,
        那是 row2 <-> row3 之间的 affordance 分割 (跟这条线是不同 line).
        v0.3.21 #110: padding-bottom 2 → 0. 配合 .members-card padding 减半 + row3
-       align-items: flex-end, "查看 N 人" 字样现在视觉上贴 section 底边. */
+       align-items: flex-end, "查看 N 人" 字样现在视觉上贴 section 底边.
+       v0.3.21 #112 (PO msg 02:53): margin-bottom 12 → 0 (折叠态 only).
+       PO 反馈 "查看 6 人再往下移动一些". 折叠态 6+ 成员 section 的 head
+       下方没其他 element (solo-cta 只在 1-member 时出现), margin-bottom:12
+       是死空白让 hint 离 card 底边更远. 只在 .collapsed 状态下清 0;
+       展开态 head 后跟 .members-list 仍要 12px 间距. */
     padding: 0;
     margin: 0 0 12px 0;
     border-bottom: none;
     cursor: pointer;
     user-select: none;
+  }
+  /* v0.3.21 #112 (PO msg 02:53): 折叠态 head margin-bottom 0.
+     让 "查看 N 人" 紧贴 .members-card padding-bottom (4px), 距 card 视觉
+     底边 4px (从原 24px 减 20px). 展开态保持 12px (margin 跟 .members-list gap). */
+  .members-head.collapsed {
+    margin-bottom: 0;
   }
   /* v0.3.20 #93 (PO msg 00:04 #7450, Fix 6): removed .members-head:hover purple bg
      (PO 反馈"整个 section 点击 / hover 时 bg 变紫"奇怪 — 折叠态整 section 是 affordance,
@@ -1484,7 +1538,9 @@
   /* 移动端 ≤480px: row 紧凑 + remove 按钮默认可见 */
   @media (max-width: 480px) {
     .members-card {
-      padding: 12px;
+      /* v0.3.21 #112 (PO msg 02:53): padding 12 → 12px 12px 4px (mobile 同步).
+         跟 base 一致, 让折叠态 "查看 N 人" 下移到 card 视觉底边 4px. */
+      padding: 12px 12px 4px;
     }
     .member-remove-a {
       opacity: 1;
@@ -1704,6 +1760,12 @@
     align-items: center;
     justify-content: center;
     padding: 4px;
+    /* v0.3.21 #112 (PO msg 02:53): 三种状态高度不一致 (emptyNotFocused=50, emptyFocused=50, hasText=72).
+       全局 button 默认 min-height: var(--touch-target)=44px (iOS 44px tap target),
+       X button 在 .bills-search-input (22px) 旁边是个 44px 高按钮, 撑高整个
+       .bills-search container 从 50 → 72px (+44%). 改 min-height: 22px 跟 input 对齐,
+       三状态统一 50px. */
+    min-height: 22px;
     border-radius: 50%;
   }
   .bills-search-clear:hover {
