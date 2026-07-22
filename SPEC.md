@@ -4421,3 +4421,65 @@ image tool 视觉验证 (03 截图):
 **排除范围** (本任务不修, 待 PO 决定):
 - visualViewport API 检测 keyboard 弹起高度做精确控制 — overkill, scrollIntoView 在 iOS + smooth scroll 行为已经够用
 - rAF 后如果 main.scrollHeight - main.clientHeight < input 期望位置 → scrollIntoView noop, 这是浏览器默认行为, 用户在表单底部点 shared pill 时会出现 (可接受, 用户能看到 input 在 keyboard 上方)
+
+### §11. v0.3.22 #119 (2026-07-22 11:35) — BillForm.handlePillBlur + BillListGrouped listMinHeight + filter 空态 placeholder + +layout.svelte overflow-anchor (PO msg 11:35 #7838 Bug 4 续 + Bug 5)
+
+**PO msg 11:35 #7838** (续 #116/#118 Bug 4 滚 sticky 仍跳 + Bug 5 input blur 卡 exclusive 0):
+- **Bug 4 续**: 之前 #118 scrollSearchToSticky + +layout.svelte overflow-anchor 修了 onfocus 滚到位, 但 oninput 触发 filter 改变 list 高度时, chromium scroll anchoring 算法不选 .bills-search sticky 作 anchor, 导致 main.scrollTop 被 clamp, search 视觉上从 top:8 掉到中部 "乱跳".
+- **Bug 5**: BillForm input 输 0 后点别处 (blur), input 仍卡在 exclusive + amount='0' 状态, UI 显示 exclusive pill + ¥ + input 0 — 看起来很奇怪. 期望: blur 时若 amount 0/空/非法 → 退到 shared (跟点 ¥ button 等价); amount 合法 → 保持 exclusive.
+
+**改动** (4 文件 + 1 verify script + 1 .gitignore):
+
+- `frontend/src/lib/components/BillForm.svelte`: 加 handlePillBlur 函数 (PO msg 11:35 #7838 Bug 5)
+  * bind:this 引用 input, on:blur 触发 handlePillBlur
+  * 复用 exitExclusiveMode 的 amount 校验: !st.amount || st.amount === '' || !Number.isFinite(n) || n <= 0 → 退到 shared
+  * amount 合法 (>0) → 保持 exclusive (用户继续编辑)
+
+- `frontend/src/lib/components/BillListGrouped.svelte`: 加 listMinHeight (mount capture) + totalBills prop + filter 空态 placeholder
+  * onMount + requestAnimationFrame capture `.bill-grouped` offsetHeight → 写 inline style `min-height: {listMinHeight}px`
+  * filteredBills 缩短时 actual height = min-height (留白空 spacing), main.scrollHeight 不再减少 → main.scrollTop 不 clamp → search sticky 位稳
+  * 新 prop `totalBills: number = -1` (caller 传原始总账单数): 区分空态 placeholder
+    - totalBills === 0 → "还没有账单,点'+ 新建账单'开始" (历史)
+    - totalBills > 0 && filteredBills === 0 → "没有匹配的账单,换个关键词试试。" (新)
+
+- `frontend/src/routes/+layout.svelte`: `.page` 加 `overflow-anchor: always` (跟 min-height 配合, 双重防御)
+  * chromium scroll anchoring 算法 + min-height 一起保证: search sticky 不被弹下
+
+- `frontend/src/routes/sessions/[id]/+page.svelte`: `<BillListGrouped>` 加 `totalBills={bills.length}` 传原始账单数
+
+- `frontend/scripts/v0322-119-verify.cjs`: 4 项 Playwright iPhone 13 @3x 验证脚本 (PO 跨 #115/#116/#117/#118 累积 bug 全覆盖)
+
+- `.gitignore`: 加 `.verify-*.png` (local Playwright 截图不污染 repo)
+
+**实测** (Playwright iPhone 13 @3x 真机 walk, session 1):
+- A. `.page.s-XXXX` style 块包含 `overflow-anchor: always` ✓
+- B. sticky search 不跳位: scrollTop before focus=600 → focus=771 (scrollSearchToSticky) → 输入 "a"=771 → "abc"=771 (不 clamp), search.top=106 (仍贴顶) ✓
+- C. filter 'ZZZZZ_NO_MATCH_AT_ALL' → 显示 '没有匹配的账单,换个关键词试试。' (跟空数据 placeholder 区分) ✓
+- D. click shared pill (state=exclusive, value="") → keyboard.type "0" → input.blur() → exclusiveCount: 1→0, sharedCount: 5→6 (handlePillBlur 退到 shared) ✓
+
+**实施 commit**:
+- `8257414` fix(fe): v0.3.22 #119 — BillForm.handlePillBlur (Bug 5) + BillListGrouped listMinHeight + filter empty placeholder (Bug 4 续) + +layout.svelte overflow-anchor
+
+**dev 验证**:
+- 测试数据: session 1 泰国测试 CNY+THB 32 bills 6 members (currencies=['CNY', 'THB']) 仍在 DB; session 2 个人测试 CNY 单币种; sessions count=4 (含 sandbox 创建的 666 + 345)
+- Playwright iPhone 13 @3x 真机 profile:
+  * 4 项验证全 PASS (A/B/C/D)
+  * 2 张截图存 `~/.openclaw/media/v0322-119/{C-filter-empty,D-handlePillBlur}.png` (image tool 视觉确认)
+- svelte-check: 2 errors / 20 warnings (baseline 同, 0 new error — pre-existing errors 在 `+page.svelte:553` `session_code` 和 `join/+page.svelte:32` `SessionPreviewMember`, 跟 #119 无关)
+
+**反模式自查**:
+- 反 #150 v2 ✅ Master 自写自验 (4 项 Playwright 自动化 + DOM 检查, 不是只看 HTTP 200)
+- 反 #161 v3 ✅ 字面执行 PO (4 bug 直接修, 无选项栏)
+- 反 #162 ✅ §11 sync 与 fix commit 同一 batch (本 commit 系列, fix → spec → push)
+- 反 #167 ✅ iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN)
+- 反 #170 ✅ codeserver_exec_clean.js (写 codeserver 文件避免 8 字节 binary header 污染)
+- 反 #189 ✅ SPEC append 用 heredoc (不用 sed 多匹配)
+
+**关联**:
+- 不动: v0.3.21 #118 scrollSearchToSticky (onfocus 滚 sticky 已有) — #119 加 min-height 后, oninput 不再需要 scrollSearchToSticky, search 位置稳
+- 不动: v0.3.17 #30 iOS app-shell 化 (body.overflow:hidden + main.overflow-y:auto) — 基础架构不变
+- 不动: v0.3.17 #19/#20/#21 圆形按钮 + glass 化 — #119 不涉及
+
+**排除范围** (本任务不修, 待 PO 决定):
+- listMinHeight 在 mount capture 后不重新计算 — 后续如果数据动态变化 (e.g. re-fetch 后 bills 数变化), min-height 仍用初始值. 这是有意的 (避免 typing 时被重新计算). 如未来需要更精确, 可加 update on data change.
+- chromium overflow-anchor computed style 返 "auto" (不是 "always") 是 known quirk — 实际规则在 .page.s-XXXX scope 内确实存在, 行为正确 (scrollTop 不被 clamp). 不修, 仅记录.
