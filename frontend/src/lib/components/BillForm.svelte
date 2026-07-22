@@ -515,7 +515,7 @@
     />
   </div>
 
-  <div class="row" style="gap: var(--space-3);">
+  <div class="row" style="gap: var(--space-3); align-items: flex-start;">
     <div style="flex: 1;">
       <label class="label" for="payer">付款人</label>
       <select id="payer" bind:value={payerMemberId}>
