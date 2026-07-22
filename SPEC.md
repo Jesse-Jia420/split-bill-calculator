@@ -4574,3 +4574,30 @@ image tool 视觉验证 (03 截图):
 - 反 #170 ✅ codeserver_exec_clean.js 写文件 (base64 pipe)
 - 反 #189 ✅ SPEC append 用 heredoc
 - UAT 流程 ✅ #6 → 等简 → DOM 实测 + 视觉对比
+
+### §11. v0.3.22 #125 (2026-07-22 16:24) — UAT bug #5: 汇率 bar 颜色同步邀请按钮 (.glass-pill button token) (PO msg 16:05 #8064)
+
+**触发**: PO 16:05 #8064 UAT bug #5 "汇率 bar 的颜色有点深，换成和邀请按钮一样的颜色".
+
+**改动** (sandbox `frontend/src/lib/components/SessionCurrencyBadge.svelte:302-345 + 365-370`):
+- `.currency-bar` bg: `0.10/0.08` → `0.06/0.04` (app.css `.btn.glass-pill` button override 实际渲染)
+- `.currency-bar` border: `0.15` → `0.18` (跟 button.glass-pill override 同)
+- `button.currency-bar--clickable:hover` bg: `0.13/0.11` → `0.14/0.10` (跟 button.glass-pill:hover override 同)
+- `@supports not (backdrop-filter)` fallback: `0.18` → `0.08` (跟 base .glass-pill fallback 同; button override 不提供单独 fallback, cascade 走 base)
+- 不动 shadow / border-radius / font-size (跟 invite button 视觉一致已够)
+
+**关键误判修正**: 早先改 `0.04/0.02` (base .glass-pill) 后, Playwright 拿 real invite button computed style 才发现邀请按钮实际是 `0.06/0.04` (button 形态 override, 不是 base). 再调到 `0.06/0.04` 跟 invite 完全一致.
+
+**实测** (Playwright iPhone 13 @3x 真机 walk, session 1 泰国 CNY+THB):
+- [data] bar computed bg = `0.06/0.04` ✓
+- [data] invite button computed bg = `0.06/0.04` ✓ (EXACT MATCH)
+- [data] bar border-color = `0.18`, invite border-color = `0.18` ✓
+- 视觉确认 (image tool 描述): "Bar 淡紫蓝色调 (light lavender), 跟 .glass-pill 完全一致 — 同样胶囊样式, 同样圆角细描边. 内容: CNY ⇌ THB + 1 CNY = 4.65116279 THB"
+- svelte-check baseline: 2 errors / 20 warnings (无变动)
+
+**反模式自查**:
+- 反 #101 ✅ 双证 (DOM computed + 视觉截图)
+- 反 #125 ✅ Match invite EXACTLY (经过 base→button override 修正迭代, 不是猜)
+- 反 #162 ✅ §11 sync 与 fix commit 同一 batch
+- 反 #170 ✅ codeserver_exec_clean.js 写文件 (base64 pipe)
+- 反 #189 ✅ SPEC append 用 heredoc

@@ -302,7 +302,13 @@
   /* v0.3.17 #36fix + v0.3.18 #43 + v0.3.19 #85: 外层 .currency-bar (双币种 case).
    *  - flex-direction column 内部装 Row 1 + Row 2, 形成「1 个胶囊里有 2 行」视觉.
    *  - v0.3.19 #85: 整 bar 在 owner 时是 <button>, 加 cursor + hover/active 反馈.
-   *  - v0.3.19 #85: rate row 退化为只读展示 (no inline edit, no pencil SVG, no input). */
+   *  - v0.3.19 #85: rate row 退化为只读展示 (no inline edit, no pencil SVG, no input).
+   *  - v0.3.22 #125 (UAT bug #5, PO msg 16:05 #8064): 颜色调浅跟邀请按钮
+   *    .glass-pill **button 形态 token** 完全一致 (app.css .btn.glass-pill,
+   *    button.glass-pill override base 0.04/0.02), 不是 base .glass-pill
+   *    (那是 div/<a> 略淡的 0.04/0.02). 邀请按钮在 app.css 实际渲染 =
+   *    bg 0.06/0.04 + border 0.18 + hover 0.14/0.10. 原 0.10/0.08 (v0.3.17 #36fix)
+   *    深 1.7 倍, PO 反馈"颜色有点深". 全站 glass 统一, bar = 邀请按钮. */
   .currency-bar {
     display: flex;
     flex-direction: column;
@@ -320,8 +326,8 @@
 
     background: linear-gradient(
       135deg,
-      rgba(99, 102, 241, 0.10) 0%,
-      rgba(59, 130, 246, 0.08) 100%
+      rgba(99, 102, 241, 0.06) 0%,
+      rgba(59, 130, 246, 0.04) 100%
     );
     backdrop-filter: saturate(200%) blur(20px);
     -webkit-backdrop-filter: saturate(200%) blur(20px);
@@ -332,18 +338,19 @@
       0 1px 4px rgba(99, 102, 241, 0.08);
 
     border-radius: 999px;
-    border: 1px solid rgba(99, 102, 241, 0.15);
+    border: 1px solid rgba(99, 102, 241, 0.18);
   }
 
   @supports not (backdrop-filter: blur(1px)) {
     .currency-bar {
-      background: rgba(99, 102, 241, 0.18);
+      background: rgba(99, 102, 241, 0.08);
     }
   }
 
   /* v0.3.19 #85: owner 双币种整 bar 是 <button>, 加 cursor + hover/active 反馈.
-   *  hover bg alpha 0.10/0.08 → 0.13/0.11 (跟单币种 button 同步加深),
-   *  shadow 0.08 → 0.10 (按钮抬起感). 非 owner 仍 <div>, 不可点.
+   *  hover bg alpha 0.06/0.04 → 0.14/0.10 (跟 invite button.glass-pill:hover
+   *  override 同参数, hover 仍略亮保持互动反馈). shadow 0.08 → 0.10 (按钮抬起感).
+   *  非 owner 仍 <div>, 不可点.
    *  font-family: inherit (跟单币种 button fix 同步 — 避免 button 默认字体覆盖). */
   button.currency-bar--clickable {
     appearance: none;
@@ -358,8 +365,8 @@
   button.currency-bar--clickable:hover {
     background: linear-gradient(
       135deg,
-      rgba(99, 102, 241, 0.13) 0%,
-      rgba(59, 130, 246, 0.11) 100%
+      rgba(99, 102, 241, 0.14) 0%,
+      rgba(59, 130, 246, 0.10) 100%
     );
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.7),
