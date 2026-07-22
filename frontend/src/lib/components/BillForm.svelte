@@ -1018,7 +1018,7 @@
     min-width: 0;
     max-width: min(240px, 100%);
     padding-block: 8px;
-    padding-inline: 12px;
+    padding-inline: 12px 32px; /* v0.3.24 Top #1: 右侧加 32px padding 容纳 iOS Safari picker indicator (~30px), 避免 calendar icon 被截断/溢出. Chrome/Firefox 不受影响 (它们 picker 在 input 外部弹层). */
     font-size: 15px;
     letter-spacing: -0.01em;
   }
