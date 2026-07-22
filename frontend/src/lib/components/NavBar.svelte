@@ -128,7 +128,7 @@
     text-decoration: none;
   }
   /* v0.3.20 #100 (PO msg 14:37): hover 象牙白替代蓝色. 象牙白 #FFFFF0 在白纸上 = 低对比 = logo hover 时视觉 'fade' — PO 原话 "象牙白色，不要现在的蓝色". */
-  .brand:hover { color: #FFFFF0; }
+  /* UAT v0.3.23 #131: hover 颜色不变 (PO brief "hover 颜色不变, 还是黑色"). Default .brand color = var(--color-text) 已黑色, hover 不再覆盖. */
   .links { flex: 1; display: flex; gap: var(--space-3); }
   /* v0.3.17 #30 (PO msg 14:28): 删 .links a 独立样式 — 之前给 <a class="glass-pill">
      提供 fallback layout, 现在「我的账本」已经升级为 .btn-sm, 自己的 display /
