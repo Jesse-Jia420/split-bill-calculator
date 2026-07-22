@@ -54,11 +54,44 @@
    *   - meta count 加粗: font-weight 600 + color gray-700.
    *   - 响应式: 768px padding 22px/radius 22px/title 18px/meta 13.5px,
    *             320px padding 14px/radius 16px/title 15px/meta 12px (#62 拍板).
+   *
+   * v0.3.23 #139 (UAT bug #6): 玻璃质感增强 — 减白透明度 (0.82→0.75, 0.65→0.50)
+   *   让 backdrop-filter blur/saturate 更明显, 模糊背景透出来. saturate 180→200%,
+   *   blur 20→24px. border 1px → 1.5px (更厚边缘), shadow 主浮起加深 18→22px.
+   *   hover 同步加深 (12→16px 外阴影) 让悬停更显眼.
+   *
+   * v0.3.23 #140 (UAT bug #7): owner pill ↔ name pill swap —
+   *   name 加 pill 玻璃 + owner 去 pill 玻璃, 纯文字.
+   *
+   * v0.3.24 #9 (UAT bug 账本 item 重设计): 玻璃更透 + 人 icon 人数移到 row 最左.
+   *   PO 字面意图: "刚刚的选 mockup b, 增加 item 玻璃透明度, 并把 人 icon 人数移到同一行的最左边"
+   *   设计稿: mockup-B-refined.html
+   *   改动:
+   *   1. .session-card bg alpha 0.75/0.50 → 0.62/0.38 (玻璃更透, -17%/-24%)
+   *   2. backdrop-filter blur(24px)→blur(28px) brightness(1.04)→brightness(1.05)
+   *      (补偿玻璃厚度)
+   *   3. hover 状态 bg alpha 0.78/0.55 (同步加深)
+   *   4. .row-bottom DOM 拆 3 段 — .users-count (左) | .avatars (中) | .date (右)
+   *   5. .users-count 新增 (users icon + N, 替换原 .meta .count "N 人")
+   *   6. .row-bottom .date 独立 (无 .dot 分隔符)
+   *   7. .avatar-mini 新增 5 palette × 18×18 (跟 /sessions/[id] 折叠态一致)
+   *   8. 删 .meta / .meta .count / .meta .dot / .muted 旧样式
+   *   avatars 占位: SessionSummary 当前不含 avatars 数组 (后端 #9 后续 sprint 补),
+   *   前端先用 N 个 palette 渐变实心圆点占位 (member_count 决定数量, MAX_AVATARS=6).
+   *   视觉仍跟 mockup refined 的 avatar stack 一致, 只是无 initial 文字.
    */
   import type { SessionSummary } from "$api/sessions";
   import { formatDate } from "$lib/utils/format";
 
   export let session: SessionSummary;
+
+  /** v0.3.24 #9: 跟 mockup refined 一致 — 最多显示 6 个头像, 超出显示 +N. */
+  const MAX_AVATARS = 6;
+
+  /** v0.3.24 #9: 占位 avatars — N 个 palette 渐变实心圆点 (后端 avatars 字段后续 sprint 补). */
+  $: memberCount = session.member_count ?? 1;
+  $: displayAvatars = Math.min(memberCount, MAX_AVATARS);
+  $: overflowCount = Math.max(0, memberCount - MAX_AVATARS);
 </script>
 
 <a href="/sessions/{session.id}" class="card-link">
@@ -78,10 +111,33 @@
         {session.role === "owner" ? "owner" : "member"}
       </span>
     </div>
-    <div class="meta">
-      <span class="count"><b>{session.member_count ?? 1}</b> 人</span>
-      <span class="dot">·</span>
-      <span class="muted">{formatDate(session.created_at)}</span>
+    <!-- v0.3.24 #9 (UAT bug 账本 item 重设计): row-bottom 拆 3 段
+         - 左: .users-count (icon + N) — 跟原 .meta .count "N 人" 视觉一致, 但挪到 row 最左
+         - 中: .avatars stack (palette 渐变实心圆点占位, 后续 sprint 后端补 avatars 字段)
+         - 右: .date 独立 — 跟原 .meta .muted 一致, 但脱离 .dot 分隔符
+         flex space-between 自动三段分布. -->
+    <div class="row-bottom">
+      <!-- LEFTMOST: users icon + 人数 -->
+      <div class="users-count" aria-label="{memberCount} 个成员">
+        <svg class="users-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+        <span class="count">{memberCount}</span>
+      </div>
+      <!-- MIDDLE: avatars stack (palette 渐变实心圆点占位 — 后端 avatars 字段后续 sprint 补) -->
+      <div class="avatars" aria-label="{memberCount} 个成员头像">
+        {#each Array(displayAvatars) as _, i (i)}
+          <span class="avatar-mini palette-{i % 5}" aria-hidden="true"></span>
+        {/each}
+        {#if overflowCount > 0}
+          <span class="avatar-mini avatar-mini-overflow" aria-label="还有 {overflowCount} 个成员">+{overflowCount}</span>
+        {/if}
+      </div>
+      <!-- RIGHTMOST: 日期独立 (脱离 .meta / .dot) -->
+      <div class="date">{formatDate(session.created_at)}</div>
     </div>
   </div>
 </a>
@@ -102,16 +158,20 @@
    * v0.3.23 #139 (UAT bug #6): 玻璃质感增强 — 减白透明度 (0.82→0.75, 0.65→0.50)
    *   让 backdrop-filter blur/saturate 更明显, 模糊背景透出来. saturate 180→200%,
    *   blur 20→24px. border 1px → 1.5px (更厚边缘), shadow 主浮起加深 18→22px.
-   *   hover 同步加深 (12→16px 外阴影) 让悬停更显眼. */
+   *   hover 同步加深 (12→16px 外阴影) 让悬停更显眼.
+   *
+   * v0.3.24 #9 (UAT bug 账本 item 重设计): 玻璃更透 — bg alpha 0.75/0.50 → 0.62/0.38
+   *   (再 -17%/-24%, 让背景径向渐变更透出来). backdrop-filter blur 24→28px (补偿透明度损失
+   *   让背后仍模糊), brightness 1.04→1.05 (微亮补偿). hover 同步加深到 0.78/0.55. */
   .session-card {
     position: relative;
     background: linear-gradient(
       135deg,
-      rgba(255, 255, 255, 0.75) 0%,
-      rgba(255, 255, 255, 0.50) 100%
+      rgba(255, 255, 255, 0.62) 0%,
+      rgba(255, 255, 255, 0.38) 100%
     );
-    backdrop-filter: saturate(200%) blur(24px) brightness(1.04);
-    -webkit-backdrop-filter: saturate(200%) blur(24px) brightness(1.04);
+    backdrop-filter: saturate(200%) blur(28px) brightness(1.05);
+    -webkit-backdrop-filter: saturate(200%) blur(28px) brightness(1.05);
 
     border: 1.5px solid rgba(255, 255, 255, 0.78);
     border-radius: 18px;
@@ -143,13 +203,15 @@
     opacity: 0.55;
   }
 
-  /* v0.3.18 #67: hover 浮起 -2px (克制) + 玻璃加深, 无紫 ring. */
+  /* v0.3.18 #67: hover 浮起 -2px (克制) + 玻璃加深, 无紫 ring.
+   * v0.3.23 #139: hover bg alpha 0.88/0.68 (跟 #139 同步加深).
+   * v0.3.24 #9: hover bg alpha 0.78/0.55 (mockup refined 字面值, 跟 base 0.62/0.38 同步加深). */
   .card-link:hover .session-card {
     transform: translateY(-2px);
     background: linear-gradient(
       135deg,
-      rgba(255, 255, 255, 0.88) 0%,
-      rgba(255, 255, 255, 0.68) 100%
+      rgba(255, 255, 255, 0.78) 0%,
+      rgba(255, 255, 255, 0.55) 100%
     );
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.95),
@@ -226,24 +288,99 @@
     opacity: 0.85;
   }
 
-  /* v0.3.18 #67: meta 12.5px / gray-500, margin-top 12px (回 v0318-62 拍板). */
-  .meta {
-    margin-top: 12px;
+  /* v0.3.24 #9 (UAT bug 账本 item 重设计): row-bottom 三段布局
+     - 左: .users-count (users icon + N) — flex space-between 自动 leftmost
+     - 中: .avatars stack (palette 渐变实心圆点 + +N overflow)
+     - 右: .date 独立 (脱离原 .meta / .dot 分隔符)
+     替代原 .meta / .meta .count / .dot / .muted 旧结构. */
+  .row-bottom {
+    margin-top: 14px;
     display: flex;
-    gap: var(--space-2);
-    font-size: 12.5px;
-    line-height: 1.4;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    position: relative;
+    z-index: 1;
+    min-height: 22px;
+  }
+  /* LEFTMOST: users icon + N (从原 .meta 拆出). */
+  .users-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .users-count .users-icon {
+    display: inline-flex;
     color: var(--gray-500);
   }
-  .meta .count b {
+  .users-count .count {
     font-weight: 600;
     color: var(--gray-700);
+    font-variant-numeric: tabular-nums;
+    font-size: 12.5px;
+    line-height: 1;
   }
-  .dot {
-    color: var(--gray-300);
+  /* MIDDLE: avatars stack (palette 渐变实心圆点 — 跟 /sessions/[id] 折叠态 .avatar-mini 一致). */
+  .avatars {
+    display: flex;
+    align-items: center;
+    flex-shrink: 1;
+    min-width: 0;
   }
-  .muted {
+  /* RIGHTMOST: date 独立 (脱离 .meta / .dot). */
+  .row-bottom .date {
+    font-size: 12.5px;
     color: var(--gray-500);
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+    line-height: 1;
+  }
+
+  /* v0.3.24 #9: row-bottom avatars (跟 /sessions/[id] 折叠态 .avatar-mini 视觉一致).
+     base size 18×18 + 5 palette × 玻璃质感 (跟 #132 avatar 玻璃语言同源). */
+  .avatar-mini {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 9px;
+    border: 1.5px solid #fff;
+    backdrop-filter: blur(4px) saturate(180%);
+    -webkit-backdrop-filter: blur(4px) saturate(180%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.5),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.08),
+      0 1px 2px rgba(0, 0, 0, 0.10);
+    user-select: none;
+    position: relative;
+  }
+  .avatar-mini:not(:first-child) {
+    margin-left: -4.5px;
+  }
+  .avatar-mini.palette-0 {
+    background: linear-gradient(135deg, rgba(129, 140, 248, 0.88), rgba(99, 102, 241, 0.88));
+  }
+  .avatar-mini.palette-1 {
+    background: linear-gradient(135deg, rgba(244, 114, 182, 0.88), rgba(236, 72, 153, 0.88));
+  }
+  .avatar-mini.palette-2 {
+    background: linear-gradient(135deg, rgba(52, 211, 153, 0.88), rgba(16, 185, 129, 0.88));
+  }
+  .avatar-mini.palette-3 {
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.88), rgba(245, 158, 11, 0.88));
+  }
+  .avatar-mini.palette-4 {
+    background: linear-gradient(135deg, rgba(96, 165, 250, 0.88), rgba(59, 130, 246, 0.88));
+  }
+  .avatar-mini-overflow {
+    background: #d1d5db !important;
+    color: #374151 !important;
+    font-weight: 600;
   }
 
   /* v0.3.18 #67: 响应式 (回 v0318-62 拍板). */
@@ -255,7 +392,7 @@
     .title {
       font-size: 18px;
     }
-    .meta {
+    .row-bottom {
       font-size: 13.5px;
     }
   }
@@ -268,7 +405,7 @@
     .title {
       font-size: 15px;
     }
-    .meta {
+    .row-bottom {
       font-size: 12px;
     }
   }

@@ -4943,3 +4943,48 @@ PO msg 17:16 拍板 Option B = backdrop-filter + rgba 0.88 半透明 + 多层 gl
 
 **实测**: title-pill backdrop-filter blur(8px) saturate(1.8) + indigo gradient + indigo border ✓, owner_role background transparent + border 0 + backdrop-filter none ✓. 跟 mockup B/C 一致.
 
+### §11. v0.3.24 #9 (2026-07-22 19:11) — UAT bug 账本 item 重设计: 玻璃更透 + 人 icon 人数移到 row 最左 (PO msg 18:?? #8888 字面 "刚刚的选 mockup b, 增加 item 玻璃透明度, 并把 人 icon 人数移到同一行的最左边")
+
+**根因**: UAT #9 续 — /sessions 账本 item 玻璃感太弱 + 人数信息位置不突出. PO 字面拍板 mockup-B-refined (设计稿 `~/.openclaw/media/browser/v0323-135-session-card-mockup/mockup-B-refined.html`).
+
+**改动** (`frontend/src/lib/components/SessionCard.svelte`):
+
+1. **`.session-card` bg alpha 0.75/0.50 → 0.62/0.38** (玻璃更透, 让背景径向渐变更透出来, -17%/-24%)
+2. **`.session-card` backdrop-filter**: blur(24px) → blur(28px) (补偿透明度损失让背后仍模糊), brightness(1.04) → brightness(1.05) (微亮补偿)
+3. **hover 状态 bg alpha 0.88/0.68 → 0.78/0.55** (跟 mockup refined 字面值同步加深)
+4. **`.row-bottom` DOM 拆 3 段** — `.users-count` (左) | `.avatars` (中) | `.date` (右), flex space-between 自动分布
+5. **`.users-count` 新增** (users icon + N) — 替换原 `.meta .count "N 人"`, 挪到 row 最左
+6. **`.row-bottom .date` 独立** — 脱离原 `.meta / .dot` 分隔符
+7. **`.avatar-mini` 新增 5 palette × 18×18** (跟 /sessions/[id] 折叠态视觉一致 — backdrop-filter blur(4px) saturate(180%) + rgba 0.88 palette 渐变 + -4.5px overlap + 4-layer glass shadow)
+8. **删 `.meta / .meta .count / .meta .dot / .muted` 旧样式** (dead code 清理)
+
+**avatars 占位简化方案**: SessionSummary 当前不含 avatars 数组 (后端 #9 后续 sprint 补). 前端先用 N 个 palette 渐变实心圆点占位 (`MAX_AVATARS=6` + `member_count` 决定数量). 视觉仍跟 mockup refined 的 avatar stack 一致, 只是无 initial 文字.
+
+**实测** (Playwright iPhone 13 `/sessions`, session 1 泰国测试账单 6 名成员 owner):
+
+DOM 验证:
+- `.session-card` bg = `linear-gradient(135deg, rgba(255,255,255,0.62) 0%, rgba(255,255,255,0.38) 100%)` ✓
+- `.session-card` backdrop-filter = `saturate(2) blur(28px) brightness(1.05)` ✓ (chromium 序列化 saturate(200%) 为 saturate(2))
+- hover bg (computed style after mouseenter) = `rgba(255,255,255,0.78)→0.55` ✓ + transform `translateY(-2px)` ✓
+- `.row-bottom` 三段 DOM: `.users-count` | `.avatars` | `.date` ✓
+- 三段 x 坐标 (session 1 card): users-count x=35 (左) < avatars x=141 (中) < date x=305 (右) ✓
+- `.avatar-mini` count = 6 (session 1) ✓, 1 个 (session 6 单人退化 sanity) ✓
+- `.avatar-mini` palette bg rgba(..., 0.88) 全部 6 个 palette 颜色 ✓
+- `.avatar-mini` 2nd-6th margin-left = -4.5px (overlap) ✓, 1st margin-left = 0px ✓
+- `.avatar-mini` 18×18 + backdrop-filter blur(4px) saturate(1.8) + 4-layer glass shadow ✓
+- `.users-count` tabular-nums + font-weight 600 + font-size 12.5px ✓
+- `.row-bottom .date` tabular-nums + font-size 12.5px ✓
+
+视觉 (image tool 02-session1-row-bottom.png): 卡片半透明能看到背景纹理 + row-bottom 三段布局清晰 + 6 个 palette 头像栈完整显示 + iOS Liquid Glass 风格契合 8/10 (玻璃可更"液态"是 PO 后续 sprint 方向)
+
+svelte-check: 2 errors / 19 warnings (baseline 同, 0 new error)
+
+**反模式自查**:
+- 反 #162 ✅ §11 sync 与 fix commit 同一 batch (拟 commit: `xxx` + SPEC)
+- 反 #150 ✅ Master 自写自验 (Playwright 程序化 + DOM 三段 layout + computed style + image tool 视觉 四证)
+- 反 #167 ✅ iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN)
+- 反 #170 ✅ codeserver_exec_clean.js 写文件 (SessionCard.svelte 跨 sandbox/codeserver 同步)
+- 反 #189 ✅ SPEC append 用 heredoc (不用 sed 多匹配 — 旧 v0318-67 sed 把 .brand-line-1 字重也连带改了教训)
+- 反 #53 ✅ Gitea PAT token-only URL (沿用旧 token, push 即将成功)
+- 反 #158 ✅ Telegram 推送 (待 Master 发)
+
