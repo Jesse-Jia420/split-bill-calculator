@@ -20,6 +20,13 @@
    *  - The sheet-top row is rendered only inside `{#if showKeypad}`.
    *    It is read-only (like before) so the OS keyboard stays away.
    *
+   * v0.3.21 #114 (PO msg 03:10 #7816): form-position row 保持可见.
+   * 原 T13r2 设计 keypad 打开时 form-row hidden, 用户反馈"一点击怎么消失了".
+   * 改: form-row 永远可见 (键盘点击展开后, input 还在原位置, 被 backdrop
+   * 半透遮罩, sheet 从底部升起覆盖下半屏). 用户既能看到自己点的输入框,
+   * 也能看到底部 keypad. sheet-amount-row 保留 (贴近 keypad 的持久显示).
+   * 实际影响: form-row + sheet-amount-row 同步显示同一值, 略冗余但清晰.
+   *
    * Props / events / debounce / helpers — unchanged from T13.
    */
   import { onMount, createEventDispatcher } from 'svelte';
@@ -112,13 +119,16 @@
 
 <div class="amount-calc" class:disabled class:open={showKeypad}>
   <!--
-    Form-position row. v0.2.3 T13r2: hidden while the keypad is open
-    so the form-shrunk row doesn't get covered by the backdrop.
-    Same value/evaluated state — it reappears when the keypad closes.
-  -->
+    Form-position row. 一直保持可见 (不再 keypad 打开时 hidden).
+    v0.3.21 #114 (PO msg 03:10 #7816): 用户反馈 "金额输入框一点击怎么就消失了" —
+    原 v0.2.3 T13r2 设计是 click → form-row hidden + 底部 sheet 升起 + 背景虚化,
+    输入框从 viewport 消失造成 "点击→消失" 错觉. 改: form-row 保留,
+    sheet 升起覆盖下半屏, form-row 在背景虚化下仍可见 (半透),
+    用户既能看到自己点的输入框也能看到底部 sheet 的 keypad.
+    sheet-amount-row 留在 sheet 顶部提供贴近 keypad 的 persistent display.
+    -->
   <div
     class="amount-row"
-    class:hidden-when-open={showKeypad}
     role="button"
     tabindex={disabled ? -1 : 0}
     aria-label="金额表达式, 点击打开键盘"
@@ -232,13 +242,15 @@
     border-radius: var(--radius-md, 8px);
     transition: background-color 120ms ease;
     -webkit-tap-highlight-color: transparent;
+    /* v0.3.21 #114 (PO msg 03:10 #7816): form-row 浮在 sheet 之上, 用户
+       点开 keypad 后仍能看到自己点的输入框. z-index 180 > sheet 150.
+       position: relative 让 z-index 生效 (form-row 在正常 flow 里). */
+    position: relative;
+    z-index: 180;
   }
-  .amount-row.hidden-when-open {
-    /* T13r2: hide the form-position row while the keypad sheet is open
-       so the backdrop doesn't cover it. The sheet carries the same
-       value at its top. */
-    display: none;
-  }
+  /* v0.3.21 #114 (PO msg 03:10 #7816): 删 .amount-row.hidden-when-open (display: none).
+     原 v0.2.3 T13r2 设计 keypad 打开时隐藏 form-row, PO 拍板改 "保持可见"
+     — 用户需要看到自己点的输入框. 配合 template 删除 class:hidden-when-open. */
   .amount-row:focus-visible {
     outline: 2px solid var(--accent-500, #3b82f6);
     outline-offset: 2px;

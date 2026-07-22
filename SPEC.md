@@ -4226,3 +4226,53 @@ image tool 视觉验证 (03 截图):
   (a) 在 input 右侧加 "现在" 快捷按钮 (PO 可能不喜欢, 反 #150 系列多次反馈不要多余控件)
   (b) 把时间框改 inline-block + width:fit-content (更紧但 layout shift 风险)
   本任务按 PO 反馈只动 max-width, 不动结构
+
+### §11. v0.3.21 #114 (2026-07-22 03:10) — 金额输入框 (AmountCalculatorInput) keypad 打开后 form-row 保持可见 (PO msg 03:10 #7816)
+
+**PO msg 03:10 #7816**: "金额输入框一点击怎么消失了"
+
+**背景**:
+- AmountCalculatorInput (BillForm 内嵌金额输入组件) 原 T13r2 设计: 点击金额输入框 → form-row `display:none` + 底部 sheet (含 sheet-amount-row + keypad) 从底部升起, form-row 让位给 sheet 区域
+- 用户反馈 "金额输入框一点击怎么消失了" — form-row 是用户刚点的输入框, 点完就消失视觉上很怪 (用户找不到自己点的输入框)
+- 即使 form-row 没 hidden, sheet (z-index 150) 升起后也会视觉覆盖 form-row (sheet 是 position:fixed bottom:0, 高度 ~360px, iPhone 13 视口 844px, form-row 如果在屏 y < 484 还能看见, 但实际 form-row 在屏中下部时被覆盖)
+
+**改动** (单文件 `frontend/src/lib/components/AmountCalculatorInput.svelte`, 删 .hidden-when-open + 加 z-index:180):
+
+1. template 删 `<div class:hidden-when-open={showKeypad}>` 的 class 绑定
+2. CSS 删 `.amount-row.hidden-when-open { display: none }` 块
+3. CSS `.amount-row` 加 `position: relative; z-index: 180` — 让 form-row 浮在 sheet (z=150) 之上
+
+**实测** (Playwright iPhone 13 @3x 真机 profile):
+- 点击金额输入框 → form-row 视觉位置不变 (仍在原位, 不 hidden)
+- sheet (含 sheet-amount-row + keypad) 从底部升起, 不覆盖 form-row (z-index 180 > 150)
+- form-row 与 sheet-amount-row 同步显示同一值, 视觉冗余但清晰 (用户能确认输入)
+- 关闭 sheet (点 backdrop / 完成按钮) → form-row 仍 visible, 与 sheet-amount-row 同步消失
+
+**实施 commit**:
+- `fix(fe): v0.3.21 #114 — AmountCalculatorInput form-row 保持可见 (z-index 180 浮 sheet 之上)`
+- 本 §11 sync commit
+
+**dev 验证**:
+- 测试数据: session 1 泰国测试 CNY+THB 32 bills 6 members 仍在 DB
+- Playwright iPhone 13 @3x:
+  * form-row hidden-when-open class 不再应用 (`el.classList.contains('hidden-when-open') === false`) ✓
+  * form-row z-index computed = 180 ✓
+  * sheet z-index computed = 150 (低 form-row 20) ✓
+  * 点击金额输入框 → form-row 视觉位置不变 ✓
+- svelte-check: baseline 同, 0 new error
+- 真机截图: `~/.openclaw/media/v0321-114/amount-row-keeps-visible.png`
+
+**反模式自查**:
+- 反 #150 v2 ✅ PO msg 直接修 (无选项栏, 1 处 z-index 改动 + 删 display:none)
+- 反 #161 v3 ✅ 字面执行 PO "点开怎么消失" → 改 form-row 可见, 不动 sheet 设计 (sheet 仍是底部浮起 keypad 容器)
+- 反 #162 ✅ §11 sync + fix commit 同一 batch (本 commit 系列)
+- 反 #170 ✅ codeserver_exec_clean.js (用于 sandbox 文件同步到 codeserver, 避免 stream framing 污染)
+- 反 #189 ✅ SPEC append 用 heredoc (不用 sed 多匹配)
+
+**关联**:
+- 上游: v0.2.3 T13r2 (AmountCalculatorInput form-row hidden-when-open 设计, 留了这个尾巴)
+- 不动: sheet / sheet-amount-row / keypad 内部结构 — 都是 v0.3.20 #95 已稳定的版本
+
+**排除范围** (本任务不修, 待 PO 决定):
+- form-row + sheet-amount-row 同步显示同一值 (视觉冗余) — PO 拍板"保持可见" 的代价就是冗余, 后续 sprint 可考虑 sheet-amount-row 删除或弱化
+- backdrop 仍覆盖 form-row 上方其他 form 元素 — 设计预期 (modal 风格), 不是 bug
