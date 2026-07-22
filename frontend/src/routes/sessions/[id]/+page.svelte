@@ -139,39 +139,13 @@
         )
   );
 
-  // v0.3.21 #112 (PO msg 02:53): 账单搜索框输入文字时和输入文字后, 页面
-  // 都应自动滚动到搜索框 刚好 sticky 的位置.
-  // .bills-search 是 position: sticky; top: var(--space-2) (~8px from scroll
-  // container top). iOS app-shell 架构 (body.overflow:hidden + main.overflow-y:auto
-  // 来自 #30) 让 main 成为 scroll container, 不是 window. scrollIntoView 在
-  // 这种情况只滚到能滚的最远, 不能保证 search 顶部对齐到 container 顶部.
-  // 手动算 scrollTop = search.offsetTop - 8 设到 main.scrollTop.
-  // 注意: iOS Safari 键盘弹起时 main.clientHeight 收缩, max scroll 变大,
-  // 此时 handler 能真正把 search 滚到 sticky 位. 键盘关闭后浏览器自动
-  // clamp (因为 contentHeight 没变), 这是预期行为, 不强行保留.
-  // Playwright 测试要 setViewportSize 模拟键盘才能看到 sticky 位效果.
-  function scrollSearchToSticky() {
-    if (typeof document === 'undefined') return;
-    requestAnimationFrame(() => {
-      const main = document.querySelector('main');
-      const el = document.querySelector('.bills-search');
-      if (!(main instanceof HTMLElement) || !(el instanceof HTMLElement)) return;
-      const STICKY_OFFSET = 8;  // 跟 .bills-search { top: var(--space-2) } 对齐
-      // offsetTop 累加到 main
-      let target: HTMLElement | null = el;
-      let top = 0;
-      while (target && target !== main) {
-        top += target.offsetTop;
-        target = target.offsetParent as HTMLElement | null;
-      }
-      const desired = Math.max(0, top - STICKY_OFFSET);
-      const maxScroll = main.scrollHeight - main.clientHeight;
-      const targetScroll = Math.min(desired, maxScroll);
-      if (Math.abs(main.scrollTop - targetScroll) > 4) {
-        main.scrollTo({ top: targetScroll, behavior: 'smooth' });
-      }
-    });
-  }
+  // v0.3.21 #116 (PO msg 11:35 #7838 Bug 1 + Bug 4): 删 #112 引入的
+  // scrollSearchToSticky 函数 + 它的 onfocus/oninput caller. 完全不手动干预
+  // 账单搜索框滚动, 让 position:sticky + 浏览器原生 focus scroll 负责.
+  // - oninput 会让 main.scrollHeight 变化 → smooth scroll → 搜索框漂 (Bug 4)
+  // - onfocus 跟 iOS Safari 键盘弹起时的浏览器自动 scrollIntoView 冲突 → 搜索框
+  //   滚到 viewport 上方不可见 (Bug 1)
+  // 如未来 PO 再拍板"自动滚 sticky", 从 git history `6b8b78e^` 找回原实现.
 
   // v0.1.4 round 2 改动 1: 重新加回 members 折叠 toggle。
   // 默认展开; 用户折叠后按 sessionId 持久化到 localStorage。
@@ -783,14 +757,20 @@
         <!-- v0.2.1 T05: 搜索 input (session 内账单 description 模糊匹配)。 -->
         <div class="bills-search">
           <Search size={16} aria-hidden="true" />
+          <!-- v0.3.21 #116 (PO msg 11:35 #7838 Bug 4): 删 onfocus + oninput 上的
+               scrollSearchToSticky (v0.3.21 #112 引入). 原因:
+               - oninput: 用户输入时搜索框不应乱跳 (filteredBills 变化 → smooth scroll
+                 让 search 在 viewport 内上下漂)
+               - onfocus: iOS Safari 键盘弹起时, 浏览器已经自动 scrollIntoView focused
+                 element, 我们的 scrollTo 跟浏览器自动滚动冲突, 导致搜索框滚到 viewport
+                 上方不可见 ("消失在页面上方" PO 反馈 #1)
+               改: 不手动干预滚动, 让 position:sticky + 浏览器原生 focus scroll 负责. -->
           <input
             type="search"
             bind:value={billsSearchQuery}
             placeholder="搜索账单说明"
             aria-label="搜索账单说明"
             class="bills-search-input"
-            onfocus={scrollSearchToSticky}
-            oninput={scrollSearchToSticky}
           />
           {#if billsSearchQuery}
             <button

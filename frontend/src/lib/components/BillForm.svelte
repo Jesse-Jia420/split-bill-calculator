@@ -271,6 +271,12 @@
   /**
    * v0.3.20 #91: 进入独占态 — shared pill → exclusive pill.
    * focus input 让用户立即可键入金额.
+   * v0.3.21 #117 (PO msg 11:35 #7838 Bug 3): focus 后显式 scrollIntoView 让 main
+   * 滚到 input 进入可视区. iOS Safari 键盘弹起时, 浏览器自动 scrollIntoView 在
+   * app-shell 架构 (main 是 overflow-y: auto 容器, 不是 window) 下经常不生效,
+   * 表现为 "键盘弹出但页面不顶起, input 被键盘遮住". Android Chrome 不受影响.
+   * 显式调用 input.scrollIntoView({ block: 'center', behavior: 'smooth' })
+   * 让 main 滚, input 进入 visualViewport 可见区 (在 keyboard 之上).
    */
   async function enterExclusiveMode(memberId: number) {
     const st = participantState[memberId];
@@ -283,6 +289,11 @@
     if (input) {
       input.focus();
       input.select();
+      // iOS Safari: focus 后等下一帧, 调 scrollIntoView 让 main 滚到 input 居中可见.
+      // 浏览器原生 focus scrollIntoView 在 main 容器 + iOS keyboard 场景下经常失败.
+      requestAnimationFrame(() => {
+        input.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      });
     }
   }
 
@@ -610,7 +621,8 @@
                 />
               </div>
             {:else}
-              <!-- shared 虚态: "个人消费 ¥" ghost 玻璃, 点 → 进 exclusive -->
+              <!-- shared 虚态: "¥ 个人消费" ghost 玻璃 (currency 在前, label 在后), 点 → 进 exclusive.
+                   v0.3.21 #115 (PO msg 11:35): 货币符号应在前, 个人消费字样在后 (货币语义在前更直接). -->
               <button
                 type="button"
                 class="excl-pill excl-pill-shared"
@@ -619,8 +631,8 @@
                 data-testid={`ppts-chip-${m.id}`}
                 data-state="shared"
               >
-                <span class="pill-label">个人消费</span>
                 <span class="pill-currency" aria-hidden="true">{currencySymbol(currency)}</span>
+                <span class="pill-label">个人消费</span>
               </button>
             {/if}
           </li>
