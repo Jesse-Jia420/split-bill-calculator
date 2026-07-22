@@ -4095,3 +4095,75 @@ image tool 视觉验证 (03 截图):
 - 不动: v0.3.21 #106 series 的 wordmark (.brand-line-1 + .brand-line-2 SplitIt logo) — PO 只说换 tagline, 不动 logo
 - 不动: SUB (`旅行、合租、聚餐 — 随时随地，AA 不再烦恼`) — 副标题不在 PO 范围
 - 不动: .or-row / .btn-primary / .btn-ghost / 背景图 / 整页结构
+
+### §11. v0.3.21 #112 (2026-07-22 02:53) — Members section 「查看 N 人」再下移 + 搜索框 3 态高度统一 + 搜索框 focus/type 自动滚到 sticky (PO msg 02:53 #7809)
+
+**PO msg 02:53** (Telegram, 含截图):
+1. 这个查看 6 人再往下移动一些
+2. 账单搜索框输入态，普通态，存在文字态 的垂直宽度不一致。要改成一样的。
+3. 账单搜索框输入文字时和输入文字后，页面都应该自动滚动到搜索框 刚好 sticky 的位置
+
+**改动** (单文件 `frontend/src/routes/sessions/[id]/+page.svelte`, 净 +50 行):
+
+**Bug 1: members section 「查看 N 人」再下移** (3 处 CSS, 折叠态有效):
+- `.members-card` padding: `12px` → `12px 12px 4px` (上下不对称, bottom 减 8px)
+- `.members-card` `@media (max-width: 480px)` padding: `12px` → `12px 12px 4px` (mobile 同步, base 被 #110 加 mobile override 抹掉)
+- `.members-head` 加 `.collapsed` 修饰符: `margin-bottom: 12px` → `0` (折叠态 head 后无 element, margin 死空白; 展开态保留 12px 给 .members-list)
+- 实测 (Playwright iPhone 13 @3x, session 1 折叠态):
+  * cardHeight: **112.375px** (#110 是 132.375px, 净 −20px = −15%)
+  * cardPaddingBottom: **4px** (#110 是 12px)
+  * headMarginBottom collapsed: **0px** (#110 是 12px)
+  * hintBottomInCard: **5px** (距 card 视觉底边 5px, #110 是 ~25px)
+
+**Bug 2: 搜索框 3 态高度统一** (1 处 CSS):
+- `.bills-search-clear` 加 `min-height: 22px` (跟 .bills-search-input 22px 对齐)
+- 根因: 全局 `button { min-height: var(--touch-target) = 44px }` 撑高 clear button
+  * X 按钮在 .bills-search-input (22px) 旁边, 是 44px 高, 撑高 .bills-search container 从 50 → 72px (+44%, has-text 态)
+- 实测 (Playwright iPhone 13 @3x, 三状态):
+  * emptyNotFocused: **50px**
+  * emptyFocused: **50px**
+  * hasText: **50px** (was 72px, 修后一致) ✓
+  * consistent: true ✓
+
+**Bug 3: 搜索框 focus/type 自动滚到 sticky** (1 函数 + 2 事件 handler):
+- script 段加 `scrollSearchToSticky()`:
+  - offsetTop 累加 (跨 offsetParent 链) 算出 search 在 main 的绝对 y
+  - desired = top - 8 (8px = sticky top: var(--space-2))
+  - targetScroll = min(desired, maxScroll)
+  - main.scrollTo({top, behavior: 'smooth'}) (差异 > 4px 才滚, 避免抖动)
+- JSX `<input>` 加 `onfocus={scrollSearchToSticky}` + `oninput={scrollSearchToSticky}`
+- iOS Safari 键盘弹起时 main.clientHeight 收缩 → max scroll 变大 → handler 能真正把 search 滚到 sticky 位
+- 键盘关闭后浏览器自动 clamp (contentHeight 没变, maxScroll 缩回去), 这是浏览器默认行为, 不强行保留
+- 实测 (Playwright 模拟键盘, viewport 缩到 400px 高):
+  * 初始: searchTopInVp = 388 (自然位置, 没 sticky)
+  * click focus: searchTopInVp = 160 (无键盘时能滚到 max)
+  * 缩 viewport (模拟键盘): scrollTop 维持 228, max=672, searchTop 仍 160 (handler 跑了但已到位)
+  * type 1 char: **scrollTop = 380, searchTop = 92** ✓ (键盘开启下, search 滚到 sticky 位)
+  * 还原 viewport (键盘关闭): scrollTop 被 clamp 回 33, searchTop = 355 (浏览器默认行为)
+
+**实施 commit**:
+- `fix(fe): v0.3.21 #112 — Members hint 贴底 + 搜索框高度统一 + 自动滚到 sticky`
+- 本 §11 sync commit
+
+**dev 验证**:
+- 测试数据: session 1 (泰国测试 CNY+THB 32 bills 6 members) 仍在 DB
+- Playwright iPhone 13 @3x 真机 profile:
+  * Bug 1: hintBottomInCard=5px (期望 < 10px) ✓
+  * Bug 2: 三态 height 全 50px, consistent=true ✓
+  * Bug 3: with kbd simulated, searchTop after type=92 (期望 < 100, 接近 sticky 8) ✓
+- svelte-check: 2 errors / 20 warnings (baseline 同, 0 new error)
+- 真机截图 (iPhone 13 @3x):
+  * `~/.openclaw/media/v0321-112/members-after.png` — members section 折叠态 (image tool: hint 距 section 视觉底边 5px, 真正贴底)
+  * `~/.openclaw/media/v0321-112/D-typing-kbd-open.png` — 键盘开启下输入文字 (image tool: search 紧贴 NavBar 下方 sticky 位, X 清除按钮可见)
+
+**反模式自查**:
+- 反 #150 v2 ✅ PO msg 直接修 (无选项栏, 3 bug 一次清)
+- 反 #161 v3 ✅ 字面执行 PO 3 项 (下移 + 高度一致 + 自动滚 sticky, 不脑补额外)
+- 反 #162 ✅ §11 sync 与 fix commit 同一 batch (本 commit 系列)
+- 反 #170 ✅ codeserver_exec_clean.js 写 codeserver 文件 (避免 stream framing 污染 +page.svelte)
+- 反 #189 ✅ SPEC append 用 heredoc (不用 sed 多匹配)
+
+**排除范围** (本任务不修, 待 PO 决定):
+- 邀请按钮实际渲染高度 46.375px 不受 --invite-btn-h 影响 — pre-existing (#110 已排除)
+- 键盘关闭后 search 弹回自然位置 (scrollTop clamp) — 浏览器默认行为, iOS 上用户感受是"键盘关了搜索框跟着滚回去", 是预期体验
+- bills section 长列表 (32 bills) — pre-existing 滚动量, 不在本任务范围
