@@ -5266,3 +5266,13 @@ DOM 验证 (14 项 — 全 pass):
 - 反 #189 ✅ SPEC append 用 heredoc (不用 sed 多匹配 — 旧 v0318-67 sed 把 .brand-line-1 字重也连带改了教训)
 - 反 #53 ✅ Gitea PAT token-only URL (沿用 v0.3.22 #53/#64/#132, push 即将成功)
 - 反 #101 ✅ Playwright 程序化 + DOM computed style + image tool 视觉 三证 (2 PNG 存 `~/.openclaw/media/browser/v0324-92-avatar-size/`)
+
+### v0.3.24 #9.3 (续 #9.1 PO msg #8299 反馈 flip): 日期最左 + 人数最右 + 头像挨人数
+- PO 字面意图: "日期放在最左边,人数放在最右边,头像放在人数的左边,挨着人数"
+- 改动: SessionCard.svelte
+  1. DOM 重排: row-bottom 3 段 — date (左) | avatars (中右) | users-count (右) (flip #9.1 方向)
+  2. CSS: .row-bottom .date margin-left: auto → 删 (date 不再 auto 推到右)
+  3. CSS: .avatars 加 margin-left: auto (avatars + users-count 整组被推到右)
+- 结果布局: date — gap(10px) — [auto-fill 中段] — avatars — gap(10px) — users-count (right)
+- 视觉重心: 左 date + 右 avatars+users-count 整组紧挨, 中段留呼吸空间
+- 验证: Playwright iPhone 13 @3x 真机 /sessions, DOM 检查三段 x 坐标
