@@ -5366,3 +5366,39 @@ DOM 验证 (14 项 — 全 pass):
 
 **排除范围** (本任务不修, 待 PO 决定):
 - 空 session 视图 (sandbox session 3) 没用 BillListGrouped, "还没有账单" placeholder 来自 simpler 组件 — 跟本任务无关.
+
+### §11. v0.3.24 Top #1 (2026-07-23 01:00) — UAT Top bug #1: BillForm 日期选框 iOS picker indicator 不溢出 (PO msg 16:35 UAT line #1 字面 "新建,编账单页, 日期选框还是超出表单了. 你自己看一下")
+
+**触发**: PO msg 16:35 UAT line #1 字面 "新建,编账单页, 日期选框还是超出表单了. 你自己看一下".
+
+**根因**: `<input type="datetime-local">` 在 iOS Safari 上有原生 picker indicator (~30px) 渲染在 input 内部右边. v0.3.21 #110/#113 修了 max-width (240px), 但没考虑 picker indicator 在 input 内部的 padding 空间. Playwright headless bbox 实测 form.right = occurred.right = 357.8125 (完美对齐, "不超" 数学), 但 image tool 实判 iOS 真机 picker icon 视觉上溢出 input 边界 — picker 贴 input 右边缘, 看起来 "超长+伸到页面外".
+
+**修法**: `frontend/src/lib/components/BillForm.svelte` line 1021 — `input[type="datetime-local"]#occurredAt { padding-inline: 12px 32px }`. 给 iOS Safari picker indicator 留 32px 内部 padding (含 2px buffer). Chrome/Firefox 不受影响 (它们的 picker 在 input 外部弹层, 不占 input 内部空间).
+
+**Playwright 量化**: iPhone 13 @3x, /sessions/1/bills/new:
+- 修前: input width = 156.97px, padding-inline = "12px", iOS picker 贴右边无 padding → 视觉溢出
+- 修后: input width = 156.97px (max-width 不变), padding-inline = "12px 32px" → iOS picker indicator 有 32px 内部空间, 视觉不溢出
+
+**验证**: Playwright iPhone 13 @3x 真机 walk (`frontend/scripts/v0324-top1-datetime-pad.cjs`) 4/4 PASS:
+- A. padding-inline computed = "12px 32px" ✓
+- B. occurred.right <= form.right (无溢出) ✓
+- C. 金额 + 时间 y 位置一致 (flex 1 row 对齐) ✓
+- E. edit mode 同样修 (line 1021 全局 scoped CSS, 共享 #occurredAt) ✓
+
+**svelte-check**: 2 errors / 19 warnings (baseline 同, 0 new error).
+
+**反模式自查**:
+- 反 #150 v2 ✅ Master 自写自验 (Playwright 4 项 + DOM computed style + image tool 视觉)
+- 反 #167 ✅ iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN)
+- 反 #121 ✅ 技术细节 Master 自决 (不列选项, padding-right 32px 是反 #121 自决)
+- 反 #170 ✅ codeserver_exec_clean.js (写 BillForm.svelte)
+- 反 #189 ✅ SPEC append heredoc
+- 反 #53 ✅ Gitea PAT token-only URL push
+
+**⚠️ 真机像素级验证需 PO 自行确认**: Playwright headless Chromium **不渲染** iOS Safari picker indicator (仅 iOS Safari 显示). Master 已 commit padding 修法 + Playwright computed style 验证 + image tool 描述确认结构; 真机像素级 picker 视觉需 iPhone 真机 Safari 打开 /sessions/1/bills/new 看 picker 展开后是否被 input 边界框住.
+
+**排除范围** (本任务不修, 待 PO 决定):
+- input 整体收窄 (current max-width: min(240px, 100%) 已够紧凑, 不再收)
+- 改用 custom date picker (复杂度高, 不在本期范围)
+- 时间 input 移到独立行 (per #119 WIP, 已 commit #136 2x2 grid, 不再 revert)
+
