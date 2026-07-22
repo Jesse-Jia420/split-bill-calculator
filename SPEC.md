@@ -4746,3 +4746,50 @@ image tool 视觉验证 (03 截图):
 - 反 #162 ✅ §11 sync 与 fix commit 同一 batch
 - 反 #170 ✅ codeserver_exec_clean.js 写文件
 - 反 #189 ✅ SPEC append 用 heredoc
+
+### §11. v0.3.23 #132 (2026-07-22 17:46) — UAT old #4: 4 个 avatar class 玻璃质感增强 (Option B = backdrop-filter + 半透明) (PO msg 17:16)
+
+**根因**: UAT 老 bug #4 "头像的玻璃质感再增强一些" — 现有 `.avatar` (28×28 chip) / `.avatar` (32×32 settle transfer) / `.ppt-avatar` (36×36 BillForm) / `.avatar-a` (36×36 展开) / `.avatar-mini` (32×32 折叠) 5 处头像 玻璃语言不统一:
+- `.avatar` SessionMemberList / SettleTransferPath: 无 backdrop-filter + 无 inset highlight, 实色/单色
+- `.ppt-avatar`: 仅 `inset 0.5px white` 单层, 跟 `.avatar-a` v0.3.19 #83 玻璃语言不齐
+- `.avatar-mini`: 仅 `0 1px 2px outer`, 缺 inset
+PO msg 17:16 拍板 Option B = backdrop-filter + rgba 0.88 半透明 + 多层 glass shadow, 让 avatar 在 glass parent (.section-card / .transfer-card) 上有 "glass on glass" 视觉.
+
+**改动**:
+
+1. **`frontend/src/lib/components/SessionMemberList.svelte` AVATAR_GRADIENTS + .avatar**:
+   - 5 色 gradient 字符串 `#hex` → `rgba(..., 0.88)` (半透明, 让 backdrop-filter 有 glass on glass 效果)
+   - `.avatar` 加 `backdrop-filter: blur(4px) saturate(180%)` + 3-layer box-shadow (top highlight / bottom lowlight / outer lift)
+
+2. **`frontend/src/lib/components/BillForm.svelte` AVATAR_GRADIENTS + .ppt-avatar**:
+   - 5 色 gradient 字符串同步 SessionMemberList 改 rgba 0.88
+   - `.ppt-avatar` 已有 inset 0.5px 上 加 backdrop-filter + 保留原 inset + 加 outer lift
+
+3. **`frontend/src/lib/components/SettleTransferPath.svelte` .avatar**:
+   - `background: var(--accent-500)` (#3b82f6) → `background: rgba(59, 130, 246, 0.88)` (Option B 风格, alpha 0.88)
+   - 加 `backdrop-filter: blur(4px) saturate(180%)` + 3-layer glass shadow
+
+4. **`frontend/src/routes/sessions/[id]/+page.svelte` .avatar-a + 5 个 .palette-* + .avatar-mini + 5 个 .avatar-mini.palette-* + 1 个 .avatar-a (line 1407 32×32)**:
+   - 所有 gradient `#hex` → `rgba(..., 0.88)`
+   - `.avatar-a` 加 backdrop-filter + 4-layer glass shadow (top highlight / bottom lowlight / outer lift / 保留原 outer)
+   - `.avatar-mini` 加 backdrop-filter + 4-layer glass shadow
+
+**verify script** (`frontend/scripts/v0323-132-avatar-glass-verify.cjs`):
+- 启动: navigate /sessions/1 → 折叠态 toggle → 抓 `.members-avatars-inline .avatar-mini` → 展开 toggle → 抓 `.avatar-a:not(.is-me):not(.is-owner)` (palette 优先) → /sessions/1/bills/new → 抓 `.ppt-avatar`
+- 6 项 check 全 pass:
+  - `.avatar-mini` backdrop-filter = `blur(4px) saturate(1.8)` ✓ (chrome 序列化 `saturate(180%)` 为 `saturate(1.8)`)
+  - `.avatar-mini` box-shadow 含 `inset` ✓ (4 层)
+  - `.avatar-a` backdrop-filter ✓
+  - `.avatar-a` box-shadow 含 `inset` ✓ (palette-1 pink)
+  - `.ppt-avatar` backdrop-filter ✓
+  - `.ppt-avatar` box-shadow 含 `inset` ✓ (4 层含原 0.5px white)
+- background 全部 `linear-gradient(... rgba(..., 0.88) ...)` 确认 rgba alpha 0.88 生效
+- svelte-check: 2 errors / 20 warnings (baseline 同, 0 new error)
+- 视觉 (image tool 02-sessions-1-avatar-a-expanded.png): "轻盈，透明的玻璃质感" + Jesse 头像保留金色皇冠 + 双层 ring
+
+**反模式自查**:
+- 反 #162 ✅ §11 sync 与 fix commit 同一 batch
+- 反 #170 ✅ codeserver_exec_clean.js 写文件 (BillForm.svelte 跨 sandbox/codeserver 同步)
+- 反 #189 ✅ SPEC append 用 heredoc (不用 sed 多匹配)
+- 反 #101 ✅ Playwright + DOM computed style + image tool 三证
+- 反 #53 ✅ Gitea PAT token-only URL (沿用 v0.3.22 #53/#60/#64/#129/#130/#131, push 成功)

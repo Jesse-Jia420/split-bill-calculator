@@ -264,18 +264,28 @@
     gap: var(--space-2);
     min-width: 0;
   }
+  /* v0.3.23 #132 (UAT old #4): 玻璃质感增强 — Option B (rgba 0.88 半透明 + backdrop-filter + 4-layer glass shadow),
+     跟 .avatar-a / .avatar-mini 统一语言. */
   .avatar {
     flex: 0 0 auto;
     width: 32px;
     height: 32px;
     border-radius: 50%;
-    background: var(--accent-500);
+    /* var(--accent-500) = #3b82f6, alpha 0.88 让 backdrop-filter 在 glass parent 上有 glass on glass 效果 */
+    background: rgba(59, 130, 246, 0.88);
     color: #fff;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     font-weight: 600;
     font-size: var(--font-size-sm);
+    border: 1.5px solid #fff;
+    backdrop-filter: blur(4px) saturate(180%);
+    -webkit-backdrop-filter: blur(4px) saturate(180%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.5),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.08),
+      0 1px 2px rgba(0, 0, 0, 0.08);
   }
   .transfer-name {
     font-weight: 400;

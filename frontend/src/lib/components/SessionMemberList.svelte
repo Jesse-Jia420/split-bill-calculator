@@ -47,12 +47,14 @@
   }
 
   /** v0.3.18 #64: avatar 渐变 (5 色循环 — 跟全站风格统一). */
+  // v0.3.23 #132 (UAT old #4, PO msg 17:16 option B): rgba alpha 0.88 + backdrop-filter + glass shadow
+  //   让 .avatar / .ppt-avatar / .avatar-a / .avatar-mini 在 glass parent 上有"glass on glass"视觉
   const AVATAR_GRADIENTS = [
-    'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', // indigo → purple
-    'linear-gradient(135deg, #ec4899 0%, #f43f5e 100%)', // pink → rose
-    'linear-gradient(135deg, #10b981 0%, #14b8a6 100%)', // emerald → teal
-    'linear-gradient(135deg, #f59e0b 0%, #eab308 100%)', // amber → yellow
-    'linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%)', // blue → cyan
+    'linear-gradient(135deg, rgba(99, 102, 241, 0.88) 0%, rgba(168, 85, 247, 0.88) 100%)', // indigo → purple
+    'linear-gradient(135deg, rgba(236, 72, 153, 0.88) 0%, rgba(244, 63, 94, 0.88) 100%)', // pink → rose
+    'linear-gradient(135deg, rgba(16, 185, 129, 0.88) 0%, rgba(20, 184, 166, 0.88) 100%)', // emerald → teal
+    'linear-gradient(135deg, rgba(245, 158, 11, 0.88) 0%, rgba(234, 179, 8, 0.88) 100%)', // amber → yellow
+    'linear-gradient(135deg, rgba(59, 130, 246, 0.88) 0%, rgba(6, 182, 212, 0.88) 100%)', // blue → cyan
   ];
   function avatarGradient(index: number): string {
     return AVATAR_GRADIENTS[index % AVATAR_GRADIENTS.length];
@@ -238,7 +240,7 @@
     border-color: rgba(59, 130, 246, 0.5);
   }
 
-  /* avatar 28×28 圆形, 5 色循环 (按 index). */
+  /* v0.3.23 #132 (UAT old #4): avatar 28×28 圆形, 5 色循环 (按 index) + Option B 玻璃. */
   .avatar {
     flex: 0 0 auto;
     width: 28px;
@@ -252,6 +254,14 @@
     font-size: 12px;
     line-height: 1;
     flex-shrink: 0;
+    /* Option B: backdrop-filter + 半透明 → glass on glass */
+    backdrop-filter: blur(4px) saturate(180%);
+    -webkit-backdrop-filter: blur(4px) saturate(180%);
+    /* glass shadow: top highlight + bottom lowlight + outer lift */
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.5),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.08),
+      0 1px 2px rgba(0, 0, 0, 0.08);
   }
 
   .name {

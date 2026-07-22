@@ -1219,11 +1219,12 @@
 
   /* Avatar — 36px, 5 色循环 (indigo/pink/emerald/amber/blue) + owner 紫色 ring + 👑 */
   /* v0.3.19 #83 (PO #7300): 加玻璃质感 — 2px 白边 + shadow + inset highlight, 36px 更立体. */
+  /* v0.3.23 #132 (UAT old #4, PO msg 17:16 option B): 加 backdrop-filter + 强化 glass shadow */
   .avatar-a {
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #818cf8 0%, #6366f1 100%);
+    background: linear-gradient(135deg, rgba(129, 140, 248, 0.88) 0%, rgba(99, 102, 241, 0.88) 100%);
     color: #fff;
     display: inline-flex;
     align-items: center;
@@ -1233,37 +1234,43 @@
     flex-shrink: 0;
     position: relative;
     border: 2px solid rgba(255, 255, 255, 0.5);
+    /* Option B: backdrop-filter (与 palette 0.88 alpha 渐变配合) */
+    backdrop-filter: blur(4px) saturate(180%);
+    -webkit-backdrop-filter: blur(4px) saturate(180%);
+    /* glass shadow: top highlight + bottom lowlight + outer lift */
     box-shadow:
-      0 4px 12px rgba(0, 0, 0, 0.08),
-      inset 0 0.5px 0 rgba(255, 255, 255, 0.6);
+      inset 0 1px 0 rgba(255, 255, 255, 0.5),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.08),
+      0 1px 2px rgba(0, 0, 0, 0.08),
+      0 4px 12px rgba(0, 0, 0, 0.08);
   }
   .avatar-a.b {
-    background: linear-gradient(135deg, #f472b6 0%, #ec4899 100%);
+    background: linear-gradient(135deg, rgba(244, 114, 182, 0.88) 0%, rgba(236, 72, 153, 0.88) 100%);
   }
   .avatar-a.c {
-    background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+    background: linear-gradient(135deg, rgba(52, 211, 153, 0.88) 0%, rgba(16, 185, 129, 0.88) 100%);
   }
   .avatar-a.d {
-    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.88) 0%, rgba(245, 158, 11, 0.88) 100%);
   }
   .avatar-a.e {
-    background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+    background: linear-gradient(135deg, rgba(96, 165, 250, 0.88) 0%, rgba(59, 130, 246, 0.88) 100%);
   }
   /* v0.3.19 #83 (PO #7300): template 用 palette-{i%5}, 补补 CSS */
   .avatar-a.palette-0 {
-    background: linear-gradient(135deg, #818cf8 0%, #6366f1 100%);
+    background: linear-gradient(135deg, rgba(129, 140, 248, 0.88) 0%, rgba(99, 102, 241, 0.88) 100%);
   }
   .avatar-a.palette-1 {
-    background: linear-gradient(135deg, #f472b6 0%, #ec4899 100%);
+    background: linear-gradient(135deg, rgba(244, 114, 182, 0.88) 0%, rgba(236, 72, 153, 0.88) 100%);
   }
   .avatar-a.palette-2 {
-    background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+    background: linear-gradient(135deg, rgba(52, 211, 153, 0.88) 0%, rgba(16, 185, 129, 0.88) 100%);
   }
   .avatar-a.palette-3 {
-    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.88) 0%, rgba(245, 158, 11, 0.88) 100%);
   }
   .avatar-a.palette-4 {
-    background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+    background: linear-gradient(135deg, rgba(96, 165, 250, 0.88) 0%, rgba(59, 130, 246, 0.88) 100%);
   }
   .avatar-a.is-owner {
     box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(168, 85, 247, 0.55);
@@ -1407,7 +1414,7 @@
     width: 32px;
     height: 32px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #818cf8 0%, #6366f1 100%);
+    background: linear-gradient(135deg, rgba(129, 140, 248, 0.88) 0%, rgba(99, 102, 241, 0.88) 100%);
     color: #fff;
     display: inline-flex;
     align-items: center;
@@ -1465,6 +1472,7 @@
   }
   /* v0.3.19 #83 (PO #7300): 折叠态 mini avatar 用 palette-{i%5} 渐变 (复用 v0.3.18 #66 token).
      删掉之前 .avatar-mini { background: var(--accent-500) } 单色. */
+  /* v0.3.23 #132 (UAT old #4, PO msg 17:16 option B): 加 backdrop-filter + 强化 glass shadow */
   .avatar-mini {
     width: 32px;
     height: 32px;
@@ -1476,24 +1484,32 @@
     font-weight: 600;
     font-size: 12px;
     border: 1.5px solid #fff;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.10);
+    /* Option B: backdrop-filter 让 rgba 0.88 渐变在 glass parent 上有 glass on glass 效果 */
+    backdrop-filter: blur(4px) saturate(180%);
+    -webkit-backdrop-filter: blur(4px) saturate(180%);
+    /* glass shadow: top highlight + bottom lowlight + outer lift */
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.5),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.08),
+      0 1px 2px rgba(0, 0, 0, 0.08),
+      0 1px 2px rgba(0,0,0,0.10);
     user-select: none;
     position: relative;
   }
   .avatar-mini.palette-0 {
-    background: linear-gradient(135deg, #818cf8, #6366f1);
+    background: linear-gradient(135deg, rgba(129, 140, 248, 0.88), rgba(99, 102, 241, 0.88));
   }
   .avatar-mini.palette-1 {
-    background: linear-gradient(135deg, #f472b6, #ec4899);
+    background: linear-gradient(135deg, rgba(244, 114, 182, 0.88), rgba(236, 72, 153, 0.88));
   }
   .avatar-mini.palette-2 {
-    background: linear-gradient(135deg, #34d399, #10b981);
+    background: linear-gradient(135deg, rgba(52, 211, 153, 0.88), rgba(16, 185, 129, 0.88));
   }
   .avatar-mini.palette-3 {
-    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.88), rgba(245, 158, 11, 0.88));
   }
   .avatar-mini.palette-4 {
-    background: linear-gradient(135deg, #60a5fa, #3b82f6);
+    background: linear-gradient(135deg, rgba(96, 165, 250, 0.88), rgba(59, 130, 246, 0.88));
   }
   .avatar-mini-overflow {
     background: var(--gray-300, #d1d5db) !important;
