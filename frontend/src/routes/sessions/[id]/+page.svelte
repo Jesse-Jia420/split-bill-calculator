@@ -252,15 +252,25 @@
   /**
    * v0.3.18 #66 (PO #6899 Mockup A): anon 账本过期时间 ISO -> 中文长格式
    * 「YYYY 年 M 月 D 日后过期」(amber pill 文案).
+   * v0.3.22 #127 (UAT bug #2.b, PO msg 16:05 #8064): PO 拍板改 yyyy.mm.dd 过期
+   * (日期分隔离口令, 单位词"过期"留, 凑 "2026.07.29 过期" 简洁).
    */
   function formatExpiryPill(iso: string): string {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return '';
     const y = d.getFullYear();
-    const m = d.getMonth() + 1;
-    const day = d.getDate();
-    return `${y}年${m}月${day}日过期`;
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}.${m}.${day} 过期`;
   }
+
+  /**
+   * v0.3.22 #127 (UAT bug #2.b, PO msg 16:05 #8064): 找 session owner 显示名,
+   * 不用 session.members[0] 不一定永远是 owner 的局限. fallback 'owner'。
+   */
+  const ownerDisplayName = $derived(
+    session?.members?.find(m => m.role === 'owner')?.display_name ?? 'owner'
+  );
 
   async function load() {
     if (!sessionId) return;
@@ -520,47 +530,37 @@
               <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
               <path d="M16 3.13a4 4 0 0 1 0 7.75" />
             </svg>
-            <span>成员 · {session.members.length}人</span>
+            <span>成员</span>
           </h3>
-          {#if (session?.owner_email == null || session?.owner_email === '') && session?.invite_expires_at}
+          <!-- v0.3.22 #127 (UAT bug #2.a, PO msg 16:05 #8064): 删 "· N人" count.
+               PO 反馈"成员 N人"右侧 N人 多余, 成员数从 .members-list-a 下面的 chevron "查看 N 人"
+               翻出来. 保留 title 简洁只 "成员"。 -->
+          <!-- v0.3.22 #127 (UAT bug #2.b, PO msg 16:05 #8064): expiry pill 由 (anon only)
+               收窄为 everyone — invite_expires_at 存在就显示 (owner_email 绑不绑都显),
+               文本 `yyyy.mm.dd 过期, xx 登录即可永久保存` 统一。xx = ownerDisplayName
+               (从 m.role==='owner' 查, 不 session.members[0] 依赖首成员永远是 owner)。 -->
+          {#if session?.invite_expires_at}
             <span class="expiry-inline-a" data-testid="invite-expiry-pill">
               <!-- Lucide `clock` 11×11 -->
               <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <circle cx="12" cy="12" r="10" />
                 <polyline points="12 6 12 12 16 14" />
               </svg>
-              <!-- v0.3.20 #93 (PO msg 00:04 #7450, Fix 8): expiry format 改长格式
-                   YYYY年M月D日后过期 (跟 v0.3.18 #66 Mockup A 同款), 跟 sticky expiry 字段统一. -->
               <span>{formatExpiryPill(session.invite_expires_at)}</span>
-              <!-- v0.3.20 #93 (Fix 8): anon session (无 owner_email) 加 CTA 提示 owner 登录以永久保存.
-                   Link to /auth/login?returnTo=/sessions/{id}. 只有 owner 视角 (isOwner=true) 才显示
-                   这个 CTA 才有意义 — 因 anonymous session 一定没有 owner_email 已绑,
-                   isOwner 检查这里 redundant, 但保留 escape hatch 给其他边界 case (例如 multi-owner). -->
-              {#if (session?.owner_email == null || session?.owner_email === '') && session?.invite_expires_at}
-                <span class="expiry-cta-sep" aria-hidden="true">·</span>
-                <a
-                  class="expiry-cta-link"
-                  href="/auth/login?returnTo=/sessions/{session.id}"
-                  aria-label="登录以永久保存账本"
-                  data-testid="invite-expiry-cta"
-                >
-                  <!-- v0.3.20 #94 Fix 4 (PO msg 02:13 #7455): 去括号.
-                       之前是 "(Jesse) 登录以永久保存" (用 .expiry-cta-prefix 包 "()",
-                       nick 后跟 ") 登录以永久保存" 不分类), PO 拍板 "Jesse 登录以永久保存"
-                       直接连写不要括号. 模板 + CSS 同步清理:
-                       - 删 .expiry-cta-prefix (包开括号那个)
-                       - nick 仍是 .expiry-cta-nick (紫色粗体 accent-700)
-                       - "登录以永久保存" 独立 .expiry-cta-suffix (默认颜色, 跟 nick 区分) -->
-                  <span class="expiry-cta-nick">
-                    {#if session.members && session.members.length > 0}
-                      {session.members[0].display_name}
-                    {:else}
-                      owner
-                    {/if}
-                  </span>
-                  <span class="expiry-cta-suffix">登录以永久保存</span>
-                </a>
-              {/if}
+              <span class="expiry-cta-sep" aria-hidden="true">·</span>
+              <a
+                class="expiry-cta-link"
+                href="/auth/login?returnTo=/sessions/{session.id}"
+                aria-label="登录即可永久保存账本"
+                data-testid="invite-expiry-cta"
+              >
+                <!-- v0.3.20 #94 Fix 4 (PO msg 02:13 #7455): 去括号, nick 直接连写 "登录以...".
+                     v0.3.22 #127: "以" → "即可", 文本改成 "xx 登录即可永久保存" 跟 bug spec 对齐。-->
+                <span class="expiry-cta-nick">
+                  {ownerDisplayName}
+                </span>
+                <span class="expiry-cta-suffix">登录即可永久保存</span>
+              </a>
             </span>
           {/if}
         </div>
