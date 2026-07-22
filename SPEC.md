@@ -4852,3 +4852,26 @@ PO msg 17:16 拍板 Option B = backdrop-filter + rgba 0.88 半透明 + 多层 gl
 - 反 #170 ✅ codeserver_exec_clean.js 写文件
 - 反 #189 ✅ SPEC append 用 heredoc
 - 反 #101 ✅ Playwright DOM 实测 rendered order 验证 desc
+
+### §11. v0.3.23 #136 (2026-07-22 18:41) — UAT new #3: BillForm 输入框长度一致 (2x2 grid, 金额|时间 + 付款人|币种) (PO msg 16:35 "时间 选框长度, 金额 input 长度, 应与付款人 input 框长度一致")
+
+**根因**: 金额单独 row (width:100%), 时间单独 row (width:100%), 付款人+币种 row (各 50%). 4 个主输入宽度不一致: 金额 326 / 时间 326 / 付款人 157 / 币种 157. PO 要全部一致.
+
+**改动** (BillForm.svelte + AmountCalculatorInput.svelte 联动):
+1. BillForm.svelte: 金额 + 时间 拆到新 row (.row align-items:flex-start + gap var(--space-3))
+2. 4 个 cell wrapper 加 `min-width: 0` (允许 flex 收缩到小于 content intrinsic, 修 flex item 溢出 bug)
+3. AmountCalculatorInput.svelte: `.amount-calc` 加 `width: 100%` (从 BillForm flex:1 cell 撑满, 修 intrinsic 110px bug)
+   - 旧: amount_calc=110 / amount_input=26 (cell 没撑满, input 不可点)
+   - 新: amount_calc=157 / amount_input=73 (cell 撑满, input 可点 73px)
+
+**实测** (Playwright iPhone 13 `/sessions/1/bills/new`):
+- amount_calc=157, amount_input=73, occurredAt=157, payer=157, currency=157 ✓
+- 4 个 cell 全部等宽 157 (50% of 326 content)
+- 视觉 (image tool): "4 个输入框等宽 + label 顶对齐 + 整体框架平衡" ✓
+- svelte-check: 2 errors / 20 warnings (baseline 同, 0 new error)
+
+**反模式自查**:
+- 反 #162 ✅ §11 sync 与 fix commit 同一 batch
+- 反 #170 ✅ codeserver_exec_clean.js 写文件 (BillForm + AmountCalculatorInput 跨 sandbox/codeserver 同步)
+- 反 #189 ✅ SPEC append 用 heredoc
+- 反 #101 ✅ Playwright DOM 实测 width 一致性 + image tool 视觉
