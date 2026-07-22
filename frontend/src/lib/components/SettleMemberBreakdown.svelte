@@ -40,8 +40,26 @@
   import { currencySymbol } from '$lib/utils/currency';
   import { toast } from '$stores/toast';
   import SkeletonBill from '$components/SkeletonBill.svelte';
+  import { Search, X } from 'lucide-svelte';
   import type { MemberSettlement } from '$api/settle';
   import type { SessionDetail } from '$api/sessions';
+
+  /**
+   * v0.3.24 #12 (2026-07-22 20:18) — settle 页 付款明细 + 消费明细 加搜索框
+   * (PO msg 16:35 UAT file line 12: "个人视图,以及主币种汇总,付款明细上方,
+   *   均添加账单列表相同的搜索框,支持搜索对应的付款明细和消费明细").
+   *
+   * - 2 个搜索框 (付款明细 + 消费明细 各一个, 跟 BillListGrouped.svelte 的
+   *   .bills-search 同款玻璃风格, placeholder "搜索账单名称").
+   * - 实时 filter 按 b.description 包含关键词 (中文 / 英文 case-insensitive).
+   * - 空态: totalBills > 0 && filteredBills === 0 → "没有匹配的账单,换个关键词试试。"
+   *   (跟 BillListGrouped 的 totalBills > 0 && filteredBills === 0 文案对齐,
+   *   v0.3.22 #119 拍板双态 placeholder).
+   * - 切换 member / viewMode 时 searchQuery 保留 (跟 BillListGrouped 行为一致 —
+   *   BillListGrouped 也不重置 searchQuery on re-fetch).
+   * - 不动 /sessions/[id] 上 BillListGrouped 已有搜索框 (PO 字面 "账单列表相同的
+   *   搜索框", 复用风格, 不复用状态).
+   */
 
   export let session: SessionDetail;
   /** 当前登录用户 user_id。用于默认选中自己。 */
@@ -76,6 +94,12 @@
   // === v0.3.16 #1: 付款/消费明细可点击展开折叠 (PO 拍板默认展开) ===
   let paidExpanded = true;
   let consumedExpanded = true;
+
+  // === v0.3.24 #12 (PO msg 16:35 UAT file line 12): 付款明细 + 消费明细 搜索框 ===
+  // 跟 BillListGrouped.svelte 的 .bills-search 同款 (玻璃风 placeholder "搜索账单名称"),
+  // 实时 filter b.description 包含关键词 (case-insensitive, 中文/英文都按 substring match).
+  let paidSearchQuery = '';
+  let consumedSearchQuery = '';
 
   /** T6: 金额统一改用 formatMoney (千分位 + 2dp)。 */
   function fmt(n: number): string {
@@ -142,6 +166,23 @@
 
   $: perCurrencyAgg = aggregatePerCurrency(selectedMember);
   $: perCurrencyKeys = Object.keys(perCurrencyAgg);
+
+  // === v0.3.24 #12: 付款明细 + 消费明细 search filter derived.
+  // filter 规则: b.description 包含 query (case-insensitive). 空 query 不过滤.
+  // 中文按 substring match (默认 includes 对 CJK 字符串 OK, 跟 BillListGrouped
+  // 行为一致). ===
+  function matchesSearch(b: any, query: string): boolean {
+    if (!query) return true;
+    const q = query.toLowerCase();
+    const desc = (b.description ?? '').toLowerCase();
+    return desc.includes(q);
+  }
+  $: filteredPaidBills = selectedMember
+    ? (selectedMember.paid_bills ?? []).filter((b) => matchesSearch(b, paidSearchQuery))
+    : [];
+  $: filteredConsumedBills = selectedMember
+    ? (selectedMember.consumed_bills ?? []).filter((b) => matchesSearch(b, consumedSearchQuery))
+    : [];
 
   $: meMemberId = (() => {
     if (currentUserId === null || currentUserId === undefined) return null;
@@ -459,14 +500,43 @@
               <span class="bills-section-count muted">({selectedMember.paid_bills.length})</span>
               <span class="collapse-icon" aria-hidden="true">{paidExpanded ? '▼' : '▶'}</span>
             </h4>
+            <!-- v0.3.24 #12 (PO msg 16:35 UAT file line 12): 付款明细 搜索框
+                 跟 BillListGrouped.svelte .bills-search 同款玻璃风格.
+                 只在 paid_bills.length > 0 时 render (空 section 不显示 search,
+                 否则用户搜什么都没有显得无意义). -->
+            {#if selectedMember.paid_bills.length > 0}
+              <div class="bills-section-search">
+                <Search size={14} aria-hidden="true" />
+                <input
+                  type="search"
+                  bind:value={paidSearchQuery}
+                  placeholder="搜索账单名称"
+                  aria-label="搜索付款明细"
+                  class="bills-section-search-input"
+                />
+                {#if paidSearchQuery}
+                  <button
+                    type="button"
+                    class="bills-section-search-clear"
+                    aria-label="清除搜索"
+                    on:click={() => (paidSearchQuery = '')}
+                  ><X size={12} /></button>
+                {/if}
+              </div>
+            {/if}
             {#if selectedMember.paid_bills.length === 0}
               <p class="muted empty-hint">没有付过账单</p>
+            {:else if filteredPaidBills.length === 0}
+              <!-- v0.3.24 #12 (PO msg 16:35 UAT file line 12): 付款明细 filter 没匹配
+                   跟 BillListGrouped 的 totalBills > 0 && filteredBills === 0 文案对齐
+                   (v0.3.22 #119 拍板双态 placeholder, 区分 "没数据" vs "filter 没过"). -->
+              <p class="muted empty-hint">没有匹配的账单,换个关键词试试。</p>
             {:else if paidExpanded}
               <!-- v0.3.17 #20 hotfix (PO msg 13:12): ul 用 transition:slide
                    200ms, li 改 in:fade 80ms 取消 stagger — toggle 展开/收起
                    整体 smooth, 30 行不再逐行 delay 200ms, 不再「卡卡的」 -->
               <ul class="bill-sublist" transition:slide={{ duration: 200 }}>
-                {#each selectedMember.paid_bills as b, i (b.bill_id)}
+                {#each filteredPaidBills as b, i (b.bill_id)}
                   <li
                     class="bill-subrow"
                     in:fade={{ duration: 80 }}
@@ -535,11 +605,38 @@
               <span class="bills-section-count muted">({selectedMember.consumed_bills.length})</span>
               <span class="collapse-icon" aria-hidden="true">{consumedExpanded ? '▼' : '▶'}</span>
             </h4>
+            <!-- v0.3.24 #12 (PO msg 16:35 UAT file line 12): 消费明细 搜索框
+                 跟 付款明细 search 同款, filter consumed_bills.
+                 只在 consumed_bills.length > 0 时 render. -->
+            {#if selectedMember.consumed_bills.length > 0}
+              <div class="bills-section-search">
+                <Search size={14} aria-hidden="true" />
+                <input
+                  type="search"
+                  bind:value={consumedSearchQuery}
+                  placeholder="搜索账单名称"
+                  aria-label="搜索消费明细"
+                  class="bills-section-search-input"
+                />
+                {#if consumedSearchQuery}
+                  <button
+                    type="button"
+                    class="bills-section-search-clear"
+                    aria-label="清除搜索"
+                    on:click={() => (consumedSearchQuery = '')}
+                  ><X size={12} /></button>
+                {/if}
+              </div>
+            {/if}
             {#if selectedMember.consumed_bills.length === 0}
               <p class="muted empty-hint">没有被分摊的账单</p>
+            {:else if filteredConsumedBills.length === 0}
+              <!-- v0.3.24 #12 (PO msg 16:35 UAT file line 12): 消费明细 filter 没匹配,
+                   跟 付款明细 同文案 (跟 BillListGrouped 风格统一). -->
+              <p class="muted empty-hint">没有匹配的账单,换个关键词试试。</p>
             {:else if consumedExpanded}
               <ul class="bill-sublist" transition:slide={{ duration: 200 }}>
-                {#each selectedMember.consumed_bills as b, i (b.bill_id)}
+                {#each filteredConsumedBills as b, i (b.bill_id)}
                   {@const tags = fmtConsumedTags(b)}
                   <li
                     class="bill-subrow"
@@ -1296,5 +1393,76 @@
     .section-header.glass-chip {
       background: rgba(255, 255, 255, 0.20);
     }
+  }
+
+  /* === v0.3.24 #12 (PO msg 16:35 UAT file line 12): 付款明细 / 消费明细 搜索框
+       跟 BillListGrouped.svelte 的 .bills-search 同款玻璃风 (placeholder
+       "搜索账单名称", bg rgba(255,255,255,0.55) + backdrop-filter blur saturate).
+       settle 页搜索框不加 sticky (settle 页 section 已有 sticky head, 多个
+       sticky 会叠层); 放在 .bills-section 内, 跟 .bills-section-head (.h4)
+       自然衔接, 跟下面 .bill-sublist (ul) 也紧挨. */
+  .bills-section-search {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2, 8px);
+    /* 跟 .bills-section-head (sticky 0px) 区分, search 紧跟 sticky header 下方,
+       不上 sticky 不下 sticky (settle 页本身滚动 + section sticky 已有 head). */
+    margin-bottom: var(--space-2, 8px);
+    padding: 8px var(--space-2, 8px);
+    background: rgba(255, 255, 255, 0.55);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: var(--radius-md, 8px);
+    color: var(--gray-500);
+    /* 跟 .bills-section 共享 left border (颜色竖条) — search 缩进跟 ul 内容对齐 */
+    margin-left: 0;
+  }
+  @supports not (backdrop-filter: blur(1px)) {
+    .bills-section-search {
+      background: var(--color-bg, #f9fafb);
+    }
+  }
+  .bills-section-search-input {
+    flex: 1;
+    border: 0;
+    background: transparent;
+    font-size: var(--font-size-sm, 14px);
+    color: var(--gray-900);
+    padding: 0;
+    min-width: 0;
+    /* 跟 .bills-search-input 同款 (sessions/[id]/+page.svelte 1738-1748):
+       height 22px + line-height 22px + -webkit-appearance: none + margin: 0
+       + text-align: left. 在 settle section 内 search 比 bill list row 矮,
+       22px 让 search 视觉不抢戏. */
+    height: 22px;
+    line-height: 22px;
+    margin: 0;
+    -webkit-appearance: none;
+    appearance: none;
+    text-align: left;
+  }
+  /* 跟 .bills-search-input 同款: webkit native X 隐藏 + 配套自定义 X. */
+  :global(.bills-section-search-input::-webkit-search-cancel-button) {
+    -webkit-appearance: none;
+    appearance: none;
+    display: none !important;
+  }
+  .bills-section-search-input:focus {
+    outline: none;
+  }
+  .bills-section-search-clear {
+    appearance: none;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    color: var(--gray-500);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px;
+    /* 跟 .bills-search-clear 同款 22px 高 (sessions/[id]/+page.svelte 1752 行
+       min-height: 22px), 不撑高整个 search container. */
+    min-height: 22px;
   }
 </style>

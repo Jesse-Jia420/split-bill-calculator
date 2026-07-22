@@ -5091,3 +5091,68 @@ svelte-check: 2 errors / 19 warnings (baseline 同 — pre-existing `Property 's
 - 不动: v0.3.22 #122 commit (文案 "账本链接/邀请") — 保留
 - 不动: v0.3.21 #108 (Toast z-index 9999) — Toast 仍可能跟其他场景并存, 优先级正确
 - 不动: CurrencyAddModal 玻璃 modal token 共享 — 本 modal 复用了 saturate(200%) blur(20px) + indigo ring + shadow 模板
+
+### §11. v0.3.24 #12 (2026-07-22 20:18) — UAT bug #12: settle 页 付款明细 + 消费明细 加搜索框 (PO msg 16:35 UAT file line 12 字面 "个人视图,以及主币种汇总,付款明细上方,均添加账单列表相同的搜索框,支持搜索对应的付款明细和消费明细")
+
+**PO 字面意图**: settle 页 个人视图 tab 的 付款明细 + 消费明细 各加一个搜索框, filter 各自 section 的 bills 列表. 跟 BillListGrouped.svelte 的 .bills-search 同款玻璃风 (placeholder "搜索账单名称", bg rgba 半透明 + backdrop-filter blur saturate).
+
+**Scope** (PO 字面 "支持搜索对应的付款明细和消费明细" → 2 个独立 search):
+- `frontend/src/lib/components/SettleMemberBreakdown.svelte`:
+  1. 加 2 reactive state: `paidSearchQuery`, `consumedSearchQuery` (default '')
+  2. 加 2 derived filtered arrays: `filteredPaidBills`, `filteredConsumedBills` (按 `b.description` 包含 query, case-insensitive, CJK substring match OK)
+  3. 加 2 search input blocks (在 .bills-section-paid / .bills-section-consumed 各一, `<h4>` sticky head 之后, ul list 之前)
+     - glass 风 placeholder "搜索账单名称" (跟 BillListGrouped 一致)
+     - Search icon (lucide 14×14) + input + X clear button (lucide 12×12) 仅在 query 非空时显示
+  4. ul 渲染从 `selectedMember.paid_bills` 改成 `filteredPaidBills`, consumed 同理
+  5. 加 filter 空态 placeholder 分支 (`{#if filteredPaidBills.length === 0}` → "没有匹配的账单,换个关键词试试。" 跟 BillListGrouped totalBills > 0 && filteredBills === 0 文案对齐, v0.3.22 #119 拍板)
+  6. 加 Search, X 从 lucide-svelte import
+  7. 加 5 个 scoped CSS rule + 1 个 `:global()` webkit cancel button 隐藏 (跟 BillListGrouped 同款 glass token)
+- 不动 `+page.svelte` (settle 页路由) — search 在子组件内部, 父级无需改
+- 不动 BillListGrouped.svelte — PO 字面 "账单列表相同的搜索框" 指**样式相同**, 不指复用 component
+- 不动 SessionCard / BillForm / +layout.svelte / API
+
+**search 不放 sticky 解释**: settle 页 .bills-section-head 已经是 sticky, search 紧跟 sticky header 下方作为普通 flex item (margin-bottom 8px), 不再上 sticky — 多 sticky 叠层会让 .bills-section-head 视觉冲突. 跟 .bills-section 共享 8px padding-left 缩进, 视觉上 search 是 section 一部分.
+
+**filter 规则细节**:
+- `matchesSearch(b, query)`: 空 query → true (不过滤); 非空 → `b.description.toLowerCase().includes(query.toLowerCase())`
+- 切 member / viewMode 时 searchQuery 保留 (跟 BillListGrouped 行为一致, BillListGrouped 不重置 searchQuery on re-fetch)
+- 切 viewMode primary ↔ split 后 searchQuery 仍生效 (search 按 description 过滤, 跟金额 / 币种无关)
+
+**实测** (Playwright iPhone 13 @3x 真机 walk, `frontend/scripts/v0324-12-search-verify.cjs`):
+
+DOM 验证 (8 项):
+- A. settle 默认 (overview tab) `.bills-section-search` count = 0 (search 只在 personal tab) ✓
+- B. 切到 personal tab, `.bills-section-search` count = 2 (付款 + 消费各一) ✓
+- C. search placeholder = "搜索账单名称" (跟 BillListGrouped 一致) ✓
+- D. search glass 风格: bg = `rgba(255,255,255,0.55)`, backdrop-filter = `blur(20px) saturate(1.8)`, border-radius = 8px, border-color = `rgb(229,229,229)` ✓ (跟 BillListGrouped 完全一致)
+- E. session 1 Jesse (默认选中): 付款明细 bills 数 = 13, 消费明细 bills 数 = 29 (initial) ✓
+- F. 输入 "晚餐" → 付款明细 bills 数 13 → 2 (filter 生效), 消费明细 29 不变 (独立 scope) ✓
+- G. 清空 search → 付款明细 13 还原 (filter reset) ✓
+- H. 输入 "ZZZ_NO_MATCH_AT_ALL" → 付款明细 bills 数 = 0, empty-hint 元素显示 "没有匹配的账单,换个关键词试试。" ✓
+- I. clear X button count = 1 (当 query 非空) → 点击 → input.value = "" ✓
+- J. 切到 viewMode=split (原始数据) + search "晚餐" → 付款明细 bills 数 = 2 (search 跨 viewMode 仍生效) ✓
+
+视觉 (image tool 05-fullpage-empty.png): 整页 2 个搜索框 (付款 + 消费各一), 玻璃风胶囊样式一致, 付款明细 filter "ZZZ_NO_MATCH" 后显示空态文案 "没有匹配的账单,换个关键词试试。", 消费明细 29 条 bills 不受付款 search 影响 (独立 scope). 整体布局清晰、合理.
+
+视觉 (image tool 06-fullpage-filter-dinner.png): 付款明细 search "晚餐" 后剩 2 条 bills (含"晚餐"关键字), 玻璃风搜索框带 X clear 按钮.
+
+**svelte-check**: 2 errors / 19 warnings (baseline 同, 0 new error — pre-existing errors 在 `+page.svelte:588` `session_code` 和 `join/+page.svelte:32` `SessionPreviewMember`, 跟 #12 无关)
+
+**实施 commit**: `<hash>` fix(fe): v0.3.24 #12 — UAT bug #12 settle 页 付款明细 + 消费明细 加搜索框
+
+**反模式自查**:
+- 反 #150 ✅ Coder 自写自验 (Playwright 程序化 + DOM glass style + filter 数变化 + image tool 视觉 四证)
+- 反 #162 ✅ §11 sync 与 fix commit 同一 batch
+- 反 #164 ✅ 单 commit fix + verify script + SPEC §11 entry (反 #189 heredoc append)
+- 反 #167 ✅ iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN)
+- 反 #170 ✅ codeserver_exec_clean.js 写文件 (SettleMemberBreakdown.svelte 跨 sandbox/codeserver 同步 base64 pipe)
+- 反 #189 ✅ SPEC append 用 heredoc (不用 sed 多匹配 — 旧 v0318-67 sed 把 .brand-line-1 字重也连带改了教训)
+- 反 #101 ✅ Playwright 程序化 + DOM computed style + image tool 视觉 三证 (4 + 2 = 6 PNG, 存 `~/.openclaw/media/browser/v0324-12-search/`)
+- 反 #53 ✅ Gitea PAT token-only URL (沿用旧 token, push 即将成功)
+
+**排除范围** (本任务不修, 待 PO 决定):
+- **count badge 仍显示总数 `(13)` 不显示过滤后 `(2/13)`** — 跟 BillListGrouped 行为一致 (BillListGrouped 也没 count badge). 用户从空态文案 "没有匹配的账单" 已经知道 filter 无匹配. 如未来要精确反映, 可改成 `(filteredCount/totalCount)` 格式.
+- **search 不放 sticky** — settle 页 section head 已是 sticky, search 紧跟 sticky header 下方做普通 flex item (避免多 sticky 叠层冲突). 跟 BillListGrouped 不一样 (BillListGrouped 列表无 sticky head, search 必须 sticky 否则滚走). 这是有意设计差异.
+- **search 不跨 section 联动** — 付款明细 search 只 filter 付款, 消费明细 search 只 filter 消费. 跟 PO 字面 "支持搜索对应的付款明细和消费明细" 一致 (2 个独立 search, 各自 filter 自己 section). 如未来要全局 1 个 search, 需重设计 layout.
+- **search 不含 payer name / amount 字段** — 只按 `b.description` substring 匹配 (跟 BillListGrouped 一致). PO 字面 "搜索账单名称" 暗示按 desc. 如未来要按 payer, 可扩展 matchesSearch 增加 b.payer_id → member name lookup.
+- **切 member / viewMode searchQuery 不重置** — 跟 BillListGrouped 行为一致, 不破坏跨切切换时的 UX 一致性.
