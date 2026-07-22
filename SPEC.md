@@ -4875,3 +4875,24 @@ PO msg 17:16 拍板 Option B = backdrop-filter + rgba 0.88 半透明 + 多层 gl
 - 反 #170 ✅ codeserver_exec_clean.js 写文件 (BillForm + AmountCalculatorInput 跨 sandbox/codeserver 同步)
 - 反 #189 ✅ SPEC append 用 heredoc
 - 反 #101 ✅ Playwright DOM 实测 width 一致性 + image tool 视觉
+
+### §11. v0.3.23 #137 (2026-07-22 18:46) — UAT new #15: 减弱 AmountCalculatorInput backdrop 强度, 修「金额输入框一点击就消失」错觉 (PO msg 16:35 "新建和编辑账单页面，金额输入框，一点击怎么就消失了？？？")
+
+**根因**: .sheet-backdrop 原 `rgba(0,0,0,0.25) + blur(2px)` 让周围表单 (label / 时间 / 付款人 / 币种 / 说明) 视觉变暗模糊. input 本身 z=180 顶叠, **不在** backdrop 模糊范围内 (DOM 验证 stack_at_input: input > amount-row z=180 > backdrop z=99), 但周围变暗让 user 误以为 input 也消失 (change blindness).
+
+**改动** (`frontend/src/lib/components/AmountCalculatorInput.svelte:296-299`):
+- `background: rgba(0, 0, 0, 0.25)` → `rgba(0, 0, 0, 0.08)` (减弱 68%, 仍保留 modal 暗示)
+- 删 `backdrop-filter: blur(2px)` (周围表单不再模糊)
+- input z=180 不变, 仍顶叠
+
+**实测** (Playwright iPhone 13 `/sessions/1/bills/new`):
+- 修前 backdrop bg=rgba(0,0,0,0.25) + filter=blur(2px) → 表单变暗模糊
+- 修后 backdrop bg=rgba(0,0,0,0.08) + filter=none → 表单清晰可读, input 视觉突出
+- 视觉 (image tool 修后): "表单内容完全清晰可见" + "金额 input 视觉非常突出" + "焦点正确引导到输入"
+- svelte-check: 2 errors / 20 warnings (baseline 同, 0 new error)
+
+**反模式自查**:
+- 反 #162 ✅ §11 sync 与 fix commit 同一 batch
+- 反 #170 ✅ codeserver_exec_clean.js 写文件
+- 反 #189 ✅ SPEC append 用 heredoc
+- 反 #101 ✅ Playwright computed style + image tool 视觉双证 (修前后对比)
