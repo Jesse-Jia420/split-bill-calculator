@@ -17,12 +17,14 @@
    * (line-1 "Split" 125px italic serif 700 + line-2 "It." 58px tracked sans)
    * with glass material (cool ivory #E6ECF2 body + 3px/2px white outer stroke
    * painted via paint-order: stroke fill + top specular band via -webkit-background-clip
-   * + soft cool drop shadow). Tagline emphasis「撕不裂」— same italic-serif glass
-   * material at 42px (not 40 — at 40 the 1.5px stroke / top specular degrades to
-   * faint at @1x; 42 + 1.8px keeps rim crisp). Buttons swapped (primary = 登录,
+   * + soft cool drop shadow). Buttons swapped (primary = 登录,
    * ghost = 直接开始使用), with .or-row middle divider ("或 · 无需注册，")
    * and removed bottom .hint for anonymous state (hint copy migrated to .or-row).
    * Logged-in state keeps .hint with logout link (unchanged).
+   *
+   * v0.3.21 #111 (PO msg 02:46): tagline 整段删「分账够清楚，友情『撕不裂』」,
+   * 换成纯文本「好用的分账工具」. brand-emphasis span + 配套 italic-serif
+   * glass material CSS 整段删 (见 .tagline-emphasis 那段注释).
    */
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
@@ -34,10 +36,9 @@
   const BG_URL =
     'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=1280&q=75';
 
-  // v0.3.21 #106: tagline is no longer a plain string — it contains an inline
-  // <span class="tagline-emphasis">「撕不裂」</span> for the brand-emphasis
-  // callback to the wordmark (PO msg 16:58 #2). Defined as a Svelte snippet
-  // so the JSX stays in the template where it can be styled.
+  // v0.3.21 #111 (PO msg 02:46): tagline 纯文本「好用的分账工具」，
+  // 不再有 brand-emphasis span (v0.3.21 #106 「撕不裂」emphasis 整段删).
+  // SUB 不动。
   const SUB = '旅行、合租、聚餐 — 随时随地，AA 不再烦恼';
 
   let busy = false;
@@ -116,13 +117,12 @@
         </div>
       </div>
 
-      <!-- v0.3.21 #106: tagline 内嵌 brand-emphasis 「撕不裂」— 全角书名号 U+300C/U+300D
-           (不改成英文引号或直角引号). emphasis 跟 wordmark 同 italic-serif + glass
-           material, 42px (不是 40 — 40 时 1.5px stroke / top specular band @1x 几乎
-           看不见, 42 + 1.8px stroke 保留 rim 清晰). -->
-      <h1 class="tagline">
-        分账够清楚，友情<span class="tagline-emphasis"><span class="hl" aria-hidden="true">「撕不裂」</span>「撕不裂」</span>。
-      </h1>
+      <!-- v0.3.21 #111 (PO msg 02:46): 整个 tagline 换成 "好用的分账工具".
+           原 v0.3.21 #106 「分账够清楚，友情『撕不裂』『撕不裂』」整段删,
+           含 .tagline-emphasis span + 配套 .tagline-emphasis / .tagline-emphasis .hl
+           CSS (italic-serif glass material 32px). 新文案简洁纯文本, 只走
+           .tagline body 26px regular (font-weight:400 from #106.2), 无 emphasis. -->
+      <h1 class="tagline">好用的分账工具</h1>
       <p class="sub">{SUB}</p>
 
       {#if error}
@@ -356,49 +356,10 @@
     text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   }
 
-  /* v0.3.21 #106 (PO msg 16:58 #2 + 17:16): 「撕不裂」brand-emphasis —
-     同 line-1 italic-serif + glass material, 42px (不是 40 — 40 时 1.5px
-     stroke / top specular band 在 @1x 几乎看不见 rim; 42 + 1.8px stroke
-     保留 rim 清晰但仍明显小于 wordmark).
-     v0.3.21 #106.3 (PO msg 18:17): 字号继续调小 42px → 32px (-24%).
-     三级 hierarchy: wordmark (125) > emphasis (32) > tagline body (26). */
-  .tagline-emphasis {
-    position: relative;
-    display: inline-block;
-    font-family: "Times New Roman", "New York", "Charter",
-      "Source Serif Pro", "Noto Serif", serif;
-    font-style: italic;
-    font-weight: 700;
-    font-size: 32px;        /* v0.3.21 #106.3: 42 → 32, 字号继续调小 */
-    letter-spacing: -0.02em;
-    line-height: 1;
-    color: #E6ECF2;
-    -webkit-text-stroke: 1.8px #FFFFFF;
-    paint-order: stroke fill;
-    vertical-align: -0.04em;  /* nudge to sit on CJK baseline */
-    margin: 0 0.05em;
-    -webkit-font-smoothing: antialiased;
-    font-synthesis: none;
-    text-rendering: optimizeLegibility;
-    text-shadow:
-      0 1px 2px rgba(220, 230, 245, 0.30),
-      0 5px 14px rgba(0, 0, 0, 0.40);
-  }
-  .tagline-emphasis .hl {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    color: transparent;
-    -webkit-text-stroke: 0;
-    background: linear-gradient(180deg,
-      #FFFFFF 0%,
-      #FFFFFF 18%,
-      #F4F8FC 36%,
-      rgba(230, 236, 242, 0.00) 48%,
-      rgba(230, 236, 242, 0.00) 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-  }
+  /* v0.3.21 #111 (PO msg 02:46): 「撕不裂」brand-emphasis 整段删.
+     原 v0.3.21 #106 series (.tagline-emphasis + .tagline-emphasis .hl,
+     italic-serif glass material 32px) 配套随 tagline 文字替换一并删.
+     新 tagline "好用的分账工具" 纯文本, 只走 .tagline body 26px regular. */
 
   .sub {
     font-size: 1rem;
