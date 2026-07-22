@@ -4793,3 +4793,22 @@ PO msg 17:16 拍板 Option B = backdrop-filter + rgba 0.88 半透明 + 多层 gl
 - 反 #189 ✅ SPEC append 用 heredoc (不用 sed 多匹配)
 - 反 #101 ✅ Playwright + DOM computed style + image tool 三证
 - 反 #53 ✅ Gitea PAT token-only URL (沿用 v0.3.22 #53/#60/#64/#129/#130/#131, push 成功)
+
+### §11. v0.3.23 #133 (2026-07-22 17:59) — UAT new #4: BillForm 币种 label 跟 付款人 label 顶对齐 (PO msg 17:57 拍 "你没理解我的意思" #4 reply)
+
+**根因**: .row 全局 (`frontend/src/app.css:267`) 有 `align-items: center`. BillForm 这个 row 装 付款人 column (h=71 因为 <select> 默认行高) + 币种 column (h=56 因为 2 个 pill 高度矮). 两 column 高度差, align-items center 让 币种 div 顶 y=279, 付款人 div 顶 y=271 (差 8px). 币种 label 跟着下移 8px, 跟 付款人 label 视觉不齐.
+
+**改动** (`frontend/src/lib/components/BillForm.svelte:516`): 
+- 这个特定 row `<div class="row" style="gap: var(--space-3);">` 加 `align-items: flex-start` (顶对齐).
+- 全局 `.row` CSS 不变 (其他 30+ 处 row 仍 center).
+
+**实测** (Playwright iPhone 13 `/sessions/1/bills/new`):
+- 修前: 付款人 label y=271 vs 币种 label y=279 (Δ=8px 错位)
+- 修后: 付款人 label y=271 vs 币种 label y=271 (Δ=0px 完全对齐)
+- 视觉 (image tool 验证): "基本在同一水平线上" + "距离上方金额 label 的距离也大致相同"
+
+**反模式自查**:
+- 反 #162 ✅ §11 sync 与 fix commit 同一 batch (6905cdf + docs followup)
+- 反 #170 ✅ codeserver_exec_clean.js 写文件 (跨 sandbox/codeserver BillForm 同步)
+- 反 #189 ✅ SPEC append 用 heredoc
+- 反 #101 ✅ Playwright DOM 实测 y 坐标 + image tool 视觉确认
