@@ -142,9 +142,14 @@
   // v0.3.21 #118 (PO msg 11:35 #7838 Bug 1 + Bug 4, #116 续): 加回 scrollSearchToSticky
   // 函数, 只在 onfocus 调用 (不调 oninput). 加 visualViewport 守卫 — iOS keyboard 弹起时
   // (vv.height 比 window.innerHeight 小 100px+) 不滚, 避免跟浏览器自动 scrollIntoView 冲突.
-  // - focus 时 scrollSearchToSticky 把 search 预置到 sticky top: 8px (即时滚, behavior: 'auto')
+  // - focus 时 scrollSearchToSticky 把 search 预置到 sticky top: 8px (即时滚)
   // - keyboard 弹起后 browser scrollIntoView 不会再拖 (search 已在 viewport 内 sticky 位)
   // - oninput 不调: filteredBills 变化 search 位置保持
+  // v0.3.22 #128 (UAT bug #1, PO msg 16:05 #8064): 摘 rAF + scrollTo() 框架, 改
+  // 同步 main.scrollTop = … — iOS 点击 focus 中, rAF 退出后 browser scrollIntoView
+  // 紧跟而来, 两调 scroll 抢同一帧 → search 被顶下 viewport. 同步滚让我方赢 frame 1
+  // (Svelte onfocus handler 同步执行), browser scrollIntoView 起来 时 search 已
+  // 到位, 不再被拖。
   function scrollSearchToSticky() {
     if (typeof document === 'undefined') return;
     // v0.3.21 #118: iOS keyboard 弹起时 visualViewport.height < window.innerHeight - 100,
@@ -153,26 +158,24 @@
       const vv = window.visualViewport;
       if (vv.height < window.innerHeight - 100) return;
     }
-    requestAnimationFrame(() => {
-      const main = document.querySelector('main');
-      const el = document.querySelector('.bills-search');
-      if (!(main instanceof HTMLElement) || !(el instanceof HTMLElement)) return;
-      const STICKY_OFFSET = 8;  // 跟 .bills-search { top: var(--space-2) } 对齐
-      // offsetTop 累加到 main
-      let target: HTMLElement | null = el;
-      let top = 0;
-      while (target && target !== main) {
-        top += target.offsetTop;
-        target = target.offsetParent as HTMLElement | null;
-      }
-      const desired = Math.max(0, top - STICKY_OFFSET);
-      const maxScroll = main.scrollHeight - main.clientHeight;
-      const targetScroll = Math.min(desired, maxScroll);
-      // behavior: 'auto' 即时滚 (avoid smooth scroll animation 中被其他事件打断)
-      if (Math.abs(main.scrollTop - targetScroll) > 4) {
-        main.scrollTo({ top: targetScroll, behavior: 'auto' });
-      }
-    });
+    const main = document.querySelector('main');
+    const el = document.querySelector('.bills-search');
+    if (!(main instanceof HTMLElement) || !(el instanceof HTMLElement)) return;
+    const STICKY_OFFSET = 8;  // 跟 .bills-search { top: var(--space-2) } 对齐
+    // offsetTop 累加到 main
+    let target: HTMLElement | null = el;
+    let top = 0;
+    while (target && target !== main) {
+      top += target.offsetTop;
+      target = target.offsetParent as HTMLElement | null;
+    }
+    const desired = Math.max(0, top - STICKY_OFFSET);
+    const maxScroll = main.scrollHeight - main.clientHeight;
+    const targetScroll = Math.min(desired, maxScroll);
+    // 同步赋值 (no animation, no rAF delay) — 抢在 browser scrollIntoView 之前
+    if (Math.abs(main.scrollTop - targetScroll) > 4) {
+      main.scrollTop = targetScroll;
+    }
   }
 
   // v0.1.4 round 2 改动 1: 重新加回 members 折叠 toggle。
