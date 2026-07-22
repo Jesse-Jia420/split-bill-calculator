@@ -4657,3 +4657,42 @@ image tool 视觉验证 (03 截图):
 - 反 #162 ✅ §11 sync 与 fix commit 同一 batch
 - 反 #170 ✅ codeserver_exec_clean.js 写文件
 - 反 #189 ✅ SPEC append 用 heredoc
+
+### §11. v0.3.22 #128 (2026-07-22 16:30) — UAT bug #1: iOS 搜索框 focus 跑 viewport 外修复 (删 rAF + 同步 scrollTop) (PO msg 16:05 #8064)
+
+**触发**: PO 16:05 #8064 UAT bug #1 "账单搜索框未 sticky 时，若 focus，则会消失在页面之外。ios 有此问题，android 正常" + PO 16:11 拍 "你先试试".
+
+**根因假设**: iOS Safari focus → keyboard 弹起 sequence 中:
+1. Svelte `onfocus` 触发 `scrollSearchToSticky()`
+2. 旧实现 wrap `requestAnimationFrame(...)` → rAF 退出 (next frame) 才滚
+3. Browser focus-induced `scrollIntoView` 在 rAF 跟 setTimeout 之间穿插
+4. 两调 scroll 抢同一帧 → search 被顶下 viewport.top
+5. 加 visualViewport guard 救不了 — guard 在 rAF 调用时 visualViewport.height 还没缩短 (keyboard 没完全弹开)
+
+**改动** (sandbox `frontend/src/routes/sessions/[id]/+page.svelte:140-180`):
+- 摘掉 rAF wrapper + `scrollTo({behavior:'auto'})` 链
+- 改同步 `main.scrollTop = targetScroll`
+- Svelte onfocus handler 同步执行 → 滚在 frame 1 抢在 browser scrollIntoView 之前
+- 不动 visualViewport guard (保留键盘已弹时跳过 scroll 的逻辑)
+- 不动 STICKY_OFFSET/offsetTop 算法 (算 sticky 位置数学仍准)
+- 加 v0.3.22 #128 注释解释变更根因
+
+**vs #120 WIP (stashed)**: #120 同样尝试摘 rAF, 但带 HTML comment 进 input 属性区 (导致 attribute_duplicate 解析错误) + console.log debug + native focusin listener. 本次只摘 rAF (最小变更), 共享 #120 思路但避免其 Svelte parse 问题.
+
+**实测** (Playwright iPhone 13 @3x 真机 walk, session 1):
+- BEFORE focus: search.top=376 (search 在视口下方, 未 sticky), main.scrollTop=400
+- AFTER focus: search.top=92 (贴顶, 接近 sticky 位), main.scrollTop=769 (滚到顶)
+- **[data] search.top >= -20 after focus** (= 没跑 viewport 外) ✓
+- 截图 `~/.openclaw/media/browser/v0322-128-after-focus.png`
+- svelte-check baseline: 2 errors / 20 warnings (无变动)
+
+**已知局限** (本任务不修):
+- 真正 iOS Safari 真机 keyboard 弹开时 visualViewport.height 缩到 ~600px 跟 `vv.height < innerHeight - 100` guard 边界接近, 可能偶发 guard 击穿 (收不到 100px 阈值). PO 真机验后才知.
+- Playwright iPhone 13 profile 没有真 keyboard, 无法 100% 模拟 iOS 焦点 + 键盘 sequence — 本次实测只能证明 search 不跑 viewport 外 (top >= -20). 真机真 keyboard 验证待 PO.
+
+**反模式自查**:
+- 反 #101 ✅ Playwright 截图 + DOM scrollTop 实测 (即使 headless 模拟不到, 也证无 off-viewport)
+- 反 #170 ✅ codeserver_exec_clean.js 写文件
+- 反 #162 ✅ §11 sync 与 fix commit 同一 batch
+- 反 #189 ✅ SPEC append 用 heredoc
+- 反 #119 ✓ v0.3.22 #119 验收时 Master 自写自验 — 沿用 verify 模式 (Playwright 真机 + DOM 检查 + image tool 视觉)
