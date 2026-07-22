@@ -883,6 +883,17 @@
     flex-direction: column;
     gap: var(--space-3);
   }
+  /* v0.3.24 #18 (PO msg 16:35 UAT line #18 字面 "账单列表搜索框，当无搜索结果时，提示的 没有匹配的账单，换个关键词试试 ，出现的位置不对，被搜索框挡住了。应下移一些"):
+     原 .muted (app.css 全局类, 仅 color: gray-500) 无 padding, placeholder 紧贴 .bills-search bottom (跟 day-group 头一行同 y 位置), 视觉跟 search box "拼"在一起 — 用户感受是 "被搜索框挡".
+     第一版尝试 padding-top (顶部空间推进 placeholder box 内): 验证发现 placeholder BOX 整体 y 位置不变 (margin 不动) — 仅 text 下移到 box 底部 23px, 反而看着更 "底部被压" 不像 "下移".
+     第二版改 margin-top: var(--space-6) (~24px, 全站 spacing token 一致) — placeholder BOX 整体下移 24px, 跟 search box 有视觉呼吸空隙. text-align center 维持 (跟全站 muted 提示文一致).
+     .bill-list-empty 跟 .muted 通用类配合: 颜色走 .muted (gray-500), 间距走 .bill-list-empty (24px top margin).
+     不影响 "还没账单" placeholder (它用别的 p.muted, 没 .bill-list-empty class).
+  */
+  .bill-list-empty {
+    margin: var(--space-6) 0 0;
+    text-align: center;
+  }
   /* v0.3.18 #46-A (PO msg 18:15 拍板): sheet 玻璃感加强 (方案 B + 玻璃感更强)
      — sheet bg 0.32 → 0.55 (明显玻璃边缘)
      — saturate 150% → 180%, blur 16 → 22px (更糊)

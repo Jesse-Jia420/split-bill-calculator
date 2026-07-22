@@ -5330,3 +5330,39 @@ DOM 验证 (14 项 — 全 pass):
 **排除范围** (本任务不修, 待 PO 决定):
 - Modal 用 `position: fixed` 替代 portal — 当前 modal 是 InviteLinkButton 组件内的 fixed div, 概念上 OK 但跟 React portal 模式不同. PO 不报, 不改.
 - InviteLinkButton 改成 portal — 同上, 当前实现可行.
+
+### §11. v0.3.24 #18 (2026-07-23 00:30) — UAT bug #18: 账单列表搜索框无结果时 placeholder 位置下移 (PO msg 16:35 UAT line #18 字面 "账单列表搜索框, 当无搜索结果时, 提示的 没有匹配的账单, 换个关键词试试, 出现的位置不对, 被搜索框挡住了。应下移一些")
+
+**触发**: PO msg 16:35 UAT line #18 字面 "账单列表搜索框, 当无搜索结果时, 提示的 没有匹配的账单, 换个关键词试试, 出现的位置不对, 被搜索框挡住了。应下移一些".
+
+**根因**: `frontend/src/lib/components/BillListGrouped.svelte` template (line 615) 渲染 `<p class="muted bill-list-empty">` 作为 filter 空态 placeholder. `.muted` 是 `app.css` 全局类 (line 253, 仅 `color: var(--gray-500)`), 无 padding/margin. placeholder BOX 顶部 y 紧贴 `.bills-search` 底部 y, 视觉跟 search box "拼" 在一起 — 用户感受是 "被搜索框挡".
+
+**修法**: `.bill-list-empty { margin: var(--space-6) 0 0; text-align: center; }` (scoped CSS 加到 BillListGrouped.svelte line 893).
+- `margin-top: var(--space-6)` — 跟全站 spacing token 一致 (~24px), placeholder BOX 整体下移 24px.
+- `text-align: center` — 跟全站 muted 提示文 (居中) 一致.
+- `.muted` 通用类保留 (颜色走 gray-500), `.bill-list-empty` 只负责间距.
+- "还没有账单" placeholder 不受影响 — 它用 `p.muted` 无 `.bill-list-empty` class (line 610).
+
+**第一版尝试** padding-top (顶部空间推进 placeholder box 内): 验证发现 placeholder BOX 整体 y 位置不变 (margin 不动) — 仅 text 下移到 box 底部 23px, 反而看着更 "底部被压" 不像 "下移". 故走 margin 路线.
+
+**验证**: Playwright iPhone 13 @3x 真机 walk (`frontend/scripts/v0324-18-empty-pos-verify.cjs`) 6 项全 PASS:
+- A. /sessions/1 默认加载后 `.bills-search-input` visible, placeholder = "搜索账单名称" ✓
+- B. 输入 "ZZZZZ_NO_MATCH_AT_ALL" → `.bill-list-empty` 出现, text = "没有匹配的账单,换个关键词试试。" ✓, day-group 全部消失 ✓
+- C. gap (empty.top - search.bottom) >= 20px (实测 ~24px) ✓ (核心修复验证)
+- D. empty.top > search.bottom (不重叠) ✓ (核心修复验证)
+- F. placeholder 文案字面 = "没有匹配的账单,换个关键词试试。" ✓ (跟 #119 一致)
+- G. clear search → 账单列表恢复 (.bill-list-empty 消失, day-groups 出现) ✓
+
+**svelte-check**: 2 errors / 19 warnings (baseline 同, 0 new error).
+
+**反模式自查**:
+- 反 #150 v2 ✅ Master 自写自验 (Playwright 6 项程序化 + DOM bbox + image tool 视觉 三证, 不是只看 HTTP 200)
+- 反 #167 ✅ iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN)
+- 反 #170 ✅ codeserver_exec_clean.js (写 BillListGrouped.svelte 跨 sandbox/codeserver 同步)
+- 反 #189 ✅ SPEC append 用 heredoc (不用 sed 多匹配 — 之前用 sed 把 .brand-line-1 字重也连带改了教训)
+- 反 #53 ✅ Gitea PAT token-only URL push
+
+**截图**: 4 张 PNG 存 `~/.openclaw/media/browser/v0324-18-empty-pos/` (image tool 视觉确认 placeholder 下移 ~24px, 搜索框和提示间距合理, 整体布局合理).
+
+**排除范围** (本任务不修, 待 PO 决定):
+- 空 session 视图 (sandbox session 3) 没用 BillListGrouped, "还没有账单" placeholder 来自 simpler 组件 — 跟本任务无关.
