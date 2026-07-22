@@ -5029,3 +5029,65 @@ DOM 验证 (12 项):
 - 反 #189 ✅ SPEC append 用 heredoc (不用 sed 多匹配 — 旧 v0318-67 sed 把 .brand-line-1 字重也连带改了教训)
 - 反 #53 ✅ Gitea PAT token-only URL (沿用旧 token, push 即将成功)
 - 反 #101 ✅ Playwright 程序化 + DOM computed style + image tool 视觉 三证 (02 PNG 存 ~/.openclaw/media/browser/v0324-9-1-row-bottom-layout/)
+
+### §11. v0.3.24 #14 (2026-07-22 20:25) — UAT bug 邀请链接按钮 toast 改 confirm modal (PO msg 16:35 UAT line #14)
+
+**触发**: PO msg 16:35 UAT file line 14 字面 "点击 账本链接&邀请 按钮后,popup 弹窗显示"已复制此账本链接,可用于回到此账本或邀请他人。(另起一行)请妥善保管此链接!"。用户点击 知道了 按钮,弹窗才消失" — 当前 v0.3.23 #129 实现走 Toast 自动 2s 消失, 跟 PO 要求 manual dismiss 的 confirm modal 不符.
+
+**Scope** (PO 字面 "弹窗" + "知道了" 按钮):
+- `frontend/src/lib/components/InviteLinkButton.svelte` — toast 改 confirm modal (内联 modal, 不新建独立 modal 组件)
+- 文案两段, 中间 `<br />` 换行 (PO 字面 "(另起一行)"):
+  ```
+  已复制此账本链接,可用于回到此账本或邀请他人。
+  请妥善保管此链接!
+  ```
+- "知道了" 按钮 manual dismiss (state `modalOpen = false`)
+- 关闭 UX 一致: click `知道了` / click backdrop / 按 Esc 三种都能关闭
+- 复制失败仍走 `toast.error('复制失败,请手动选中链接')` 兜底 (保留错误反馈能力)
+- modal 玻璃视觉 (PO 字面要求):
+  - 半透明黑 backdrop: `rgba(0, 0, 0, 0.10)` + `backdrop-filter: blur(4px)`
+  - modal box: `rgba(255, 255, 255, 0.92)` + `saturate(200%) blur(20px)` + 1px 白边 + 圆角 18px + padding 24px + 12px 36px 外阴影 + 1px indigo ring
+  - z-index 1000 (高于 CurrencyAddModal 999, 低于 Toast 9999 — 用户操作 modal 时 toast 仍能见)
+  - 文案 15px / 行高 1.7 / 居中 / 灰 800
+  - "知道了" 按钮 indigo→blue gradient + 12px 圆角 + 36px 横向 padding (跟 CurrencyAddModal `.fab--submit` 同源 token)
+- `data-testid="invite-confirm-modal"` / `data-testid="invite-confirm-msg"` / `data-testid="invite-confirm-btn"` (验证脚本可定位)
+- 不新建独立 modal 文件 (option B 决定: 内联到 InviteLinkButton.svelte, single-purpose single-use, 避免造 30 行新文件, 状态就一处)
+
+**不改** (反 #151 — 不在 scope):
+- `frontend/src/lib/components/Toast.svelte` — Toast 组件本身不动, 仅 InviteLinkButton 不再调用 `toast.success()` (失败仍用 `toast.error()`)
+- `frontend/src/lib/components/CurrencyAddModal.svelte` — 是参考样式, 不动
+- `frontend/src/routes/sessions/[id]/+page.svelte` — InviteLinkButton 用法不变 (只是该组件内部行为从 toast → modal)
+- `title="复制邀请链接"` / `aria-label="复制邀请链接"` / `data-testid="invite-btn"` / `e.stopPropagation()` — 全保留
+- copyToClipboard fallback (execCommand) — 保留
+
+**实测** (Playwright iPhone 13 @3x 真机 walk, session 1 — frontend/scripts/v0324-14-invite-modal-verify.cjs):
+
+DOM 验证 (6 项):
+- `[data-testid="invite-confirm-modal"]` 显示 ✓
+- modal `<p>` 文案含 "已复制此账本链接" ✓
+- modal `<p>` 文案含 "请妥善保管此链接" ✓
+- `[data-testid="invite-confirm-btn"]` 显示 + 文字 "知道了" ✓
+- click "知道了" → modal count = 0 (从 DOM 移除) ✓
+- visual check: 玻璃 modal + 居中 + 圆角 18px + "知道了" 按钮 蓝紫渐变 ✓
+
+视觉 (image tool 02-modal-shown.png): glass modal 居中浮起 + 半透明黑 backdrop 模糊背后成员列表 + 文案两段清晰 + 底部居中 indigo→blue 渐变 "知道了" 按钮 + 圆角 18px 边沿 + 软阴影 — 跟全站 glass modal 语言 (CurrencyAddModal) 一致, PO 反馈修 14 真修.
+
+截图: `~/.openclaw/media/browser/v0324-14-invite-modal/{01-before-click,02-modal-shown,03-after-close}.png`
+
+svelte-check: 2 errors / 19 warnings (baseline 同 — pre-existing `Property 'session_code' does not exist on SessionDetail` + `SessionPreviewMember has no exported member`, 0 new error).
+
+**反模式自查**:
+- 反 #150 ✅ Coder 自写自验 (Playwright iPhone 13 + DOM 6 段断言 + image tool 视觉)
+- 反 #162 ✅ §11 sync 与 fix commit 同一 batch
+- 反 #164 ✅ 报告短 (1-2 行 + 1 图)
+- 反 #167 ✅ iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN)
+- 反 #170 ✅ codeserver_exec_clean.js 写文件 + codeserver_write.js push verify 脚本
+- 反 #189 ✅ SPEC append 用 heredoc (不用 sed 多匹配)
+- 反 #53 ✅ Gitea PAT token-only URL
+- 反 #151 ✅ 真 PNG + image tool 视觉确认
+
+**关联**:
+- 不动: v0.3.23 #129 commit b78ea33 (删 btn-icon) — 本次保留按钮部分, 只换成功反馈
+- 不动: v0.3.22 #122 commit (文案 "账本链接/邀请") — 保留
+- 不动: v0.3.21 #108 (Toast z-index 9999) — Toast 仍可能跟其他场景并存, 优先级正确
+- 不动: CurrencyAddModal 玻璃 modal token 共享 — 本 modal 复用了 saturate(200%) blur(20px) + indigo ring + shadow 模板
