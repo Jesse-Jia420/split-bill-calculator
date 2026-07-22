@@ -288,13 +288,15 @@
     color: var(--error-500, #ef4444);
   }
 
-  /* v0.2.3 T13r2: sheet carries the same amount row at the top + keypad below. */
+  /* v0.2.3 T13r2: sheet carries the same amount row at the top + keypad below.
+     v0.3.23 #137 (UAT bug #15): 减 backdrop 强度避免「金额输入框一点击就消失」错觉.
+     原 rgba(0,0,0,0.25) + blur(2px) 让周围表单变暗模糊 → input 顶叠 (z=180) 但
+     周围变暗让 user 误以为 input 也消失了. 修法: 减 rgba 到 0.08, 去 blur.
+     input 仍 z=180 顶叠可见 (DOM + z-index 都没改), 仅周围表单仍清晰可点. */
   .sheet-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.25);
-    backdrop-filter: blur(2px);
-    -webkit-backdrop-filter: blur(2px);
+    background: rgba(0, 0, 0, 0.08);
     z-index: 99;
     animation: backdropFadeIn 200ms cubic-bezier(0.16, 1, 0.3, 1);
   }
