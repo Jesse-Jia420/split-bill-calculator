@@ -139,13 +139,41 @@
         )
   );
 
-  // v0.3.21 #116 (PO msg 11:35 #7838 Bug 1 + Bug 4): 删 #112 引入的
-  // scrollSearchToSticky 函数 + 它的 onfocus/oninput caller. 完全不手动干预
-  // 账单搜索框滚动, 让 position:sticky + 浏览器原生 focus scroll 负责.
-  // - oninput 会让 main.scrollHeight 变化 → smooth scroll → 搜索框漂 (Bug 4)
-  // - onfocus 跟 iOS Safari 键盘弹起时的浏览器自动 scrollIntoView 冲突 → 搜索框
-  //   滚到 viewport 上方不可见 (Bug 1)
-  // 如未来 PO 再拍板"自动滚 sticky", 从 git history `6b8b78e^` 找回原实现.
+  // v0.3.21 #118 (PO msg 11:35 #7838 Bug 1 + Bug 4, #116 续): 加回 scrollSearchToSticky
+  // 函数, 只在 onfocus 调用 (不调 oninput). 加 visualViewport 守卫 — iOS keyboard 弹起时
+  // (vv.height 比 window.innerHeight 小 100px+) 不滚, 避免跟浏览器自动 scrollIntoView 冲突.
+  // - focus 时 scrollSearchToSticky 把 search 预置到 sticky top: 8px (即时滚, behavior: 'auto')
+  // - keyboard 弹起后 browser scrollIntoView 不会再拖 (search 已在 viewport 内 sticky 位)
+  // - oninput 不调: filteredBills 变化 search 位置保持
+  function scrollSearchToSticky() {
+    if (typeof document === 'undefined') return;
+    // v0.3.21 #118: iOS keyboard 弹起时 visualViewport.height < window.innerHeight - 100,
+    // 此时 browser 已经在调 scrollIntoView, 我们不调避免双 scroll.
+    if (typeof window !== 'undefined' && window.visualViewport) {
+      const vv = window.visualViewport;
+      if (vv.height < window.innerHeight - 100) return;
+    }
+    requestAnimationFrame(() => {
+      const main = document.querySelector('main');
+      const el = document.querySelector('.bills-search');
+      if (!(main instanceof HTMLElement) || !(el instanceof HTMLElement)) return;
+      const STICKY_OFFSET = 8;  // 跟 .bills-search { top: var(--space-2) } 对齐
+      // offsetTop 累加到 main
+      let target: HTMLElement | null = el;
+      let top = 0;
+      while (target && target !== main) {
+        top += target.offsetTop;
+        target = target.offsetParent as HTMLElement | null;
+      }
+      const desired = Math.max(0, top - STICKY_OFFSET);
+      const maxScroll = main.scrollHeight - main.clientHeight;
+      const targetScroll = Math.min(desired, maxScroll);
+      // behavior: 'auto' 即时滚 (avoid smooth scroll animation 中被其他事件打断)
+      if (Math.abs(main.scrollTop - targetScroll) > 4) {
+        main.scrollTo({ top: targetScroll, behavior: 'auto' });
+      }
+    });
+  }
 
   // v0.1.4 round 2 改动 1: 重新加回 members 折叠 toggle。
   // 默认展开; 用户折叠后按 sessionId 持久化到 localStorage。
@@ -757,20 +785,20 @@
         <!-- v0.2.1 T05: 搜索 input (session 内账单 description 模糊匹配)。 -->
         <div class="bills-search">
           <Search size={16} aria-hidden="true" />
-          <!-- v0.3.21 #116 (PO msg 11:35 #7838 Bug 4): 删 onfocus + oninput 上的
-               scrollSearchToSticky (v0.3.21 #112 引入). 原因:
-               - oninput: 用户输入时搜索框不应乱跳 (filteredBills 变化 → smooth scroll
-                 让 search 在 viewport 内上下漂)
-               - onfocus: iOS Safari 键盘弹起时, 浏览器已经自动 scrollIntoView focused
-                 element, 我们的 scrollTo 跟浏览器自动滚动冲突, 导致搜索框滚到 viewport
-                 上方不可见 ("消失在页面上方" PO 反馈 #1)
-               改: 不手动干预滚动, 让 position:sticky + 浏览器原生 focus scroll 负责. -->
+          <!-- v0.3.21 #118 (PO msg 11:35 #7838 Bug 1 + Bug 4, #116 续): onfocus 调
+               scrollSearchToSticky 把 search 预置到 sticky top: 8px, oninput 不调.
+               - onfocus: 让 search 提前 sticky, 后续 iOS keyboard 弹起时浏览器自动
+                 scrollIntoView 不会把 search 从 sticky 位拖到中部 (Bug 1 "消失在页面上方")
+               - oninput 不调: filteredBills 变化时 search 位置保持 (Bug 4 "不应乱跳")
+               v0.3.21 #112 全 onfocus+oninput 都调 → 都被 #116 删. #118 只保留 onfocus
+               且加 visualViewport 守卫 (keyboard 弹起时 noop, 避免双 scroll). -->
           <input
             type="search"
             bind:value={billsSearchQuery}
             placeholder="搜索账单说明"
             aria-label="搜索账单说明"
             class="bills-search-input"
+            onfocus={scrollSearchToSticky}
           />
           {#if billsSearchQuery}
             <button
