@@ -4988,3 +4988,44 @@ svelte-check: 2 errors / 19 warnings (baseline 同, 0 new error)
 - 反 #53 ✅ Gitea PAT token-only URL (沿用旧 token, push 即将成功)
 - 反 #158 ✅ Telegram 推送 (待 Master 发)
 
+### §11. v0.3.24 #9.1 (2026-07-22 19:24) — UAT bug 续 #9: row-bottom layout fix — users-count + avatars 紧挨, date 独立最右 (PO msg #8269 字面 "人 icon 人数的右侧应紧接着头像, 不应该空这么多")
+
+**根因**: v0.3.24 #9 commit f9eb58f 的 .row-bottom 用 flex space-between 三段均匀分布, users-count (左) 和 avatars (中) 之间空隙过大, 视觉割裂. PO 字面反馈要求 users-count + avatars 紧挨, date 单独最右.
+
+**改动** (frontend/src/lib/components/SessionCard.svelte + ~/.openclaw/media/browser/v0323-135-session-card-mockup/mockup-B-refined.html):
+
+1. .row-bottom 删 justify-content: space-between — 只保留 align-items: center + gap: 10px (原本就有)
+2. .row-bottom .date 加 margin-left: auto — 把剩余空间推到 date 左侧, date 独立最右
+3. .avatars 不动 — 不加 margin-left: auto (那个会让 auto 填在 avatars 左边, users-count 和 avatars 反而更远, 跟 PO 意图反)
+
+flex 自然流: users-count — gap(10px) — avatars — gap(10px) — [auto-fill] — date (right).
+
+**注释更新** (SessionCard.svelte 顶部 script 注释 + row-bottom 注释 + .avatars 注释 + HTML 注释 4 处都加 #9.1 段, 标注 "续 #9 PO msg #8269 反馈").
+
+**实测** (Playwright iPhone 13 /sessions, session 1 泰国测试账单 6 名成员 owner — frontend/scripts/v0324-9-1-verify.cjs):
+
+DOM 验证 (12 项):
+- .row-bottom computed justify-content = normal (≠ space-between, 改对了) ✓
+- .row-bottom computed align-items = center (原本就有, 没破坏) ✓
+- .row-bottom computed display = flex ✓
+- .row-bottom .date computed margin-left = 138.312px (chromium 解析 auto → 实际 px, 证明生效) ✓
+- .row-bottom 三段 DOM: .users-count / .avatars / .row-bottom .date ✓
+- 三段 x 坐标 (session 1): users-count x=35 right=62 → avatars x=72 right=158 (gap 10px, 紧挨) → date x=305 right=355 (gap 147px, 独立) ✓
+- users_count_right → avatars_left gap = 10px (PO 字面 "紧挨", ≤ 12px) ✓
+- avatars_right → date_left gap = 148px (大空隙, date 独立最右) ✓
+- date_right → rowBottom_right gap = 0px (date 在 row 末尾) ✓
+- session 6 (1 人) 退化 sanity: 1 个 avatar-mini, uc→av gap = 10px, av→dt gap = 216px ✓
+
+视觉 (image tool 02-session1-row-bottom.png): users-count "6" 紧贴 JXAMKL avatars (只隔 10px gap), date "7月21日" 单独在最右, 视觉紧凑, PO 反馈的真修.
+
+**mockup 重拍**: ~/.openclaw/media/browser/v0323-135-session-card-mockup/mockup-B-refined.png (750×1624) — shoot.mjs 临时只跑这一个 target, 跑完还原 targets 数组 (避免重生成 A/B/C 三个 PNG).
+
+**反模式自查**:
+- 反 #162 ✅ §11 sync 与 fix commit 同一 batch
+- 反 #150 ✅ Coder 自写自验 (Playwright iPhone 13 程序化 + computed style + DOM 三段 layout + image tool 视觉 四证)
+- 反 #164 ✅ 单 commit 短描述 (跟 f9eb58f 独立, 保留 revert 能力)
+- 反 #167 ✅ iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN)
+- 反 #170 ✅ codeserver_exec_clean.js 写文件 (SessionCard.svelte 跨 sandbox/codeserver 同步)
+- 反 #189 ✅ SPEC append 用 heredoc (不用 sed 多匹配 — 旧 v0318-67 sed 把 .brand-line-1 字重也连带改了教训)
+- 反 #53 ✅ Gitea PAT token-only URL (沿用旧 token, push 即将成功)
+- 反 #101 ✅ Playwright 程序化 + DOM computed style + image tool 视觉 三证 (02 PNG 存 ~/.openclaw/media/browser/v0324-9-1-row-bottom-layout/)
