@@ -102,7 +102,6 @@
     data-testid="invite-btn"
   >
     <span class="btn-content">
-      <span class="btn-icon" aria-hidden="true">{copied ? '✓' : '📨'}</span>
       <span class="btn-label">{copied ? '已复制' : '账本链接/邀请'}</span>
     </span>
   </button>
@@ -152,12 +151,7 @@
   .btn-content {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
     white-space: nowrap;
-  }
-  .btn-icon {
-    font-size: 14px;
-    line-height: 1;
   }
   /* 移动端 375px: 极致紧凑,ICON + 文字同行,不挤压 */
   @media (max-width: 380px) {

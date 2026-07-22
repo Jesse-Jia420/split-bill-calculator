@@ -4696,3 +4696,24 @@ image tool 视觉验证 (03 截图):
 - 反 #162 ✅ §11 sync 与 fix commit 同一 batch
 - 反 #189 ✅ SPEC append 用 heredoc
 - 反 #119 ✓ v0.3.22 #119 验收时 Master 自写自验 — 沿用 verify 模式 (Playwright 真机 + DOM 检查 + image tool 视觉)
+
+### §11. v0.3.23 #129 (2026-07-22 16:55) — UAT bug #1 (new): InviteLinkButton 删 icon (PO msg 16:35 UAT 新批)
+
+**根因**: UAT 测出"账本链接/邀请"按钮内 `📨` (默认态) + `✓` (copied 态) 两个 icon 视觉噪音, 跟玻璃 pill 自带视觉繁重, 让按钮点不到"账本"重点.
+
+**改动** (`frontend/src/lib/components/InviteLinkButton.svelte`):
+- 删 `<span class="btn-icon">{copied ? ✓ : 📨}</span>` 整段 (default + copied 都没有 icon)
+- 删 `.btn-content` `gap: 6px` (无 icon 不需 gap)
+- 删 `.btn-icon` CSS rule (orphan — span 已删)
+- 按钮 label 保留 "账本链接/邀请" / "已复制" 双态切换, color 仍走 `.invite-btn.copied` glass-pill token 反馈
+
+**实测** (Playwright iPhone 13 @3x 真机 walk, `/sessions/1`):
+- btn-content DOM: 仅 `<span class="btn-label">` 单节点, 没有 `.btn-icon`
+- 点击前 → 文本"账本链接/邀请", 颜色 indigo glass
+- 点击后 → 文本"已复制", 颜色 green glass (来自 `.invite-btn.copied` token)
+
+**反模式自查**:
+- 反 #162 ✅ §11 sync 与 fix commit 同一 batch
+- 反 #170 ✅ codeserver_exec_clean.js 写文件
+- 反 #189 ✅ SPEC append 用 heredoc
+- 反 #101 ⏳ 待 Master 真机 walk 验 UI 真渲染 (Playwright 程序化检查 dom 已过)
