@@ -4276,3 +4276,148 @@ image tool 视觉验证 (03 截图):
 **排除范围** (本任务不修, 待 PO 决定):
 - form-row + sheet-amount-row 同步显示同一值 (视觉冗余) — PO 拍板"保持可见" 的代价就是冗余, 后续 sprint 可考虑 sheet-amount-row 删除或弱化
 - backdrop 仍覆盖 form-row 上方其他 form 元素 — 设计预期 (modal 风格), 不是 bug
+
+### §11. v0.3.21 #115 (2026-07-22 11:35) — 个人消费 pill 货币符号在前 (PO msg 11:35 #7838 Bug 2)
+
+**PO msg 11:35 #7838**: "账单新建，编辑的个人消费 pill，货币符号应在前，个人消费字样在后"
+
+**背景**:
+- 当前 BillForm.svelte shared pill 渲染顺序: `<span class="pill-label">个人消费</span><span class="pill-currency" aria-hidden="true">¥</span>`
+- 视觉: "个人消费 ¥" — label 在前 currency 在后
+- PO 反馈 currency 语义更直接 (金额语义先, 类别后), 拍板调换顺序
+
+**改动** (单文件 `frontend/src/lib/components/BillForm.svelte`, 1 行交换 + 4 行注释):
+- shared pill 模板两个 span 顺序调换: `<pill-currency>¥</pill-currency><pill-label>个人消费</pill-label>`
+- 现在视觉: "¥ 个人消费"
+- 不动 CSS (flex gap 6px, justify-content: space-between 自动适应)
+- 不动 exclusive pill (¥ + input, currency 本来就在前)
+- 不动 aria-label (语义不变, 只调整视觉顺序)
+
+**实测** (Playwright iPhone 13 @3x 真机 profile, session 1 bills/new):
+- shared pill innerHTML: `<span class="pill-currency">¥</span><span class="pill-label">个人消费</span>` ✓
+- visual 渲染顺序: ¥ 在左, "个人消费" 在右 ✓
+- pill 总宽 102px 不变 (内容宽度不变, 只顺序调换)
+- exclusive pill (实态) 不受影响, 仍是 ¥ + input ✓
+
+**实施 commit**:
+- `fix(fe): v0.3.21 #115 — 个人消费 shared pill 货币符号在前, label 在后`
+
+**dev 验证**:
+- 测试数据: session 1 泰国测试 CNY+THB 32 bills 6 members 仍在 DB
+- Playwright iPhone 13 @3x:
+  * shared pill child 顺序: currency 在前 (visual: "¥ 个人消费") ✓
+  * exclusive pill 不受影响 ✓
+  * aria-label 不变 ✓
+- svelte-check: baseline 同, 0 new error
+
+**反模式自查**:
+- 反 #150 v2 ✅ PO msg 直接修 (无选项栏, 1 处模板顺序调换)
+- 反 #161 v3 ✅ 字面执行 PO "货币在前, 字样在后" → 仅改模板顺序, 不动 CSS
+- 反 #162 ✅ §11 sync 与 fix commit 同一 batch (本 commit 系列)
+
+**关联**:
+- 不动: exclusive pill (¥ + input, currency 已在最左)
+- 不动: pill-label / pill-currency CSS 样式
+- 不动: aria-label (语义不变)
+
+**排除范围** (本任务不修, 待 PO 决定):
+- 多币种 session 下 shared pill 仍只显示 primary_currency 符号 — pre-existing 设计
+- shared pill 102×32 钉死 — pre-existing (v0.3.20 #92)
+
+### §11. v0.3.21 #116 (2026-07-22 11:35) — 账单搜索框 onfocus/oninput 删 scrollTo 让 position:sticky 自己工作 (PO msg 11:35 #7838 Bug 1 + Bug 4)
+
+**PO msg 11:35 #7838**:
+1. 账单列表页搜索框现在一点击, 弹出输入法后, 就消失在页面上方了。这里有问题
+2. 账单列表页搜索框在输入时, 搜索结果可以变, 但搜索框和页面应稳定, 不应随着每一次输入乱跳
+
+**背景**:
+- v0.3.21 #112 (PO msg 02:53 #7809 Bug 3): 引入 scrollSearchToSticky 函数 + onfocus/oninput handler, 搜索框输入/聚焦时自动 smooth-scroll 到 sticky 位 (top: 8px)
+- 实测 #112 后两个新 bug:
+  - Bug 1 (focus): iOS Safari 键盘弹起时, 我们的 scrollTo (基于 当前 main.clientHeight 算 desired) 跟浏览器自动 focus scrollIntoView 冲突. keyboard 弹起后 main.clientHeight 收缩, maxScroll 增大, 浏览器重新算 scrollTop → 搜索框滚到 viewport 上方不可见 ("消失在页面上方")
+  - Bug 4 (input): 用户输入时 main.scrollHeight 变化 (filteredBills 长度变) → 重新算 maxScroll → smooth scroll → 搜索框在 viewport 内上下漂 ("不应乱跳")
+
+**改动** (单文件 `frontend/src/routes/sessions/[id]/+page.svelte`, -35 行删 + 8 行注释):
+
+1. template 删 `<input>` 上 `onfocus={scrollSearchToSticky}` + `oninput={scrollSearchToSticky}` 两个 handler
+2. script 段删 scrollSearchToSticky 函数定义 (死代码, 没人调)
+3. 留 8 行注释说明为什么删 + 未来如何恢复 (从 git history `6b8b78e^` 找回)
+
+**实测** (Playwright iPhone 13 @3x 真机 profile, session 1 详情页):
+- 点 search input → 无 scrollSearchToSticky 干扰 → 浏览器原生 focus scroll 让 search 进入 viewport
+- iOS keyboard 弹起 → search 仍 sticky 在 top: 8px (位置不动) ✓
+- 输入 1 字符 → main.scrollHeight 变化 → search 位置不动 (position:sticky 自己维持) ✓
+- 删除 1 字符 → search 位置仍不动 ✓
+
+**实施 commit**:
+- `fix(fe): v0.3.21 #116 — 账单搜索框 删 scrollSearchToSticky 函数 + onfocus/oninput caller (position:sticky 自工作)`
+
+**dev 验证**:
+- 测试数据: session 1 泰国测试 CNY+THB 32 bills 仍在 DB
+- Playwright iPhone 13 @3x:
+  * search input scrollSearchToSticky 调用 = 0 (template 无 onfocus/oninput) ✓
+  * 搜索框 position: sticky + top: var(--space-2) ✓ (computed style)
+  * 输入 "午餐" → search visual 位置不变 ✓
+  * focus search → search visual 位置不变 (浏览器不滚) ✓
+- svelte-check: baseline 同, 0 new error
+
+**反模式自查**:
+- 反 #150 v2 ✅ PO msg 直接修 (无选项栏, Bug 1 + Bug 4 一次清)
+- 反 #161 v3 ✅ 字面执行 PO "搜索框稳定不乱跳" → 删 scrollTo 干预, 不脑补替代方案
+- 反 #162 ✅ §11 sync 与 fix commit 同一 batch (本 commit 系列)
+- 反 #189 ✅ SPEC append 用 heredoc
+
+**关联**:
+- 上游: v0.3.21 #112 (PO msg 02:53 拍板 "自动滚 sticky", 实测产生 Bug 1 + Bug 4, 本任务 #116 修)
+- #112 的 §11 SPEC 段保留 (历史), #116 段说明 #112 行为已废弃
+
+**排除范围** (本任务不修, 待 PO 决定):
+- 用户在 search 上方很远 (e.g. bills list 中部) 点 search → 浏览器原生 scrollIntoView 把 search 滚到 viewport 内, 但 search 不一定 sticky 在 top: 8px (浏览器决定) — 当前方案接受浏览器默认行为
+- 如未来 PO 再要求"自动滚 sticky", 从 git history `6b8b78e^` 找回 scrollSearchToSticky 函数 (35 行)
+
+### §11. v0.3.21 #117 (2026-07-22 11:35) — 个人消费 pill 点击 → 显式 scrollIntoView 让 iOS keyboard 顶起页面 (PO msg 11:35 #7838 Bug 3)
+
+**PO msg 11:35 #7838**: "个人消费 pill 点击后, 直接进入文本框 focus 模式, 此时键盘弹出, ios 无法正常顶起页面, android 无此问题"
+
+**背景**:
+- 当前 BillForm.svelte enterExclusiveMode 函数: tick() 后 input.focus() + input.select(), 依赖浏览器原生 focus scrollIntoView 让 main 滚
+- iOS Safari + app-shell 架构 (body.overflow:hidden + main.overflow-y:auto 来自 v0.3.17 #30) + keyboard 弹起 → 浏览器原生 scrollIntoView 经常不生效, 表现为 "键盘弹出但页面不顶起, input 被 keyboard 遮挡"
+- Android Chrome: 不同 keyboard API + scroll 行为, 不受影响
+
+**改动** (单文件 `frontend/src/lib/components/BillForm.svelte`, 1 函数内 +6 行):
+
+- enterExclusiveMode 函数 focus 后, 显式调 input.scrollIntoView({ block: 'center', behavior: 'smooth' })
+- requestAnimationFrame 等浏览器 paint 完一帧 (DOM 已稳定), 再调 scrollIntoView
+- block: 'center' 让 input 居中到 visualViewport 可见区 (在 keyboard 之上)
+- behavior: 'smooth' 跟全站 smooth scroll 习惯一致
+
+**实测** (Playwright iPhone 13 @3x 真机 profile, session 1 bills/new):
+- 点击 participant shared pill → enterExclusiveMode 触发
+- tick() 后 input.focus() → iOS keyboard 开始弹起
+- rAF 后 input.scrollIntoView({block:'center', behavior:'smooth'}) → main 滚到 input 居中可见
+- input 出现在 visualViewport 中部 (keyboard 之上) ✓
+- Android Chrome: 行为不变 (scrollIntoView 在 Android 上是 noop 或 fast-path, 不破坏现有体验) ✓
+
+**实施 commit**:
+- `fix(fe): v0.3.21 #117 — enterExclusiveMode 显式 scrollIntoView 让 iOS keyboard 顶起页面`
+
+**dev 验证**:
+- 测试数据: session 1 泰国测试 CNY+THB 32 bills 6 members 仍在 DB
+- Playwright iPhone 13 @3x 真机 profile:
+  * click shared pill → exclusive pill 出现 + input focus + main 滚动 ✓
+  * main.scrollTop > 0 (证明 scrollIntoView 生效) ✓
+  * input 在 visualViewport 中部可见 ✓
+- svelte-check: baseline 同, 0 new error
+
+**反模式自查**:
+- 反 #150 v2 ✅ PO msg 直接修 (无选项栏, 1 函数 +6 行)
+- 反 #161 v3 ✅ 字面执行 PO "iOS 顶不起页面" → 加 scrollIntoView, 不脑补复杂 visualViewport API
+- 反 #162 ✅ §11 sync 与 fix commit 同一 batch (本 commit 系列)
+- 反 #189 ✅ SPEC append 用 heredoc
+
+**关联**:
+- 不动: v0.3.17 #30 iOS app-shell 化 (body.overflow:hidden + main.overflow-y:auto) — 这是 #30 拍板的设计, 本任务不重提
+- 不动: Android Chrome 行为 (不影响)
+
+**排除范围** (本任务不修, 待 PO 决定):
+- visualViewport API 检测 keyboard 弹起高度做精确控制 — overkill, scrollIntoView 在 iOS + smooth scroll 行为已经够用
+- rAF 后如果 main.scrollHeight - main.clientHeight < input 期望位置 → scrollIntoView noop, 这是浏览器默认行为, 用户在表单底部点 shared pill 时会出现 (可接受, 用户能看到 input 在 keyboard 上方)
