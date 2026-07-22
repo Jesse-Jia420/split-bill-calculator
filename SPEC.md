@@ -4483,3 +4483,52 @@ image tool 视觉验证 (03 截图):
 **排除范围** (本任务不修, 待 PO 决定):
 - listMinHeight 在 mount capture 后不重新计算 — 后续如果数据动态变化 (e.g. re-fetch 后 bills 数变化), min-height 仍用初始值. 这是有意的 (避免 typing 时被重新计算). 如未来需要更精确, 可加 update on data change.
 - chromium overflow-anchor computed style 返 "auto" (不是 "always") 是 known quirk — 实际规则在 .page.s-XXXX scope 内确实存在, 行为正确 (scrollTop 不被 clamp). 不修, 仅记录.
+
+### §11. v0.3.22 #122 (2026-07-22 15:55) — InviteLinkButton 文案 "邀请" → "账本链接/邀请" (PO msg 15:38 #8025)
+
+**触发**: PO 15:38 #8025 "继续 sbc 项目 邀请 换成 账本链接/邀请" — 仅账单列表页右上玻璃 pill button 文案改,其他不动.
+
+**Scope** (PO 字面 "仅此而已"):
+- `frontend/src/lib/components/InviteLinkButton.svelte:106` `{copied ? '已复制' : '邀请'}` → `{copied ? '已复制' : '账本链接/邀请'}`
+- 不动 toast 文案 "已复制账本链接..." (已用 "账本链接" 主语,跟新 label 自然衔接)
+- 不动 `title="复制邀请链接"` / `aria-label="复制邀请链接"` (Jesse 未要求, 保持 screen-reader 文案稳定)
+- 不动空态文案 "邀请朋友" / sessions 列表 description "接受朋友的邀请加入"
+- 不动 invites/[token] error 文案 "邀请链接无效/不存在/已失效"
+
+**Dev 环境救援** (本任务前置, 必读):
+- HEAD `aeaa7ab` 上有未提交 v0.3.22 #120 dirty work (`BillForm.svelte` + `sessions/[id]/+page.svelte`), 带 console.log debug + 在 input 属性中间塞 HTML comment 导致 Svelte 5 `attribute_duplicate` 解析错误, `/sessions/1` 返回 HTTP 500
+- Codeserver 自带 git 状态落后 sandbox 12 commit (本地 HEAD `7fc947c`, origin/main `aeaa7ab`), 加 4 个 modified dirty + 1 个 `codeserver-bak-2026-07-22-1145-...` stash
+- 救援步骤:
+  1. sandbox `git stash push -m "WIP v0.3.22 #120 (in-progress, Svelte parse error + console.log debug)"` (track BillForm.svelte + sessions/[id]/+page.svelte)
+  2. codeserver `git stash push -m "codeserver-dirty-before-sync-..."` (track 4 dirty 文件)
+  3. codeserver `git fetch origin && git reset --hard origin/main` (align codeserver 到 aeaa7ab)
+  4. sandbox 改 InviteLinkButton.svelte → base64 编码 → codeserver_exec_clean.js decode + write 到 codeserver 文件 (反 #170: 写 codeserver 文件必用 clean 版)
+  5. vite HMR 自动 pick up, 等几秒后 `/sessions/1` 返 HTTP 200 127KB
+- 救援后 codeserver dirty work 在 stash 里, 没丢, 待 #120 sprint 单独处理
+
+**实测** (Playwright iPhone 13 @3x 真机 walk, session 1 泰国):
+- invite-btn DOM textContent = `"📨 账本链接/邀请"` (icon 📨 + 玻璃 pill 新文案)
+- 视觉确认 (image tool 描述): 中文玻璃风, 宽度足够, 无溢出, icon + 文字间距合理
+- 截图: `~/.openclaw/media/browser/v0322-122-invite-btn.png`
+- svelte-check: 2 errors / 20 warnings (baseline 同, 0 new error)
+
+**反模式自查**:
+- 反 #150 ✅ 直接动手改 (PO 说 "仅此而已" → 不列 "不修/延后" 选项)
+- 反 #159 ✅ dev server 启动模板 (uvicorn + vite 都按 sbc skill 模板跑, PID/PPID 验证, vite bind 0.0.0.0)
+- 反 #160 ✅ vite bind 0.0.0.0 (cf tunnel 外部可达 172.18.0.5:8448 = HTTP 200)
+- 反 #162 ✅ §11 sync 与 fix commit 同一 batch (本 commit 系列)
+- 反 #164 ✅ 完成报告短 (1-2 行 + 1 图)
+- 反 #167 ✅ iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN)
+- 反 #170 ✅ codeserver_exec_clean.js 写文件 (base64 pipe 避免 escape)
+- 反 #189 ✅ SPEC append 用 heredoc (不用 sed 多匹配)
+- 反 #53 ✅ 仓库 git remote 用完整 Gitea PAT (沿用旧 token, push 成功)
+
+**关联**:
+- 不动: toast 文案 / aria-label / title / 空态文案 / sessions 列表 / invites error 文案 (PO 字面 "仅此而已")
+- 不动: v0.3.22 #120 WIP (仍 stash, 待 #120 sprint 单独 commit 或 revert)
+- 不动: codeserver stash `codeserver-dirty-before-sync-20260722-154746` (保存 #120 dirty work 防丢)
+- 不动: `frontend/src/lib/components/InviteLinkButton.svelte.bak` (Jul 21 Svelte 4→5 migration 备份 leftover, 不在本次 scope)
+
+**排除范围** (本任务不修, 待 PO 决定):
+- `aria-label="复制邀请链接"` / `title="复制邀请链接"` — Jesse 未要求改, 保持稳定. 如要一致, 下次 sprint 改.
+- toast "已复制账本链接, 可用于邀请他人..." — 自然短语, 跟新 button label 自然衔接, 不动.

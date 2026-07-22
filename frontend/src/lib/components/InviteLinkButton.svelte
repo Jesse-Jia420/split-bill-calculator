@@ -103,7 +103,7 @@
   >
     <span class="btn-content">
       <span class="btn-icon" aria-hidden="true">{copied ? '✓' : '📨'}</span>
-      <span class="btn-label">{copied ? '已复制' : '邀请'}</span>
+      <span class="btn-label">{copied ? '已复制' : '账本链接/邀请'}</span>
     </span>
   </button>
   <!-- v0.3.18 #66 (PO #6899 Mockup A): anon 账本过期提示**移到 section header** (amber pill).
