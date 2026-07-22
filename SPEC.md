@@ -4731,3 +4731,18 @@ image tool 视觉验证 (03 截图):
 - 反 #162 ✅ §11 sync 与 fix commit 同一 batch
 - 反 #170 ✅ codeserver_exec_clean.js 写文件
 - 反 #189 ✅ SPEC append 用 heredoc
+
+### §11. v0.3.23 #131 (2026-07-22 16:55) — UAT bug #5 (new): NavBar `.brand:hover` 黑色不变 (PO msg 16:35 UAT 新批)
+
+**根因**: UAT 测出 NavBar logo \"splitit\" hover 时 `.brand:hover { color: #FFFFF0 }` (象牙白) 在白底 AppBackground 上 = visual fade, 用户摸不到 hover 反馈. 期望: hover 时颜色不变 (跟 default `var(--color-text)` 一致, 黑色), 让 logo hover \"无视觉变化\" 但其他视觉 (mouse cursor / future underline) 给反馈.
+
+**改动** (`frontend/src/lib/components/NavBar.svelte:131`):
+- 删 `.brand:hover { color: #FFFFF0 }` 整规则
+- Default `.brand color: var(--color-text)` 已黑色, hover 不再覆盖
+
+**实测**: Playwright iPhone 13 landing page logo hover 前后 computed style color 都不变 (var(--color-text))
+
+**反模式自查**:
+- 反 #162 ✅ §11 sync 与 fix commit 同一 batch
+- 反 #170 ✅ codeserver_exec_clean.js 写文件
+- 反 #189 ✅ SPEC append 用 heredoc
