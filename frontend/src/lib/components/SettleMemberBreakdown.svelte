@@ -31,6 +31,14 @@
    * - 删 `let error` 状态 + `<div class="error">` 模板
    * - loadSettle catch → toast.error()
    * - 失败时 members=[] + selectedMemberId=null, 让模板走"还没成员"占位
+   *
+   * v0.3.24 #11 (UAT bug — settle 页头像样式跟成员 section 一致, PO msg 16:35 UAT file line 11):
+   * "结算页面,概览页和个人视图页下的每个人的头像的样式,都应该与成员 section 内的一致"
+   * - .chip-avatar (36×36, 顶部 member-chip): 套 #132 Option B 玻璃 (rgba 0.88 + backdrop-filter + 4-layer shadow)
+   * - 加 AVATAR_GRADIENTS + avatarGradient() 5 色 palette 渐变 (inline style 套每成员 index)
+   * - 删旧 .member-chip:not(.selected) .chip-avatar gray override (gradient 始终由 inline style 生效)
+   * - selected chip 头像 box-shadow 加 highlight ring 保留视觉锚点 (跟 .me 双层 ring 路径一致)
+   * - 概览 tab (SettleTransferPath) 已在 #132 改过, 不用再动
    */
   import { onMount, tick } from 'svelte';
   import { scale, fly, fade, slide } from 'svelte/transition';
@@ -114,6 +122,23 @@
   function avatarLetter(name: string): string {
     const trimmed = (name ?? '').trim();
     return trimmed ? trimmed.charAt(0).toUpperCase() : '?';
+  }
+
+  /**
+   * v0.3.24 #11 (UAT bug — settle 页头像样式跟成员 section 一致, PO msg 16:35 UAT file line 11):
+   * 头像 palette 渐变 (5 色 rgba 0.88 半透明), 让 backdrop-filter 在 glass parent (.member-chip)
+   * 上有 "glass on glass" 视觉. 跟 SessionMemberList AVATAR_GRADIENTS / BillForm / +page.svelte
+   * 完全一致 (#132 commit b997bf6 模板).
+   */
+  const AVATAR_GRADIENTS = [
+    'linear-gradient(135deg, rgba(99, 102, 241, 0.88) 0%, rgba(168, 85, 247, 0.88) 100%)', // indigo → purple
+    'linear-gradient(135deg, rgba(236, 72, 153, 0.88) 0%, rgba(244, 63, 94, 0.88) 100%)', // pink → rose
+    'linear-gradient(135deg, rgba(16, 185, 129, 0.88) 0%, rgba(20, 184, 166, 0.88) 100%)', // emerald → teal
+    'linear-gradient(135deg, rgba(245, 158, 11, 0.88) 0%, rgba(234, 179, 8, 0.88) 100%)', // amber → yellow
+    'linear-gradient(135deg, rgba(59, 130, 246, 0.88) 0%, rgba(6, 182, 212, 0.88) 100%)', // blue → cyan
+  ];
+  function avatarGradient(index: number): string {
+    return AVATAR_GRADIENTS[index % AVATAR_GRADIENTS.length];
   }
 
   /**
@@ -386,7 +411,7 @@
             on:click={() => selectMember(m.member_id)}
             in:fly={{ y: 6, duration: 220, delay: Math.min(i * 30, 240) }}
           >
-            <div class="chip-avatar" aria-hidden="true">{avatarLetter(m.display_name)}</div>
+            <div class="chip-avatar" aria-hidden="true" style="background: {avatarGradient(i)}">{avatarLetter(m.display_name)}</div>
             <div class="chip-info">
               <div class="chip-name">{m.display_name}</div>
               <!--
@@ -841,23 +866,42 @@
     box-shadow: 0 0 0 2px rgba(255,255,255,0.6), 0 0 0 4px var(--accent-700);
   }
 
+  /* v0.3.24 #11 (UAT bug — settle 页头像样式跟成员 section 一致):
+     头像玻璃质感 — Option B (rgba 0.88 半透明 + backdrop-filter blur(4px) saturate(180%) +
+     4-layer glass shadow). 跟 SessionMemberList .avatar (28×28) / SettleTransferPath .avatar (32×32) /
+     BillForm .ppt-avatar (36×36) / +page.svelte .avatar-a + .avatar-mini 统一语言 (#132 commit b997bf6 模板).
+     background 由 inline style (avatarGradient(i) AVATAR_GRADIENTS) 套 5 色 rgba 0.88 渐变,
+     此处只设 fallback gradient (gradient[0] indigo→purple, 万一 inline style 被外部覆盖用). */
   .chip-avatar {
     flex: 0 0 auto;
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: var(--accent-500);
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.88) 0%, rgba(168, 85, 247, 0.88) 100%);
     color: #fff;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     font-weight: 600;
     font-size: var(--font-size-sm);
-    transition: background-color 200ms ease;
+    border: 1.5px solid #fff;
+    /* Option B: backdrop-filter + 半透明 → glass on glass 在 .member-chip (glass pill) 上 */
+    backdrop-filter: blur(4px) saturate(180%);
+    -webkit-backdrop-filter: blur(4px) saturate(180%);
+    /* glass shadow: top highlight + bottom lowlight + outer lift (3-layer 跟 SessionMemberList .avatar 一致) */
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.5),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.08),
+      0 1px 2px rgba(0, 0, 0, 0.08);
+    transition: box-shadow 200ms ease;
   }
-  /* Inactive chip: avatar uses gray bg */
-  .member-chip:not(.selected) .chip-avatar {
-    background: var(--gray-400);
+  /* selected chip: 头像 box-shadow 替换为 me-style 双层 ring (跟 .member-chip.me 路径一致,
+     .me 优先级高保留原 ring; .selected 没 .me 时给一个轻 highlight ring 保持视觉锚点) */
+  .member-chip.selected:not(.me) .chip-avatar {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.6),
+      0 0 0 1.5px rgba(255, 255, 255, 0.5),
+      0 1px 2px rgba(0, 0, 0, 0.08);
   }
   .chip-info {
     flex: 1 1 auto;

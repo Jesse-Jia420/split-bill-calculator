@@ -5091,7 +5091,6 @@ svelte-check: 2 errors / 19 warnings (baseline 同 — pre-existing `Property 's
 - 不动: v0.3.22 #122 commit (文案 "账本链接/邀请") — 保留
 - 不动: v0.3.21 #108 (Toast z-index 9999) — Toast 仍可能跟其他场景并存, 优先级正确
 - 不动: CurrencyAddModal 玻璃 modal token 共享 — 本 modal 复用了 saturate(200%) blur(20px) + indigo ring + shadow 模板
-
 ### §11. v0.3.24 #12 (2026-07-22 20:18) — UAT bug #12: settle 页 付款明细 + 消费明细 加搜索框 (PO msg 16:35 UAT file line 12 字面 "个人视图,以及主币种汇总,付款明细上方,均添加账单列表相同的搜索框,支持搜索对应的付款明细和消费明细")
 
 **PO 字面意图**: settle 页 个人视图 tab 的 付款明细 + 消费明细 各加一个搜索框, filter 各自 section 的 bills 列表. 跟 BillListGrouped.svelte 的 .bills-search 同款玻璃风 (placeholder "搜索账单名称", bg rgba 半透明 + backdrop-filter blur saturate).
@@ -5156,3 +5155,65 @@ DOM 验证 (8 项):
 - **search 不跨 section 联动** — 付款明细 search 只 filter 付款, 消费明细 search 只 filter 消费. 跟 PO 字面 "支持搜索对应的付款明细和消费明细" 一致 (2 个独立 search, 各自 filter 自己 section). 如未来要全局 1 个 search, 需重设计 layout.
 - **search 不含 payer name / amount 字段** — 只按 `b.description` substring 匹配 (跟 BillListGrouped 一致). PO 字面 "搜索账单名称" 暗示按 desc. 如未来要按 payer, 可扩展 matchesSearch 增加 b.payer_id → member name lookup.
 - **切 member / viewMode searchQuery 不重置** — 跟 BillListGrouped 行为一致, 不破坏跨切切换时的 UX 一致性.
+### §11. v0.3.24 #11 (2026-07-22 20:25) — UAT bug #11: settle 页头像样式跟成员 section 一致 (PO msg 16:35 UAT file line 11)
+
+**根因**: UAT file line 11 字面反馈 "结算页面,概览页和个人视图页下的每个人的头像的样式,都应该与成员 section 内的一致". 概览 tab (SettleTransferPath) 已在 #132 commit b997bf6 改完 Option B 玻璃; 个人视图 tab (SettleMemberBreakdown) 的 `.chip-avatar` (36×36, 顶部 member-chip) 仍用旧 solid `var(--accent-500)` / `var(--gray-400)` 配色, 没 rgba 0.88 半透明 + backdrop-filter + glass shadow, 跟 SessionMemberList 折叠态 `.avatar-mini` 玻璃语言不齐.
+
+**改动** (`frontend/src/lib/components/SettleMemberBreakdown.svelte`):
+
+1. **加 AVATAR_GRADIENTS + avatarGradient() helper** (script 段, avatarLetter 后):
+   - 5 色 palette gradient, `#hex` → `rgba(..., 0.88)` 半透明 (跟 SessionMemberList / BillForm / +page.svelte AVATAR_GRADIENTS 完全一致, #132 模板)
+
+2. **template: `.chip-avatar` div 加 inline style** (member-chip 渲染):
+   - `<div class="chip-avatar" ...>` → `<div class="chip-avatar" style="background: {avatarGradient(i)}" ...>`
+
+3. **CSS `.chip-avatar` 套 Option B 玻璃**:
+   - 删 `background: var(--accent-500)` → fallback gradient `linear-gradient(135deg, rgba(99, 102, 241, 0.88) 0%, rgba(168, 85, 247, 0.88) 100%)` (gradient[0] indigo→purple, 万一 inline style 被外部覆盖用)
+   - 加 `border: 1.5px solid #fff` (跟 SettleTransferPath .avatar 一致)
+   - 加 `backdrop-filter: blur(4px) saturate(180%)` + `-webkit-backdrop-filter` 前缀 (Safari)
+   - 加 3-layer box-shadow: `inset 0 1px 0 rgba(255, 255, 255, 0.5)` (top highlight) + `inset 0 -1px 0 rgba(0, 0, 0, 0.08)` (bottom lowlight) + `0 1px 2px rgba(0, 0, 0, 0.08)` (outer lift)
+   - transition 加 `box-shadow 200ms ease`
+
+4. **CSS 删旧 `.member-chip:not(.selected) .chip-avatar { background: var(--gray-400); }`**:
+   - gradient 由 inline style 始终生效, gray override 不再需要 (删掉避免覆盖 gradient)
+
+5. **CSS `.member-chip.selected:not(.me) .chip-avatar` 选中态 ring override**:
+   - 选中非 me 头像 box-shadow 替换为: `inset 0 1px 0 rgba(255, 255, 255, 0.6)` (top highlight 提一档) + `0 0 0 1.5px rgba(255, 255, 255, 0.5)` (1.5px white ring) + `0 1px 2px rgba(0, 0, 0, 0.08)` (outer lift)
+   - 跟 `.me` 双层 ring 路径一致, 选中态视觉锚点保留
+
+**verify script** (`frontend/scripts/v0324-11-avatar-style-verify.cjs`):
+- 启动: navigate /sessions/1/settle (登录 xinhua1001@outlook.com / code 000000)
+- Tab 1 (概览): 抓 SettleTransferPath `.avatar` (32×32) 前 3 个 — sanity check #132 仍生效
+- Tab 2 (个人视图): 点 IosSwitch "个人视图" button → 等 1500ms → 抓 `.chip-avatar` (36×36) 前 5 个 + 总数 6 个
+- 9 项 check 全 pass:
+  - chip-avatar count >= 2 ✓ (6 个)
+  - chip-avatar backdrop-filter 含 blur ✓ (chrome 序列化 `blur(4px) saturate(180%)` 为 `blur(4px) saturate(1.8)`)
+  - chip-avatar backdrop-filter 含 saturate ✓
+  - chip-avatar box-shadow 含 inset (非 me) ✓ (me 双层 ring 覆盖 inset, 但 5/6 非 me 都有 inset)
+  - chip-avatar background 是 linear-gradient ✓ (5 种 rgba 0.88 渐变按 index)
+  - chip-avatar background 含 rgba ✓ (rgba alpha 0.88 半透明生效)
+  - chip-avatar width = 36px ✓
+  - chip-avatar inline style 有 avatarGradient ✓ (`linear-gradient(135deg, rgba(99, 102, 241, 0.88) 0%, rgba(168, 85, 247, 0.88) 100%);` 等)
+  - overview SettleTransferPath .avatar glass ✓ (32×32 backdrop-filter + inset 跟 #132 一致)
+- npm run check: 2 errors / 19 warnings (baseline 同 — 2 errors 是 `$api/sessions` SessionDetail 类型 + SessionPreviewMember 导出, 跟本次改动无关; 19 warnings 比 baseline 20 少 1 个, 0 new error)
+- 视觉 (image tool 04-chip-avatar-zoom.png): 头像蓝紫 / 粉红 5 色 palette 渐变 (跟 SessionMemberList 一致), 白色 1.5px 描边, 玻璃 on glass 透明感, chip 容器也半透明 — Jesse "J" + Ju "J" 头像风格统一语言, 跟 SessionMemberList 折叠态视觉一致
+
+**反模式自查**:
+- 反 #162 ✅ §11 sync 与 fix commit 同一 batch
+- 反 #170 ✅ codeserver_exec_clean.js + codeserver_write.js 写文件 (SettleMemberBreakdown.svelte + verify 脚本 跨 sandbox/codeserver 同步)
+- 反 #189 ✅ SPEC append 用 heredoc (不用 sed 多匹配 — 旧 v0318-67 sed 把 .brand-line-1 字重也连带改了教训)
+- 反 #150 ✅ Coder 自写自验 (Playwright iPhone 13 真机 walk + DOM computed style 9 check + image tool 视觉确认 三证)
+- 反 #164 ✅ 单 commit 短描述 (跟其他 v0.3.24 独立, 保留 revert 能力)
+- 反 #167 ✅ iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN)
+- 反 #53 ✅ Gitea PAT token-only URL (沿用 v0.3.22 #53/#60/#64/#129/#130/#131/#132, push 即将成功)
+- 反 #101 ✅ Playwright 程序化 + DOM computed style + image tool 视觉 三证 (04 PNG 存 ~/.openclaw/media/browser/v0324-11-avatar-style/)
+
+### v0.3.24 #14.1 (PO msg #8285 反馈 — modal 文案调整 + 强调)
+- PO 字面意图: 改成两段新格式 —
+  - 第 1 段 (regular): "已复制此账本链接,请妥善保管!"
+  - 第 2 段 (regular + bold): "可用于 **回到此账本** 或 **邀请他人**。"
+  - "回到此账本" / "邀请他人" 两个动作加粗 (font-weight 600)
+- 改动: InviteLinkButton.svelte
+  1. DOM: .invite-modal-msg 文案重排 (line 162-165)
+  2. CSS: 新增 .invite-modal-msg strong.emphasize (font-weight 600 + gray-900)
+- 验证: Playwright iPhone 13 /sessions/1, click invite-btn → modal 显示新文案 + 粗体强调生效
