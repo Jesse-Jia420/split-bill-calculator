@@ -89,6 +89,19 @@
    *     users-count — gap(10px) — avatars — gap(10px) — [auto-fill] — date (right).
    *   users-count 和 avatars 中间仅隔 10px gap, date 单独最右.
    *   其他不动 (row-top / glass params / avatar palette / comment 都保留 #9 设置).
+   *
+   * v0.3.24 #9.2 (续 avatar size 调整, PO msg #8280 反馈 "太小看不清有谁"):
+   *   原 .avatar-mini 18×18 在 iPhone 13 @3x 仅占 54 logical pixel, 头像内文字糊掉.
+   *   实测代码 Coder 简化方案是纯 palette 圆点无 initial, 更看不清.
+   *   调整:
+   *     1. width/height 18→24px (+33%)
+   *     2. font-size 9→12px (= size/2, mockup 9=18/2 比例延续, 未来 backend
+   *        avatars 字段补 initial 时字体比例就绪)
+   *     3. border 1.5px 保留 (微缩进圈边界感)
+   *     4. margin-left: -4.5→-6px (25% overlap, 跟原 18*0.25=4.5 同比例)
+   *        6 个 24px + overlap -6px = 24 + 5*18 = 114px width,
+   *        card 内 row-bottom 横向 ≈ users(24) + 10 + 114 + auto + date(70) ≈ 充裕
+   *   其它 (row-top / glass params / avatar palette / overflow 样式) 不动.
    */
   import type { SessionSummary } from "$api/sessions";
   import { formatDate } from "$lib/utils/format";
@@ -368,17 +381,20 @@
   }
 
   /* v0.3.24 #9: row-bottom avatars (跟 /sessions/[id] 折叠态 .avatar-mini 视觉一致).
-     base size 18×18 + 5 palette × 玻璃质感 (跟 #132 avatar 玻璃语言同源). */
+     v0.3.24 #9.2 (PO msg #8280 反馈 "太小看不清"): size 18→24px (+33%),
+     font-size 9→12px (= size/2, 跟 mockup 9=18/2 比例延续),
+     border 1.5px 保留, margin-left -4.5→-6px (25% overlap, 跟原 18*0.25=4.5 同比例).
+     base size 24×24 + 5 palette × 玻璃质感 (跟 #132 avatar 玻璃语言同源). */
   .avatar-mini {
-    width: 18px;
-    height: 18px;
+    width: 24px;
+    height: 24px;
     border-radius: 50%;
     color: #fff;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     font-weight: 600;
-    font-size: 9px;
+    font-size: 12px;
     border: 1.5px solid #fff;
     backdrop-filter: blur(4px) saturate(180%);
     -webkit-backdrop-filter: blur(4px) saturate(180%);
@@ -390,7 +406,7 @@
     position: relative;
   }
   .avatar-mini:not(:first-child) {
-    margin-left: -4.5px;
+    margin-left: -6px;
   }
   .avatar-mini.palette-0 {
     background: linear-gradient(135deg, rgba(129, 140, 248, 0.88), rgba(99, 102, 241, 0.88));
