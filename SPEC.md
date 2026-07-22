@@ -4044,3 +4044,54 @@ image tool 视觉验证 (03 截图):
 - members section 下方到 bills section 之间留白 — image tool 提示稍大, 但属于 bills section 自身 padding-top 范畴, 不在本任务范围
 - bills section 600+pt 长列表 — 自然长 (32 bills), 不在本任务范围
 - bills section 底部被右下 FAB 部分遮挡 — pre-existing, 跟 #110 无关
+
+### §11. v0.3.21 #111 (2026-07-22 02:46) — Landing tagline 整段替换 (PO msg 02:46)
+
+**PO msg 02:46**: "删除 landing page 中的'分账够清楚，友情撕不裂'，换成'好用的分账工具'"
+
+**改动** (单文件 `frontend/src/routes/+page.svelte`, 18 行加 57 行删, 净 −39):
+
+**1. JSX 替换**:
+- 旧 `<h1 class="tagline">分账够清楚，友情<span class="tagline-emphasis">...「撕不裂」...</span>。</h1>` (line 122-125 旧编号)
+- 新 `<h1 class="tagline">好用的分账工具</h1>` (纯文本, 无 span)
+- 删 `.tagline-emphasis` 内 `<span class="hl">「撕不裂」</span>「撕不裂」` 双层嵌套 (含 aria-hidden)
+
+**2. CSS 删除** (整段):
+- `.tagline-emphasis` (line 364-385 旧编号, italic-serif glass material 32px, font-family Times New Roman italic 700, color #E6ECF2, -webkit-text-stroke 1.8px #FFFFFF, paint-order stroke fill)
+- `.tagline-emphasis .hl` (line 386-403 旧编号, position absolute inset 0, linear-gradient top specular band)
+- 删除理由: brand-emphasis span 整段删, 配套 CSS 死代码一并清 (避免未来回看 SPEC 时误导)
+
+**3. 注释清理**:
+- 顶部文件头注释 (line 17-29): 删 "Tagline emphasis「撕不裂」— same italic-serif glass material at 42px..." 那段, 补 #111 删除说明
+- script 段 (line 38-40): 删 "#106 tagline 内嵌 span snippet" 注释, 改 "#111 纯文本, 不再有 brand-emphasis span"
+- 新 CSS 段 (line 359-361): 留注释占位说明 #111 删了哪些 + 原 #106 系列引用, 方便未来 git blame 回溯
+
+**4. `.tagline` 父级不动**:
+- font-size: 1.625rem (25.35px, 来自 #106.3 -28%)
+- font-weight: 400 (来自 #106.2 -100)
+- color: #fff + text-shadow 0 2px 8px rgba(0,0,0,0.3)
+- margin: 0 0 0.75rem
+- 新文案「好用的分账工具」6 字直接走这套 body style
+
+**dev 验证** (Playwright iPhone 13 @3x 真机 profile):
+- `/` 页面 200 OK ✓
+- `.tagline` textContent === "好用的分账工具" ✓ (精确 match, 无空白/标点)
+- `.tagline` computed style: fontSize=25.35px, fontWeight=400, color=rgb(255,255,255) ✓
+- `.tagline-emphasis` selector 命中 0 个元素 ✓ (旧 span DOM 全删)
+- svelte-check: 2 errors / 20 warnings (baseline 同, 0 new error — 2 pre-existing 在 `+page.svelte:553 session_code` 和 `join/+page.svelte:32 SessionPreviewMember`, 跟 #111 无关)
+- 真机截图:
+  * `~/.openclaw/media/v0321-111/landing.png` — landing 整页 (image tool: 标题干净无 emphasis, 节奏与按钮对齐)
+  * `~/.openclaw/media/v0321-111/tagline-only.png` — 仅 tagline 区域 (image tool: 5 字标题 26px white + shadow, 居中, 上下间距均衡)
+
+**反模式自查**:
+- 反 #150 v2 ✅ PO msg 直接修 (1 文件, 1 行文本替换 + 配套 CSS 清理, 无选项栏)
+- 反 #161 v3 ✅ 字面执行 PO "删除 + 换成" (不脑补额外字号/颜色/位置调整)
+- 反 #162 ✅ §11 sync + fix commit 同一 batch (本 commit 系列)
+- 反 #170 ✅ codeserver_exec_clean.js 写 codeserver 文件 (避免 stream framing 污染 +page.svelte)
+- 反 #189 ✅ SPEC append 用 heredoc (不用 sed 多匹配)
+
+**关联**:
+- 上游: e22436d #109 (Join 页) / 5987b34 #110 (BillForm + members 紧凑)
+- 不动: v0.3.21 #106 series 的 wordmark (.brand-line-1 + .brand-line-2 SplitIt logo) — PO 只说换 tagline, 不动 logo
+- 不动: SUB (`旅行、合租、聚餐 — 随时随地，AA 不再烦恼`) — 副标题不在 PO 范围
+- 不动: .or-row / .btn-primary / .btn-ghost / 背景图 / 整页结构
