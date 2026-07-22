@@ -4830,3 +4830,25 @@ PO msg 17:16 拍板 Option B = backdrop-filter + rgba 0.88 半透明 + 多层 gl
 - 反 #170 ✅ codeserver_exec_clean.js 写文件
 - 反 #189 ✅ SPEC append 用 heredoc
 - 反 #101 ✅ Playwright DOM 实测 maxLength + 真实键盘输入验证 cap 生效
+
+### §11. v0.3.23 #135 (2026-07-22 18:42) — UAT new #10: BillListGrouped 天内按时间倒序 (PO msg 16:35 "账单列表页, 一天内的账单 item 要按照时间倒序排列")
+
+**根因**: `buildGroups` 内 `[...list].sort((a, b) => ta - tb)` 升序 (最早在前). PO 想要倒序 (新→旧).
+
+**改动** (`frontend/src/lib/components/BillListGrouped.svelte:222-226`):
+- `ta - tb` → `tb - ta` (降序)
+- id tie-breaker 同步反向 `a.id - b.id` → `b.id - a.id` (同时间新 id 在前)
+
+**实测** (Playwright iPhone 13 `/sessions/1` FE DOM):
+- 32 bills 4 天, 每组内 desc ✓
+- Day 6.22 (10 bills): 20:00×8 → 15:00×1 → 10:00×1 ✓
+- Day 6.21 (9 bills): 21:00×1 → 20:00×7 → 12:00×1 ✓
+- Day 6.20 (11 bills): 20:00×6 → 12:00×5 ✓
+- Day 6.19 (2 bills): 同时间 20:00×2 按 id desc (28→1) ✓
+- svelte-check: 2 errors / 20 warnings (baseline 同, 0 new error)
+
+**反模式自查**:
+- 反 #162 ✅ §11 sync 与 fix commit 同一 batch (2a28a11 + docs followup)
+- 反 #170 ✅ codeserver_exec_clean.js 写文件
+- 反 #189 ✅ SPEC append 用 heredoc
+- 反 #101 ✅ Playwright DOM 实测 rendered order 验证 desc
