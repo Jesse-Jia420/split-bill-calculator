@@ -1748,13 +1748,27 @@
        font: inherit (隐含) 保证 placeholder 跟 input 用同一 font metrics.
        text-align: left 显式声明 (Safari <input type="search"> 默认 center 在某些
        iOS 版本, 跟 text input 不一致). 整个 input 高度 22px 后, flex 父 align-items: center
-       把它放在搜索框中央, placeholder 跟实际输入文字位置完全一致. */
+       把它放在搜索框中央, placeholder 跟实际输入文字位置完全一致.
+       v0.3.22 #124 (UAT bug #6, PO msg 16:05 #8064): 加 ::-webkit-search-cancel-button
+       { display: none }, 因为 -webkit-appearance: none 只重置样式不真隐藏 native X,
+       Chromium computed style 实测 display=block width=246px (跟 input 同宽), 让 native
+       跟自定义 .bills-search-clear X 两个一起渲染. 验证 BEFORE 截图看到 2 个 X (左 native,
+       右 custom). 真正隐藏需 display: none. */
     height: 22px;
     line-height: 22px;
     margin: 0;
     -webkit-appearance: none;
     appearance: none;
     text-align: left;
+  }
+  /* v0.3.22 #124 (UAT bug #6, PO msg 16:05 #8064): Svelte scoped style
+     加 hash 后的 selector (.bills-search-input.s-XXXX::-webkit-search-cancel-button)
+     Chromium 实测 display: none 不生效 (webkit 伪元素在 scoped context 兼容性
+     不可靠). 用 :global() 强制不 scope 让原生 selector 直接生效. */
+  :global(.bills-search-input::-webkit-search-cancel-button) {
+    -webkit-appearance: none;
+    appearance: none;
+    display: none !important;
   }
   .bills-search-input:focus {
     outline: none;
