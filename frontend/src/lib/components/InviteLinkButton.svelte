@@ -1,19 +1,28 @@
+<!--
+  InviteLinkButton.svelte
+
+  v0.1.2 反馈修 6 + v0.2.1 UI rev — 邀请按钮 stopPropagation (避免触发 members header 折叠).
+
+  v0.3.15 (PO #4807 + Designer 报告) — 清理死代码:
+  - 删 `let error: string | null = null` (声明后从未赋值)
+  - 删 `<div class="error">{error}</div>` 模板 (永远不显示)
+
+  v0.3.22 #122 (PO msg 15:38 #8025) — 按钮文案 "邀请" → "账本链接/邀请".
+
+  v0.3.23 #129 (PO msg 16:35 UAT 新批) — 删 btn-icon (emoji 视觉不一致).
+
+  v0.3.24 #14 (PO msg 16:35 UAT #14) — 成功反馈 toast 改 confirm modal:
+  - 用户复制成功后, 弹 confirm modal 而不是 auto-dismiss toast
+  - 文案 (两段, 中间换行):
+      已复制此账本链接,可用于回到此账本或邀请他人。
+      请妥善保管此链接!
+  - "知道了" 按钮 → manual dismiss (state modalOpen = false)
+  - 点击 backdrop / 按 Esc 也关闭 (一致 UX)
+  - 复制失败仍走 toast.error 兜底 (保留错误反馈)
+  - z-index 1000 (在 Toast 9999 之下, 在普通 modal 999 之上)
+  - 半透明黑 backdrop (rgba 0,0,0,0.10 + blur 4px) + 玻璃 modal (圆角 18px, 白底 + backdrop-filter, padding 24px)
+-->
 <script lang="ts">
-  /**
-   * v0.1.2 反馈修 6 + v0.2.1 UI rev — 邀请按钮 stopPropagation (避免触发 members header 折叠).
-   *
-   * 设计 (PO 反馈 2026-07-02 11:23):
-   * - 点击「邀请」 → 立即复制 invite URL + 显示 Toast「已复制邀请链接」
-   * - 按钮文字短时变「已复制 ✓」(300ms 反馈)
-   * - 不弹 modal,无需用户再点一次
-   * - 失败兜底: 选中 input + execCommand('copy')
-   * - 第一次点击 lazy load invite,后续点击只复制
-   *
-   * v0.3.15 (PO #4807 + Designer 报告) — 清理死代码:
-   * - 删 `let error: string | null = null` (声明后从未赋值)
-   * - 删 `<div class="error">{error}</div>` 模板 (永远不显示)
-   * 成功/失败反馈一直走 toast (L68/70),无副作用.
-   */
   import { toast } from '$stores/toast';
 
   export let sessionId: number;
@@ -27,6 +36,8 @@
 
   let copied = false;
   let resetTimer: ReturnType<typeof setTimeout> | null = null;
+  /** v0.3.24 #14: 复制成功后弹 confirm modal — manual dismiss by user. */
+  let modalOpen = false;
 
   /** v0.3.1: copy the SESSION URL (not the invite URL).
    * Per PO 16:55, the "invite link" that gets copied should just be the
@@ -38,12 +49,8 @@
         : window.location.origin + '/sessions/' + sessionId
       : '';
 
-  /** v0.3.1: copy SESSION URL directly (no lazy load needed — no
-   *  API call, no expiry display). Just copy `${origin}/sessions/${id}`. */
-  async function handleInviteClick() {
-    const url = inviteUrl;
-    if (!url) return;
-
+  /** v0.3.24 #14: extract copy logic for readability (原内联在 handleInviteClick). */
+  async function copyToClipboard(url: string): Promise<boolean> {
     let ok = false;
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -70,11 +77,23 @@
         ok = false;
       }
     }
+    return ok;
+  }
+
+  /** v0.3.1: copy SESSION URL directly (no lazy load needed — no
+   *  API call, no expiry display). Just copy `${origin}/sessions/${id}`. */
+  async function handleInviteClick() {
+    const url = inviteUrl;
+    if (!url) return;
+
+    const ok = await copyToClipboard(url);
 
     if (ok) {
-      toast.success('已复制账本链接，可用于邀请他人或回到此账本。请妥善保存！');
+      // v0.3.24 #14: 成功 → 弹 confirm modal 而非 toast (PO UAT 字面要求)
+      modalOpen = true;
     } else {
-      toast.info('复制失败,请手动选中链接');
+      // 失败仍走 toast.error 兜底 (复制失败用户需要看到, 修以重试)
+      toast.error('复制失败,请手动选中链接');
     }
 
     // v0.3.1 (PO Bug #4): show "已复制" for 10s then reset to "邀请".
@@ -87,11 +106,26 @@
     }, 10000);
   }
 
+  /** v0.3.24 #14: manual close (知道了 / Esc / backdrop click). */
+  function closeModal() {
+    modalOpen = false;
+  }
 
+  /** v0.3.24 #14: Esc 关闭 modal (跟全站 modal 键盘 UX 一致 — CurrencyAddModal 同款). */
+  function handleKeydown(e: KeyboardEvent) {
+    if (modalOpen && e.key === 'Escape') closeModal();
+  }
+
+  /** v0.3.24 #14: 点击 backdrop 关闭 modal (modal 内点击不冒泡). */
+  function handleBackdropClick(e: MouseEvent) {
+    if (e.target === e.currentTarget) closeModal();
+  }
 </script>
 
+<svelte:window on:keydown={handleKeydown} />
+
 <div class="invite-row">
-  <!-- PO 反馈修 6 项目 1: 点击立即复制 + toast,不再开 modal。 -->
+  <!-- PO 反馈修 6 项目 1: 点击立即复制 + 显示确认反馈。 -->
   <button
     type="button"
     class="glass-pill invite-btn"
@@ -109,6 +143,39 @@
        不再挂在 invite 按钮下方, 由 /sessions/[id]/+page.svelte 的 .expiry-inline-a 渲染。
        保留 ownerEmail / inviteExpiresAt / formatExpiresDate / expiresDate 派生以备未来回归。 -->
 </div>
+
+<!-- v0.3.24 #14: 复制成功弹出 confirm modal (manual dismiss).
+     文案两段中间 <br /> 换行 (PO 字面要求); "知道了" 按钮 manual close. -->
+{#if modalOpen}
+  <div
+    class="invite-modal-backdrop"
+    role="presentation"
+    on:click={handleBackdropClick}
+  >
+    <div
+      class="invite-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="账本链接已复制"
+      data-testid="invite-confirm-modal"
+    >
+      <p class="invite-modal-msg" data-testid="invite-confirm-msg">
+        已复制此账本链接,可用于回到此账本或邀请他人。<br />
+        请妥善保管此链接!
+      </p>
+      <div class="invite-modal-foot">
+        <button
+          type="button"
+          class="invite-modal-btn"
+          on:click={closeModal}
+          data-testid="invite-confirm-btn"
+        >
+          知道了
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   .invite-row {
@@ -153,7 +220,7 @@
     align-items: center;
     white-space: nowrap;
   }
-  /* 移动端 375px: 极致紧凑,ICON + 文字同行,不挤压 */
+  /* 移动端 375px: 极致紧凑,文字同行,不挤压 */
   @media (max-width: 380px) {
     .invite-btn {
       padding: var(--space-2) var(--space-3);
@@ -166,4 +233,121 @@
 
   /* v0.3.18 #66: removed .hint — 过期提示移到 page-level .expiry-inline-a (amber pill).
      保留此处注释占位避免未来误回退。 */
+
+  /* ============================================================
+   * v0.3.24 #14 (PO msg 16:35 UAT) — confirm modal (替换 toast)
+   * ============================================================ */
+  .invite-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    /* PO 字面: 半透明黑 + blur(4px) — 区别于 CurrencyAddModal 透明 backdrop (#85 改动 2),
+       这里走"dim" 风格 — confirm popup 需要视觉分层提示用户操作 */
+    background: rgba(0, 0, 0, 0.10);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    /* z-index 1000: 高于 modal 999 (CurrencyAddModal), 低于 toast 9999 —
+       用户操作 modal 时 toast 仍可见 (但本用例 modal 期间不发 toast). */
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-4);
+    animation: backdropFadeIn 200ms ease-out;
+  }
+  .invite-modal {
+    /* 玻璃风 PO 字面: 圆角 18px + 白底 + backdrop-filter + padding 24px */
+    width: 100%;
+    max-width: 320px;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: saturate(200%) blur(20px);
+    -webkit-backdrop-filter: saturate(200%) blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    border-radius: 18px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.6),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.04),
+      0 12px 36px rgba(0, 0, 0, 0.18),
+      0 0 0 1px rgba(99, 102, 241, 0.10);
+    animation: modalSlideUp 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @supports not (backdrop-filter: blur(1px)) {
+    .invite-modal {
+      background: rgba(255, 255, 255, 0.96);
+    }
+    .invite-modal-backdrop {
+      background: rgba(0, 0, 0, 0.18);
+    }
+  }
+  .invite-modal-msg {
+    /* PO 字面: 字号 15-16px + 行高舒适 */
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.7;
+    color: var(--gray-800, #1f2937);
+    text-align: center;
+    font-weight: var(--font-weight-medium, 500);
+    /* 中文段落视觉: 两个<br /> 对应两段,中间空隙自然, 不需要额外 margin */
+  }
+  .invite-modal-foot {
+    display: flex;
+    justify-content: center;
+  }
+  /* "知道了" 主按钮 — 跟 CurrencyAddModal .fab--submit (indigo→blue gradient) 同源 token */
+  .invite-modal-btn {
+    appearance: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: var(--font-weight-semibold, 600);
+    color: #fff;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.95) 0%, rgba(59, 130, 246, 0.95) 100%);
+    border: 1px solid rgba(99, 102, 241, 0.40);
+    border-radius: 12px;
+    padding: 10px 36px;
+    min-width: 100px;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.4),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.05),
+      0 4px 12px rgba(99, 102, 241, 0.28);
+    transition:
+      background 150ms ease,
+      transform 100ms ease,
+      box-shadow 150ms ease;
+  }
+  .invite-modal-btn:hover {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 1) 0%, rgba(59, 130, 246, 1) 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.5),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.05),
+      0 6px 16px rgba(99, 102, 241, 0.36);
+  }
+  .invite-modal-btn:active {
+    transform: scale(0.97);
+  }
+  .invite-modal-btn:focus-visible {
+    outline: 2px solid var(--accent-500, #6366f1);
+    outline-offset: 2px;
+  }
+
+  @keyframes backdropFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes modalSlideUp {
+    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  /* 移动端 375px: 紧凑 padding + 字号不变 (PO 字面要求 24px padding) */
+  @media (max-width: 380px) {
+    .invite-modal {
+      max-width: calc(100vw - 32px);
+      padding: 20px;
+      border-radius: 16px;
+    }
+  }
 </style>
