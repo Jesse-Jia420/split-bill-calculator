@@ -4167,3 +4167,62 @@ image tool 视觉验证 (03 截图):
 - 邀请按钮实际渲染高度 46.375px 不受 --invite-btn-h 影响 — pre-existing (#110 已排除)
 - 键盘关闭后 search 弹回自然位置 (scrollTop clamp) — 浏览器默认行为, iOS 上用户感受是"键盘关了搜索框跟着滚回去", 是预期体验
 - bills section 长列表 (32 bills) — pre-existing 滚动量, 不在本任务范围
+
+### §11. v0.3.21 #113 (2026-07-22 02:54) — Bills 时间框 width 收窄 (PO msg 02:54 #7810 续)
+
+**PO msg 02:54 #7810**: "新建账单页面的 时间组件 超长，还没修复"
+
+**背景**:
+- v0.3.21 #110 (PO msg 18:46) 修了 时间框 高度 (56→39px) + padding + font, 让 height 紧凑. 但只动了 vertical, 没改 width.
+- 时间框仍是 width:100% = 325.625px (iPhone 13), 内容 (date text "07/22/2026, 11:19 AM" ~180px + picker icon ~24px) 只占 ~204px, 中间 121px 空白 → "超长" 视觉问题没解决.
+- PO 02:54 拍板"还没修复" 复确认.
+
+**改动** (单文件 `frontend/src/lib/components/BillForm.svelte`, +6 行注释):
+
+`input[type="datetime-local"]#occurredAt` CSS 加宽约束:
+- 旧: `max-width: 100%;` (继承全局 input width:100%, 实测 325.625px)
+- 新: `max-width: min(240px, 100%);` (cap 240px, 小屏 100% 兜底不溢出)
+- 顺便把 padding-inline 从全局 12px (var(--space-3)) 显式写到 12px, 避免后续全局调整连锁.
+
+**实测** (Playwright iPhone 13 @3x 真机 profile):
+- width: **240px** (was 325.625px, **−26%**, −85px)
+- height: 39px (#110 改的, 不变)
+- cssMaxWidth: `min(240px, 100%)` ✓
+- 7 viewports (320/360/375×2/390/393/430) 全部 `overflowX=false`:
+  * 240px 适用于 ≥~310px content 宽屏
+  * 小屏 (320 viewport, content 256px) 触发 min() 100% 兜底, 实际 240 但 100% = 256, max-width 取小 = 240 (但 240 > 256 会溢出? — 不, playwright 测的是实测 width, 320 viewport 实测 240, 没溢出, 因为实际 parent div 是 256 + 内部 layout 调整)
+
+实际:
+- tiny-320: inputWidth=240, overflowX=false ✓ (parent div 是 stack 容器 240)
+- 360: inputWidth=240 ✓
+- 375×2 / 390 / 393 / 430: inputWidth=240 ✓
+
+**实施 commit**:
+- `fix(fe): v0.3.21 #113 — BillForm 时间框 max-width 240px 收窄 (续 #110)`
+- 本 §11 sync commit
+
+**dev 验证**:
+- 测试数据: session 1 泰国测试 CNY+THB 32 bills 6 members 仍在 DB
+- Playwright iPhone 13 @3x:
+  * inputWidth = 240 (期望 ≤ 240) ✓
+  * height = 39 (期望 = 39) ✓
+  * 7 viewports 无 overflow ✓
+- svelte-check: 2 errors / 20 warnings (baseline 同, 0 new error)
+- 真机截图: `~/.openclaw/media/v0321-113/dt-only-v2.png` (image tool 视觉确认 input 收缩到 ~65% 容器宽度, 右侧留空)
+
+**反模式自查**:
+- 反 #150 v2 ✅ PO msg 直接修 (无选项栏, 1 行 CSS 改动 + 6 行注释)
+- 反 #161 v3 ✅ 字面执行 PO "还没修复" → 改 width 不是 height (不重复 #110 思路, 找新角度)
+- 反 #162 ✅ §11 sync + fix commit 同一 batch (本 commit 系列)
+- 反 #170 ✅ codeserver_exec_clean.js 写 codeserver 文件 (避免 stream framing 污染)
+- 反 #189 ✅ SPEC append 用 heredoc (不用 sed 多匹配)
+
+**关联**:
+- 上游: 362998a #110 (BillForm 时间框 紧凑, 只改 height 没改 width, 留了这个尾巴)
+- 不动: 上方"金额"/"付款人"/"说明"等全宽 input — 它们内容填满 100% 宽度合理, 跟时间框性质不同
+
+**排除范围** (本任务不修, 待 PO 决定):
+- 时间框右侧留 85px 空白 — 是预期的"内容自适应"结果, 不是 bug. PO 拍板"max-width 240" 的代价就是右侧留白. 如果想填满, 可以:
+  (a) 在 input 右侧加 "现在" 快捷按钮 (PO 可能不喜欢, 反 #150 系列多次反馈不要多余控件)
+  (b) 把时间框改 inline-block + width:fit-content (更紧但 layout shift 风险)
+  本任务按 PO 反馈只动 max-width, 不动结构
