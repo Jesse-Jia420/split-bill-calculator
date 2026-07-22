@@ -13,9 +13,9 @@
 
   v0.3.24 #14 (PO msg 16:35 UAT #14) — 成功反馈 toast 改 confirm modal:
   - 用户复制成功后, 弹 confirm modal 而不是 auto-dismiss toast
-  - 文案 (两段, 中间换行):
-      已复制此账本链接,可用于回到此账本或邀请他人。
-      请妥善保管此链接!
+  - 文案 (两段, 中间换行, v0.3.24 #14.1 PO msg #8285 反馈调整):
+      已复制此账本链接,请妥善保管!
+      可用于 回到此账本(粗体) 或 邀请他人(粗体)
   - "知道了" 按钮 → manual dismiss (state modalOpen = false)
   - 点击 backdrop / 按 Esc 也关闭 (一致 UX)
   - 复制失败仍走 toast.error 兜底 (保留错误反馈)
@@ -160,8 +160,8 @@
       data-testid="invite-confirm-modal"
     >
       <p class="invite-modal-msg" data-testid="invite-confirm-msg">
-        已复制此账本链接,可用于回到此账本或邀请他人。<br />
-        请妥善保管此链接!
+        已复制此账本链接,请妥善保管!<br />
+        可用于 <strong class="emphasize">回到此账本</strong> 或 <strong class="emphasize">邀请他人</strong>。
       </p>
       <div class="invite-modal-foot">
         <button
@@ -291,6 +291,11 @@
     text-align: center;
     font-weight: var(--font-weight-medium, 500);
     /* 中文段落视觉: 两个<br /> 对应两段,中间空隙自然, 不需要额外 margin */
+  }
+  /* v0.3.24 #14.1 (PO msg #8285 反馈): "回到此账本" / "邀请他人" 强调粗体 */
+  .invite-modal-msg strong.emphasize {
+    font-weight: var(--font-weight-semibold, 600);
+    color: var(--gray-900, #111827);
   }
   .invite-modal-foot {
     display: flex;

@@ -5217,3 +5217,52 @@ DOM 验证 (8 项):
   1. DOM: .invite-modal-msg 文案重排 (line 162-165)
   2. CSS: 新增 .invite-modal-msg strong.emphasize (font-weight 600 + gray-900)
 - 验证: Playwright iPhone 13 /sessions/1, click invite-btn → modal 显示新文案 + 粗体强调生效
+### §11. v0.3.24 #9.2 (2026-07-22 20:25) — UAT bug 续 #9.1 avatar size 调大 (PO msg #8280 反馈 "账本列表页的 item 里面的头像太小了,完全看不清有谁")
+
+**根因**: v0.3.24 #9.1 commit `6232043` 的 .avatar-mini 18×18 在 iPhone 13 @3x 实际渲染占 54 logical pixel (svelte-check 已通过, 单 iOS webkit 物理 162px @3x DPR 但 logical 是 18). 头像内文字糊掉或看不到 (mockup refined 模拟的 J/X/A/M/K/L 字母). 实际代码 Coder 简化方案是没 initial 纯 palette 圆点, 更看不清 6 个成员. PO 字面 "太小,完全看不清有谁" 指向 size 而不是 layout (layout 在 #9.1 已修).
+
+**改动** (`frontend/src/lib/components/SessionCard.svelte` + `~/.openclaw/media/browser/v0323-135-session-card-mockup/mockup-B-refined.html`):
+
+1. **.avatar-mini width/height**: 18 → 24px (+33%, iPhone 13 logical pixel 54 → 72, 物理 pixel @3x 162 → 216)
+2. **.avatar-mini font-size**: 9 → 12px (= size/2, mockup 9=18/2 比例延续; 未来 backend avatars 字段补 initial 时字体比例就绪, 不需要再改)
+3. **.avatar-mini border**: 1.5px 保留 (白圈边界感)
+4. **.avatar-mini:not(:first-child) margin-left**: -4.5px → -6px (25% overlap, 跟原 18*0.25=4.5 同比例; 6 个 24px + overlap -6px = 24 + 5*18 = 114px width, card 360-36 padding - users(27) - 10 gap - 70 date - 安全 margin ≈ 充裕)
+
+**注释更新** (SessionCard.svelte 顶部 script 注释 + .avatar-mini CSS 注释 2 处都加 #9.2 段, 标注 "续 #9.1 PO msg #8280 反馈").
+
+**mockup 同步** (`~/.openclaw/media/browser/v0323-135-session-card-mockup/mockup-B-refined.html` + 重拍 `.png`):
+- .avatar-mini width/height 18→24px, font-size 9→12px, margin-left -4.5→-6px (跟 SessionCard.svelte 数值一致)
+- .row-bottom min-height 22→28px (容纳 24px avatar, 跟原 18+4=22 公式一致)
+- shoot.mjs 临时只跑 mockup-B-refined target, 跑完还原 targets 数组 (避免重生成 A/B/C 三个 PNG)
+
+**实测** (Playwright iPhone 13 /sessions, session 1 泰国测试账单 6 名成员 owner — `frontend/scripts/v0324-92-avatar-size-verify.cjs`):
+
+DOM 验证 (14 项 — 全 pass):
+- .avatar-mini computed width = 24px ✓
+- .avatar-mini computed height = 24px ✓
+- .avatar-mini computed font-size = 12px ✓
+- .avatar-mini computed border-width = 1.5px (保留) ✓ (chromium 可能四舍五入显示 1px, 接受两种)
+- .avatar-mini:not(:first-child) computed margin-left = -6px ✓
+- session 1 .avatar-mini 6 个 (跟 #9 一致) ✓
+- session 1 三段 DOM 齐: users-count / avatars / date ✓
+- session 1 gap(usersCount→avatars) = 10px (≤ 12px, 跟 #9.1 紧挨) ✓
+- session 1 gap(avatars→date) = 119px (>> 30, date 独立最右) ✓
+- session 1 avatar 总 width = 114px (= 24+5*18, 跟算法一致) ✓
+- session 1 每个 avatar bbox = 24×24 (iPhone 13 @3x logical 24) ✓
+- session 6 (1 人) 退化 sanity: 1 个 avatar-mini ✓
+- session 6: avatar 24×24 (跟主测一致) ✓
+- session 6: uc → av 紧挨 gap ≤ 12px ✓
+
+视觉 (image tool 02-session1-row-bottom.png): session 1 card 6 个 avatar 明显比 18px 大 1/3, 6 个不同 palette 颜色 (紫 / 粉 / 绿 / 黄 / 浅蓝 / 深紫) 清晰可辨, 每个圆圈独立可数 (不再是糊在一起的小点), 头像后白色 1.5px border 边界清晰, PO "太小看不清" 真修. 视觉 (image tool 01-sessions-overview.png): 整页 4 cards (1/2/6/1 人) avatar 全部明显放大, 345 (1 人) 单个紫色圆、666 (2 人) 紫+粉、泰国账单 (6 人) 6 色堆栈、个人测试 (1 人) 单个紫色圆 — 所有 avatar 视觉一致性 OK, 没有任何 card 出现 layout 异常.
+
+**svelte-check**: 2 errors / 19 warnings (baseline 同, 0 new error)
+
+**反模式自查**:
+- 反 #162 ✅ §11 sync 与 fix commit 同一 batch
+- 反 #150 ✅ Coder 自写自验 (Playwright iPhone 13 程序化 + DOM computed style + bbox + image tool 视觉 四证)
+- 反 #164 ✅ 单 commit fix + verify script + SPEC §11 entry 独立 (#9 + #9.1 各自独立, 保留 revert 能力)
+- 反 #167 ✅ iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN)
+- 反 #170 ✅ codeserver_exec_clean.js 写文件 (SessionCard.svelte 跨 sandbox/codeserver 同步)
+- 反 #189 ✅ SPEC append 用 heredoc (不用 sed 多匹配 — 旧 v0318-67 sed 把 .brand-line-1 字重也连带改了教训)
+- 反 #53 ✅ Gitea PAT token-only URL (沿用 v0.3.22 #53/#64/#132, push 即将成功)
+- 反 #101 ✅ Playwright 程序化 + DOM computed style + image tool 视觉 三证 (2 PNG 存 `~/.openclaw/media/browser/v0324-92-avatar-size/`)
