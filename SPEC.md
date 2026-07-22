@@ -4920,3 +4920,26 @@ PO msg 17:16 拍板 Option B = backdrop-filter + rgba 0.88 半透明 + 多层 gl
 - 反 #170 ✅ codeserver_exec_clean.js 写文件
 - 反 #189 ✅ SPEC append 用 heredoc
 - 反 #101 ✅ Playwright DOM 实测 .member-row-a + .member-remove-a 计数
+
+### §11. v0.3.23 #139 (2026-07-22 18:50) — UAT new #6: SessionCard 玻璃质感增强 (PO msg 16:35 "账本列表页, 账本 item 的玻璃质感要更强一些")
+
+**改动** (`frontend/src/lib/components/SessionCard.svelte`):
+- bg gradient rgba(255,255,255,0.82→0.65) → (0.75→0.50) (更透, 让 backdrop-filter 透出来)
+- backdrop-filter saturate(180%) blur(20px) brightness(1.02) → saturate(200%) blur(24px) brightness(1.04)
+- border 1px → 1.5px (更厚边缘)
+- shadow 主浮起 18px → 22px, hover 28px → 32px
+
+**实测** (Playwright iPhone 13 `/sessions`):
+- card backdrop-filter: saturate(2) blur(24px) brightness(1.04) ✓
+- card bg: linear-gradient rgba(255,255,255,0.75)→0.5 ✓
+- svelte-check: 2 errors / 20 warnings (baseline 同, 0 new error)
+
+### §11. v0.3.23 #140 (2026-07-22 18:50) — UAT new #7: owner pill ↔ name pill swap (PO msg 16:35 "账本 item 的 owner 标识去除 pill 玻璃效果, 账本名称增加 pill 玻璃效果")
+
+**改动** (`frontend/src/lib/components/SessionCard.svelte`):
+- 新 `.title-pill` 类: inline-flex + 浅 indigo 玻璃 + 白边 + backdrop-filter blur(8px) saturate(180%) + inset highlight + max-width 240px + text-overflow ellipsis
+- `.role.owner` 去背景框 + 去 backdrop + 去 shadow, 留 .dot-led + indigo-700 text 纯文字
+- `.role.member` 同步去背景框 (跟 owner 视觉对齐都纯文字)
+
+**实测**: title-pill backdrop-filter blur(8px) saturate(1.8) + indigo gradient + indigo border ✓, owner_role background transparent + border 0 + backdrop-filter none ✓. 跟 mockup B/C 一致.
+
