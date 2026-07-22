@@ -222,8 +222,10 @@
       const sorted = [...list].sort((a, b) => {
         const ta = new Date(a.occurred_at).getTime();
         const tb = new Date(b.occurred_at).getTime();
-        if (ta !== tb) return ta - tb;
-        return a.id - b.id;
+        // v0.3.23 #135 (UAT bug #10): 天内按时间倒序 — 新发生在前.
+        // 旧实现 ta - tb (升序, 最早在前) → 改 tb - ta (降序).
+        if (ta !== tb) return tb - ta;
+        return b.id - a.id;
       });
       // v0.3.1: per-currency aggregation (was naive sum across currencies).
       const byCcy = new Map<string, number>();
