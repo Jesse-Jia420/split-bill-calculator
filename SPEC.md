@@ -4812,3 +4812,21 @@ PO msg 17:16 拍板 Option B = backdrop-filter + rgba 0.88 半透明 + 多层 gl
 - 反 #170 ✅ codeserver_exec_clean.js 写文件 (跨 sandbox/codeserver BillForm 同步)
 - 反 #189 ✅ SPEC append 用 heredoc
 - 反 #101 ✅ Playwright DOM 实测 y 坐标 + image tool 视觉确认
+
+### §11. v0.3.23 #134 (2026-07-22 18:35) — UAT new #8: wizard 账本名称 maxLength 200 → 25 (PO msg 16:35 "根据账本列表 item 的结构, 在 wizard 里面增加账本名称的最大字符限制")
+
+**根因**: wizard step 1 input maxlength="200", 但 SessionCard .title 在 iPhone 13 1 行只显示 ~250px (CJK 16px ≈ 15-16 字). 200 字 远超 list item 容纳能力, 用户输入超长名字在 list 显示会被 overflow: hidden 截断无 ellipsis (实测 "泰国测试账单 6.19-6.22" 13 字渲染 168px 后被截断).
+
+**改动** (`frontend/src/routes/sessions/new/+page.svelte:192`):
+- `maxlength="200"` → `maxlength="25"` (涵盖现实命名 "曼谷之旅 2026" 8 字 / "泰国测试账单 6.19-6.22" 13 字 + 防止滥用 + 跟 list item 显示能力对齐)
+
+**实测** (Playwright iPhone 13 `/sessions/new` step 1):
+- input.maxLength = 25 ✓
+- 真实键盘输入 30 CJK 字 → input.value 长度 25 (浏览器按 maxLength cap 生效) ✓
+- svelte-check: 2 errors / 20 warnings (baseline 同, 0 new error)
+
+**反模式自查**:
+- 反 #162 ✅ §11 sync 与 fix commit 同一 batch (6f0e7ab + docs followup)
+- 反 #170 ✅ codeserver_exec_clean.js 写文件
+- 反 #189 ✅ SPEC append 用 heredoc
+- 反 #101 ✅ Playwright DOM 实测 maxLength + 真实键盘输入验证 cap 生效
