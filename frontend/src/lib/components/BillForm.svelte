@@ -313,6 +313,29 @@
   }
 
   /**
+   * v0.3.22 #119 (PO msg 11:35 #7838 Bug 5): input blur 后, 若 amount 是 0/空/非法
+   *   → 自动退到 shared 虚态 (跟点 ¥ 按钮等价). 合法 amount 保持 exclusive 不变.
+   * 之前 blur 无 handler, input 上类型 0 后点别处 → 仍卡在 exclusive + amount='0'
+   *   (UI 看起来很奇怪: exclusive pill 显示 ¥ + input 0).
+   * 修法: blur 时复用 exitExclusiveMode 的 amount 校验. 但若 amount 合法 (>0),
+   *   保持 exclusive 让用户继续编辑 (跟 sticky 输入数字后准备离开再决定提交一致).
+   * 注意: click ¥ button 走的是 exitExclusiveMode (不管 amount 多少都回 shared,
+   *   跟 PO 在 v0.3.20 #91 拍的一致). blur 只在 0/空 时回 shared, 与 click ¥ 不同.
+   */
+  function handlePillBlur(memberId: number) {
+    const st = participantState[memberId];
+    if (!st || !st.exclusive) return;
+    const n = Number(st.amount);
+    if (!st.amount || st.amount === '' || !Number.isFinite(n) || n <= 0) {
+      // amount 无效 → 退到 shared (虚态)
+      st.exclusive = false;
+      st.amount = '0';
+      participantState = { ...participantState };
+    }
+    // amount 合法 → 保持 exclusive, 啥也不做 (用户继续编辑)
+  }
+
+  /**
    * v0.3.20 #92 (PO msg 07:13 #7409): stepper 函数已删 (UI 删 stepper 按钮后无 caller).
    * exclusive 金额调整走原生 number input (mobile keyboard 自带 + / - 控件).
    */
@@ -615,6 +638,7 @@
                   class="pill-input"
                   bind:value={st.amount}
                   bind:this={inputRefs[m.id]}
+                  on:blur={() => handlePillBlur(m.id)}
                   placeholder="0.00"
                   aria-label={`${m.display_name} 的个人消费金额`}
                   data-testid={`ppts-amount-${m.id}`}

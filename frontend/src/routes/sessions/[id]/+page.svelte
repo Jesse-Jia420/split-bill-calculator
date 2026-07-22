@@ -812,6 +812,7 @@
 
         <BillListGrouped
           bills={filteredBills}
+          totalBills={bills.length}
           sessionId={session.id}
           memberIdToName={memberIdToName}
           currentUserMemberId={currentMemberId}

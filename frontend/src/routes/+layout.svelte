@@ -96,6 +96,10 @@
        (NavBar 现在 position:fixed, 不在 flex 流里). padding-top = navbar 内容高 + safe area.
        内容仍可滚动到 navbar 区域下方, 透过 backdrop-filter blur + alpha 0.05 模糊漏出. */
     /* v0.3.20 #99-fix5 (PO msg 14:29 #7602): padding-top 加 16px buffer — 修 #99-fix4 让 navbar 高度刚好被盖的回归. 让出 navbar 下沿到首行内容之间有 16px 空隙. */
+    /* v0.3.22 #119 (PO msg 11:35 #7838 Bug 4): overflow-anchor: always 让浏览器在
+       filteredBills 变化引起 .bill-list-grouped 高度缩短时, 自动保持锚定元素位置不变,
+       避免 main.scrollTop 被 clamp 带动 sticky search 从 top:8 掉到中部. */
+    overflow-anchor: always;
     padding: calc(var(--navbar-h, 56px) + env(safe-area-inset-top, 0px) + 16px) 0 0;
     overflow-y: auto;
     overflow-x: hidden;

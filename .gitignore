@@ -46,3 +46,6 @@ frontend/*.mjs
 
 # Auto-created by sbc_restore.sh for safety net before restore
 backend/data/sbc.db.pre-restore-*
+
+# Local verify artifacts (Playwright snapshots, sanity check outputs)
+.verify-*.png

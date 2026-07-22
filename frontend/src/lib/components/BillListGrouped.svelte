@@ -48,6 +48,42 @@
   import CategoryIcon from './CategoryIcon.svelte';
 
   export let bills: Bill[];
+
+  /** v0.3.22 #119 (PO msg 11:35 #7838 Bug 4 续): caller 传原始总账单数,
+   *  让空态 placeholder 区分：
+   *    - totalBills === 0 → "还没有账单" (无数据) (历史)
+   *    - totalBills > 0 && filteredBills === 0 → "没有匹配" (有数据但 filter 没出)
+   *  默认 -1 → caller 未传 (e.g. 老 caller) → 走原 "还没有账单" fallback,
+   *  维持兼容. */
+  export let totalBills: number = -1;
+
+  // v0.3.22 #119 (PO msg 11:35 #7838 Bug 4 续): min-height 维持 list 高度不变.
+  // 反 #150 — 之前主要修法是 #118 scrollSearchToSticky onfocus + #layout.svelte
+  // overflow-anchor: always, 但 chromium scroll anchoring 算法不选 sticky
+  // .bills-search 作为 anchor — 当 filteredBills 变化让 list 缩短, main.scrollHeight
+  // 减少 → main.scrollTop 自动 clamp 到新 max (=scrollHeight - clientHeight),
+  // search sticky element 视觉上从 sticky top:8 掉到 list 上方 (Bug 4 "乱跳").
+  // 实际复现: scrollTop=771 (after focus) → input 'a' → 539 → 'ab' → 325
+  //   (max = 989 - 664 = 325). search 从 viewport top:92 掉到 top:454,
+  //   list 完全空了才稳定 (后续字符无变化).
+  // 完整修法: .bill-grouped 加 min-height = initial-bills total height.
+  // 用户输入减少 list 时, actual 高度 = min-height (留白空 spacing), 但
+  // main.scrollHeight 不再减少 → main.scrollTop 不 clamp → search sticky 位稳.
+  // min-height 用 $-state 在 mount capture 一次 (initial bills height), 后续
+  // 保持该值不变 — user 滚动 / re-mount 不重设.
+  let listMinHeight = 0;
+  /** v0.3.22 #119: mount 时 capture `.bill-grouped` 实际高度作为 min-height.
+   *  后续 filteredBills 缩短时 actual height >= min-height, main.scrollHeight
+   *  维持在 initial 水平, scrollTop 不 clamp, search sticky 位稳. */
+  onMount(() => {
+    // 等首帧 layout 完成
+    requestAnimationFrame(() => {
+      const list = document.querySelector('.bill-grouped');
+      if (list instanceof HTMLElement) {
+        listMinHeight = list.offsetHeight;
+      }
+    });
+  });
   export let sessionId: number;
   export let memberIdToName: Record<number, string> = {};
   export let currentUserMemberId: number | null = null;
@@ -559,7 +595,7 @@
   });
 </script>
 
-<div class="bill-grouped">
+<div class="bill-grouped" style="min-height: {listMinHeight}px;">
   {#if loading}
     <ul class="skeleton-list" aria-busy="true" aria-label="加载中">
       <li><SkeletonBill /></li>
@@ -567,9 +603,17 @@
       <li><SkeletonBill /></li>
     </ul>
   {:else if !bills || bills.length === 0}
-    <p class="muted">
-      还没有账单,<a href="/sessions/{sessionId}/bills/new">点"+ 新建账单"开始</a>。
-    </p>
+    {#if totalBills === 0}
+      <p class="muted">
+        还没有账单,<a href="/sessions/{sessionId}/bills/new">点"+ 新建账单"开始</a>。
+      </p>
+    {:else}
+      <!-- v0.3.22 #119: filter 没匹配项 placeholder (跟“没有账单”区别,
+            让用户知道是输入问题不是没数据). -->
+      <p class="muted bill-list-empty">
+        没有匹配的账单,换个关键词试试。
+      </p>
+    {/if}
   {:else}
     <ul class="day-list" style="list-style: none; padding: 0; margin: 0;">
       {#each groups as g, gi (g.date)}
