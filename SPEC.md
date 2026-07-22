@@ -4896,3 +4896,27 @@ PO msg 17:16 拍板 Option B = backdrop-filter + rgba 0.88 半透明 + 多层 gl
 - 反 #170 ✅ codeserver_exec_clean.js 写文件
 - 反 #189 ✅ SPEC append 用 heredoc
 - 反 #101 ✅ Playwright computed style + image tool 视觉双证 (修前后对比)
+
+### §11. v0.3.23 #138 (2026-07-22 18:48) — UAT new #13: 成员 section 去 hover + 删 × 按钮 (PO msg 16:35 "成员 section 去除 hover 效果, 没意义。去除删除成员按钮, 实际上没有此功能。")
+
+**根因**: 成员 row hover 整块颜色变化干扰 + × 按钮 disabled 是「视觉错误承诺」(BE 无 endpoint 支持).
+
+**改动** (`frontend/src/routes/sessions/[id]/+page.svelte`):
+1. Template: 删 `{#if isOwner && m.role !== 'owner'} <button class="member-remove-a">×</button> {/if}` 整块
+2. CSS: 删 `.member-row-a:hover { background-color: rgba(99, 102, 241, 0.04); }`
+3. CSS: 删 `.member-remove-a` 整套 (含 hover 变红 + row hover 显按钮)
+4. CSS: 删 `@media (max-width: 480px) .member-remove-a { opacity: 1 }`
+5. Script: 删 dead code `handleDeleteMemberClick` (无 caller, placeholder confirm+toast)
+
+**同时**: drop sandbox `stash@{0}` (#120 WIP, 444 lines) — 已被 #136 2x2 grid 覆盖 + 含 console.log debug code + native focusin listener (已知 Svelte parse 问题).
+
+**实测** (Playwright iPhone 13 `/sessions/1`):
+- 展开态 6 个 `.member-row-a` ✓
+- 0 个 `.member-remove-a` ✓ (按钮已删)
+- svelte-check: 2 errors / 20 warnings (baseline 同, 0 new error)
+
+**反模式自查**:
+- 反 #162 ✅ §11 sync 与 fix commit 同一 batch
+- 反 #170 ✅ codeserver_exec_clean.js 写文件
+- 反 #189 ✅ SPEC append 用 heredoc
+- 反 #101 ✅ Playwright DOM 实测 .member-row-a + .member-remove-a 计数
