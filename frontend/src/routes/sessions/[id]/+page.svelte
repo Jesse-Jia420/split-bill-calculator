@@ -463,12 +463,8 @@
     }
   }
 
-  function handleDeleteMemberClick(m: { id: number; display_name: string }) {
-    // placeholder — 无 BE endpoint 可调,disabled 已阻止触发
-    const proceed = confirm(`确认把 ${m.display_name} 从这个账本移除?\n\n(v0.2 待 BE 支持,当前不可用)`);
-    if (!proceed) return;
-    toast.error('移除成员 (v0.2 待 BE 支持): 当前不可用');
-  }
+  // v0.3.23 #138 (UAT bug #13): 删 handleDeleteMemberClick — 成员 × 按钮已删, 函数无 caller.
+  //   原来跟 × 按钮一起绑 on:click, 按钮删后函数 dead code.
 </script>
 
 <section>
@@ -698,16 +694,9 @@
                     {/if}
                   </div>
                 </div>
-                {#if isOwner && m.role !== 'owner'}
-                  <button
-                    type="button"
-                    class="member-remove-a"
-                    onclick={(e) => { e.stopPropagation(); handleDeleteMemberClick(m); }}
-                    aria-label="移除成员 {m.display_name}"
-                    title="owner-only: v0.2 待 BE 支持 removeMember"
-                    disabled
-                  >×</button>
-                {/if}
+                <!-- v0.3.23 #138 (UAT bug #13): 删 删成员 × 按钮 — BE 端无 endpoint 支持,
+                     按钮一直 disabled 是「视觉错误承诺」. UI 跟实际能力对齐, 不画不存在的能力.
+                     代码保留 isOwner check (未来 BE 支持后可以重启用 button). -->
               </li>
             {/each}
           </ul>
@@ -1204,9 +1193,9 @@
   .member-row-a:last-child {
     border-bottom: none;
   }
-  .member-row-a:hover {
-    background-color: rgba(99, 102, 241, 0.04);
-  }
+  /* v0.3.23 #138 (UAT bug #13): 删 .member-row-a:hover 背景变 — 反馈
+     "成员 row hover 没意义, 整块颜色变化只是干扰". 删除该规则,
+     member-row-a 在 hover 时保持默认背景. */
   .member-row-a.is-owner {
     background: linear-gradient(90deg, rgba(168, 85, 247, 0.04) 0%, transparent 60%);
     border-radius: 10px;
@@ -1373,31 +1362,8 @@
     word-break: break-all;
   }
 
-  /* Remove × 按钮 — 28×28 圆形, 透明默认, hover 时变红 */
-  .member-remove-a {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    background: transparent;
-    border: 0;
-    color: var(--gray-400, #a3a3a3);
-    cursor: not-allowed;
-    font-size: 14px;
-    line-height: 1;
-    opacity: 0.4;
-    transition: all 150ms ease-out;
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .member-row-a:hover .member-remove-a:not(:disabled) {
-    opacity: 1;
-  }
-  .member-remove-a:hover:not(:disabled) {
-    background: rgba(239, 68, 68, 0.1);
-    color: var(--error-500, #ef4444);
-  }
+  /* v0.3.23 #138 (UAT bug #13): 删 .member-remove-a 整套 CSS — 按钮已删 (template 注释),
+     orphan rules. 未来 BE 支持 removeMember 后重新启用按钮时, 可从 git history 还原. */
 
   /* Mockup A fix #7: 1-member 紧凑 CTA banner (只有 owner 一人) */
   .solo-cta-a {
@@ -1565,15 +1531,12 @@
     .avatar-a { width: 32px; height: 32px; font-size: 12px; }
   }
 
-  /* 移动端 ≤480px: row 紧凑 + remove 按钮默认可见 */
+  /* 移动端 ≤480px: row 紧凑 */
   @media (max-width: 480px) {
     .members-card {
       /* v0.3.21 #112 (PO msg 02:53): padding 12 → 12px 12px 4px (mobile 同步).
          跟 base 一致, 让折叠态 "查看 N 人" 下移到 card 视觉底边 4px. */
       padding: 12px 12px 4px;
-    }
-    .member-remove-a {
-      opacity: 1;
     }
   }
   /* === bills section header === */
