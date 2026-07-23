@@ -1572,6 +1572,46 @@ async def remove_session_currency(
 
 
 # ---------------------------------------------------------------------------
+# v0.3.25 #16 (UAT line: /sessions 账本 item 加红色删除按钮, owner only):
+# DELETE /sessions/{session_id} — owner-only 硬删除整个 session + cascade.
+# ---------------------------------------------------------------------------
+@router.delete(
+    "/{session_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_session(
+    sm: Annotated[SessionMember, Depends(require_session_owner)],
+    db: Annotated[Session, Depends(get_db)],
+    session_id: int = Path(..., description="sessions.id"),
+) -> None:
+    """Owner-only 硬删除整个 session.
+
+    v0.3.25 #16 (UAT): SessionCard 加红色删除按钮 (owner only). 后端 cascade:
+    - Session.members (cascade all, delete-orphan) → SessionMember × N
+    - Session.bills (cascade all, delete-orphan) → Bill × N → BillParticipant × N
+    - Session.settlements (cascade all, delete-orphan) → Settlement × N
+    - Session.exchange_rates (cascade all, delete-orphan) → SessionExchangeRate × N
+    - Session.invites (外键 to session_id) → SessionInvite × N
+    - SessionMemberClaim (外键 to session_id via SessionMember) → 跟随 member cascade
+
+    Guards:
+    - require_session_owner → 403 if caller is not owner (or not a member).
+    - 404 if session does not exist (raise 之前).
+
+    不可逆 — PO 字面反馈 "此操作不可逆". 响应 204 No Content (REST 习惯).
+    """
+    session = db.query(SessionModel).filter_by(id=session_id).first()
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "session not found"},
+        )
+    db.delete(session)
+    db.commit()
+    return None
+
+
+# ---------------------------------------------------------------------------
 # PATCH /sessions/{id}/members/{mid}
 # ---------------------------------------------------------------------------
 
