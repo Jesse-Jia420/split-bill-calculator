@@ -277,8 +277,16 @@
    * 滚到 input 进入可视区. iOS Safari 键盘弹起时, 浏览器自动 scrollIntoView 在
    * app-shell 架构 (main 是 overflow-y: auto 容器, 不是 window) 下经常不生效,
    * 表现为 "键盘弹出但页面不顶起, input 被键盘遮住". Android Chrome 不受影响.
-   * 显式调用 input.scrollIntoView({ block: 'center', behavior: 'smooth' })
-   * 让 main 滚, input 进入 visualViewport 可见区 (在 keyboard 之上).
+   * v0.3.25 Top #2 (PO msg 16:35 UAT line): 进一步修. iOS Safari keyboard 起来是
+   * 异步的 (300-400ms), 浏览器原生 focus scrollIntoView 在 main overflow-y:auto
+   * 容器 + iOS keyboard 场景下, 即便显式调一次, 算的仍是 window.innerHeight - 待
+   * keyboard 占位, 但 keyboard 真正起来是后续异步事件. 表现为 "键盘弹起了, 但页面
+   * 还是只滚了半截, input 还在 keyboard 下面被遮". 三重 scrollIntoView: rAF 后立
+   * 即 + 350ms + 700ms 各一次, 等 keyboard 起来后第三次会算上 keyboard 减掉的
+   * visualViewport.height. block:'nearest' 最小滚动 + .pill-input
+   * scroll-margin-bottom:280px 让 input 底部留 280px 缓冲, iPhone keyboard 295px
+   * - 280 = 15px 余量, 安全不遮. form .stack padding-bottom:280px 给 main 容器
+   * 足够滚动距离.
    */
   async function enterExclusiveMode(memberId: number) {
     const st = participantState[memberId];
@@ -291,11 +299,16 @@
     if (input) {
       input.focus();
       input.select();
-      // iOS Safari: focus 后等下一帧, 调 scrollIntoView 让 main 滚到 input 居中可见.
-      // 浏览器原生 focus scrollIntoView 在 main 容器 + iOS keyboard 场景下经常失败.
-      requestAnimationFrame(() => {
-        input.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      });
+      // iOS Safari: 三次重试 scrollIntoView (rAF 立即 + 350ms + 700ms), 等 keyboard
+      // 异步起来后再调一次. block:'nearest' 最小滚动避免 input 被推到 main 中部反而
+      // 越过 viewport. 配合 .pill-input { scroll-margin-bottom: 280px } + form
+      // .stack { padding-bottom: 280px } 给 input 底部留足够空间.
+      const scrollIntoView = () => {
+        input.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+      };
+      requestAnimationFrame(scrollIntoView);
+      setTimeout(scrollIntoView, 350);
+      setTimeout(scrollIntoView, 700);
     }
   }
 
@@ -920,6 +933,11 @@
     font-family: inherit;
     -moz-appearance: textfield;
     appearance: textfield;
+    /* v0.3.25 Top #2 (PO msg 16:35 UAT line): iOS Safari keyboard 起来时,
+       scrollIntoView 计算 input 位置会预留 280px 底部缓冲. iPhone 13 keyboard
+       ~295px, 余量 15px 安全不遮. 配合 .stack { padding-bottom: 280px } 给
+       main 容器足够滚动距离. */
+    scroll-margin-bottom: 280px;
   }
   .pill-input::-webkit-outer-spin-button,
   .pill-input::-webkit-inner-spin-button {
@@ -993,9 +1011,13 @@
      bottom of the form so the last member row stays scroll-clear of
      the page-level bottom-left / bottom-right FABs (56×56 + 16px
      inset + ~24px breathing room). Scoped: only affects the form in
-     this component, leaves the global .stack utility rule alone. */
+     this component, leaves the global .stack utility rule alone.
+     v0.3.25 Top #2 (PO msg 16:35 UAT line): padding-bottom 从 96px 提到 280px,
+     给 main 容器足够滚动距离, 配合 .pill-input { scroll-margin-bottom: 280px }
+     让最下边成员 input focus + keyboard 起来时, scrollIntoView 能把 input 顶到
+     keyboard 上方. iPhone 13 keyboard ~295px, 余量 15px 安全. */
   .stack {
-    padding-bottom: 96px;
+    padding-bottom: 280px;
   }
 
   /* v0.3.21 #110 (PO msg 18:46): <input type="datetime-local"> 在 iOS Safari
