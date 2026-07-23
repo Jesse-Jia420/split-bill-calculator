@@ -673,9 +673,6 @@
                   class:is-me={isMe}
                   aria-hidden="true"
                 >
-                  {#if m.role === 'owner'}
-                    <span class="owner-crown">👑</span>
-                  {/if}
                   {avatarLetter(m.display_name)}
                 </div>
                 <div class="member-info-a">
@@ -954,7 +951,7 @@
      Mockup A 的 8 项 review 修复全部落到 CSS, 字面移植 v0318-66-shared.css token。
      (1) 过期提示挪到 header 右上 inline pill (amber 50/700)
      (2) 删除冗余 chevron (header 本身 clickable)
-     (3) owner 紫色 ring + 👑 小皇冠 emoji
+     (3) owner 紫色 ring (皇冠 emoji v0.3.28 #6 已删)
      (4) owner+me 同 row 只显皇冠 + "me · owner" 微章
      (5) email 不截断 (word-break: break-all, 不设 max-width)
      (6) net 字号 13px / font-weight 700 / 首位
@@ -1237,7 +1234,7 @@
     border-radius: 10px;
   }
 
-  /* Avatar — 36px, 5 色循环 (indigo/pink/emerald/amber/blue) + owner 紫色 ring + 👑 */
+  /* Avatar — 36px, 5 色循环 (indigo/pink/emerald/amber/blue) + owner 紫色 ring */
   /* v0.3.19 #83 (PO #7300): 加玻璃质感 — 2px 白边 + shadow + inset highlight, 36px 更立体. */
   /* v0.3.23 #132 (UAT old #4, PO msg 17:16 option B): 加 backdrop-filter + 强化 glass shadow */
   .avatar-a {
@@ -1297,16 +1294,6 @@
   }
   .avatar-a.is-me {
     box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(59, 130, 246, 0.55);
-  }
-  .owner-crown {
-    position: absolute;
-    top: -6px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 11px;
-    line-height: 1;
-    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.15));
-    z-index: 1;
   }
 
   /* Member info — name + meta row */

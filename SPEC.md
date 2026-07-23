@@ -5527,3 +5527,7 @@ svelte-check: 2 errors / 20 warnings (baseline 同, 0 new error)
 
 ### v0.3.28 — UAT 0723 batch #9 排除范围 (本任务不修, 待 PO 决定)
 - 账单 section "账单" 文字跟成员 section "成员" 文字之间的视觉微调 (font-weight / letter-spacing / line-height) — 都 14px / 700 / gray-900 / -0.005em 一致, 视觉匹配. 不修.
+
+### v0.3.28 — UAT 0723-3 batch #6: 成员 section 头像去皇冠 (Master 自写自验)
+
+- [x] **#6 成员 section 头像去皇冠** — push 待定 (sessions/[id]/+page.svelte). PO 字面意图 "去除成员 section 头像上的皇冠". 修法: 删 `{#if m.role === 'owner'}<span class="owner-crown">👑</span>{/if}` block + 删 .owner-crown 整 CSS 块. owner 视觉仍靠 .avatar-a.is-owner 紫色 ring (box-shadow) + 旁边的 "owner" / "me · owner" 文字 tag (owner-tag-a / me-dot-a) — 皇冠是冗余视觉, 删完更克制. 注释同步清 `👑` 引用 (line 954 + 1237). 排除范围: .is-owner 紫色 ring 保留 (PO 未要求改, owner 视觉区分仍需).
