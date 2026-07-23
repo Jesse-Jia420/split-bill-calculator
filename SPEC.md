@@ -5506,3 +5506,17 @@ svelte-check: 2 errors / 20 warnings (baseline 同, 0 new error)
 - 「—」/「请先选副币种」/「副币种」残留 — 全搜过, BillForm 早用「个人消费」/「分摊」, wizard 提示语用「结算币种」一致. 其它文本无残留.
 - 1-member session 6: .empty-description 找不到 (EmptyState 实际 class = `.description`, script 写错, 非代码 bug) — 跳到 session 3/4/5/7/8 0-bills session 应可验证
 - settle personal view 无 shared/exclusive tag (member 2 在 session 9 可能该 member 0 shared/exclusive bills) — 实测 session 9 member 1 (Jesse) 应有. 跳 member=1 应可验证
+
+### v0.3.27 — UAT 0723-2 Batch 2 (PO msg 16:35 #8469 续批, Master 自写自验)
+
+4 项 commits (按 dev skill "1 bug = 1 commit", 集中改 settle view toggle + bills list visual):
+
+- [x] **#2 单币种时「主币种汇总」按钮置灰** — push `d883a8f` (settle/+page.svelte). 之前: 单币种时「原始数据」disabled (v0.3.17 #32 反了), 「主币种汇总」active. PO 决定: 单币种时主币种汇总 = 原始数据 (currencies.length === 1, 二者同源, 重复 UI), 应该 disabled 让原始数据默认展示. 修法: swap disabled condition — 'primary' 加 disabled: !session.currencies || session.currencies.length < 2; viewMode 初始值: 单币种 session 默认 'split', 多币种保持 'primary'.
+- [x] **#4 消费明细排版 + 分摊黑色** — push `84c4d32` (SettleMemberBreakdown.svelte). PO 决定: row 排版跟 BillListGrouped 一致 (个人消费独占行 + 分摊 row 末尾), 分摊文字颜色改黑. 修法: 个人消费提到独立 row (跟 .bill-row-exclusive 同款), 分摊放到 row2 右侧 (margin-left: auto), 颜色 gray-500 → gray-900, 删 unused .shared-tag/.exclusive-tag CSS.
+- [x] **#5 账单item「只有个人消费」时, 「分摊」强制 0.00** — push `a6ced19` (BillListGrouped.svelte). PO 决定: 这种 bill 二行结构应该统一 (个人消费 + 分摊 永远同时出现), 无论 exclusive user 自己还是别人, 都应该看到「分摊 0.00」. 修法: isOnlyExclusive = billExclusiveTotal(b) >= Number(b.amount) → 强制分摊显示 0.
+- [x] **#6 + #7 + #17 账单header透明度 + 玻璃遮罩 + FAB 颜色加深** — push `bdd1630` (sessions/[id]/+page.svelte). 修法: .bills-card-head 加玻璃背景 (rgba 0.50 + blur 20px saturate 180%) + opacity 0.85 (搜素框下方 header 区域有玻璃遮罩). .fab bg 加深 0.04/0.02 → 0.18/0.14 + border 1.5px indigo 0.35 (原 border: 0 删掉), 创建按钮更醒目.
+
+### v0.3.27 — UAT 0723-2 Batch 2 排除范围 (本任务不修, 待 PO 决定)
+- 单币种 settle 顶部 hero 多行 per-currency 拆解 (#2 改动后「原始数据」单币种时仍可能跟「主币种汇总」同源 — 用户切换 view 视觉一致) — 设计接受, 不修
+- 消费明细 row2 .bill-sub-date 跟 .participant-count 间 sep 「·」颜色 gray-500 (#4 改动保留) — PO 未报, 不动
+- bills-list-empty placeholder 仍 margin-top: var(--space-6) (#6 改 header glass 后 placeholder 视觉位置可能微调) — 跟 v0.3.24 #18 共存, 不动
