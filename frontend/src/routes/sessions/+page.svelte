@@ -58,9 +58,12 @@
   {/if}
 
   <!-- v0.3.27 (UAT 0723-2 #10): 「新建账本」按钮改为 与「新建账单」按钮 同款 FAB,
-       位置 bottom: 28px right: 28px (跟 /sessions/[id] .fab 一致). -->
+       位置 bottom: 28px right: 28px (跟 /sessions/[id] .fab 一致).
+       v0.3.27-#17 (PO 0723-3 续): FAB bg 条件化 - 0 sessions 时深色强调引导,
+       有 sessions 时回到浅色 (原 v0.3.17 默认值). -->
   <a
     class="fab glass-pill"
+    class:emphasized={!loading && $sessions.length === 0}
     href="/sessions/new"
     title="新建账本"
     aria-label="新建账本"
@@ -69,7 +72,9 @@
 
 <style>
   /* v0.3.27 (UAT 0723-2 #10): FAB 样式跟 /sessions/[id] .fab 完全一致 (复制独立一份,
-     因为 Svelte scoped CSS 不能跨组件). */
+     因为 Svelte scoped CSS 不能跨组件).
+     v0.3.27-#17 (PO 0723-3 续): FAB bg 条件化 — 有 sessions 浅色 (默认, v0.3.17 原值),
+     0 sessions 深色 (.emphasized 状态). 取消箭头改走颜色引导路径. */
   .fab {
     position: fixed;
     right: 28px;
@@ -79,10 +84,10 @@
     border-radius: 50%;
     background: linear-gradient(
       135deg,
-      rgba(99, 102, 241, 0.18) 0%,
-      rgba(59, 130, 246, 0.14) 100%
+      rgba(99, 102, 241, 0.04) 0%,
+      rgba(59, 130, 246, 0.02) 100%
     );
-    border: 1.5px solid rgba(99, 102, 241, 0.35);
+    border: 1px solid rgba(99, 102, 241, 0.18);
     font-size: 36px;
     font-weight: 300;
     line-height: 1;
@@ -99,6 +104,16 @@
   .fab:hover {
     transform: translateY(-2px);
     text-decoration: none;
+  }
+  /* v0.3.27-#17 (PO 0723-3 续): 0 sessions 状态 — FAB 颜色更深以引导创建.
+     跟 .fab 默认浅色对比: bg alpha 0.04/0.02 → 0.18/0.14 (+0.14), border 1px 0.18 → 1.5px 0.35. */
+  .fab.emphasized {
+    background: linear-gradient(
+      135deg,
+      rgba(99, 102, 241, 0.18) 0%,
+      rgba(59, 130, 246, 0.14) 100%
+    );
+    border: 1.5px solid rgba(99, 102, 241, 0.35);
   }
   .fab:active {
     transform: scale(0.96);

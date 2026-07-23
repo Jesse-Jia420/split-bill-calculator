@@ -1642,9 +1642,10 @@
     width: 80px;
     height: 80px;
     border-radius: 50%;        /* 圆形覆盖 .glass-pill 的 999px */
-    /* v0.3.27 (UAT 0723-2 #17): FAB 颜色加深, bg 0.04/0.02 → 0.18/0.14 (+0.14), 让右下角创建按钮更醒目 */
-    background: linear-gradient(135deg, rgba(99,102,241,0.18) 0%, rgba(59,130,246,0.14) 100%);
-    border: 1.5px solid rgba(99,102,241,0.35);
+    /* v0.3.27-#17 (PO 0723-3 续): FAB bg 条件化 — 有 bills 浅色 (v0.3.17 原值),
+       0 bills 深色 (.emphasized 状态). 取消箭头改走颜色引导路径. */
+    background: linear-gradient(135deg, rgba(99,102,241,0.04) 0%, rgba(59,130,246,0.02) 100%);
+    border: 1px solid rgba(99,102,241,0.18);
     /* 删 color: #fff — 由 .glass-pill 提供 var(--accent-700, #4338ca) 深紫主题色 */
     font-size: 36px;
     font-weight: 300;
@@ -1662,6 +1663,12 @@
   .fab:hover {
     transform: translateY(-2px);
     text-decoration: none;
+  }
+  /* v0.3.27-#17 (PO 0723-3 续): 0 bills 状态 — FAB 颜色更深以引导创建.
+     跟 .fab 默认浅色对比: bg alpha 0.04/0.02 → 0.18/0.14 (+0.14), border 1px 0.18 → 1.5px 0.35. */
+  .fab.emphasized {
+    background: linear-gradient(135deg, rgba(99,102,241,0.18) 0%, rgba(59,130,246,0.14) 100%);
+    border: 1.5px solid rgba(99,102,241,0.35);
   }
   .fab:active {
     transform: scale(0.96);
