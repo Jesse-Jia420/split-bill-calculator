@@ -377,6 +377,15 @@
     cursor: pointer;
     font-size: 0.9rem;
   }
+  /* v0.3.28 (UAT 0723-3 #1): 「加入」按钮局部大一点 + 防换行 —
+     全局 .btn-primary padding 0 1.5rem + min-height 52px 在 .row.gap 容器跟 input 并排时会被 flex 挤压
+     让「加入」两个字各占一行。覆盖: flex-shrink:0 + white-space:nowrap + padding 0 1.75rem + min-height 56px。 */
+  .row.gap > .btn.btn-primary {
+    flex-shrink: 0;
+    white-space: nowrap;
+    padding: 0 1.75rem;
+    min-height: 56px;
+  }
   .slot-btn:disabled {
     cursor: not-allowed;
     opacity: 0.6;

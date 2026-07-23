@@ -5531,3 +5531,7 @@ svelte-check: 2 errors / 20 warnings (baseline 同, 0 new error)
 ### v0.3.28 — UAT 0723-3 batch #6: 成员 section 头像去皇冠 (Master 自写自验)
 
 - [x] **#6 成员 section 头像去皇冠** — push `13d5700` (sessions/[id]/+page.svelte). PO 字面意图 "去除成员 section 头像上的皇冠". 修法: 删 `{#if m.role === 'owner'}<span class="owner-crown">👑</span>{/if}` block + 删 .owner-crown 整 CSS 块. owner 视觉仍靠 .avatar-a.is-owner 紫色 ring (box-shadow) + 旁边的 "owner" / "me · owner" 文字 tag (owner-tag-a / me-dot-a) — 皇冠是冗余视觉, 删完更克制. 注释同步清 `👑` 引用 (line 954 + 1237). Playwright iPhone 13 @3x verify (`/tmp/v0328-0723-3-6-verify.cjs`, session 9 owner=xinhua1001): CROWN_COUNT=0 / HAS_CROWN_EMOJI=false / OWNER_TAG_COUNT=1 (.me-dot-a "me · owner" 文字在) / OWNER_RING 仍存在 (xinhua 是 owner+me, .is-me 后定义赢, 蓝色 ring 覆盖紫色 — owner 视觉标识仍保留). image tool 视觉: 5 个头像无任何 👑 emoji, owner 仍有 ring 光晕 + "me · owner" 文字. svelte-check 4/20 baseline 同 0 new error. 截图存 `~/.openclaw/media/browser/v0328-0723-3-6/members-section.png`.
+
+### v0.3.28 — UAT 0723-3 batch #1: 加入账本页「加入」按钮大一点 (Master 自写自验)
+
+- [x] **#1 加入按钮大一点** — push 待定 (sessions/[id]/join/+page.svelte). PO 字面意图 "回到/加入账本页面的「加入」按钮, 稍微大一点点, 确保「加入」两个字不要出现换行". 根因: 全局 .btn-primary (app.css:468) padding 0 1.5rem + min-height 52px 在 join 页 .row.gap 容器跟 .glass-input 并排时, .glass-input flex-grow:1 把 row 全宽占了, button 被挤压到 「加入」两个字各占一行的程度. 修法: 局部加 `.row.gap > .btn.btn-primary { flex-shrink: 0; white-space: nowrap; padding: 0 1.75rem; min-height: 56px; }` — 跟全局 .btn-primary 视觉同源 (线性渐变蓝紫玻璃 + saturate(200%) blur(20px) + box-shadow inset highlight) + 局部尺寸加大. 全局 .btn-primary 不动, 只在 join 页覆盖.
