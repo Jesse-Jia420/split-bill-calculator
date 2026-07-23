@@ -108,6 +108,10 @@
    */
   import type { SessionSummary } from "$api/sessions";
   import { formatDate } from "$lib/utils/format";
+  import { apiFetch } from "$api/client";
+  import { goto } from "$app/navigation";
+  import { toast } from "$stores/toast";
+  import { removeSession } from "$stores/sessions";
 
   export let session: SessionSummary;
 
@@ -118,6 +122,64 @@
   $: memberCount = session.member_count ?? 1;
   $: displayAvatars = Math.min(memberCount, MAX_AVATARS);
   $: overflowCount = Math.max(0, memberCount - MAX_AVATARS);
+
+  /** v0.3.25 #16 (UAT: /sessions item 加红色删除按钮, owner only):
+   * 删除按钮 + confirm modal 状态. 删除按钮仅在 session.role === 'owner' 时显示.
+   * non-owner 完全看不到按钮 (CSS 数据属性 [data-owner="false"] 隐藏). */
+  let showDeleteModal = false;
+  let deleting = false;
+
+  /** 点删除按钮 — stopPropagation 避免冒泡到 .card-link 触发导航.
+   * 同样 stopPropagation 避免跟 v0.3.24 #3 fix (InviteLinkButton 不 toggle 成员 section) 一样的 bug. */
+  function handleDeleteClick(e: MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    showDeleteModal = true;
+  }
+
+  /** Esc 关闭 modal — 全站 modal UX 一致 (跟 InviteLinkButton / CurrencyAddModal 同款). */
+  function handleKeydown(e: KeyboardEvent) {
+    if (showDeleteModal && e.key === "Escape" && !deleting) {
+      cancelDelete();
+    }
+  }
+
+  function cancelDelete() {
+    if (deleting) return;
+    showDeleteModal = false;
+  }
+
+  /** 点 backdrop 关闭 modal (modal 内点击不冒泡). */
+  function handleBackdropClick(e: MouseEvent) {
+    if (e.target === e.currentTarget && !deleting) {
+      cancelDelete();
+    }
+  }
+
+  /** 调 BE DELETE /sessions/{id} + 从 store 移除 + 跳 /sessions + toast 成功. */
+  async function confirmDelete() {
+    if (deleting) return;
+    deleting = true;
+    try {
+      await apiFetch(`/sessions/${session.id}`, { method: "DELETE" });
+      // 从 sessions store 移除 (立即更新 UI)
+      removeSession(session.id);
+      showDeleteModal = false;
+      toast.success(`账本「${session.name}」已删除`);
+      // 跳 /sessions 列表 (虽然 store 已更新, 但确保导航状态一致)
+      await goto("/sessions");
+    } catch (err: any) {
+      console.error("[SessionCard] delete failed:", err);
+      const msg =
+        err?.body?.detail?.error === "owner role required"
+          ? "仅 owner 可删除账本"
+          : err?.status === 404
+          ? "账本不存在"
+          : "删除失败,请重试";
+      toast.error(msg);
+      deleting = false;
+    }
+  }
 </script>
 
 <a href="/sessions/{session.id}" class="card-link">
@@ -136,6 +198,28 @@
         {#if session.role === "owner"}<span class="dot-led"></span>{/if}
         {session.role === "owner" ? "owner" : "member"}
       </span>
+      <!-- v0.3.25 #16 (UAT: /sessions item 加红色删除按钮, owner only):
+           仅 owner 可见 (CSS data-owner 属性控制). 点击不导航 (stopPropagation).
+           跟 v0.3.23 #140 owner pill 同行右侧. 圆形 28×28 + 半透明红玻璃 + 🗑️ icon.
+           z-index 1 (在 card-link 内, 但 stopPropagation 避免触发出 click navigation). -->
+      {#if session.role === "owner"}
+        <button
+          type="button"
+          class="delete-btn"
+          aria-label="删除账本"
+          title="删除账本"
+          data-owner="true"
+          on:click={handleDeleteClick}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+            <path d="M10 11v6"/>
+            <path d="M14 11v6"/>
+            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+          </svg>
+        </button>
+      {/if}
     </div>
     <!-- v0.3.24 #9 (UAT bug 账本 item 重设计): row-bottom 拆 3 段
          v0.3.24 #9.3 flip (PO msg #8299 反馈):
@@ -176,6 +260,58 @@
     </div>
   </div>
 </a>
+
+<!-- v0.3.25 #16 (UAT: /sessions item 加红色删除按钮, owner only):
+     确认删除 modal. 跟 InviteLinkButton v0.3.24 #14 modal 风格一致
+     (rgba backdrop + 玻璃 modal box + 圆角 18px + 手动关闭).
+     modal 是 <a> 的 sibling, 不在 link 内, 避免 click 冒泡触发出导航. -->
+{#if showDeleteModal}
+  <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+  <div
+    class="modal-backdrop"
+    on:click={handleBackdropClick}
+    on:keydown={handleKeydown}
+    role="presentation"
+  >
+    <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+    <div
+      class="modal-box"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="delete-modal-title"
+      on:click|stopPropagation
+    >
+      <div class="modal-icon" aria-hidden="true">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+          <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+        </svg>
+      </div>
+      <h2 id="delete-modal-title" class="modal-title">删除账本</h2>
+      <p class="modal-desc">
+        确定删除账本 <strong>「{session.name}」</strong> 吗？
+      </p>
+      <p class="modal-desc modal-desc-secondary">
+        此操作不可逆,所有账单、成员、汇率记录都会清除。
+      </p>
+      <div class="modal-actions">
+        <button
+          type="button"
+          class="btn-cancel"
+          on:click={cancelDelete}
+          disabled={deleting}
+        >取消</button>
+        <button
+          type="button"
+          class="btn-danger"
+          on:click={confirmDelete}
+          disabled={deleting}
+        >{deleting ? "删除中…" : "确认删除"}</button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   .card-link {
@@ -464,5 +600,210 @@
     .row-bottom {
       font-size: 12px;
     }
+  }
+
+  /* v0.3.25 #16 (UAT: /sessions item 加红色删除按钮, owner only):
+   * 删账按钮 — 圆形 28×28, 半透明红玻璃 (rgba 0.18-0.25 alpha + 边 + 模糊).
+   * hover 背景加深 + 红环. 跟全站玻璃语言一致 (跟 invite confirm modal 同源). */
+  .delete-btn {
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(
+      135deg,
+      rgba(239, 68, 68, 0.18) 0%,
+      rgba(220, 38, 38, 0.12) 100%
+    );
+    border: 1px solid rgba(239, 68, 68, 0.28);
+    border-radius: 50%;
+    color: rgba(220, 38, 38, 0.95);
+    cursor: pointer;
+    padding: 0;
+    margin-left: 8px;
+    backdrop-filter: blur(8px) saturate(1.8);
+    -webkit-backdrop-filter: blur(8px) saturate(1.8);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.5),
+      0 1px 2px rgba(220, 38, 38, 0.12);
+    transition:
+      transform 160ms ease,
+      box-shadow 160ms ease,
+      background 160ms ease,
+      border-color 160ms ease;
+    z-index: 1;
+    position: relative;
+  }
+  .delete-btn:hover {
+    background: linear-gradient(
+      135deg,
+      rgba(239, 68, 68, 0.32) 0%,
+      rgba(220, 38, 38, 0.22) 100%
+    );
+    border-color: rgba(239, 68, 68, 0.45);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.6),
+      0 0 0 2px rgba(239, 68, 68, 0.16),
+      0 2px 6px rgba(220, 38, 38, 0.18);
+    transform: translateY(-1px);
+  }
+  .delete-btn:active {
+    transform: translateY(0);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.4),
+      0 1px 2px rgba(220, 38, 38, 0.14);
+  }
+  .delete-btn:focus-visible {
+    outline: 2px solid rgba(239, 68, 68, 0.55);
+    outline-offset: 2px;
+  }
+
+  /* v0.3.25 #16: confirm modal (跟 InviteLinkButton v0.3.24 #14 同款玻璃风格).
+   * z-index 1000 (Toast 9999 之下, 普通 modal 999 之上). 半透明黑 backdrop + 玻璃 modal box. */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.10);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    animation: fade-in 160ms ease;
+  }
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  .modal-box {
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: saturate(2) blur(20px);
+    -webkit-backdrop-filter: saturate(2) blur(20px);
+    border: 1.5px solid rgba(255, 255, 255, 0.78);
+    border-radius: 18px;
+    padding: 24px;
+    max-width: 340px;
+    width: 100%;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.88),
+      0 8px 32px rgba(15, 23, 42, 0.16);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    animation: pop-in 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      transform: scale(0.94) translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+  .modal-icon {
+    width: 56px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(
+      135deg,
+      rgba(239, 68, 68, 0.18) 0%,
+      rgba(220, 38, 38, 0.10) 100%
+    );
+    border: 1.5px solid rgba(239, 68, 68, 0.32);
+    border-radius: 50%;
+    color: rgba(220, 38, 38, 0.95);
+    margin-bottom: 14px;
+  }
+  .modal-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--gray-900, #0f172a);
+    margin: 0 0 10px 0;
+    line-height: 1.3;
+  }
+  .modal-desc {
+    font-size: 14px;
+    color: var(--gray-700, #334155);
+    margin: 0 0 6px 0;
+    line-height: 1.5;
+  }
+  .modal-desc strong {
+    color: var(--gray-900, #0f172a);
+    font-weight: 600;
+  }
+  .modal-desc-secondary {
+    font-size: 13px;
+    color: var(--gray-500, #64748b);
+    margin-bottom: 18px;
+  }
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+  }
+  .btn-cancel,
+  .btn-danger {
+    flex: 1 1 0;
+    min-height: 40px;
+    padding: 0 14px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1.5px solid transparent;
+    transition:
+      transform 160ms ease,
+      box-shadow 160ms ease,
+      background 160ms ease,
+      border-color 160ms ease;
+    font-family: inherit;
+  }
+  .btn-cancel {
+    background: rgba(255, 255, 255, 0.6);
+    border-color: rgba(15, 23, 42, 0.10);
+    color: var(--gray-700, #334155);
+  }
+  .btn-cancel:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.85);
+    border-color: rgba(15, 23, 42, 0.16);
+    transform: translateY(-1px);
+  }
+  .btn-danger {
+    background: linear-gradient(
+      135deg,
+      rgba(239, 68, 68, 0.95) 0%,
+      rgba(220, 38, 38, 0.92) 100%
+    );
+    border-color: rgba(220, 38, 38, 0.7);
+    color: white;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.25),
+      0 2px 6px rgba(220, 38, 38, 0.30);
+  }
+  .btn-danger:hover:not(:disabled) {
+    background: linear-gradient(
+      135deg,
+      rgba(239, 68, 68, 1) 0%,
+      rgba(220, 38, 38, 0.98) 100%
+    );
+    transform: translateY(-1px);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.3),
+      0 4px 10px rgba(220, 38, 38, 0.36);
+  }
+  .btn-cancel:disabled,
+  .btn-danger:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
   }
 </style>
