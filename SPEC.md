@@ -5468,3 +5468,41 @@ DOM 验证 (14 项 — 全 pass):
 - [x] codeserver commit 69c144a (feat) + 8454dca (test verify script)
 - [x] ⚠️ PO msg #8469 12:28 问进度: 1.5h 后答 — 应立即推 Telegram (反 #158 Coder 完成推送铁律, Master 自做也算完成事件)
 
+
+### v0.3.26 — UAT 0723-2 Batch 1 验证 (Master 自写自验 已走 ✓)
+
+8 项 text/CSS 一次性:
+
+- [x] 0723-2 #1: 「独占」→「个人消费」 — BillListGrouped.svelte:822 (.bill-row-exclusive) + SettleMemberBreakdown.svelte:710 (.tag.exclusive-tag)
+- [x] 0723-2 #3: 「共享」→「分摊」 — SettleMemberBreakdown.svelte:707 (.tag.shared-tag). BillListGrouped 早已用「分摊」无需改
+- [x] 0723-2 #12: wizard「国内/出国」加粗 — sessions/new/+page.svelte:261/263 加 `<strong>` 标签
+- [x] 0723-2 #13: wizard「副币种」→「结算币种」文案 — sessions/new/+page.svelte:309 汇率 label fallback + :322 请先选提示
+- [x] 0723-2 #14: 删 1-member 「xxx还没有同伴, 邀请朋友加入一起记账」CTA banner — sessions/[id]/+page.svelte:640-651 整块删. 1-member 现在走 else 分支渲染普通 members list 单 row
+- [x] 0723-2 #15: 「分摊自动结算」→「自动计算分摊」 — sessions/[id]/+page.svelte:795 EmptyState description
+- [x] 0723-2 #20: 删 expiry pill owner name — sessions/[id]/+page.svelte:579-585 删 .expiry-cta-nick span + ownerDisplayName const + 整行 CSS. 文本统一 "yyyy.mm.dd 过期 · 登录即可永久保存"
+- [x] 0723 batch #10: bills-card-title font-size 14px/700/gray-900 对齐 members-title-a — sessions/[id]/+page.svelte:1577-1583
+
+附加清理 (避免 svelte-check 0 new warning):
+- 删 unused ownerDisplayName $derived const (no caller, svelte-check unused-vars)
+- 删 unused .expiry-cta-nick CSS block (no template caller, svelte-check unused-selector)
+- 删 v0.3.22 #127 相关注释 (owner name 决定已 superseded by #20)
+
+Playwright iPhone 13 验证 (`frontend/scripts/v0326-0723-2-batch1-verify.cjs`):
+- ✓ step 3 title: 使用什么币种？
+- ✓ #12 single: 国内 加粗 (strong=1, text="用于国内旅游、消费等场景")
+- ✓ #12 dual: 出国 加粗 (strong=1, text="用于出国旅游、消费等场景")
+- ✓ #13: 汇率 label "汇率 (1 CNY = ? 结算币种)"
+- ✓ #13: rate hint "请先选结算币种"
+- ✓ #14: 1-member solo-cta-a 已删 (session 9 5-member + session 6 1-member 双测)
+- ✓ #20: expiry pill 已删 owner name (text="2026.08.22 过期 · 登录即可永久保存")
+- ✓ #0723 batch #10: bills-card-title = members-title-a (size=14px, weight=700)
+- ✓ #1 BillListGrouped: .bill-row-exclusive = "个人消费 ฿380.00THB"
+
+svelte-check: 2 errors / 20 warnings (baseline 同, 0 new error)
+单分支铁律: origin 仅 main (committed `d1d8f7b`, push be04b27..d1d8f7b)
+4 PNG 截图存 `~/.openclaw/media/browser/v0326-0723-2-batch1/` (image tool 已查 session 9 bills header / session 6 1-member / settle personal / wizard step 3)
+
+### v0.3.26 — UAT 0723-2 Batch 1 排除范围 (本任务不修, 待 PO 决定)
+- 「—」/「请先选副币种」/「副币种」残留 — 全搜过, BillForm 早用「个人消费」/「分摊」, wizard 提示语用「结算币种」一致. 其它文本无残留.
+- 1-member session 6: .empty-description 找不到 (EmptyState 实际 class = `.description`, script 写错, 非代码 bug) — 跳到 session 3/4/5/7/8 0-bills session 应可验证
+- settle personal view 无 shared/exclusive tag (member 2 在 session 9 可能该 member 0 shared/exclusive bills) — 实测 session 9 member 1 (Jesse) 应有. 跳 member=1 应可验证
