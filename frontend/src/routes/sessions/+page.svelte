@@ -35,7 +35,6 @@
 <section>
   <div class="row between" style="margin-bottom: var(--space-4);">
     <h2>我的账本</h2>
-    <a class="btn primary glass-pill" href="/sessions/new">+ 新建账本</a>
   </div>
 
   {#if loading}
@@ -57,4 +56,61 @@
       {/each}
     </div>
   {/if}
+
+  <!-- v0.3.27 (UAT 0723-2 #10): 「新建账本」按钮改为 与「新建账单」按钮 同款 FAB,
+       位置 bottom: 28px right: 28px (跟 /sessions/[id] .fab 一致). -->
+  <a
+    class="fab glass-pill"
+    href="/sessions/new"
+    title="新建账本"
+    aria-label="新建账本"
+  >+</a>
 </section>
+
+<style>
+  /* v0.3.27 (UAT 0723-2 #10): FAB 样式跟 /sessions/[id] .fab 完全一致 (复制独立一份,
+     因为 Svelte scoped CSS 不能跨组件). */
+  .fab {
+    position: fixed;
+    right: 28px;
+    bottom: 28px;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(
+      135deg,
+      rgba(99, 102, 241, 0.18) 0%,
+      rgba(59, 130, 246, 0.14) 100%
+    );
+    border: 1.5px solid rgba(99, 102, 241, 0.35);
+    font-size: 36px;
+    font-weight: 300;
+    line-height: 1;
+    z-index: 50;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    padding-bottom: 3px;
+    text-decoration: none;
+    color: var(--accent-700, #4338ca);
+    transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease, color 150ms ease;
+  }
+  .fab:hover {
+    transform: translateY(-2px);
+    text-decoration: none;
+  }
+  .fab:active {
+    transform: scale(0.96);
+  }
+  .fab:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+  }
+  @media (max-width: 600px) {
+    .fab {
+      right: 20px;
+      bottom: 20px;
+    }
+  }
+</style>
