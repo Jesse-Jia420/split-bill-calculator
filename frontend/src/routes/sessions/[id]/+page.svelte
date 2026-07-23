@@ -790,6 +790,34 @@
           title="还没有账单"
           description="添加你的第一笔消费,自动计算分摊。"
         />
+        <!-- v0.3.27 (UAT 0723-2 #18): 「新建账单」手绘箭头从左上至右下指向 FAB.
+             跟 /sessions 的「新建账本」手绘箭头同款 SVG path, position 在 bills-card 内 BottomLeft.
+             但 /sessions/[id] 页面有 nav bar + header 区需穿过, 这里把 bottom 调到 175px (避开) -->
+        <svg
+          class="handdrawn-arrow-bills"
+          viewBox="0 0 120 220"
+          preserveAspectRatio="xMidYMid meet"
+          aria-hidden="true"
+        >
+          <path
+            d="M 25 18 Q 55 35 60 80 T 70 150 Q 78 185 95 200"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-dasharray="5,4"
+            opacity="0.78"
+          />
+          <path
+            d="M 80 188 L 95 200 L 84 207"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            opacity="0.78"
+          />
+        </svg>
       {:else}
         <!-- v0.2.1 T05: 搜索 input (session 内账单 description 模糊匹配)。 -->
         <div class="bills-search">
@@ -1883,5 +1911,22 @@
 
   .small {
     font-size: var(--font-size-sm);
+  }
+
+  /* v0.3.27 (UAT 0723-2 #18): 手绘箭头 — fixed 位置, 右下 + 中下重点指向 FAB.
+     跟 /sessions 的 .handdrawn-arrow 同款 SVG path, 但本页面有 nav bar (~64px) +
+     header (sticky, ~120px) + 内容滚动, fixed 让箭头与 FAB 视觉对齐不随滚动乱跑.
+     FAB 位置 bottom: 28px right: 28px width: 80px → FAB 中心约 (right: 68px, bottom: 68px).
+     SVG 从左上 (left: 24px, bottom: 175px) 开始, 曲线绕到右下指向 FAB. */
+  .handdrawn-arrow-bills {
+    position: fixed;
+    bottom: 175px;
+    left: 24px;
+    width: 110px;
+    height: 200px;
+    color: var(--accent-500, #6366f1);
+    z-index: 49;
+    pointer-events: none;
+    transform: rotate(8deg);
   }
 </style>
