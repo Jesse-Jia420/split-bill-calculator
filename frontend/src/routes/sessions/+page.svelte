@@ -49,8 +49,6 @@
       icon="inbox"
       title="还没有任何账本"
       description="创建一个账本开始记账,或者接受朋友的邀请加入。"
-      ctaLabel="+ 新建账本"
-      ctaHref="/sessions/new"
     />
   {:else}
     <div class="stack">
