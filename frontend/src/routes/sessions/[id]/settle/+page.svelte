@@ -99,7 +99,9 @@
   // next to the personal tab without round-tripping through props
   // from the breakdown component.
   type ViewMode = 'primary' | 'split';
-  let viewMode: ViewMode = 'primary';
+  // v0.3.27 (UAT 0723-2 #2): 单币种时「主币种汇总」disabled, 默认切到「原始数据」
+  // (主币种汇总 = 原始数据 when currencies.length === 1, 重复 UI).
+  let viewMode: ViewMode = session.currencies && session.currencies.length < 2 ? 'split' : 'primary';
 
   type Tab = 'overview' | 'personal';
   let activeTab: Tab = 'overview';
@@ -213,8 +215,8 @@
         <IosSwitch
           ariaLabel="结算视图"
           options={[
-            { value: 'primary', label: `主币种汇总 (${session.primary_currency})` },
-            { value: 'split', label: '原始数据', disabled: !session.currencies || session.currencies.length < 2 }
+            { value: 'primary', label: `主币种汇总 (${session.primary_currency})`, disabled: !session.currencies || session.currencies.length < 2 },
+            { value: 'split', label: '原始数据' }
           ]}
           bind:value={viewMode}
         />
