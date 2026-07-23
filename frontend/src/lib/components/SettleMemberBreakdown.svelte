@@ -678,6 +678,12 @@
                         {#if viewMode === 'primary'}{fmtConsumedPrimary(b)}{:else}{fmtConsumedSplit(b)}{/if}
                       </span>
                     </div>
+                    <!-- v0.3.27 (UAT 0723-2 #4): 个人消费 独立行, 跟 BillListGrouped .bill-row-exclusive 同款 -->
+                    {#if tags.excl}
+                      <div class="bill-row-exclusive muted">
+                        个人消费 {tags.excl}
+                      </div>
+                    {/if}
                     <div class="row2 muted">
                       <span class="bill-sub-date">{fmtDate(b.occurred_at)}</span>
                       {#if b.participant_count}
@@ -703,12 +709,7 @@
                           <span class="participant-count-num">{b.participant_count}人</span>
                         </span>
                       {/if}
-                      <span class="sep" aria-hidden="true">·</span>
-                      <span class="tag shared-tag">分摊 {tags.shared}</span>
-                      {#if tags.excl}
-                        <span class="sep" aria-hidden="true">·</span>
-                        <span class="tag exclusive-tag">个人消费 {tags.excl}</span>
-                      {/if}
+                      <span class="shared-tag-right">分摊 {tags.shared}</span>
                     </div>
                   </li>
                 {/each}
@@ -1238,6 +1239,19 @@
     gap: var(--space-1, 4px);
     font-size: var(--font-size-sm, 14px);
   }
+  /* v0.3.27 (UAT 0723-2 #4): 分摊 走右, 跟 BillListGrouped .your-share 同款 */
+  .shared-tag-right {
+    margin-left: auto;
+    color: var(--gray-900, #171717);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+  /* v0.3.27 (UAT 0723-2 #4): 跟 BillListGrouped .bill-row-exclusive 同款  */
+  .bill-row-exclusive {
+    color: var(--gray-500, #6b7280);
+    font-size: var(--font-size-sm, 14px);
+    font-weight: 400;
+  }
   .bill-sub-desc {
     flex: 1 1 auto;
     min-width: 0;
@@ -1254,8 +1268,6 @@
     white-space: nowrap; /* v0.3.17 #34: PO 反馈 +4,555.70 THB 折行, nowrap 防止换行 */
   }
   .bill-sub-date { font-variant-numeric: tabular-nums; }
-  .exclusive-tag { color: var(--accent-500); font-weight: 500; }
-  .shared-tag { color: var(--gray-500); }
   /* v0.3.16 #3: 人数 chip in row2 */
   .participant-icon {
     display: inline-block;
