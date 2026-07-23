@@ -819,7 +819,7 @@
                              单币独占金额聚合 (双币独占场景后端暂不支持, 但代码防御性 sum 一下). -->
                         {#if billExclusiveTotal(b) > 0}
                           <div class="bill-row-exclusive muted">
-                            独占 {currencySymbol(b.currency)}{fmtAmount(billExclusiveTotal(b))}<span class="unit">{b.currency}</span>
+                            个人消费 {currencySymbol(b.currency)}{fmtAmount(billExclusiveTotal(b))}<span class="unit">{b.currency}</span>
                           </div>
                         {/if}
                         <div class="bill-row3 muted">

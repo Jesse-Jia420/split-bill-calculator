@@ -704,10 +704,10 @@
                         </span>
                       {/if}
                       <span class="sep" aria-hidden="true">·</span>
-                      <span class="tag shared-tag">共享 {tags.shared}</span>
+                      <span class="tag shared-tag">分摊 {tags.shared}</span>
                       {#if tags.excl}
                         <span class="sep" aria-hidden="true">·</span>
-                        <span class="tag exclusive-tag">独占 {tags.excl}</span>
+                        <span class="tag exclusive-tag">个人消费 {tags.excl}</span>
                       {/if}
                     </div>
                   </li>
