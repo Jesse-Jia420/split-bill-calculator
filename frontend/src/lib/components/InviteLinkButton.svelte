@@ -240,11 +240,11 @@
   .invite-modal-backdrop {
     position: fixed;
     inset: 0;
-    /* PO 字面: 半透明黑 + blur(4px) — 区别于 CurrencyAddModal 透明 backdrop (#85 改动 2),
-       这里走"dim" 风格 — confirm popup 需要视觉分层提示用户操作 */
-    background: rgba(0, 0, 0, 0.10);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
+    /* v0.3.27 (UAT 0723-2 #8): 加深全屏模糊 — bg 0.10→0.30, blur 4px→16px saturate 180%,
+       让用户明确感受到弹窗已「占据」全屏 (PO 字面: 弹窗背景的模糊效果应用于全屏). */
+    background: rgba(0, 0, 0, 0.30);
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
     /* z-index 1000: 高于 modal 999 (CurrencyAddModal), 低于 toast 9999 —
        用户操作 modal 时 toast 仍可见 (但本用例 modal 期间不发 toast). */
     z-index: 1000;
@@ -279,7 +279,7 @@
       background: rgba(255, 255, 255, 0.96);
     }
     .invite-modal-backdrop {
-      background: rgba(0, 0, 0, 0.18);
+      background: rgba(0, 0, 0, 0.48);
     }
   }
   .invite-modal-msg {

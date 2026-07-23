@@ -606,56 +606,59 @@
   .modal-backdrop {
     position: fixed;
     inset: 0;
-    /* v0.3.19 #85 PO #7731 (#2): 去掉全屏深色背景 + 模糊遮罩, 弹窗直接浮起.
-     *   原 v0.3.18 #60 batch2 (PO #6837) 加的 rgba(15,23,42,0.55) + saturate blur
-     *   全去掉, background 改 transparent. backdrop click-to-close 仍可工作
-     *   (透明 wrapper 仍捕获 click 事件, handleBackdropClick 走 e.target ===
-     *   e.currentTarget 判断). */
-    background: transparent;
+    /* v0.3.27 (UAT 0723-2 #9): 跟 InviteLinkButton .invite-modal-backdrop 完全一致
+     *   — 之前 v0.3.19 #85 刪掉的全屏模糊遮罩加回来, 跟邀请 modal 同风格. */
+    background: rgba(0, 0, 0, 0.30);
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
     z-index: 999;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: var(--space-4);
+    animation: backdropFadeIn 200ms ease-out;
   }
 
   .modal {
     width: 100%;
-    max-width: 360px;
+    max-width: 320px;
     max-height: calc(100dvh - 32px);
     overflow-y: auto;
-    border-radius: 16px;
-    padding: 0;
+    /* v0.3.27 (UAT 0723-2 #9): 跟 InviteLinkButton .invite-modal 同款玻璃风:
+     *   圆角 18px + 白底 0.92 + saturate 200% blur(20px) + border 1px rgba(255,255,255,0.6).
+     *   之前 ring + halo (v0.3.21 #106 加的 3 层 indigo 轮廓) 去掉, 跟 invite modal 简洁. */
+    border-radius: 18px;
+    padding: 24px;
     display: flex;
     flex-direction: column;
-    background: rgba(255, 255, 255, 0.55);
-    /* v0.3.18 #60 batch2: modal 内部玻璃模糊度加重. */
+    gap: 20px;
+    background: rgba(255, 255, 255, 0.92);
     backdrop-filter: saturate(200%) blur(20px);
     -webkit-backdrop-filter: saturate(200%) blur(20px);
-    border: 1px solid rgba(99, 102, 241, 0.22);
-    /* v0.3.21 #106 (PO msg 17:21): 加 ring (2px accent) + halo glow (60px 软光晕)
-     *   引导视觉重心到弹窗本体, 跟原 8px 浅阴影叠成 3 层效果 (ring + drop + halo).
-     *   ring 1.5→2px + alpha 0.35→0.45 加重轮廓, halo alpha 0.32→0.36 加强软光晕. */
+    border: 1px solid rgba(255, 255, 255, 0.6);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.5),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.03),
-      0 0 0 2px rgba(99, 102, 241, 0.45),
-      0 12px 36px rgba(99, 102, 241, 0.22),
-      0 0 60px rgba(99, 102, 241, 0.36);
+      inset 0 1px 0 rgba(255, 255, 255, 0.6),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.04),
+      0 12px 36px rgba(0, 0, 0, 0.18),
+      0 0 0 1px rgba(99, 102, 241, 0.10);
     animation: slideUp 200ms cubic-bezier(0.16, 1, 0.3, 1);
   }
   @supports not (backdrop-filter: blur(1px)) {
     .modal {
-      background: rgba(255, 255, 255, 0.92);
+      background: rgba(255, 255, 255, 0.96);
+    }
+    .modal-backdrop {
+      background: rgba(0, 0, 0, 0.48);
     }
   }
 
+  /* v0.3.27 (UAT 0723-2 #9): .modal padding 24px 统一管理, .modal-head/.modal-body/.modal-foot
+   *   内部子元素的 padding 全清, 跟 .invite-modal 同一布局哲学 (单层 padding, 不嵌套). */
   .modal-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: var(--space-3);
-    padding: var(--space-4) var(--space-4) 0;
   }
   .modal-title {
     margin: 0;
@@ -665,7 +668,6 @@
   }
 
   .modal-body {
-    padding: var(--space-4);
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
@@ -846,12 +848,12 @@
    *   submit 用 indigo→blue gradient (primary).
    *   v0.3.21 #106 (PO msg 17:21): 改 #3 — 取消按钮移到右下挨着保存 (flex-end + gap),
    *   原 space-between 让 cancel 在左下角改成右下角并列, 视觉重心更聚拢. */
+  /* v0.3.27 (UAT 0723-2 #9): modal-foot padding 清, 跟 .modal padding 24px 统一管理 */
   .modal-foot {
     display: flex;
     justify-content: flex-end;
     align-items: center;
     gap: var(--space-3);
-    padding: 4px var(--space-5) var(--space-4);
   }
   .fab {
     display: grid;
