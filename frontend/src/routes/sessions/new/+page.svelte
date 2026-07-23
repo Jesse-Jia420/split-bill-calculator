@@ -241,24 +241,33 @@
       <!-- PO 14:01: 撤 reserved blank "准备选择币种" step. step 3 直接是币种选择. -->
       <div class="step-panel">
         <h2 class="step-title">使用什么币种？</h2>
-        <p class="step-hint">选择单币种或双币种结算</p>
 
-        <!-- v0.3.17 #32-D-4 (PO msg 01:18 #6116): IosSwitch 组件 — thumb 动态宽度跟随 option 文字
-             - bind:value 双向绑定 currencyMode
-             - anon 双币种 disabled + .locked class (IosSwitch 内部处理, 不会切到 dual state)
-             - thumb width 跟随 active option 实际宽度 (动态, 主币种汇总 (CNY) 这种长 label 也对得齐) -->
+        <!-- v0.3.25 #0723-wizard-step3 (PO msg 16:35 #8469 batch bug #2-#5):
+             - 删 step-hint (bug #3): top step 标题已表达, 冗余.
+             - option label 改 (bug #4): '单一币种' → '单币种' (跟'双币种'对称, 简洁).
+             - conditional hint (bug #5): 单币种 '用于国内旅游、消费等场景', 双币种 '用于出国旅游、消费等场景' (PO 字面文案, 帮用户判断选哪种).
+        -->
         <IosSwitch
           ariaLabel="币种模式"
           options={[
-            { value: 'single', label: '单一币种' },
+            { value: 'single', label: '单币种' },
             { value: 'dual', label: '双币种', disabled: isAnon }
           ]}
           bind:value={currencyMode}
         />
 
+        <!-- v0.3.25 #0723-wizard-step3 (bug #5): 模式选择提示, 跟 switch 紧密相邻. -->
+        {#if currencyMode === 'single'}
+          <p class="currency-mode-hint">用于国内旅游、消费等场景</p>
+        {:else}
+          <p class="currency-mode-hint">用于出国旅游、消费等场景</p>
+        {/if}
+
         <!-- 主币种（必选） -->
+        <!-- v0.3.25 #0723-wizard-step3 (bug #2): label '结算币种（用于朋友间结算的币种）'
+             语义更清晰 — 主币种是朋友间结算用的, 副币种是实际消费用的. -->
         <div class="currency-section">
-          <label class="currency-label">主币种（必选）</label>
+          <label class="currency-label">结算币种（用于朋友间结算的币种）</label>
           <div class="currency-pills">
             {#each ["CNY", "USD", "EUR", "JPY", "THB"] as ccy}
               <button type="button" class="glass-pill currency-pill" class:active={primaryCurrency === ccy}
@@ -276,8 +285,10 @@
 
         <!-- 副币种（双币时必选） -->
         {#if currencyMode === 'dual'}
+          <!-- v0.3.25 #0723-wizard-step3 (bug #2): label '支付币种（实际消费的币种）'
+               语义更清晰 — 副币种是实际消费用的, 对应主币种结算. -->
           <div class="currency-section">
-            <label class="currency-label">副币种（必选）</label>
+            <label class="currency-label">支付币种（实际消费的币种）</label>
             <div class="currency-pills">
               {#each ["CNY", "USD", "EUR", "JPY", "THB"] as ccy}
                 {#if ccy !== primaryCurrency}
@@ -473,6 +484,16 @@
   /* §3.11 收尾: dual mode 汇率 input 样式 */
   /* .exchange-rate-input 已用 .glass-input 替代 — v0.3.17 #27 */
   .exchange-rate-hint { font-size: var(--font-size-sm); color: #737373; margin: var(--space-2) 0 0; min-height: 1.2em; }
+
+  /* v0.3.25 #0723-wizard-step3 (bug #5): 模式选择提示 — 跟 .step-hint 风格一致,
+     放在 IosSwitch 下方 + 主币种 section 之前, 居中灰文. */
+  .currency-mode-hint {
+    font-size: var(--font-size-sm);
+    color: var(--gray-500, #64748b);
+    margin: -4px 0 12px 0;
+    text-align: center;
+    line-height: 1.4;
+  }
 
   /* anon 提示玻璃卡 — v0.3.17 #27 (半透白底 + 1.5px 描边蓝紫 + 玻璃 blur)
      v0.3.17 #34: padding 走 var(--space-*) token (clamp). */
