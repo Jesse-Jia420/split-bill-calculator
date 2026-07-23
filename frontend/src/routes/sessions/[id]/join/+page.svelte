@@ -219,6 +219,26 @@
     if (user) return false; // Don't grey out for logged-in
     return m.user_id !== null;
   }));
+
+  // v0.3.28 (UAT 0723-3 #2): 邮箱脱敏显示 — 头 3 位 + *** + @ + 完整 domain
+  // 例 `xinhua1001@outlook.com` → `xin***@outlook.com`. domain 完整保留
+  // 是为了让 user 还能从邮箱区分是哪个账号绑定的 (e.g. outlook vs gmail).
+  function maskEmail(email: string): string {
+    const atIdx = email.indexOf('@');
+    if (atIdx < 0) return email.slice(0, 3) + '***';
+    const localPart = email.slice(0, atIdx);
+    const domain = email.slice(atIdx + 1);
+    const visible = localPart.slice(0, 3);
+    return visible + '***@' + domain;
+  }
+
+  // v0.3.28 (UAT 0723-3 #2): slot 头像首字母 (跟详情页成员头像同源, 用 .avatar-mini palette).
+  function avatarLetter(name: string): string {
+    if (!name) return '?';
+    const c = name.codePointAt(0) ?? 63;
+    // CJK 字符 + Latin 首字母 都拿一个 unicode point.
+    return String.fromCodePoint(c).toUpperCase();
+  }
 </script>
 
 <section class="join-page">
@@ -251,13 +271,19 @@
           <div>
             <p class="label">选择已有昵称（绑定到你的账号）</p>
             <div class="slot-list">
-              {#each availableSlots as slot (slot.id)}
+              {#each availableSlots as slot, i (slot.id)}
                 <button
-                  class="glass-pill slot-btn"
+                  class="glass-pill slot-btn slot-btn-v2"
                   onclick={() => handleClaim(slot.id)}
                   disabled={busy}
                 >
-                  {slot.display_name}
+                  <span class="slot-avatar palette-{i % 5}" aria-hidden="true">{avatarLetter(slot.display_name)}</span>
+                  <span class="slot-info">
+                    <span class="slot-nickname">{slot.display_name}</span>
+                    {#if (slot as SessionMember).email}
+                      <span class="slot-email-masked">{maskEmail((slot as SessionMember).email as string)}</span>
+                    {/if}
+                  </span>
                 </button>
               {/each}
             </div>
@@ -288,13 +314,16 @@
           <div>
             <p class="label">选择已有昵称</p>
             <div class="slot-list">
-              {#each availableSlots as slot (slot.id)}
+              {#each availableSlots as slot, i (slot.id)}
                 <button
-                  class="glass-pill slot-btn"
+                  class="glass-pill slot-btn slot-btn-v2"
                   onclick={() => handleClaim(slot.id)}
                   disabled={busy}
                 >
-                  {slot.display_name}
+                  <span class="slot-avatar palette-{i % 5}" aria-hidden="true">{avatarLetter(slot.display_name)}</span>
+                  <span class="slot-info">
+                    <span class="slot-nickname">{slot.display_name}</span>
+                  </span>
                 </button>
               {/each}
             </div>
@@ -305,12 +334,15 @@
           <div>
             <p class="label muted">选择昵称以回到账本</p>
             <div class="slot-list">
-              {#each takenSlots as slot (slot.id)}
-                <span class="glass-pill slot-btn taken">
-                  {slot.display_name}
-                  {#if (slot as SessionMember).email}
-                    <span class="muted">（已被 {(slot as SessionMember).email} 绑定）</span>
-                  {/if}
+              {#each takenSlots as slot, i (slot.id)}
+                <span class="glass-pill slot-btn slot-btn-v2 taken">
+                  <span class="slot-avatar palette-{i % 5}" aria-hidden="true">{avatarLetter(slot.display_name)}</span>
+                  <span class="slot-info">
+                    <span class="slot-nickname">{slot.display_name}</span>
+                    {#if (slot as SessionMember).email}
+                      <span class="slot-email-muted">已被 {maskEmail((slot as SessionMember).email as string)} 绑定</span>
+                    {/if}
+                  </span>
                 </span>
               {/each}
             </div>
@@ -376,6 +408,75 @@
     padding: 0.5rem 1rem;
     cursor: pointer;
     font-size: 0.9rem;
+  }
+  /* v0.3.28 (UAT 0723-3 #2): slot = 头像 + 昵称 + 脱敏邮箱, 三个元素 row 布局
+     跟详情页 .avatar-mini + 名字同源. 视觉重量提升让选择更明确. */
+  .slot-btn-v2 {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 14px 6px 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    text-align: left;
+  }
+  .slot-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.95);
+    flex-shrink: 0;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.08);
+    /* v0.3.23 #132 Option B 玻璃质感: rgba(..., 0.88) + backdrop-filter;
+       这里 palette-0..4 覆盖 (用 linear-gradient 双色), 圆内仍是渐变. */
+    backdrop-filter: blur(4px) saturate(180%);
+    -webkit-backdrop-filter: blur(4px) saturate(180%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.45),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.06),
+      0 2px 4px rgba(99, 102, 241, 0.10);
+  }
+  .palette-0 { background: linear-gradient(135deg, rgba(99, 102, 241, 0.88) 0%, rgba(168, 85, 247, 0.78) 100%); }
+  .palette-1 { background: linear-gradient(135deg, rgba(236, 72, 153, 0.88) 0%, rgba(244, 114, 182, 0.78) 100%); }
+  .palette-2 { background: linear-gradient(135deg, rgba(16, 185, 129, 0.88) 0%, rgba(52, 211, 153, 0.78) 100%); }
+  .palette-3 { background: linear-gradient(135deg, rgba(245, 158, 11, 0.88) 0%, rgba(251, 191, 36, 0.78) 100%); }
+  .palette-4 { background: linear-gradient(135deg, rgba(59, 130, 246, 0.88) 0%, rgba(96, 165, 250, 0.78) 100%); }
+  .slot-info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    min-width: 0;
+  }
+  .slot-nickname {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--gray-900, #171717);
+    line-height: 1.2;
+  }
+  .slot-email-masked {
+    font-size: 11px;
+    color: var(--gray-500, #737373);
+    font-weight: 400;
+    line-height: 1.2;
+    letter-spacing: 0.01em;
+    /* 邮箱可能超 slot 宽度, 但需要全部可见 (脱敏后还是有用身份信息) */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 180px;
+  }
+  .slot-email-muted {
+    font-size: 11px;
+    color: var(--gray-500, #6b7280);
+    font-weight: 400;
+    line-height: 1.2;
+    opacity: 0.75;
   }
   /* v0.3.28 (UAT 0723-3 #1): 「加入」按钮局部大一点 + 防换行 —
      全局 .btn-primary padding 0 1.5rem + min-height 52px 在 .row.gap 容器跟 input 并排时会被 flex 挤压
