@@ -1310,13 +1310,19 @@
        translateY(-1px) (hover) + scale(0.97) (active).
        但 swipe 期间不能 transform (按钮 absolute 跟 row 不动), 只在非 swiping
        (--swipe-progress ≥ 1) 时有反馈 — 用 transition 上 width/opacity 控制,
-       transform 仍 fixed 时不抖动。*/
+       transform 仍 fixed 时不抖动。
+       v0.3.28 (UAT 0723-3 #8): width 100ms ease-out → 220ms cubic-bezier(0.34, 1.56, 0.64, 1).
+       PO 报“左滑 / 右滑 出現或消失不夠順滑, 速度曲線很硬”. 改成跟全站 .fab / .glass-pill 同款
+       spring overshoot (cubic-bezier 0.34/1.56) + 拉长 duration 到 220ms 给曲线呼吸空间 — 出来瞬间
+       overshoot 轻微 bounce, 消失时跟 rubberBand snap 同步 — iOS Mail 同款体验。
+       width spring overshoot 也让圆按钮临时宽于 56px (border-radius 50% + aspect-ratio 1 仍保持
+       真圆), 收尾 settle 到 56px 稳定状态。*/
     transition:
-      width 100ms ease-out,
-      opacity 100ms ease-out,
-      background 150ms ease,
-      border-color 150ms ease,
-      color 150ms ease;
+      width 220ms cubic-bezier(0.34, 1.56, 0.64, 1),
+      opacity 180ms ease-out,
+      background 180ms ease,
+      border-color 180ms ease,
+      color 180ms ease;
     pointer-events: none;
     overflow: hidden;
     white-space: nowrap;
