@@ -1543,6 +1543,21 @@
     gap: var(--space-2);
     flex-wrap: wrap;
     margin-bottom: var(--space-3);
+    padding: 10px 14px;
+    /* v0.3.27 (UAT 0723-2 #7): header 加玻璃背景 (跟 .bills-search 同一风格),
+       搜索框下方 header 区域有一层玻璃遮罩让 bills list 在 scroll 时隐约透过 header */
+    background: rgba(255, 255, 255, 0.50);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: var(--radius-md, 8px);
+    /* v0.3.27 (UAT 0723-2 #6): header 透明度降低, 背景能透过 header 隐约看到下方内容 */
+    opacity: 0.85;
+  }
+  @supports not (backdrop-filter: blur(1px)) {
+    .bills-card-head {
+      background: rgba(255, 255, 255, 0.78);
+    }
   }
   .bills-card-head-left {
     display: inline-flex;
@@ -1612,13 +1627,15 @@
     width: 80px;
     height: 80px;
     border-radius: 50%;        /* 圆形覆盖 .glass-pill 的 999px */
+    /* v0.3.27 (UAT 0723-2 #17): FAB 颜色加深, bg 0.04/0.02 → 0.18/0.14 (+0.14), 让右下角创建按钮更醒目 */
+    background: linear-gradient(135deg, rgba(99,102,241,0.18) 0%, rgba(59,130,246,0.14) 100%);
+    border: 1.5px solid rgba(99,102,241,0.35);
     /* 删 color: #fff — 由 .glass-pill 提供 var(--accent-700, #4338ca) 深紫主题色 */
     font-size: 36px;
     font-weight: 300;
     line-height: 1;
     z-index: 50;
     cursor: pointer;
-    border: 0;
     display: grid;            /* 改 grid */
     place-items: center;      /* 完美居中 */
     padding: 0;
