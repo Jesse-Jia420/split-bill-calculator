@@ -783,41 +783,46 @@
         </div>
       </div>
       {#if bills.length === 0 && !loading}
-        <!-- v0.3.27 (UAT 0723-2 #16): 去除 EmptyState 中央「+ 新建账单」CTA —
-             页面右下角 FAB 已能创建, EmptyState 不重复入口 (跟 v0.3.25 #0723-EmptyState 同思路). -->
-        <EmptyState
-          icon="receipt"
-          title="还没有账单"
-          description="添加你的第一笔消费,自动计算分摊。"
-        />
-        <!-- v0.3.27 (UAT 0723-2 #18): 「新建账单」手绘箭头从左上至右下指向 FAB.
-             跟 /sessions 的「新建账本」手绘箭头同款 SVG path, position 在 bills-card 内 BottomLeft.
-             但 /sessions/[id] 页面有 nav bar + header 区需穿过, 这里把 bottom 调到 175px (避开) -->
-        <svg
-          class="handdrawn-arrow-bills"
-          viewBox="0 0 120 220"
-          preserveAspectRatio="xMidYMid meet"
-          aria-hidden="true"
-        >
-          <path
-            d="M 25 18 Q 55 35 60 80 T 70 150 Q 78 185 95 200"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.5"
-            stroke-linecap="round"
-            stroke-dasharray="5,4"
-            opacity="0.78"
+        <!-- v0.3.27 #18 (PO reject 续 v2): wrap EmptyState + 引导箭头.
+             wrap div relative, 让 SVG arrow absolute 紧贴 EmptyState icon 旁.
+             arrow 起点 EmptyState icon 右上角 → 终点 EmptyState 右下边界外 (FAB 方向).
+             实测 /sessions/[id] EmptyState (32,506)-(358,738), FAB (290,744)-(370,824).
+             arrow 物理跨 ~140x180px 紧贴 EmptyState, 视觉指向右下 FAB. -->
+        <div class="empty-state-wrap-bills">
+          <!-- v0.3.27 (UAT 0723-2 #16): 去除 EmptyState 中央「+ 新建账单」CTA —
+               页面右下角 FAB 已能创建, EmptyState 不重复入口 (跟 v0.3.25 #0723-EmptyState 同思路). -->
+          <EmptyState
+            icon="receipt"
+            title="还没有账单"
+            description="添加你的第一笔消费,自动计算分摊。"
           />
-          <path
-            d="M 80 188 L 95 200 L 84 207"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            opacity="0.78"
-          />
-        </svg>
+          <svg
+            class="handdrawn-arrow-bills"
+            viewBox="0 0 140 180"
+            preserveAspectRatio="xMidYMid meet"
+            aria-hidden="true"
+          >
+            <path
+              d="M 8 12 C 45 50, 75 90, 115 155"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-dasharray="5,4"
+              opacity="0.78"
+            />
+            <path
+              d="M 100 145 L 115 155 L 105 168"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              opacity="0.78"
+            />
+          </svg>
+        </div>
       {:else}
         <!-- v0.2.1 T05: 搜索 input (session 内账单 description 模糊匹配)。 -->
         <div class="bills-search">
@@ -1913,20 +1918,22 @@
     font-size: var(--font-size-sm);
   }
 
-  /* v0.3.27 (UAT 0723-2 #18): 手绘箭头 — fixed 位置, 右下 + 中下重点指向 FAB.
-     跟 /sessions 的 .handdrawn-arrow 同款 SVG path, 但本页面有 nav bar (~64px) +
-     header (sticky, ~120px) + 内容滚动, fixed 让箭头与 FAB 视觉对齐不随滚动乱跑.
-     FAB 位置 bottom: 28px right: 28px width: 80px → FAB 中心约 (right: 68px, bottom: 68px).
-     SVG 从左上 (left: 24px, bottom: 175px) 开始, 曲线绕到右下指向 FAB. */
+  /* v0.3.27 (UAT 0723-2 #18 v2, PO reject 续): 手绘箭头 — absolute relative .empty-state-wrap-bills.
+     起点 EmptyState icon 右上角 → 终点 EmptyState 右下边界外 (指向 FAB 方向).
+     FAB 在 EmptyState 右下方 (实测 /sessions/[id] EmptyState (32,506)-(358,738), FAB (290,744)-(370,824)).
+     arrow 物理跨 140x180px 紧贴 EmptyState, 视觉从左上朝右下.
+     wrap 是 relative 让 SVG absolute 跟 EmptyState 移动 (Fixed 不能跨页适配 — /sessions 和 /sessions/[id] EmptyState 位置不同). */
+  .empty-state-wrap-bills {
+    position: relative;
+  }
   .handdrawn-arrow-bills {
-    position: fixed;
-    bottom: 175px;
-    left: 24px;
-    width: 110px;
-    height: 200px;
+    position: absolute;
+    top: 30px;
+    right: 8px;
+    width: 140px;
+    height: 180px;
     color: var(--accent-500, #6366f1);
-    z-index: 49;
     pointer-events: none;
-    transform: rotate(8deg);
+    z-index: 1;
   }
 </style>
