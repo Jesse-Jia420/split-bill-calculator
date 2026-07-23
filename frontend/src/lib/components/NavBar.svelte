@@ -36,20 +36,16 @@
        分支 (login btn / login-以保存 / logout btn) 都不该出现在登录页 -->
 <header class="navbar">
   <a href="/" class="brand">SplitIt</a>
-  {#if !['/auth/login', '/sessions/new'].includes(page.url.pathname) && $user}
-    <nav class="links">
-      <!-- v0.3.17 #30: 「我的账本」class 改为 btn-sm links-item, 跟「注销登录」
-           共用 .btn-sm 玻璃参数 (PO msg 14:28)。视觉同族 (同色 + 同描边 + 同 hover)。
-           原 .glass-pill 蓝紫淡玻璃 ≠ 注销登录 .ghost 白玻璃, 两个按钮看着不属于
-           一个组件。统一用 .btn-sm 后, 整组 nav 视觉一致。.links-item 保留以维持
-           nav link 的语义定位 (flex 布局项), 但视觉参数全部继承 .btn-sm。 -->
-      <a href="/sessions" class="btn-sm links-item">我的账本</a>
-    </nav>
-  {/if}
   {#if page.url.pathname !== '/auth/login'}
     <div class="right">
       {#if $user}
         <span class="email" title="{$user.email}">{$user.default_name}</span>
+        <!-- v0.3.28 (UAT 0723-3 #4): 「我的账本」从 .links 移到 .right, 放在 用户名 + 注销登录 中间
+             (PO 字面 "放在 用户名和注销登录按钮的中间"). 保留 wizard 时不显示的旧行为
+             (page.url.pathname !== '/sessions/new'). 三者同属 .right, gap var(--space-3) 自然合理. -->
+        {#if page.url.pathname !== '/sessions/new'}
+          <a href="/sessions" class="btn-sm links-item">我的账本</a>
+        {/if}
         <button class="ghost btn-sm" on:click={handleLogout}>注销登录</button>
       {:else if inSession() && !isJoinPage()}
         <a
@@ -129,13 +125,6 @@
   }
   /* v0.3.20 #100 (PO msg 14:37): hover 象牙白替代蓝色. 象牙白 #FFFFF0 在白纸上 = 低对比 = logo hover 时视觉 'fade' — PO 原话 "象牙白色，不要现在的蓝色". */
   /* UAT v0.3.23 #131: hover 颜色不变 (PO brief "hover 颜色不变, 还是黑色"). Default .brand color = var(--color-text) 已黑色, hover 不再覆盖. */
-  .links { flex: 1; display: flex; gap: var(--space-3); }
-  /* v0.3.17 #30 (PO msg 14:28): 删 .links a 独立样式 — 之前给 <a class="glass-pill">
-     提供 fallback layout, 现在「我的账本」已经升级为 .btn-sm, 自己的 display /
-     min-height / align-items / color 全由 .btn-sm 提供。
-     保留 .links a 选择器为空规则会触发 svelte-check unused-selector 警告,
-     干脆整块删掉。 */
-  .links a { display: inline-flex; align-items: center; } /* 仅保留 layout 兜底 */
   .right {
     display: flex;
     align-items: center;
