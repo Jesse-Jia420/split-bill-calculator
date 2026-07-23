@@ -121,6 +121,13 @@
   );
   let isOwner = $derived(currentMember?.role === 'owner');
 
+  // v0.3.28 (UAT 0723-3 #9): session 至少有一名已认领成员 (user_id !== null) → "已永久保存" 提示
+  //   取代原 "yyyy.mm.dd 过期 · 登录即可永久保存" 过期提示.
+  //   判定: session.members.some(m => m.user_id != null) — m.user_id nullable = anon.
+  let hasClaimedMember = $derived(
+    session?.members?.some((m) => m.user_id !== null && m.user_id !== undefined) ?? false
+  );
+
   // §3.11 收尾 (PO 11:38 拍板): 详情页 header 显示 owner info.
   // 位置: 详情页顶部 (在 banner 之外, 在 session 标题之后).
   // 登录态 + owner: nickname + email + 退出登录 button.
@@ -567,25 +574,37 @@
                文本 `yyyy.mm.dd 过期, xx 登录即可永久保存` 统一。xx = ownerDisplayName
                (从 m.role==='owner' 查, 不 session.members[0] 依赖首成员永远是 owner)。 -->
           {#if session?.invite_expires_at}
-            <span class="expiry-inline-a" data-testid="invite-expiry-pill">
-              <!-- Lucide `clock` 11×11 -->
-              <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <circle cx="12" cy="12" r="10" />
-                <polyline points="12 6 12 12 16 14" />
-              </svg>
-              <span>{formatExpiryPill(session.invite_expires_at)}</span>
-              <span class="expiry-cta-sep" aria-hidden="true">·</span>
-              <!-- v0.3.25 (UAT 0723-2 #20): 删 owner name, 留 "登录即可永久保存". 
-                   文本 "yyyy.mm.dd 过期 · 登录即可永久保存" 统一, 所有人都一样 (无 owner name). -->
-              <a
-                class="expiry-cta-link"
-                href="/auth/login?returnTo=/sessions/{session.id}"
-                aria-label="登录即可永久保存账本"
-                data-testid="invite-expiry-cta"
-              >
-                <span class="expiry-cta-suffix">登录即可永久保存</span>
-              </a>
-            </span>
+            {#if hasClaimedMember}
+              <!-- v0.3.28 (UAT 0723-3 #9): session 已有 user-bound 成员 → 绿色 ✅ 永久保存提示,
+                   取代原过期 CTA. 位置不变 (members-head-row1 同行, 在 members title 右边).
+                   颜色: emerald-50 bg + emerald-700 text + 1px emerald-200 border 跟 .expiry-inline-a 视觉同族. -->
+              <span class="expiry-saved-a" data-testid="invite-expiry-saved">
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                <span>此账单已永久保存</span>
+              </span>
+            {:else}
+              <span class="expiry-inline-a" data-testid="invite-expiry-pill">
+                <!-- Lucide `clock` 11×11 -->
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                <span>{formatExpiryPill(session.invite_expires_at)}</span>
+                <span class="expiry-cta-sep" aria-hidden="true">·</span>
+                <!-- v0.3.25 (UAT 0723-2 #20): 删 owner name, 留 "登录即可永久保存". 
+                     文本 "yyyy.mm.dd 过期 · 登录即可永久保存" 统一, 所有人都一样 (无 owner name). -->
+                <a
+                  class="expiry-cta-link"
+                  href="/auth/login?returnTo=/sessions/{session.id}"
+                  aria-label="登录即可永久保存账本"
+                  data-testid="invite-expiry-cta"
+                >
+                  <span class="expiry-cta-suffix">登录即可永久保存</span>
+                </a>
+              </span>
+            {/if}
           {/if}
         </div>
 
@@ -1171,6 +1190,26 @@
   .expiry-inline-a svg {
     flex-shrink: 0;
     opacity: 0.85;
+  }
+  /* v0.3.28 (UAT 0723-3 #9): "已永久保存" 绿色版 — 跟 .expiry-inline-a 视觉同族 (pill shape + font-size 11px + gap 4px + border-radius 999px + flex-shrink 0), 配色改 emerald 系 (跟 .is-me ring / 已登录状态色系区分, 表示「已成功认领」). */
+  .expiry-saved-a {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--emerald-700, #047857);
+    background: var(--emerald-50, #ecfdf5);
+    border: 1px solid rgba(16, 185, 129, 0.22);
+    border-radius: 999px;
+    padding: 3px 9px 3px 7px;
+    font-weight: 500;
+    line-height: 1.2;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .expiry-saved-a svg {
+    flex-shrink: 0;
+    opacity: 0.95;
   }
   /* v0.3.20 #93 (PO msg 00:04 #7450, Fix 8): anon session 登录 CTA 样式.
      跟 expiry pill 同款 glass amber-50 bg, 但 link 用紫色 accent 链接色, 不抢主信息. */
