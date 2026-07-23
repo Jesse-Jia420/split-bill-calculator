@@ -850,7 +850,10 @@
                             <span class="bill-meta-text">{fmtBillTime(b.occurred_at)} · </span><span class="bill-meta-text" style="color: {payerColor(b)};">{payerName(b)} 付</span>
                           </span>
                           {#if share !== null}
-                            <span class="your-share">分摊 {fmtAmount(share)}<span class="unit">{b.currency}</span></span>
+                            <!-- v0.3.27 (UAT 0723-2 #5): 「只有个人消费」账单 (billExclusiveTotal(b) >= b.amount, 没共享份额)
+                                 强制展示「分摊 0.00」, 让二行结构统一 (个人消费 + 分摊 永远同时出现). -->
+                            {@const isOnlyExclusive = billExclusiveTotal(b) >= Number(b.amount)}
+                            <span class="your-share">分摊 {fmtAmount(isOnlyExclusive ? 0 : share)}<span class="unit">{b.currency}</span></span>
                           {/if}
                         </div>
                       </div>
