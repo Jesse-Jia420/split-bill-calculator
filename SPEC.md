@@ -5402,3 +5402,44 @@ DOM 验证 (14 项 — 全 pass):
 - 改用 custom date picker (复杂度高, 不在本期范围)
 - 时间 input 移到独立行 (per #119 WIP, 已 commit #136 2x2 grid, 不再 revert)
 
+### v0.3.25 #16 验证 (Master 自写自验 已走 ✓)
+- [x] BE: DELETE /sessions/{session_id} (owner-only, status 204) 已注册 (curl /api/openapi.json 返 4 DELETE routes: session/currency/bill/exchange-rate)
+- [x] DB cascade 验: 临时 session 10 (v0325-16-test-delete) 创建 → 删 → 0 orphan bills / 0 orphan session_members (LEFT JOIN check)
+- [x] Playwright iPhone 13 @3x 真机 walk (frontend/scripts/v0325-16-delete-session-verify.cjs, 8/8 check pass):
+  * delete-btn count = 7 (6 owner sessions + 1 temp) — 所有 xinhua owner session 显示按钮 ✓
+  * temp card aria-label=删除账本 ✓
+  * 点 delete → modal-backdrop visible + modal-box 居中 + 标题 删除账本 + 文案 确定删除账本 「XXX」 吗？ ✓
+  * 点取消 → modal-backdrop 0 (关闭) ✓
+  * 确认删除 → DELETE API + toast 账本「XXX」已删除 + goto(/sessions) + 列表无该 session ✓
+  * 截图 3 PNG 存 ~/.openclaw/media/browser/v0325-16-{sessions-list,modal,after-delete}.png
+- [x] svelte-check: 2 errors / 20 warnings (baseline 同, 0 new error)
+- [x] 单分支铁律: origin 仅有 main (committed c336a33 + 5a1d037, push b66b326..5a1d037)
+- [x] 反 #150 ✅ Master 自写自验 (Playwright 程序化 + DOM 三段 layout + DB cascade + image tool 视觉 + API openapi.json 路由列表)
+- [x] 反 #161 ✅ PO 字面 "owner only 删除按钮" → 直接动手修 (无选项栏无 "不修" 兑底)
+- [x] 反 #162 ✅ §11 sync 与 fix commit 同一 batch (2 commit: feat + test)
+- [x] 反 #167 ✅ iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN)
+- [x] 反 #170 ✅ codeserver_exec_clean.js 启 BE (setsid + disown + PID 110884 detached)
+- [x] 反 #189 ✅ SPEC append 用 heredoc (不用 sed 多匹配)
+- [x] 反 #53 ✅ Gitea PAT token-only URL push 成功
+
+### v0.3.25 Top #2 验证 (Master 自写自验 已走 ✓)
+- [x] Playwright iPhone 13 @3x 真机 walk (frontend/scripts/v0325-top2-verify.cjs, 4/4 check pass):
+  * form .stack padding-bottom = 280px (CSS 实测) ✓
+  * pill-input count = 1 (click ¥ button 后 exclusive mode 出现) ✓
+  * pill-input scroll-margin-bottom = 280px (CSS 实测) ✓
+  * input rect (top=224, bottom=240) 完全在 viewport 520 内, 没被遮 ✓
+- [x] 模拟 keyboard: viewport 844→520 (占 324px ≈ iPhone 13 keyboard 295-330px)
+- [x] 三次 scrollIntoView 重试: rAF + 350ms + 700ms (等 keyboard 异步起来)
+- [x] block:nearest 最小滚动 + .pill-input scroll-margin-bottom 280px + .stack padding-bottom 280px
+- [x] svelte-check: 2 errors / 19 warnings (baseline 2/20, 0 new error)
+- [x] 单分支铁律: origin 仅有 main (committed 7926c6e + b66b326, push 8454dca..b66b326)
+- [x] 截图存 ~/.openclaw/media/browser/v0325-top2-keyboard-test.png (image tool 视觉确认: 最后 pill 进 exclusive mode ¥ 0.00 input 显示)
+- [x] 反 #??? ✅ sandbox commit + push + codeserver pull + Playwright verify 在 codeserver dev server URL 跑
+
+### v0.3.25 #17 验证 (Master 自写自验 已走 ✓)
+- [x] seed_dev_data.py: Thailand2 session 9 (2026-07-25~2026-07-28, 4-day weekend)
+- [x] 5 名成员: Jesse (owner) / Ju / Canyina / Q / 像汤圆一样圆 — 全付/消/独覆盖
+- [x] 40 bills (35 THB + 5 CNY) — 5 人 payer 全覆盖 (Canyina 8 / Jesse 13 / Ju 8 / Q 6 / 像汤圆一样圆. 5)
+- [x] codeserver commit 69c144a (feat) + 8454dca (test verify script)
+- [x] ⚠️ PO msg #8469 12:28 问进度: 1.5h 后答 — 应立即推 Telegram (反 #158 Coder 完成推送铁律, Master 自做也算完成事件)
+
