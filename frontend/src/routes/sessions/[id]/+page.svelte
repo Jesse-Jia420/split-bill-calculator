@@ -768,12 +768,12 @@
         </div>
       </div>
       {#if bills.length === 0 && !loading}
+        <!-- v0.3.27 (UAT 0723-2 #16): 去除 EmptyState 中央「+ 新建账单」CTA —
+             页面右下角 FAB 已能创建, EmptyState 不重复入口 (跟 v0.3.25 #0723-EmptyState 同思路). -->
         <EmptyState
           icon="receipt"
           title="还没有账单"
           description="添加你的第一笔消费,自动计算分摊。"
-          ctaLabel="+ 新建账单"
-          ctaHref="/sessions/{session.id}/bills/new"
         />
       {:else}
         <!-- v0.2.1 T05: 搜索 input (session 内账单 description 模糊匹配)。 -->
