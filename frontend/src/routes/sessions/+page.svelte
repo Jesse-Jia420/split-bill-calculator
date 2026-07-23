@@ -49,6 +49,34 @@
       title="还没有任何账本"
       description="创建一个账本开始记账,或者接受朋友的邀请加入。"
     />
+    <!-- v0.3.27 (UAT 0723-2 #11): 「新建账本」手绘箭头从左上至右下指向 FAB.
+         SVG 手绘风格: wavy stroke-dasharray + 4-point bezier 曲线 + 三角箭头.
+         position: fixed bottom 区域 top:30% left:8%, 让视觉真正穿透 EmptyState 区域. -->
+    <svg
+      class="handdrawn-arrow"
+      viewBox="0 0 120 220"
+      preserveAspectRatio="xMidYMid meet"
+      aria-hidden="true"
+    >
+      <path
+        d="M 25 18 Q 55 35 60 80 T 70 150 Q 78 185 95 200"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.5"
+        stroke-linecap="round"
+        stroke-dasharray="5,4"
+        opacity="0.78"
+      />
+      <path
+        d="M 80 188 L 95 200 L 84 207"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        opacity="0.78"
+      />
+    </svg>
   {:else}
     <div class="stack">
       {#each $sessions as s (s.id)}
@@ -112,5 +140,20 @@
       right: 20px;
       bottom: 20px;
     }
+  }
+
+  /* v0.3.27 (UAT 0723-2 #11): 手绘箭头 — fixed 位置, 右下 + 中下重点指向 FAB.
+     FAB 位置 bottom: 28px right: 28px width: 80px → FAB 中心约 (right: 68px, bottom: 68px).
+     SVG 从左上 (left: 24px, top: 30%) 开始, 曲线绕到右下中心. */
+  .handdrawn-arrow {
+    position: fixed;
+    bottom: 175px;
+    left: 24px;
+    width: 110px;
+    height: 200px;
+    color: var(--accent-500, #6366f1);
+    z-index: 49;
+    pointer-events: none;
+    transform: rotate(8deg);
   }
 </style>
