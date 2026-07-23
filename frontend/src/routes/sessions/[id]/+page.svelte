@@ -724,7 +724,27 @@
     <div id="bills-card" class="card bills-card">
       <div class="bills-card-head">
         <div class="bills-card-head-left">
-          <h3 class="bills-card-title">账单</h3>
+          <h3 class="bills-card-title">
+            <!-- Lucide `receipt` 14×14 gray-500 — 跟 members-title-icon 同源风格 -->
+            <svg
+              class="bills-card-title-icon"
+              viewBox="0 0 24 24"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z" />
+              <path d="M8 7h6" />
+              <path d="M8 11h6" />
+              <path d="M12 17h4" />
+            </svg>
+            <span>账单</span>
+          </h3>
           <span class="muted bills-card-count">共 {bills.length} 笔</span>
         </div>
         <div class="bills-card-head-right">
@@ -1586,6 +1606,18 @@
     font-weight: 700;
     color: var(--gray-900, #171717);
     letter-spacing: -0.005em;
+    /* v0.3.28 (UAT 0723 batch #9): 加 inline icon 后改 flex 排版 — 跟 members-title-a 一致. */
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+  }
+  .bills-card-title-icon {
+    /* v0.3.28 (UAT 0723 batch #9): 跟 members-title-icon 同源 — gray-500 + flex-shrink 0. */
+    color: var(--gray-500, #737373);
+    flex-shrink: 0;
   }
   .bills-card-count {
     font-size: var(--font-size-sm);

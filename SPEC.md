@@ -5520,3 +5520,10 @@ svelte-check: 2 errors / 20 warnings (baseline 同, 0 new error)
 - 单币种 settle 顶部 hero 多行 per-currency 拆解 (#2 改动后「原始数据」单币种时仍可能跟「主币种汇总」同源 — 用户切换 view 视觉一致) — 设计接受, 不修
 - 消费明细 row2 .bill-sub-date 跟 .participant-count 间 sep 「·」颜色 gray-500 (#4 改动保留) — PO 未报, 不动
 - bills-list-empty placeholder 仍 margin-top: var(--space-6) (#6 改 header glass 后 placeholder 视觉位置可能微调) — 跟 v0.3.24 #18 共存, 不动
+
+### v0.3.28 — UAT 0723 batch #9: 账单 section 左上角加账单 icon (Master 自写自验)
+
+- [x] **#9 账单 section 加账单 icon** — push 待定 (sessions/[id]/+page.svelte). PO 字面意图 "账单 section 内的左上角 '账单' 文字左侧增加 账单 icon, 风格要与整体 app 的 icon 一致". 修法: `<h3 class="bills-card-title">账单</h3>` 改为 `<h3 class="bills-card-title"><svg class="bills-card-title-icon" .../>Lucide `receipt` 14×14 gray-500</svg><span>账单</span></h3>`. CSS 加 `.bills-card-title { display: inline-flex; align-items: center; gap: 6px; flex: 0 1 auto; min-width: 0; white-space: nowrap; }` + `.bills-card-title-icon { color: var(--gray-500, #737373); flex-shrink: 0; }` — 跟 .members-title-a / .members-title-icon 完全同源 (Lucide `users` 14×14 gray-500).
+
+### v0.3.28 — UAT 0723 batch #9 排除范围 (本任务不修, 待 PO 决定)
+- 账单 section "账单" 文字跟成员 section "成员" 文字之间的视觉微调 (font-weight / letter-spacing / line-height) — 都 14px / 700 / gray-900 / -0.005em 一致, 视觉匹配. 不修.
