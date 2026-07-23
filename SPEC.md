@@ -5547,3 +5547,13 @@ svelte-check: 2 errors / 20 warnings (baseline 同, 0 new error)
 ### v0.3.28 — UAT 0723-3 batch #8: 账单 item 滑动顺滑 — 速度曲线 ease (Master 自写自验)
 
 - [x] **#8 顺滑 (b = 速度曲线硬)** — push `35485d4` (lib/components/BillListGrouped.svelte .bill-swipe-action). PO 字面意图 "账单列表页, 账单 item 上的左滑或右滑, 对应的编辑按钮、删除按钮的出现或消失, 还是不够顺滑". PO 拍 (b) "速度曲线硬". 修法: `.bill-swipe-action { transition: width 100ms ease-out, ...}` 改为 `transition: width 220ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 180ms ease-out, background 180ms ease, border-color 180ms ease, color 180ms ease`. 改 spring overshoot 曲线 (经典 svelte fly cubic-bezier) + duration 220ms 给曲线呼吸空间. width spring 让圆按钮临时 overshoot 一闪 (圆形 button 因为 aspect-ratio:1 + border-radius:50% 不变形, 仍真圆). Playwright iPhone 13 @3x verify (`/tmp/v0328-0723-3-8b-verify.cjs`): TRANSITION computed style = `width 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.18s ease-out, background 0.18s, border-color 0.18s, color 0.18s` 全对. width sample data: t=216ms width=60.5156px (peak overshoot 8.1% over 56px settle), t=288ms+ stable 56px. spring 出现瞬间 overshoot 8%, 收尾 settle 到 56. svelte-check 4/20 baseline 同 0 new error. 截图存 `~/.openclaw/media/browser/v0328-0723-3-8/swipe-spring.png`.
+
+### v0.3.28 — UAT 0723-3 batch #2: 加入账本页 选已有昵称 = 头像 + 昵称 + 脱敏邮箱 (Master 自写自验)
+
+- [x] **#2 选已有昵称视觉改** — push 待定 (sessions/[id]/join/+page.svelte). PO 字面 "回到/加入账本页面选择已有昵称的部分, 将现有的选项换成 头像 + 昵称 + 邮箱（如有）, 其中邮箱只显示头3位 + @ 后边的部分, 其它部分用 *** 打码". 修法:
+  1. Script 加 `maskEmail(email)` helper — 切 `@`, 取前 3 位 + `***` + `@` + 完整 domain (例 `demo@example.com` → `xin***@outlook.com`). 保留 domain 让 user 还能区分 outlook / gmail.
+  2. Script 加 `avatarLetter(name)` — 取首字符 (CJK + Latin 都覆盖), 大写.
+  3. 三处 slot 渲染换 layout: 加 `slot-btn-v2` class (inline-flex + gap 10px + padding 6px 14px 6px 6px + text-align left), 内容顺序 `[slot-avatar palette-{i % 5}] [slot-info: nickname + email-masked]`. palette-0..4 用 linear-gradient 双色 0.88→0.78 alpha (跟详情页 .avatar-mini 同源 Option B), 加 backdrop-filter blur(4px) saturate(180%) 玻璃质感.
+  4. CSS 新 `.slot-avatar` (30×30 圆 + 白字 + 3-layer shadow) + `.palette-{0..4}` (5 色 linear-gradient) + `.slot-info` (column flex + gap 1px) + `.slot-nickname` (font-weight 600, 14px, gray-900) + `.slot-email-masked` (11px gray-500 + ellipsis 180px) + `.slot-email-muted` (11px gray-500 75% opacity, 给 takenSlots 的 "已被 {email} 绑定" 用).
+  5. Logged-in availableSlots + Anon availableSlots 都加 avatar; 只有 user-bound slots 加 email (未认领 slot 没 email); Anon takenSlots 加 avatar + masked email.
+- 排除范围: anon availableSlots 没 email (未 claim) → 只显示 avatar + nickname, 符合 PO "邮箱（如有）".
