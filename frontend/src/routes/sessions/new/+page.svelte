@@ -258,9 +258,9 @@
 
         <!-- v0.3.25 #0723-wizard-step3 (bug #5): 模式选择提示, 跟 switch 紧密相邻. -->
         {#if currencyMode === 'single'}
-          <p class="currency-mode-hint">用于国内旅游、消费等场景</p>
+          <p class="currency-mode-hint">用于<strong>国内</strong>旅游、消费等场景</p>
         {:else}
-          <p class="currency-mode-hint">用于出国旅游、消费等场景</p>
+          <p class="currency-mode-hint">用于<strong>出国</strong>旅游、消费等场景</p>
         {/if}
 
         <!-- 主币种（必选） -->
@@ -306,7 +306,7 @@
                主币种切换时已清空, 副币种切换时**不**清 (用户可能想换币种再改 rate, 简化 UX). -->
           <div class="currency-section">
             <label class="currency-label" for="exchange-rate-input">
-              汇率 (1 {primaryCurrency} = ? {secondaryCurrency || '副币种'})
+              汇率 (1 {primaryCurrency} = ? {secondaryCurrency || '结算币种'})
             </label>
             <input
               id="exchange-rate-input"
@@ -319,7 +319,7 @@
             />
             <p class="exchange-rate-hint">
               {#if !secondaryCurrency}
-                请先选副币种
+                请先选结算币种
               {:else if !exchangeRate || parseFloat(exchangeRate) <= 0}
                 请输入大于 0 的汇率
               {:else}

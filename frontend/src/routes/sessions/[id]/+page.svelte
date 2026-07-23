@@ -288,14 +288,6 @@
     return `${y}.${m}.${day} 过期`;
   }
 
-  /**
-   * v0.3.22 #127 (UAT bug #2.b, PO msg 16:05 #8064): 找 session owner 显示名,
-   * 不用 session.members[0] 不一定永远是 owner 的局限. fallback 'owner'。
-   */
-  const ownerDisplayName = $derived(
-    session?.members?.find(m => m.role === 'owner')?.display_name ?? 'owner'
-  );
-
   async function load() {
     if (!sessionId) return;
     loading = true;
@@ -568,17 +560,14 @@
               </svg>
               <span>{formatExpiryPill(session.invite_expires_at)}</span>
               <span class="expiry-cta-sep" aria-hidden="true">·</span>
+              <!-- v0.3.25 (UAT 0723-2 #20): 删 owner name, 留 "登录即可永久保存". 
+                   文本 "yyyy.mm.dd 过期 · 登录即可永久保存" 统一, 所有人都一样 (无 owner name). -->
               <a
                 class="expiry-cta-link"
                 href="/auth/login?returnTo=/sessions/{session.id}"
                 aria-label="登录即可永久保存账本"
                 data-testid="invite-expiry-cta"
               >
-                <!-- v0.3.20 #94 Fix 4 (PO msg 02:13 #7455): 去括号, nick 直接连写 "登录以...".
-                     v0.3.22 #127: "以" → "即可", 文本改成 "xx 登录即可永久保存" 跟 bug spec 对齐。-->
-                <span class="expiry-cta-nick">
-                  {ownerDisplayName}
-                </span>
                 <span class="expiry-cta-suffix">登录即可永久保存</span>
               </a>
             </span>
@@ -635,19 +624,9 @@
       </header>
 
       {#if membersOpen}
-        <!-- v0.3.18 #66 (PO #6899 Mockup A) 7: 1-member 紧凑 CTA banner -->
-        {#if session.members.length === 1 && session.members[0].role === 'owner'}
-          <div class="solo-cta-a" data-testid="solo-member-cta">
-            <span class="solo-cta-icon-a" aria-hidden="true">
-              {avatarLetter(session.members[0].display_name)}
-            </span>
-            <span class="solo-cta-text-a">
-              <strong>{session.members[0].display_name}</strong> 还没有同伴,
-              <strong>邀请朋友</strong> 加入一起记账
-            </span>
-            <span class="solo-cta-arrow-a" aria-hidden="true">→</span>
-          </div>
-        {:else if session.members.length === 0}
+        <!-- v0.3.25 (UAT 0723-2 #14): 删 1-member 紧凑 CTA banner ('xxx还没有同伴, 邀请朋友加入一起记账'). 
+             现在 1-member case 直接走 else 分支的 members list (单 row). -->
+        {#if session.members.length === 0}
           <EmptyState
             icon="users"
             title="还没有成员"
@@ -792,7 +771,7 @@
         <EmptyState
           icon="receipt"
           title="还没有账单"
-          description="添加你的第一笔消费,分摊自动结算。"
+          description="添加你的第一笔消费,自动计算分摊。"
           ctaLabel="+ 新建账单"
           ctaHref="/sessions/{session.id}/bills/new"
         />
@@ -1183,10 +1162,6 @@
     outline-offset: 2px;
     border-radius: 4px;
   }
-  .expiry-cta-nick {
-    font-weight: 600;
-    color: var(--accent-700, #4338ca);
-  }
   .expiry-cta-suffix {
     color: var(--gray-600, #525252);
   }
@@ -1576,6 +1551,11 @@
   }
   .bills-card-title {
     margin: 0;
+    /* v0.3.25 (UAT 0723 batch #10): 与 members-title-a 14px/700 对齐. */
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--gray-900, #171717);
+    letter-spacing: -0.005em;
   }
   .bills-card-count {
     font-size: var(--font-size-sm);
