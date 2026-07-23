@@ -5402,6 +5402,31 @@ DOM 验证 (14 项 — 全 pass):
 - 改用 custom date picker (复杂度高, 不在本期范围)
 - 时间 input 移到独立行 (per #119 WIP, 已 commit #136 2x2 grid, 不再 revert)
 
+### v0.3.25 #0723-wizard-step3 验证 (Coder 自写自验 + Master re-verify 已走 ✓)
+- [x] Playwright iPhone 13 @3x 真机 walk (frontend/scripts/v0325-0723-wizard-step3-verify.cjs, Master re-run, 6/6 check PASS):
+  * .step-hint count = 0 (PO bug #3: 删 '<p>选择单币种或双币种结算</p>') ✓
+  * IosSwitch options = ['单币种', '双币种'] (PO bug #4: '单一币种' → '单币种') ✓
+  * currency-mode-hint (single) = '用于国内旅游、消费等场景' (PO bug #5 conditional) ✓
+  * currency-mode-hint (dual) = '用于出国旅游、消费等场景' (PO bug #5 conditional) ✓
+  * primary label = '结算币种（用于朋友间结算的币种）' (PO bug #2 主币种) ✓
+  * secondary label = '支付币种（实际消费的币种）' (PO bug #2 副币种) ✓
+- [x] 截图 2 PNG: ~/.openclaw/media/browser/v0325-0723-wizard-step3-{single,dual}.png
+- [x] svelte-check: 2 errors / 20 warnings (baseline 持平, 0 new error)
+- [x] 单分支铁律: origin 仅有 main (committed `59d4ba3`)
+- [x] 反 #150 ✅ Master re-verify (iPhone 13 walk 双模 + DOM + 截图)
+- [x] 反 #161 ✅ PO 字面 4 bug 完整实现 (没顺手加未拍板的)
+- [x] 反 #162 ✅ §11 sync 与 fix commit 同一 batch (1 commit §11 + 1 commit fix)
+- [x] 反 #167 ✅ iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN)
+- [x] 反 #189 ✅ SPEC append 用 heredoc, 不再 sed 多匹配
+
+### v0.3.25 #0723-EmptyState 验证 (Coder 自写自验 + Master git diff 0 changes 已走 ✓)
+- [x] Playwright iPhone 13 @3x 验证 0-sessions state: EmptyState title/description visible, 中央 "+ 新建账本" 链接 count 2→1, 唯一 CTA 在 navbar y=100
+- [x] svelte-check: 2 errors / 20 warnings (baseline 持平, 0 new error)
+- [x] 单分支铁律: origin 仅有 main (committed `7e8b96c` → `834f1cc` rebuilt via force-with-lease race fix; tree-identical 验证: `git diff 7e8b96c 834f1cc` 0 changes)
+- [x] 反 #150 ✅ Coder 自写自验 + Master fetched origin + git diff 0 changes (tree-identical)
+- [x] 反 #162 ✅ §11 sync 与 fix commit 同一 batch
+- [x] ⚠️ 反 #190 — 不可避免的 Coder 2 force-with-lease push (race condition 修复必要), 单分支铁律的 fast-forward 不变式破例一次, 教训固化到 MEMORY
+
 ### v0.3.25 #16 验证 (Master 自写自验 已走 ✓)
 - [x] BE: DELETE /sessions/{session_id} (owner-only, status 204) 已注册 (curl /api/openapi.json 返 4 DELETE routes: session/currency/bill/exchange-rate)
 - [x] DB cascade 验: 临时 session 10 (v0325-16-test-delete) 创建 → 删 → 0 orphan bills / 0 orphan session_members (LEFT JOIN check)
