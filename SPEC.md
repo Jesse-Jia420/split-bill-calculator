@@ -5705,3 +5705,39 @@ svelte-check: 2 errors / 20 warnings (baseline 同, 0 new error)
 - **svelte-check 剩 3 errors** — 全是 pre-existing (SessionPreviewMember import
   alias + settle/+page.svelte:104 `session is possibly null × 2`), 跟本次任务无关,
   不在本次范围.
+
+### v0.3.28 — UAT 0724-1 #6 + #9 验证 (Master 自写自验 已走 ✓)
+
+**Commit**: `7014e96` (push ad0cc3d..7014e96, 2 files / +18 -24) — fix(fe): v0.3.28 — UAT 0724-1 #6 + #9 (settle SSR null + wizard anon 任意币种)
+
+#### #6 (critical): /sessions/{id}/settle SSR TypeError → HTTP 500
+- **根因** (vite.log 抓 stack):
+  ```
+  TypeError: Cannot read properties of null (reading 'currencies')
+    at settle/+page.svelte:104:36
+  ```
+  顶层 `let viewMode: ViewMode = session.currencies && session.currencies.length < 2 ? 'split' : 'primary'` 在 SSR 阶段 onMount 还没跑, session 默认 null → null deref → SvelteKit SSR 500.
+- **修法**: 引入 helper 函数 `defaultViewMode(s: SessionDetail | null): ViewMode` — 让 TS 不 narrow `session` 到 never (顶层 let 直接 `session && session.currencies.length` 触发 narrowing 报错). SSR 阶段默认 'primary', 客户端 onMount 拉到 session 后 IosSwitch `bind:value={viewMode}` 双向绑定让用户切 split/primary.
+- **验证 (Playwright iPhone 13 @3x)** — 浏览器实际访问 `https://test.jessejia.pp.ua/sessions/9/settle`:
+  * HTTP 200 (前: HTTP 500)
+  * title "泰国测试账单 2 7.25-7.28 · 结算" ✓
+  * "每人净收/净付" 5 members: Jesse +¥779.94 / Ju -¥697.61 / Canyina +¥1,653.43 / Q -¥1,324.91 / 像汤圆一样圆. -¥410.84 ✓ (跟 BE API 一致)
+  * "建议转账" 3 transfer ✓
+  * 概览/个人视图 IosSwitch active=概览 ✓
+  * 返回账单列表 link href `/s/64BZQNX9NU` (unguessable format per UAT #0723-3 #3) ✓
+
+#### #9: wizard 不再限制 只能登录态才可选择双币种
+- **改动** (`sessions/new/+page.svelte`):
+  * 删 IosSwitch `dual` option 的 `disabled: isAnon` (line 257 旧)
+  * 删 `{#if isAnon}` 提示卡片 "需要多币种？账本创建后登录即可"
+  * 删 `.anon-currency-hint` CSS dead code
+  * 更新注释说明 anon 不再被锁
+- **isAnon 仍保留**: line 27 (派生) + line 201 (wizard 返回按钮路径判断 `/` vs `/sessions`)
+- **验证 (代码层)**:
+  * IosSwitch.svelte line 92 `disabled={opt.disabled}` — disabled undefined → button 不禁用
+  * svelte-check 1 error (baseline pre-existing join/+page.svelte:32 SessionPreviewMember, 跟 #9 无关) / 20 warnings (baseline 同 0 new warning)
+
+#### 排除范围 (本任务不修, 待 PO 决定)
+- **UAT 0724-1 剩余 7 项** (#1 #2 #3 #4 #5 #7 #8) — 等 PO 拍对优先级 / 设计 / 实施细节
+- **UAT 0723-3 #5** (测试数据重建 seed 改动) — 实施代码已写在 `backend/scripts/seed_dev_data.py` (sandbox working tree), 但 PO 未拍对 re-seed + DB wipe, 留 working tree 等下次拍
+- **svelte-check 1 error pre-existing** (`join/+page.svelte:32 SessionPreviewMember` import) — 跟本次任务无关, 不在范围
