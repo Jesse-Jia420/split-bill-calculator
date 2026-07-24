@@ -912,6 +912,12 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.55),
       0 0 0 2px rgba(99, 102, 241, 0.20);
   }
+  .pill-currency:focus-visible {
+    outline: 0;
+  }
+  .pill-input:focus-visible {
+    outline: 0;
+  }
   @supports not (backdrop-filter: blur(1px)) {
     .excl-pill-exclusive {
       background: rgba(99, 102, 241, 0.32);
