@@ -32,7 +32,7 @@
   });
 </script>
 
-<section>
+<section style="padding-bottom: 120px;">
   <div class="row between" style="margin-bottom: var(--space-4);">
     <h2>我的账本</h2>
   </div>
