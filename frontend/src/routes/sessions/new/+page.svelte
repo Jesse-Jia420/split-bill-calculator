@@ -68,7 +68,8 @@
   }
 
   // v0.3.17 #32-D-4 (PO msg 01:18 #6116): IosSwitch 组件 bind:value={currencyMode},
-  // 内部处理 disabled + select 逻辑. anon 切双币种由 .locked class + :disabled 处理 (视觉够明显).
+  // 内部处理 select 逻辑. v0.3.28 UAT 0724-1 #9: 删 anon 切双币种的 :disabled 限制,
+  // anon 现在也可任意选单/双币种.
   // 切到 single 时清空 secondaryCurrency + exchangeRate (避免 stale 数据):
   $: if (currencyMode === "single") {
     secondaryCurrency = "";
@@ -254,7 +255,7 @@
           ariaLabel="币种模式"
           options={[
             { value: 'single', label: '单币种' },
-            { value: 'dual', label: '双币种', disabled: isAnon }
+            { value: 'dual', label: '双币种' }
           ]}
           bind:value={currencyMode}
         />
@@ -332,9 +333,8 @@
           </div>
         {/if}
 
-        {#if isAnon}
-          <p class="anon-currency-hint glass-card-soft">需要多币种？账本创建后登录即可</p>
-        {/if}
+        <!-- v0.3.28 UAT 0724-1 #9: 删 anon 双币种锁定限制 — 现在 anon 也可任意选
+             单/双币种. 删对应 `{#if isAnon}` 提示卡片. -->
 
         <div class="step-nav">
           <button class="fab-wiz glass" type="button" aria-label="上一步" onclick={() => (step = 2)}>
@@ -498,22 +498,7 @@
     line-height: 1.4;
   }
 
-  /* anon 提示玻璃卡 — v0.3.17 #27 (半透白底 + 1.5px 描边蓝紫 + 玻璃 blur)
-     v0.3.17 #34: padding 走 var(--space-*) token (clamp). */
-  .anon-currency-hint {
-    text-align: center;
-    font-size: var(--font-size-sm);
-    color: #4338ca;
-    margin-top: var(--space-4);
-    padding: var(--space-4) var(--space-4);
-    background: rgba(255, 255, 255, 0.55);
-    border: 1.5px solid rgba(99, 102, 241, 0.18);
-    border-radius: 14px;
-    backdrop-filter: saturate(180%) blur(12px);
-    -webkit-backdrop-filter: saturate(180%) blur(12px);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.6),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.04),
-      0 1px 4px rgba(99, 102, 241, 0.08);
-  }
+  /* v0.3.28 UAT 0724-1 #9: .anon-currency-hint dead code (anon 双币种锁定已解除).
+     Wizard 现在 anon 也可选双币种, 整段 CSS 不再使用. svelte-check baseline
+     期望不再有 unused-selector 警告. */
 </style>
