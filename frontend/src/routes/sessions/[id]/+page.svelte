@@ -1602,34 +1602,29 @@
       padding: 12px 12px 4px;
     }
   }
-  /* === bills section header === */
+  /* === bills section header ===
+   * v0.3.28 UAT 0724-1 #1: 标题 (icon + 账单) + 查看结算/个人账单按钮 不再用框框起来.
+   * 跟 .members-head 完全同源: 0 bg / 0 border / 0 opacity / 0 padding, 视觉纯文字 header.
+   * flex-wrap 让按钮在一行右挤不下时自然换行 (PO 字面: 同一行右侧, 一行放不下就下一行右侧).
+   * 边框盒感交付给 .bills-card 容器本身 (跟 .members-card 同源). */
   .bills-card-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: var(--space-2);
+    gap: var(--space-3);
     flex-wrap: wrap;
     margin-bottom: var(--space-3);
-    padding: 10px 14px;
-    /* v0.3.27 (UAT 0723-2 #7): header 加玻璃背景 (跟 .bills-search 同一风格),
-       搜索框下方 header 区域有一层玻璃遮罩让 bills list 在 scroll 时隐约透过 header */
-    background: rgba(255, 255, 255, 0.50);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border: 1px solid var(--color-border, #e5e7eb);
-    border-radius: var(--radius-md, 8px);
-    /* v0.3.27 (UAT 0723-2 #6): header 透明度降低, 背景能透过 header 隐约看到下方内容 */
-    opacity: 0.85;
-  }
-  @supports not (backdrop-filter: blur(1px)) {
-    .bills-card-head {
-      background: rgba(255, 255, 255, 0.78);
-    }
+    padding: 0;
+    background: none;
+    border: none;
+    opacity: 1;
   }
   .bills-card-head-left {
     display: inline-flex;
     align-items: baseline;
     gap: var(--space-3);
+    min-width: 0;
+    flex: 1 1 auto;
   }
   .bills-card-title {
     margin: 0;
