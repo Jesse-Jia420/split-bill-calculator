@@ -221,19 +221,23 @@
              主币种汇总 (CNY) vs 原始数据 — thumb width 跟随 active option 实际宽度
              (主币种汇总 label 长 ~120-140px, 原始数据 label 短 ~60-80px, thumb 差异明显)
              跟 wizard step 3 currency-mode 同一组件, 跨页面视觉一致.
-             单币种 session: "原始数据" disabled (locked, 不会切到 split state).
              v0.3.18 #80 (coder 80): 恢复 a941bac 越界删除的 "原始数据" option — PO #6826 红圈
              只要求删 settle 底部 3 FAB + 按源币种 section, 没拍过 IosSwitch option, 顺手删是越界.
              SettleMemberBreakdown 内部 split 分支 (v0.3.17 #32) 全程保留, view=split 是合法态.
-             单币种 session: currencies.length < 2 时 "原始数据" disabled (跟 v0.3.17 #32 原行为一致). -->
-        <IosSwitch
-          ariaLabel="结算视图"
-          options={[
-            { value: 'primary', label: `主币种汇总 (${session.primary_currency})`, disabled: !session.currencies || session.currencies.length < 2 },
-            { value: 'split', label: '原始数据' }
-          ]}
-          bind:value={viewMode}
-        />
+             v0.3.28 UAT 0724-1 #10 (PO msg 2026-07-24): 单币种个人视图不需要 toggle.
+             currencies.length < 2 时 主币种汇总 vs 原始数据 是同一个东西 (primary 就是 source),
+             toggle 没意义还误导用户. 整 IosSwitch 隐藏, viewMode 走 defaultViewMode 返回的 'split' (原始数据),
+             SettleMemberBreakdown 渲染 viewMode='split' = 主币种 (因为单币种 source 就是 primary). -->
+        {#if session.currencies && session.currencies.length >= 2}
+          <IosSwitch
+            ariaLabel="结算视图"
+            options={[
+              { value: 'primary', label: `主币种汇总 (${session.primary_currency})` },
+              { value: 'split', label: '原始数据' }
+            ]}
+            bind:value={viewMode}
+          />
+        {/if}
         <div in:slide={{ duration: 200 }}>
           <SettleMemberBreakdown {session} currentUserId={$user?.user_id ?? null} {viewMode} />
         </div>
