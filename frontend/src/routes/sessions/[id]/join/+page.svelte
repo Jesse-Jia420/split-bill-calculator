@@ -34,6 +34,8 @@
   import { getInvite, type InvitePublicView } from '$api/invites';
   import { loadUser } from '$stores/user';
   import { toast } from '$stores/toast';
+  // v0.3.28 UAT 0724-1 #5 (Option C 玻璃圆环): /sessions/[id]/join 路由.
+  import LoadingOverlay from '$components/LoadingOverlay.svelte';
 
   // localStorage key prefix for anonymous acting-as
   const LS_PREFIX = 'sbc.actingAs.';
@@ -253,7 +255,7 @@
   <h2 class="step-title">回到/加入账本</h2>
 
   {#if loading}
-    <p>正在加载…</p>
+    <LoadingOverlay text="正在加载..." />
   {:else}
     {#if invite}
       <p class="muted">

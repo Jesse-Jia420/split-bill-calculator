@@ -16,6 +16,9 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { getSessionByCode } from '$api/sessions';
+  // v0.3.28 UAT 0724-1 #5 (Option C 玻璃圆环): /s/[code]/join unguessable URL 格式路由.
+  // LoadingOverlay 跟 /sessions/[id]/join 一致 (Option C 玻璃圆环).
+  import LoadingOverlay from '$components/LoadingOverlay.svelte';
 
   let code = $derived(page.params.code ?? '');
   let loading = $state(true);
@@ -49,7 +52,7 @@
 
 <main class="container" style="padding-top: 4rem; text-align: center;">
   {#if loading}
-    <p>正在打开账本…</p>
+    <LoadingOverlay text="正在打开账本..." />
   {:else if error}
     <h2>打不开</h2>
     <p class="muted">{error}</p>

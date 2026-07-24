@@ -21,6 +21,10 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { getSessionByCode, type SessionDetail } from '$api/sessions';
+  // v0.3.28 UAT 0724-1 #5 (Option C 玻璃圆环): /s/[code] unguessable URL 格式路由 (v0.3.28 #0723-3 #3 引入)
+  // 跟 /sessions/{id} 是同一组件, 但用 unguessable 10-char session_code 替代 numeric id.
+  // LoadingOverlay 跟 /sessions/{id}/+page.svelte 一致 (Option C 玻璃圆环).
+  import LoadingOverlay from '$components/LoadingOverlay.svelte';
 
   /** v0.3.1 (Bug & Issues #5): unguessable code → session page.
    *  v0.3.x (UAT #0723-3 #3): 新 UI 链接生成用 /s/{session_code} 格式. */
@@ -59,7 +63,7 @@
 
 <main class="container" style="padding-top: 4rem; text-align: center;">
   {#if loading}
-    <p>正在打开账本…</p>
+    <LoadingOverlay text="正在打开账本..." />
   {:else if error}
     <h2>打不开</h2>
     <p class="muted">{error}</p>
