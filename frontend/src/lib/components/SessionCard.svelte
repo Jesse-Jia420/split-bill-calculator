@@ -257,7 +257,7 @@
            palette 渐变实心圆点). overflow +N 走 avatar-mini-overflow 不变. -->
       <div class="avatars" aria-label="{memberCount} 个成员头像">
         {#if hasAvatars}
-          {#each session.avatars.slice(0, MAX_AVATARS) as avatar, i (i)}
+          {#each (session.avatars ?? []).slice(0, MAX_AVATARS) as avatar, i (i)}
             <span
               class="avatar-mini palette-{i % 5}"
               aria-label={avatar.name}
