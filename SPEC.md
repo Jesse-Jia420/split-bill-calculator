@@ -5560,10 +5560,10 @@ svelte-check: 2 errors / 20 warnings (baseline 同, 0 new error)
 
 ### v0.3.x — UAT 0723 #6: SessionCard avatar 显示昵称首字母 (Coder 自写自验)
 
-- [x] **#6 账本列表页 avatar 显示昵称首字母** — push 待定 (backend/app/api/sessions.py + frontend/src/lib/components/SessionCard.svelte + frontend/src/lib/api/sessions.ts + frontend/scripts/v0723-6-avatar-initial-verify.cjs 同 batch). PO 字面意图 "账本列表页, 账本 item 内, 成员头像内应该有昵称简写, 目前没有" (avatar 内显示昵称首字母, e.g. "Jesse" → "J", "像汤圆一样圆" → "像"). 修法分 BE + FE:
+- [x] **#6 账本列表页 avatar 显示昵称首字母** — push `5a25ad7` (主 fix — backend/app/api/sessions.py + frontend/src/lib/components/SessionCard.svelte + frontend/src/lib/api/sessions.ts + frontend/scripts/v0723-6-avatar-initial-verify.cjs 同 batch) + push `410ea3b` (svelte-check 编译期 fix — `(session.avatars ?? [])` inline, 0 行净逻辑改动). PO 字面意图 "账本列表页, 账本 item 内, 成员头像内应该有昵称简写, 目前没有" (avatar 内显示昵称首字母, e.g. "Jesse" → "J", "像汤圆一样圆" → "像"). 修法分 BE + FE:
   - **BE**: 加 `class AvatarItem(BaseModel) { name: str; initial: str }` + `SessionSummary.avatars: list[AvatarItem] = Field(default_factory=list)` + `SessionDetail.avatars: list[AvatarItem] = Field(default_factory=list)` (详情页 future-proof). 新 helper `_get_member_avatars(db, session_id, limit=6) -> list[AvatarItem]` 按 SessionMember.id ASC 拉前 6 个, initial = `name[:1].upper()` (Latin 大写, CJK 原字符, Python unicode 行为 — e.g. "Jesse" → "J", "像汤圆一样圆." → "像", "我" → "我"). `_summary_dict()` 加 `avatars: list[AvatarItem] | None = None` keyword-only param, 写入 out dict (None → [] 保 Pydantic 默认). 3 处调用全部更新: POST /sessions + GET /sessions/{id} + GET /sessions (POST/Summary + GET/Summary + GET/Detail).
-  - **FE**: `frontend/src/lib/api/sessions.ts` 加 `AvatarItem` interface (name + initial). `SessionSummary.avatars?: AvatarItem[]` (optional — 老 client 无此字段走 fallback). `SessionCard.svelte` 加 reactive `hasAvatars = Array.isArray(session.avatars) && session.avatars.length > 0`. 模板拆 `{#if hasAvatars}` 主分支 (#each session.avatars.slice(0, MAX_AVATARS) — aria-label=name, title=name, textContent=initial) vs `{:else}` 老 fallback (#each Array(displayAvatars) — N 个 palette 渐变实心圆点 aria-hidden=true). overflow `+N` 两分支共享同一段 .avatar-mini-overflow, 不变. CSS 不动 (现有 .avatar-mini 已有 `display: inline-flex; align-items: center; justify-content: center; font-weight: 600; font-size: 12px;` 支持文字).
-- [x] **Playwright iPhone 13 @3x verify** (`frontend/scripts/v0723-6-avatar-initial-verify.cjs`, 7 项 check 全 pass):
+  - **FE**: `frontend/src/lib/api/sessions.ts` 加 `AvatarItem` interface (name + initial). `SessionSummary.avatars?: AvatarItem[]` (optional — 老 client 无此字段走 fallback). `SessionCard.svelte` 加 reactive `hasAvatars = Array.isArray(session.avatars) && session.avatars.length > 0`. 模板拆 `{#if hasAvatars}` 主分支 (#each `(session.avatars ?? []).slice(0, MAX_AVATARS)` — aria-label=name, title=name, textContent=initial) vs `{:else}` 老 fallback (#each `Array(displayAvatars)` — N 个 palette 渐变实心圆点 aria-hidden=true). overflow `+N` 两分支共享同一段 .avatar-mini-overflow, 不变. CSS 不动 (现有 .avatar-mini 已有 `display: inline-flex; align-items: center; justify-content: center; font-weight: 600; font-size: 12px;` 支持文字).
+- [x] **Playwright iPhone 13 @3x verify** (`frontend/scripts/v0723-6-avatar-initial-verify.cjs`, 17 项 assertion 全 pass, exitCode=0):
   * BE API: `/api/sessions` 返回 avatars 字段, session 11 长度=5 + session 6 长度=1, initials = [J, J, C, Q, 像] / [我], names = [Jesse, Ju, Canyina, Q, 像汤圆一样圆.] / [我] ✓
   * FE DOM: session 11 卡片 5 个 .avatar-mini (non-overflow) textContent 跟 initials 严格匹配 ✓
   * FE DOM: session 11 第 5 个 avatar aria-label = "像汤圆一样圆." (CJK 完整 nick), 第 1 个 aria-label = "Jesse" ✓
@@ -5571,16 +5571,18 @@ svelte-check: 2 errors / 20 warnings (baseline 同, 0 new error)
   * Fallback: route.fulfill 把 /api/sessions response 剥掉 avatars 字段, FE 仍渲染 5 个 palette 渐变实心圆点 + 0 initial 字符 (老 client 兼容) ✓
   * 4 PNG 截图存 `~/.openclaw/media/browser/v0723-6-avatar-initial/` (session-11-card.png / session-6-card.png / sessions-full.png / session-11-fallback.png), image tool 视觉确认 5 个头像 J/J/C/Q/像 清晰可读 + 1 个头像 我 清晰可读.
 - [x] **dev server 反 #159/#160 重启**: BE 按 sbc skill 模板 `pkill uvicorn` + `setsid nohup .venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8449 --env-file .env`, PID 验证 + curl /version.
-- [x] **svelte-check**: 4 errors / 20 warnings (baseline 同, 0 new error — pre-existing errors 在 `+page.svelte:553` `session_code`, `join/+page.svelte:32` `SessionPreviewMember`, `+page.svelte:71` 类型错误, `+page.svelte:78` 类型错误; 跟 #6 无关).
-- [x] **单分支铁律**: origin 仅 main (1 个 commit, push 待发).
+- [x] **svelte-check**: 4 errors / 20 warnings (baseline 同, 0 new error — pre-existing errors 位置: `+page.svelte:553` `session_code` 在 SessionDetail 类型上缺失 / `join/+page.svelte:32` `SessionPreviewMember` 未 export / `settle/+page.svelte:104` `session is possibly null` (× 2, 同一行 28 列 + 50 列两处表达式); 跟 #6 无关. 410ea3b 修复后跟原 baseline 完全一致.
+- [x] **单分支铁律**: origin 仅 main (2 commits: `5a25ad7` + `410ea3b`, push 5a25ad7..410ea3b 成功).
+- [x] **全站 smoke check** (反 #150 必走): Playwright iPhone 13 登录态遍访 `/` (200) + `/sessions` (200) + `/sessions/11` (200) + `/sessions/11/join` (200) + `/sessions/11/settle` (500 — pre-existing, 见排除范围). 4/5 页正常, 唯一 500 是 settle SSR `'session.currencies'` 读 null, 大 commit `d883a8f` (v0.3.27) 既有问题, svelte-check baseline 已 flag `session is possibly null`. 不是 #6 引入的.
 - [x] **反 #150 ✅ Coder 自写自验** (Playwright 程序化 + DOM 验证 + BE response shape + route.fulfill fallback 兼容 + image tool 视觉 五证).
-- [x] **反 #162 ✅ §11 sync 与 fix + verify script 同一 batch** (1 commit 系列).
+- [x] **反 #162 ✅ §11 sync 与 fix + verify script 同一 batch** (主 fix `5a25ad7` 一次性含 fix + script + §11; svelte-check `410ea3b` 是纯编译期 inline `?? []` 微调, 0 行业务逻辑, 不再重复 §11 sync).
 - [x] **反 #167 ✅ iPhone 13 真机 profile** (390×844 @3x, webkit, locale zh-CN).
 - [x] **反 #170 ✅ codeserver_exec_clean.js** (用于跨 sandbox/codeserver 文件同步, 避免 8 字节 binary header 污染).
 - [x] **反 #189 ✅ SPEC append 用 heredoc** (不用 sed 多匹配).
-- [x] **反 #53 ✅ Gitea PAT token-only URL** (沿用旧 token, push 待发).
+- [x] **反 #53 ✅ Gitea PAT token-only URL** (沿用旧 token, push 5a25ad7..410ea3b 成功).
 
 ### v0.3.x — UAT 0723 #6 排除范围 (本任务不修, 待 PO 决定)
+- **`/sessions/11/settle` pre-existing 500** — settle/+page.svelte:104 `session.currencies` 在 SSR 阶段访问 null, 大 commit `d883a8f` (v0.3.27 #2) 既有问题. svelte-check baseline 已 flag 'session is possibly null' (× 2, 同一行 28+50 列). 浏览器端 hydrates 正常 (cookie 在 FE 可用), 只有 curl 直接打 vite dev SSR 路径撞. 修法需 master 后续 sprint 单独拍 (catch null + redirect or skeleton). 不在本 #6 范围.
 - **session 6 avatar textContent = "我" 而不是 "J"** — task 字面期望 "J" (Jesse owner), 但 session 6 actual SessionMember.display_name = "我" (中文单字). 按 PO 字面 "display_name[0]" 实现 (spec verbatim), 实际 = "我". 如果 PO 想要 fallback 到 user.default_name (User.default_name="Jesse") 给 initial, 是新 design 决策, 需后续 sprint 单独拍. 不在本任务范围.
 - **sandbox 兼容性**: 老 client (没 avatars 字段的 response) 走 fallback N 个 palette 渐变实心圆点 — 已在 Playwright fallback test 验证.
 - **CSS 字号 / palette 颜色 / avatar size** — 都用现有 .avatar-mini (24×24, 12px 600 weight, palette 0..4 玻璃) 不动. PO 字面 "昵称首字母", 字号已够清晰.
