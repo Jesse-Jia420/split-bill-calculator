@@ -378,7 +378,6 @@
   on:touchend={onTouchEnd}
   on:touchcancel={onTouchCancel}
   on:mousedown={onMouseDown}
-  on:click={onRowTap}
   role="group"
   aria-label="账本: {session.name}"
 >
