@@ -87,11 +87,13 @@
 
     // Step 4: 4-case dispatch (see table at top of file).
 
-    // Case A: anon + has secret for this session → verify with BE → direct in
+    // v0.3.x (UAT #0723-3 #3): 跳 /s/{session_code} unguessable 格式 (代替 /sessions/{id}).
+  // 老 fallback 用 /sessions/{id} 保老 client 兼容 (这页本来已支持老的 fallback).
+  // Case A: anon + has secret for this session → verify with BE → direct in
     if (!user && hasSecretForThisSession) {
       try {
-        await getSession(sessionId);
-        await goto('/sessions/' + sessionId, { replaceState: true });
+        const verified = await getSession(sessionId);
+        await goto('/s/' + (verified.session_code || String(sessionId)), { replaceState: true });
         return;
       } catch {
         // Secret invalid or expired — clear localStorage and fall through to /join
@@ -106,8 +108,8 @@
     // Case B: logged-in → try getSession (BE checks (user_id, session_id) binding)
     if (user) {
       try {
-        await getSession(sessionId);
-        await goto('/sessions/' + sessionId, { replaceState: true });
+        const verified = await getSession(sessionId);
+        await goto('/s/' + (verified.session_code || String(sessionId)), { replaceState: true });
         return;
       } catch {
         // Not a member — fall through to /join
@@ -117,6 +119,7 @@
     }
 
     // Cases C, D: anon (no secret for this session) → /join
+    // (no getSession data here — fallback to /sessions/{id}/join for anon, 老 path 仍工作)
     await goto('/sessions/' + sessionId + '/join', { replaceState: true });
   });
 </script>

@@ -339,7 +339,9 @@
       if (c === 'not a session member' || e?.status === 403) {
         // v0.3.1: 非成员应该去 join 页 claim nickname, 不显示错误。
         // 之前显示 '你不是这个 session 的成员' 死路, 用户没法 claim。
-        await goto('/sessions/' + sessionId + '/join', { replaceState: true });
+        // v0.3.x (UAT #0723-3 #3): 跳 /s/{session_code}/join unguessable 格式.
+        // 老 fallback 用 /sessions/{id}/join 保老 client 兼容 (老 client 跳老 path 仍 work).
+        await goto('/s/' + (session?.session_code || String(sessionId)) + '/join', { replaceState: true });
         return;
       } else {
         // 401 handled globally by client.ts (auto-redirect to /auth/login
@@ -595,9 +597,10 @@
                 <span class="expiry-cta-sep" aria-hidden="true">·</span>
                 <!-- v0.3.25 (UAT 0723-2 #20): 删 owner name, 留 "登录即可永久保存". 
                      文本 "yyyy.mm.dd 过期 · 登录即可永久保存" 统一, 所有人都一样 (无 owner name). -->
+                <!-- v0.3.x (UAT #0723-3 #3): /s/{session_code} unguessable 格式 (代替 /sessions/{id}) -->
                 <a
                   class="expiry-cta-link"
-                  href="/auth/login?returnTo=/sessions/{session.id}"
+                  href="/auth/login?returnTo=/s/{session.session_code || String(session.id)}"
                   aria-label="登录即可永久保存账本"
                   data-testid="invite-expiry-cta"
                 >
@@ -764,9 +767,10 @@
           <span class="muted bills-card-count">共 {bills.length} 笔</span>
         </div>
         <div class="bills-card-head-right">
+          <!-- v0.3.x (UAT #0723-3 #3): /s/{session_code}/settle unguessable 格式 -->
           <a
             class="btn glass-pill btn-sm bills-action-link"
-            href="/sessions/{session.id}/settle"
+            href="/s/{session.session_code || String(session.id)}/settle"
             aria-label="查看结算"
           >
             <!-- Lucide `calculator` 16x16 -->
@@ -793,9 +797,10 @@
             </svg>
             <span>查看结算</span>
           </a>
+          <!-- v0.3.x (UAT #0723-3 #3): /s/{session_code}/settle#personal unguessable 格式 -->
           <a
             class="btn glass-pill btn-sm bills-action-link"
-            href="/sessions/{session.id}/settle#personal"
+            href="/s/{session.session_code || String(session.id)}/settle#personal"
             aria-label="查看个人账单"
           >
             <!-- Lucide `user` 16x16 -->
@@ -892,9 +897,10 @@
 
     <!-- FAB: 200ms 后从下方 60px 飞入
          v0.3.16 #8 (PO msg 19:26): 加 .glass-pill 玻璃化 (保留 50% 圆形 + 白色 + icon) -->
+    <!-- v0.3.x (UAT #0723-3 #3): /s/{session_code}/bills/new unguessable 格式 -->
     <a
       class="fab glass-pill"
-      href="/sessions/{session.id}/bills/new"
+      href="/s/{session.session_code || String(session.id)}/bills/new"
       title="新建账单"
       aria-label="新建账单"
       in:fly={{ y: 60, duration: 400, delay: 200 }}

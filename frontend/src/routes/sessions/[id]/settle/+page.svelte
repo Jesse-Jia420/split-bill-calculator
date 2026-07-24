@@ -128,8 +128,9 @@
       }
     } catch (e: any) {
       // v0.3.1: 非成员 → 重定向到 join 页 claim nickname.
+      // v0.3.x (UAT #0723-3 #3): /s/{session_code}/join unguessable 格式
       if (e?.code === 'not a session member' || e?.status === 403) {
-        await goto('/sessions/' + sessionId + '/join', { replaceState: true });
+        await goto('/s/' + (session?.session_code || String(sessionId)) + '/join', { replaceState: true });
         return;
       }
       // v0.3.15 (PO #4807): 错误统一走 Toast. 父 onMount 失败时子组件
@@ -165,9 +166,10 @@
          (ArrowLeft → /sessions/{sessionId}). row flex 让 .back-btn 左对齐页面元素左边缘,
          IosSwitch 右对齐页面元素右边缘 (覆盖组件 scoped `margin: 0 auto 1.25rem` 居中). -->
     <div class="settle-toggle-row">
+      <!-- v0.3.x (UAT #0723-3 #3): /s/{session_code} unguessable 格式 (代替 /sessions/{id}) -->
       <a
         class="back-btn glass-pill"
-        href="/sessions/{sessionId}"
+        href="/s/{session?.session_code || String(sessionId)}"
         aria-label="返回账单列表"
       >
         <ArrowLeft size={20} strokeWidth={2.4} />

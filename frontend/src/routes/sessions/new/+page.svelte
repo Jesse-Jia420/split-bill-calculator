@@ -133,8 +133,11 @@
         const body = await createRes.json().catch(() => ({}));
         throw new Error(body?.detail?.error ?? "HTTP " + createRes.status);
       }
-      const data = (await createRes.json()) as { id: number; created_member_ids: number[] };
+      // v0.3.x (UAT #0723-3 #3): SessionSummary 含 session_code 字段, 跳 /s/{code}.
+      // 老 fallback 用 /sessions/{id} 保老 client / 错误边界 仍可访问.
+      const data = (await createRes.json()) as { id: number; session_code?: string; created_member_ids: number[] };
       const sid = data.id;
+      const sessionCode = data.session_code ?? "";
       const memberIds = data.created_member_ids ?? [];
       if ($user === null && memberIds.length > 0) {
         const claimRes = await fetch("/api/sessions/" + sid + "/join-claim", {
@@ -152,7 +155,7 @@
           localStorage.setItem(LS_PREFIX + sid, claimData.nickname_secret);
         }
       }
-      await goto("/sessions/" + sid, { replaceState: true });
+      await goto("/s/" + (sessionCode || String(sid)), { replaceState: true });
     } catch (e: any) {
       // v0.3.15 (PO #4807): 错误统一走 Toast. wizard step 3 提交失败时
       // user 保留当前 step 状态, 可改完再点确认.

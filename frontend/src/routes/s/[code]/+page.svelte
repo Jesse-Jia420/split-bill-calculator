@@ -1,10 +1,29 @@
+<!--
+  v0.3.x (UAT #0723-3 #3) — /s/[code] 主入口 (redirect to /sessions/{id}).
+
+  Background: 老 URL /sessions/{id} 的 id 是简单递增整数, 容易被用户试出
+  别人的 session. 改用 10 字符 session_code (BE 会话生成时随机生成, 32 字符
+  alphabet "ABCDEFGHJKLMNPQRSTUVWXYZ23456789", ~10^15 entropy).
+
+  PO spec (#8645) "只接新. 没有外部链接.":
+  - 只接 new approach: 不 migrate 老 session URL
+  - 没有外部链接: 不考虑外部 share link 兼容
+
+  实现:
+  - 路由 /s/[code] 作为公开入口, 解析 code → getSessionByCode → 跳
+    /sessions/{id}. 子路由 (/settle /bills/new /bills/{billId}/edit /join)
+    在 sibling 目录处理, 各自 redirect 透传 #personal 等 hash.
+  - 老 URL /sessions/{id} 保持工作 (UI 不再生成, 但用户从书签进仍能访问,
+    向后兼容).
+-->
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { getSessionByCode, type SessionDetail } from '$api/sessions';
 
-  /** v0.3.1 (Bug & Issues #5): unguessable code → session page. */
+  /** v0.3.1 (Bug & Issues #5): unguessable code → session page.
+   *  v0.3.x (UAT #0723-3 #3): 新 UI 链接生成用 /s/{session_code} 格式. */
   let code = $derived(page.params.code ?? '');
   let loading = $state(true);
   let error: string | null = $state(null);

@@ -24,6 +24,11 @@ export interface AvatarItem {
 
 export interface SessionSummary {
   id: number;
+  /** v0.3.x (UAT 0723-3 #3): unguessable 10-char public code. Frontend
+   *  uses `/s/{session_code}` for new UI links (代替 /sessions/{id}).
+   *  老 URL /sessions/{id} 仍工作 (向后兼容 — UI 不再生成但兼容).
+   *  老 client (没 session_code 字段) 走 fallback 拼 id. */
+  session_code?: string;
   name: string;
   /** v0.3 (PRD §3.10): nullable for anonymous session creation. */
   owner_user_id: number | null;
@@ -275,6 +280,10 @@ export interface SessionMemberPreview {
 }
 
 export interface SessionPreview {
+  id: number;
+  /** v0.3.x (UAT 0723-3 #3): unguessable 10-char public code (anon preview
+   *  也回 — 让 anon /join 跳到 detail 时用 /s/{session_code}). */
+  session_code?: string;
   name: string;
   currencies: string[];
   primary_currency: string;
