@@ -101,7 +101,16 @@
   type ViewMode = 'primary' | 'split';
   // v0.3.27 (UAT 0723-2 #2): 单币种时「主币种汇总」disabled, 默认切到「原始数据」
   // (主币种汇总 = 原始数据 when currencies.length === 1, 重复 UI).
-  let viewMode: ViewMode = session.currencies && session.currencies.length < 2 ? 'split' : 'primary';
+  //
+  // v0.3.28 UAT 0724-1 #6: SSR-safe — anon 访问 settle 页时, onMount 还没跑,
+  // session 默认 null, 这里访问 session.currencies 会 TypeError → 500. 用 helper 函数
+  // 让 TypeScript 不 narrow session 到 never (顶层 let 直接 session && session.x 触发 narrowing).
+  // SSR 阶段 viewMode 默认 'primary' (单币种 fallback); 客户端 onMount 拉到 session 后
+  // IosSwitch bind:value 双向绑定让用户切到 'split' 或 'primary'.
+  function defaultViewMode(s: SessionDetail | null): ViewMode {
+    return s && s.currencies.length < 2 ? 'split' : 'primary';
+  }
+  let viewMode: ViewMode = defaultViewMode(session);
 
   type Tab = 'overview' | 'personal';
   let activeTab: Tab = 'overview';
