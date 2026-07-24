@@ -554,7 +554,7 @@
     </div>
   </div>
 
-  <div class="row" style="gap: var(--space-3); align-items: flex-start;">
+  <div class="row" style="gap: var(--space-3); align-items: center;">
     <div style="flex: 1; min-width: 0;">
       <label class="label" for="payer">付款人</label>
       <select id="payer" bind:value={payerMemberId}>
@@ -643,7 +643,8 @@
               aria-pressed={st?.included ?? false}
             >
               <span class="ppt-check-icon" aria-hidden="true">{st?.included ? '☑' : '☐'}</span>
-              <span class="ppt-avatar" aria-hidden="true" style="background: {avatarGradient(i)};">
+              <span class="ppt-avatar" aria-hidden="true"
+                style="background: {st?.included ? avatarGradient(i) : 'rgba(160,160,160,0.25)'};">
                 {avatarInitial(m.display_name)}
               </span>
               <span class="ppt-name">{m.display_name}</span>

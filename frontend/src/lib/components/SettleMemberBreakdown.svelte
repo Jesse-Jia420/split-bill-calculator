@@ -1278,10 +1278,13 @@
   }
   .participant-count {
     display: inline-flex;
-    align-items: center;
+    align-items: baseline;
     gap: 3px;
     color: var(--gray-500);
-    font-size: var(--font-size-xs, 12px);
+    font-size: var(--font-size-sm, 14px); /* v0.3.28 UAT 0724-2 #12: 跟时间字号一致 (14px) */
+  }
+  .participant-icon {
+    vertical-align: middle;
   }
   .participant-count-num {
     /* inherit muted color */
