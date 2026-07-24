@@ -5589,3 +5589,31 @@ svelte-check: 2 errors / 20 warnings (baseline 同, 0 new error)
 - **avatar title / tooltip 内容** — 当前用 display_name 整段 (e.g. "像汤圆一样圆."), 不缩. 可下次加 truncation / 显示宽度限制.
 - **跨语种混排 (emoji / 阿拉伯 / 数字首字)** — Python `str[:1]` 对 surrogate pair 切首 char 不会拆双字符, 但 emoji ZWJ sequence [:1] 只取第一 codepoint (e.g. 👨‍👩‍👧 → 👨). 当前 sandbox 数据无 emoji nick, 实测 path 验过不修.
 
+
+### v0.3.x (UAT #0723-3 #2 续) — SessionPreviewMember.email + anon path 邮箱脱敏
+
+[验证详情 + commit hash + Playwright check list]
+- [x] **BE** (`backend/app/api/sessions.py`): `SessionPreviewMember` 加 `email: str | None = None` 字段. 类 docstring 重写说明"public-safe subset, email optional, only filled when slot bound to real user (user_id != null)". `get_session_preview` (line 843) 把 `db.query(SessionMember)` 单表查询改成 `db.query(SessionMember, User).outerjoin(User, User.id == SessionMember.user_id)` LEFT OUTER JOIN, 联表拿 User.email — unbound slot (user_id IS NULL) 走 LEFT JOIN NULL 路径, email 自动 None. helper for-loop 拆 `sm_row, user_row` 两变量, members_payload 加 `"email": user_row.email if user_row else None` 字段.
+- [x] **FE** (`frontend/src/lib/api/sessions.ts`): `SessionMemberPreview` interface 加 `email?: string | null` 字段 (optional 保老 client 兼容). 模板侧不用改 — `(slot as SessionMember).email` cast 在 union type `AnyMember = SessionMember | SessionMemberPreview` 上仍然类型安全 (string|null 兼容). maskEmail helper 早在 #2 已实现, local-prefix(3) + *** + @ + full domain (e.g. `xinhua1001@outlook.com` → `xin***@outlook.com`).
+- [x] **dev server** (反 #159): uvicorn PID 122541 PPID detached, restart 后 `/version` 返 `852d24dc-dirty` (BE working tree 改了).
+- [x] **Playwright iPhone 13 @3x 验证** (`frontend/scripts/v0723-3-2-anon-email-verify.cjs`, anon 模式 + storageState 清空):
+  * 9 项 anon check 全 pass:
+    - BE `/api/sessions/9/preview` 返回 `members.length=5` + 每 member `email` 字段 = `xinhua1001@outlook.com` / `ju@thailand.local` / `canyina@thailand.local` / `q@thailand.local` / `rounded@thailand.local`
+    - DOM `.slot-btn.taken` count=5, 每 slot textContent 含 `已被 {masked} 绑定` (e.g. `已被 xin***@outlook.com 绑定`)
+    - 5/5 slot 不含 `undefined` (修复前会显示 `已被 undefined 绑定`)
+    - `.slot-email-muted` 元素 count=5, 文本字面匹配期望
+    - 头像首字母 [J, J, C, Q, 像] (Latin 大写 + CJK 原字)
+- [x] **视觉** (image tool): 5 个 takenSlots 排版正确, 邮箱脱敏 `xin***@outlook.com` / `ju***@thailand.local` / `can***@thailand.local` / `q***@thailand.local` / `rou***@thailand.local` 全对, 头像首字母清晰可读, 整体玻璃质感 + iOS 移动端布局.
+- [x] **svelte-check**: 4 errors / 20 warnings (baseline 同, 0 new error — pre-existing errors: `+page.svelte:632:37` session_code, `join/+page.svelte:32:10` SessionPreviewMember import alias 不匹配, `settle/+page.svelte:104:28` session is possibly null × 2, 都跟本次修改无关).
+- [x] **单分支铁律**: origin 仅有 main (1 commit series).
+- [x] **反 #150 ✅ Coder 自写自验** (Playwright 程序化 + BE response shape + DOM 渲染 + image tool 视觉 四证).
+- [x] **反 #162 ✅ §11 sync 与 fix commit 同一 batch**.
+- [x] **反 #167 ✅ iPhone 13 真机 profile** (390×844 @3x, webkit, locale zh-CN, anon storageState 清空).
+- [x] **反 #170 ✅ codeserver_exec_clean.js** (用于跨 sandbox/codeserver 文件同步, 避免 8 字节 binary header 污染).
+- [x] **反 #189 ✅ SPEC append 用 heredoc** (不用 sed 多匹配 — 这里直接 python write append).
+- [x] **反 #53 ✅ Gitea PAT token-only URL** (沿用旧 token, push 成功).
+
+### 排除范围 (本任务不修, 待 PO 决定)
+- **anon availableSlots 没 email** — 已实现 (`{#if (slot as SessionMember).email}` 条件渲染, unbound slot email=null 自动隐藏), 但 sandbox session 9 全 bound 没 unbound slot 测不到 DOM path 反向验. 模板逻辑等价, 跟 #2 bound 同源. 如要绝对真机, 可下次 wizard 创建 unbound slot 后验.
+- **「已被 {email} 绑定」文案** — 沿用 v0.3.28 #2 (PO 字面 "已被 {email} 绑定"), 不变.
+- **maskEmail 函数继续单测** — 实现 + Playwright DOM 全覆盖, 无新单测.
