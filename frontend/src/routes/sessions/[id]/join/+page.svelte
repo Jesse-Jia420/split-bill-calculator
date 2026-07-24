@@ -85,7 +85,9 @@
         try {
           const verified = await getSession(sessionId);
           session = verified;
-          await goto('/sessions/' + sessionId, { replaceState: true });
+          // v0.3.x (UAT #0723-3 #3): 跳 /s/{session_code} (unguessable).
+          // 老 fallback 用 /sessions/{id} 保老 client 兼容.
+          await goto('/s/' + (session.session_code || String(sessionId)), { replaceState: true });
           return;
         } catch {
           // Secret invalid or expired — clear localStorage and continue
@@ -100,7 +102,8 @@
         const verified = await getSession(sessionId);
         session = verified;
         // Already a member — redirect to session
-        await goto('/sessions/' + sessionId, { replaceState: true });
+        // v0.3.x (UAT #0723-3 #3): /s/{session_code} unguessable 格式
+        await goto('/s/' + (session.session_code || String(sessionId)), { replaceState: true });
         return;
       } catch {
         // Not a member — fall through to join page
@@ -157,7 +160,10 @@
     try {
       const res = await joinClaim(sessionId, { action: 'claim', session_member_id: slotId });
       _storeActingAs(res.session_member_id, res.nickname_secret ?? '');
-      await goto('/sessions/' + sessionId, { replaceState: true });
+      // v0.3.x (UAT #0723-3 #3): /s/{session_code} unguessable 格式
+      // session 来自 getSession/getSessionPreview (Step 1-3), 有 session_code 字段.
+      const code = session?.session_code || preview?.session_code || String(sessionId);
+      await goto('/s/' + code, { replaceState: true });
     } catch (e: any) {
       // v0.3.15 (PO #4807): 错误统一走 Toast
       const status = e?.status ?? e?.detail?.status;
@@ -184,7 +190,9 @@
     try {
       const res = await joinClaim(sessionId, { action: 'add', display_name: nickname });
       _storeActingAs(res.session_member_id, res.nickname_secret ?? '');
-      await goto('/sessions/' + sessionId, { replaceState: true });
+      // v0.3.x (UAT #0723-3 #3): /s/{session_code} unguessable 格式
+      const code = session?.session_code || preview?.session_code || String(sessionId);
+      await goto('/s/' + code, { replaceState: true });
     } catch (e: any) {
       // v0.3.15 (PO #4807): 错误统一走 Toast
       toast.error(e?.message ?? '加入失败');

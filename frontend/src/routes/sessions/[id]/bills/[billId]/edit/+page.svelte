@@ -51,7 +51,8 @@
 
   async function handleSubmit(payload: any) {
     await updateBill(sessionId, billId, payload);
-    await goto(`/sessions/${sessionId}`);
+    // v0.3.x (UAT #0723-3 #3): 跳 /s/{session_code} unguessable 格式 (代替 /sessions/{id})
+    await goto('/s/' + (session?.session_code || String(sessionId)));
   }
 </script>
 
@@ -77,9 +78,10 @@
 
     <!-- v0.3.15 §3.15.2 #6 v2 (PO msg #4752+#4763): 圆形 FAB
          v0.3.16 #8 (PO msg 19:26): 加 .glass-pill 玻璃化 (保留 50% 圆形 + 白色 icon) -->
+    <!-- v0.3.x (UAT #0723-3 #3): /s/{session_code} unguessable 格式 (代替 /sessions/{id}) -->
     <a
       class="fab glass-pill fab-left"
-      href="/sessions/{sessionId}"
+      href="/s/{session?.session_code || String(sessionId)}"
       aria-label="返回"
       in:fly={{ y: 60, duration: 400, delay: 200 }}
     >

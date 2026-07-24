@@ -193,7 +193,11 @@
   }
 </script>
 
-<a href="/sessions/{session.id}" class="card-link">
+<!-- v0.3.x (UAT #0723-3 #3): unguessable 10-char session_code (代替 /sessions/{id}).
+     老 URL /sessions/{id} 仍工作 (UI 不再生成, 但用户书签/外部分享进仍
+     能访问, 向后兼容). session_code 不是 nullable (BE SessionSummary 字段),
+     但保险起见 fallback 到 String(session.id) (老 client 走 fallback). -->
+<a href="/s/{session.session_code || String(session.id)}" class="card-link">
   <div class="session-card">
     <div class="row between">
       <!-- v0.3.23 #140 (UAT bug #7): 账本名称加 pill 玻璃效果.
