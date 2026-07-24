@@ -588,7 +588,7 @@
   </div>
 
   <div>
-    <label class="label" for="desc">说明(可选)</label>
+    <label class="label" for="desc">说明(必填)</label>
     <input
       id="desc"
       type="text"
@@ -1066,7 +1066,7 @@
     max-width: 100%; /* v0.3.28 UAT 0724-1 #4: 删 min(240px, 100%) → 单纯 100%. iPhone 13 实测 parent 156px (flex:1 + min-width:0), min(240, 100%) → 156. 但 iOS Safari datetime-local native widget minimum content ~200px (picker icon 30px + locale-formatted content ~140px), 156px 容器下 widget 渲染会溢出 input 框. 改 max-width: 100% + width: 100% 让 input 始终等于 container 宽度, 不超 parent (parent flex:1 + min-width:0 自带伸缩). padding-inline 12 32px 保留 (v0.3.24 Top #1 容纳 picker indicator). 修后任何 viewport 都不超 form. */
     width: 100%;
     padding-block: 8px;
-    padding-inline: 12px 32px; /* v0.3.24 Top #1: 右侧加 32px padding 容纳 iOS Safari picker indicator (~30px), 避免 calendar icon 被截断/溢出. Chrome/Firefox 不受影响 (它们 picker 在 input 外部弹层). */
+    padding-inline: 12px 16px; /* v0.3.28 UAT 0724-2 #5: 从 32px 减到 16px, 减小日历 icon 右侧空白. 保留 16px 防 picker indicator 截断. */
     font-size: 15px;
     letter-spacing: -0.01em;
   }

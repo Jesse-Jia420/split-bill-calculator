@@ -309,9 +309,14 @@
     cursor: pointer;
     padding: 0;
     border: none;
-    /* .glass-pill 全局提供 bg/box-shadow/border/color/backdrop-filter/transition.
-       这里只补 z-index/flex-shrink/形态 (圆 + grid center). */
+    /* v0.3.28 UAT 0724-2 #10: 填色 + 象牙白 icon (同 IosSwitch 选中态样式) */
+    background: var(--accent-600, #6366f1);
+    color: #fffff0;
     transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease, color 150ms ease;
+  }
+  .back-btn :global(svg) {
+    color: #fffff0;
+    stroke: #fffff0;
   }
   .back-btn:hover { transform: translateY(-2px); }
   .back-btn:active { transform: scale(0.96); }

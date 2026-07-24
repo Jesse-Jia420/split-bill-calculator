@@ -1243,7 +1243,8 @@
   .shared-tag-right {
     margin-left: auto;
     color: var(--gray-900, #171717);
-    font-weight: 500;
+    /* v0.3.28 UAT 0724-2 #11: 500→400, 分摊文字和金额不用加粗 */
+    font-weight: 400;
     font-variant-numeric: tabular-nums;
   }
   /* v0.3.27 (UAT 0723-2 #4): 跟 BillListGrouped .bill-row-exclusive 同款  */
