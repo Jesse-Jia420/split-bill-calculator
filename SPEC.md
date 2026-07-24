@@ -5737,7 +5737,35 @@ svelte-check: 2 errors / 20 warnings (baseline 同, 0 new error)
   * IosSwitch.svelte line 92 `disabled={opt.disabled}` — disabled undefined → button 不禁用
   * svelte-check 1 error (baseline pre-existing join/+page.svelte:32 SessionPreviewMember, 跟 #9 无关) / 20 warnings (baseline 同 0 new warning)
 
+### v0.3.28 — UAT 0724-1 #10 (单币种个人视图去 toggle) (Master 自写自验 已走 ✓)
+
+**Commit**: `10a3b2f` (push e046710..10a3b2f, 1 file / +14 -10) — fix(fe): v0.3.28 — UAT 0724-1 #10 (单币种个人视图去 toggle)
+
+#### PO 意图
+单币种的个人视图, 不需要 主币种汇总和原始数据 的选项 (PO msg 2026-07-24).
+
+#### 根因 + 修法
+v0.3.17 #32-D-4 用 `disabled: !session.currencies || session.currencies.length < 2` 把「主币种汇总」option 锁死. 单币种 session 时 primary 跟 source 是同一个币种, toggle 显示但只能选「原始数据」, 误导用户以为可以切.
+
+修法 (`sessions/[id]/settle/+page.svelte` line 226):
+- IosSwitch 整块包在 `{#if session.currencies && session.currencies.length >= 2}` 里
+- 单币种 (currencies.length < 2) 直接隐藏整个 toggle
+- viewMode 走 `defaultViewMode()` 返回 'split' (原始数据) — 因为单币种 primary 就是 source, 渲染结果一致
+- 删 `disabled` 条件 (toggle 只在 multi currency 出现, 两 option 永远 enabled)
+- SPEC line 23「个人视图 viewMode 仅保留主币种汇总一个选项」语义更新: multi currency 两选项都保留, single currency 整 toggle 隐藏
+
+#### 验证 (Playwright iPhone 13 @3x 真机 walk, `frontend/scripts/v0328-0724-1-10-verify.cjs`)
+- session 9 (CNY+THB 多币种, 40 bills): 个人视图 → 顶部「概览/个人视图」toggle + 主币种汇总 (CNY) / 原始数据 toggle 同时可见, 主币种汇总 default active ✓
+- session 13 (CNY 单币种, 测试账本链接): 个人视图 → 顶部 toggle 可见 + 主币种汇总/原始数据 toggle **完全隐藏** ✓
+- session 13 概览 → 仍正常显示 (SettleTransferPath 始终按 primary 聚合, 不需要 viewMode 切换) ✓
+- session 13 成员卡片 + 付款/消费明细均正常渲染 (viewMode='split' 走原始数据, 因 source=primary 数字一致) ✓
+- 3 PNG 存 `~/.openclaw/media/browser/v0328-0724-1-10/{A-multi,B-single,C-overview}.png`
+- image tool 视觉确认: multi 有 toggle 主币种汇总 (CNY) 蓝色高亮 + 原始数据浅色; single toggle 完全不显示, 直接看到成员卡片和明细 ✓
+- vite HMR 触发 `[vite] hmr update /src/routes/sessions/[id]/settle/+page.svelte` (codeserver log 2:04:50 AM) ✓
+
 #### 排除范围 (本任务不修, 待 PO 决定)
-- **UAT 0724-1 剩余 7 项** (#1 #2 #3 #4 #5 #7 #8) — 等 PO 拍对优先级 / 设计 / 实施细节
-- **UAT 0723-3 #5** (测试数据重建 seed 改动) — 实施代码已写在 `backend/scripts/seed_dev_data.py` (sandbox working tree), 但 PO 未拍对 re-seed + DB wipe, 留 working tree 等下次拍
-- **svelte-check 1 error pre-existing** (`join/+page.svelte:32 SessionPreviewMember` import) — 跟本次任务无关, 不在范围
+- **多币种 toggle 行为不变** (主币种汇总 vs 原始数据 都可选) — 已有行为保持
+- **UAT 0724-2 整批 (12 项)** — 已实施 (commit 36e3614 A组 7项 + 219c2dd B组 4项 + e046710 #4), 但 UAT 文件没更新条目, 需 PO 把 0724-2 加进 ob UAT bugs&issues
+- **UAT 0723-3 #5** (测试数据重建) — PO 未拍对「个人消费」理解 + re-seed + DB wipe, 等下次对话澄清
+- **svelte-check 1 error pre-existing** (`join/+page.svelte:32 SessionPreviewMember`) — 跟本次任务无关
+- **UAT 0724-1 #1 #2 #3 #4 #5 #7 #8** — 已全部 commit (371e661 / 8a05bc9 / 6c8d02e+续修 / 1a240a4 / 973ed07+818dd47 / 1a240a4), §11 sync 见各 commit, UAT 文件待更新 ✅ marker
