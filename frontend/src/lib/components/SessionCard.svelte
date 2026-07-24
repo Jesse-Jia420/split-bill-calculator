@@ -392,7 +392,7 @@
   on:touchend={onTouchEnd}
   on:touchcancel={onTouchCancel}
   on:mousedown={onMouseDown}
-  on:click={onWrapClick}
+  on:click|capture={onWrapClick}
   role="group"
   aria-label="账本: {session.name}"
 >
