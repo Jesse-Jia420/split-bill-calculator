@@ -980,7 +980,8 @@
     position: sticky;
     top: var(--bills-search-h, 50px);
     z-index: 9;
-    background: rgba(255, 255, 255, 0.65);
+    /* v0.3.28 UAT 0724-2 #16: 0.65→0.50, 进一步降低透明度保证可读性 */
+    background: rgba(255, 255, 255, 0.50);
     backdrop-filter: saturate(180%) blur(20px);
     -webkit-backdrop-filter: saturate(180%) blur(20px);
     border-bottom: 1px solid var(--gray-200);
@@ -1504,7 +1505,8 @@
   }
   .your-share {
     /* UAT v0.3.23 #129: color black (was blue accent-500) per PO */  
-    font-weight: 600;
+    /* v0.3.28 UAT 0724-2 #9: 600→400, 分摊文字和金额不加粗 */  
+    font-weight: 400;
     color: var(--gray-900); /* UAT v0.3.23 #129 */  
     font-variant-numeric: tabular-nums;
     font-size: var(--font-size-sm);

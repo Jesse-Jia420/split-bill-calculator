@@ -252,6 +252,7 @@
              - 删 step-hint (bug #3): top step 标题已表达, 冗余.
              - option label 改 (bug #4): '单一币种' → '单币种' (跟'双币种'对称, 简洁).
              - conditional hint (bug #5): 单币种 '用于国内旅游、消费等场景', 双币种 '用于出国旅游、消费等场景' (PO 字面文案, 帮用户判断选哪种).
+            - v0.3.28 (UAT 0724-2 #1): 上方 "用于朋友间结算的币种" 提示文案简化 → 去掉 "用于" 前缀, 只留 "朋友间结算的币种" (PO 字面). 原句冗余 ("用于" + "结算" 重复), 简化后更直接.
         -->
         <IosSwitch
           ariaLabel="币种模式"
@@ -273,7 +274,7 @@
         <!-- v0.3.25 #0723-wizard-step3 (bug #2): label '结算币种（用于朋友间结算的币种）'
              语义更清晰 — 主币种是朋友间结算用的, 副币种是实际消费用的. -->
         <div class="currency-section">
-          <label class="currency-label">结算币种（用于朋友间结算的币种）</label>
+          <label class="currency-label">结算币种（朋友间结算的币种）</label>
           <div class="currency-pills">
             {#each ["CNY", "USD", "EUR", "JPY", "THB"] as ccy}
               <button type="button" class="glass-pill currency-pill" class:active={primaryCurrency === ccy}

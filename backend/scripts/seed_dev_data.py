@@ -6,7 +6,13 @@ frontend / Sprint verification flow expects to see:
 
 - 1 user (demo@example.com) — also matches the live test account.
 - 2 sessions owned by that user:
-    * ``泰国测试账单 6.19-6.22`` — 5 members + 27 bills (THB).
+    * ``泰国测试账单 2 7.25-7.28`` — 5 members + 40 bills (35 THB +
+      5 CNY) with full payer / shared consumer / exclusive consumer
+      coverage, **plus payer ≠ consumer 解耦 examples** so the FE can
+      exercise the "advanced on behalf of" UX path (PO msg 23:??
+      #8645, UAT #0723-3 #5, 2026-07-24: "你对于个人消费的理解不太
+      对"). The previous Thailand session (``6.19-6.22``) is **gone**
+      — this one supersedes it.
     * ``个人测试`` — 1 member (the owner), 0 bills.
 - 4 helper User rows backing the Thailand session members
   (Ju / Canyina / Q / 像汤圆一样圆.).
@@ -33,6 +39,18 @@ History
   path used to call the function before any bills existed, so the
   ``has_foreign_bills`` guard would short-circuit and the rate rows
   never got inserted. See Jesse's UAT feedback 2026-07-14.
+- v0.3.25 #17 / 2026-07-23: added ``泰国测试账单 2 7.25-7.28``
+  session with 40 bills (THB + CNY) and per-participant excl_amount
+  support.
+- v0.3.x / 2026-07-24 (UAT #0723-3 #5, PO msg #8645): removed the
+  legacy ``泰国测试账单 6.19-6.22`` session (PO 字面 "再建一个最新
+  的" implies supersede, not stack), redesigned THAILAND2_BILLS so
+  every member covers **payer + shared consumer + exclusive consumer**
+  and there are ≥3 **payer ≠ consumer 解耦** examples (friends paying
+  on behalf of others). Balance invariant: Σ paid = Σ consumed =
+  Σ bills (in primary CNY), with per-member nets distributed across
+  positive (overpaid, should receive) and negative (underpaid, should
+  pay) — see ``backend/scripts/_verify_seed_balance.py``.
 """
 from __future__ import annotations
 
@@ -75,7 +93,8 @@ TEST_USER_EMAIL = "demo@example.com"
 # Thailand session members, in display order.
 # Index 0 is the owner (xinhua1001 user); indices 1..4 are the four
 # auxiliary accounts. The member index drives payer/participant lookups
-# in THAILAND_BILLS below.
+# in THAILAND2_BILLS below (sole session since v0.3.x / UAT #0723-3 #5
+# — the legacy ``6.19-6.22`` session was retired in this commit).
 THAILAND_MEMBERS: list[tuple[str, str, str]] = [
     # (display_name, role, owner_email)
     # When ``owner_email`` is empty, the member is owned by the test user
@@ -88,56 +107,17 @@ THAILAND_MEMBERS: list[tuple[str, str, str]] = [
     ("像汤圆一样圆.",   SessionRole.MEMBER.value, "rounded@thailand.local"),
 ]
 
-# Hardcoded 27 bills (THB) extracted from ``_test_bills.xlsx`` Sheet2 on
-# 2026-07-02. Each tuple is:
-#     (description, amount, payer_member_idx, occurred_at_iso, participant_indices)
-#
-# - member index 0..4 maps to THAILAND_MEMBERS above
-#   (0=Jesse, 1=Ju, 2=Canyina, 3=Q, 4=像汤圆一样圆.)
-# - occurred_at_iso is timezone-aware (Asia/Shanghai)
-# - participant_indices is a list of member indices who split the bill.
-THAILAND_BILLS: list[tuple[str, float, int, str, list[int]] | tuple[str, float, int, str, list[int], str]] = [
-    ("6.19打车",                   159.0,  2, "2026-06-19T20:00:00+08:00", [0, 1, 3, 4]),
-    ("午餐",                       900.0,  3, "2026-06-20T12:00:00+08:00", [0, 1, 2, 3, 4]),
-    ("晚餐妈妈面",                 1340.0, 0, "2026-06-20T12:00:00+08:00", [0, 1, 2, 3, 4]),
-    ("搭船",                       150.0,  0, "2026-06-20T12:00:00+08:00", [0, 1, 2, 3, 4]),
-    ("6.19打车3人",                200.0,  2, "2026-06-19T20:00:00+08:00", [1, 3, 4]),
-    ("6.20打车5人",                169.0,  1, "2026-06-20T20:00:00+08:00", [0, 1, 2, 3, 4]),
-    ("晚餐中国米粉",               606.0,  0, "2026-06-20T12:00:00+08:00", [0, 1, 3, 4]),
-    ("虾",                         200.0,  3, "2026-06-20T12:00:00+08:00", [3, 4]),
-    ("6.20酒吧4人",                2813.0, 0, "2026-06-20T20:00:00+08:00", [0, 1, 3, 4]),
-    ("6.20打车4人 打抛饭到照相馆",  69.0,   4, "2026-06-20T20:00:00+08:00", [0, 1, 3, 4]),
-    ("6.20打车4人 照相馆",         330.0,  0, "2026-06-20T20:00:00+08:00", [0, 1, 3, 4]),
-    ("6.20打车2人 Old Siam Plaza", 125.0,  0, "2026-06-20T20:00:00+08:00", [0, 3]),
-    ("6.21打车4人",                277.0,  1, "2026-06-21T20:00:00+08:00", [0, 1, 3, 4]),
-    ("6.21 商场午饭4人",           1406.0, 4, "2026-06-21T20:00:00+08:00", [0, 1, 3, 4]),
-    ("6.21打车3人 去TK Seafood",   177.0,  0, "2026-06-21T20:00:00+08:00", [0, 3, 4]),
-    ("6.21打车4人 去myday按摩",    136.0,  0, "2026-06-21T20:00:00+08:00", [0, 1, 3, 4]),
-    ("6.21打车4人 myday按摩完回家", 93.0,  4, "2026-06-21T20:00:00+08:00", [0, 1, 3, 4]),
-    ("6.21吃饭3人 TK Seafood",     2000.0, 1, "2026-06-21T20:00:00+08:00", [0, 3, 4]),
-    ("6.22打车4人 大金佛",         89.0,   0, "2026-06-22T20:00:00+08:00", [0, 1, 3, 4]),
-    ("6.22午吃饭4人 酒店楼下餐厅", 1145.0, 0, "2026-06-22T20:00:00+08:00", [0, 1, 3, 4]),
-    ("6.22晚吃饭3人",              1560.0, 0, "2026-06-22T20:00:00+08:00", [0, 1, 3]),
-    ("6.22打车3人 泰拳去",         144.0,  0, "2026-06-22T20:00:00+08:00", [0, 1, 3]),
-    ("6.22打车3人 泰拳回",         200.0,  3, "2026-06-22T20:00:00+08:00", [0, 1, 3]),
-    ("6.21打车3人去central world", 125.0,  3, "2026-06-21T20:00:00+08:00", [0, 3, 4]),
-    ("6.22打车大金佛回民宿",       109.0,  3, "2026-06-22T20:00:00+08:00", [0, 1, 3, 4]),
-    ("6.22打车去酒店",             100.0,  3, "2026-06-22T20:00:00+08:00", [3, 4]),
-    ("6.22榴莲",                   550.0,  3, "2026-06-22T20:00:00+08:00", [0, 3]),
-    # CNY bills — WeChat/Alipay paid in CNY (for dual-currency testing)
-    ("6.20WeChat大餐",             380.0,  0, "2026-06-20T20:00:00+08:00", [0, 1, 2, 3, 4], "CNY"),
-    ("6.21支付宝午饭",              220.0,  1, "2026-06-21T12:00:00+08:00", [0, 1, 3, 4], "CNY"),
-    ("6.22微信买水果",              85.0,   3, "2026-06-22T10:00:00+08:00", [0, 3, 4], "CNY"),
-    ("6.21支付宝按摩后加菜",         128.0,  4, "2026-06-21T21:00:00+08:00", [0, 1, 3, 4], "CNY"),
-    ("6.22微信零食",                66.0,   2, "2026-06-22T15:00:00+08:00", [0, 2, 3], "CNY"),
-]
+# (Legacy ``THAILAND_BILLS`` + ``THAILAND_SESSION_NAME`` removed in
+# v0.3.x / UAT #0723-3 #5 — the 6.19-6.22 fixture was retired; see
+# module docstring history. Only THAILAND2 remains as the canonical
+# multi-bill / multi-currency test session.)
 
-THAILAND_SESSION_NAME = "泰国测试账单 6.19-6.22"
 PERSONAL_SESSION_NAME = "个人测试"
 
 
 # --------------------------------------------------------------------------- #
-# Thailand #2 session (v0.3.25 #17): 4-day weekend trip with EXCLUSIVE bills
+# Thailand #2 session (v0.3.25 #17, redesigned v0.3.x / UAT #0723-3 #5):
+# 4-day weekend trip with full payer/shared/exclusive coverage + 解耦 examples
 # --------------------------------------------------------------------------- #
 #
 # Purpose (PO msg 16:35 #17, 2026-07-23):
@@ -145,118 +125,140 @@ PERSONAL_SESSION_NAME = "个人测试"
 #    账单名称，细节都要有。其中一个用户的邮箱是 demo@example.com，
 #    其余随意。"
 #
-# Design (Master 自决 per 反 #121 / 反 #150):
-#   - Session name: "泰国测试账单 2 7.25-7.28" — 跟现有 "泰国测试账单 6.19-6.22"
-#     区分 (PO 字面 "再建一个最新的"), 日期用相对今天 (2026-07-23) 的下个周末.
-#   - Members: 沿用 THAILAND_MEMBERS (5 人, xinhua1001/Ju/Canyina/Q/像汤圆一样圆)
-#     + 同一组 THAILAND_AUX_USERS (idempotent, User rows 已存在).
-#   - 4 天日期: 2026-07-25 (周六) ~ 2026-07-28 (周二).
-#   - Bills 格式扩展: (desc, amount, payer_idx, occurred_iso,
-#     [(pax_idx, excl_amount)], currency).
-#     excl_amount=0 走 inclusive split, >0 走 exclusive (单独算这一个人).
-#     THAILAND2_BILLS 全部 inclusive participant 用 excl_amount=0, 独占 bill
-#     只放 1 个 participant + excl_amount=全 amount.
-#   - 账单密度: 40 bills / 4 天 = ~10 bills/天 (现有 32 bills / 4 天 ≈ 8 bills/天).
-#   - PO 字面三维度覆盖 ("每人付款, 消费, 独占"):
-#     Jesse 独占 = 7.25酒店(1800) + 7.28咖啡(220) + 7.28晚餐(190) = 3 bills
-#     Ju 独占 = 7.26早餐(250) = 1 bill
-#     Canyina 独占 = 7.27咖啡(200) = 1 bill
-#     Q 独占 = 7.25便利店(350) + 7.28免税(1500) + 7.28支付宝(150) = 3 bills
-#     像汤圆一样圆 独占 = 7.26咖啡(220) + 7.28便利店(180) = 2 bills
-#     每人都 payer ≥1 + participant ≥1 (inclusive) + exclusive ≥1 (3 维度全齐).
+# Redesigned (PO msg 23:?? #8645, UAT #0723-3 #5, 2026-07-24):
+#   "你对于个人消费的理解不太对。" → the previous run had every exclusive
+#   bill with payer = consumer, so the FE had no "friend paid on behalf
+#   of me" UX to exercise. The redesign adds **4 解耦 examples** (payer
+#   ≠ consumer) where one friend pays and another is the personal
+#   consumer. The legacy ``6.19-6.22`` session was retired in this
+#   commit; THAILAND2 is now the sole canonical test session.
+#
+# Design invariants (all verified by ``backend/scripts/_verify_seed_balance.py``):
+#   - Session name: "泰国测试账单 2 7.25-7.28" — 4-day trip (Sat~Tue).
+#   - Members: THAILAND_MEMBERS (5 人) + THAILAND_AUX_USERS (idempotent).
+#   - Bills: 40 bills / 4 天 × 10 bills/天, 35 THB + 5 CNY.
+#   - Per-member coverage: every member is payer ≥1, shared consumer
+#     ≥1 (inclusive), and exclusive consumer ≥1 (is_exclusive=true).
+#   - 解耦 examples (payer ≠ consumer): 4 bills — massage (像汤圆 payer
+#     for Ju+Canyina), airport 免税店 (Canyina payer for Q), airport
+#     便利店 (Ju payer for 像汤圆), airport 晚餐 (Q payer for Jesse+Ju).
+#   - Scene coverage: 整团 (5人均分), 4 人, 3 人, 2 人 (Jesse+Ju),
+#     个人独占 (exclusive), 跨币种 (THB payer → CNY bills and vice versa).
+#   - Balance invariant: Σ paid = Σ consumed = Σ bills (in primary
+#     CNY) — see verify script output for per-member nets.
+#
+# Tuple shape (unchanged from v0.3.25 #17):
+#   (description, amount, payer_idx, occurred_iso,
+#    [(pax_idx, excl_amount)], currency)
+# where:
+#   - excl_amount = 0 → inclusive (split share of bill.amount / N).
+#   - excl_amount > 0 → exclusive (this single member is the personal
+#     consumer for that amount; the bill is "assigned" to them only).
+#   - A bill may have both inclusive and exclusive participants
+#     (rare — not used here, but supported by the model).
+#   - When a bill has multiple exclusive consumers (e.g. massage
+#     shared by Ju + Canyina), excl_amount must sum to bill.amount
+#     (the FE / settle enforces this on submit).
 
 THAILAND2_SESSION_NAME = "泰国测试账单 2 7.25-7.28"
 
 THAILAND2_BILLS: list[tuple[str, float, int, str, list[tuple[int, float]], str]] = [
     # Day 1 — 2026-07-25 (周六, 10 bills, 出发日)
-    ("7.25机场打车5人",             600.0,  0, "2026-07-25T15:00:00+08:00",
+    # 解耦 #1: 按摩 payer=像汤圆一样圆 (idx 4), exclusive consumers=[Ju, Canyina]
+    ("7.25机场打车5人",                       600.0,  3, "2026-07-25T15:00:00+08:00",
      [(0,0),(1,0),(2,0),(3,0),(4,0)], "THB"),
-    ("7.25午餐机场4人",            1500.0,  1, "2026-07-25T17:00:00+08:00",
+    ("7.25午餐机场4人",                      1500.0,  1, "2026-07-25T17:00:00+08:00",
      [(0,0),(1,0),(3,0),(4,0)], "THB"),
-    ("7.25酒店check-in Jesse独占",  1800.0,  0, "2026-07-25T18:00:00+08:00",
+    ("7.25酒店check-in Jesse独占",            1800.0,  0, "2026-07-25T18:00:00+08:00",
      [(0, 1800.0)], "THB"),
-    ("7.25酒店晚餐5人",            2800.0,  2, "2026-07-25T20:00:00+08:00",
+    ("7.25酒店晚餐5人",                      2800.0,  2, "2026-07-25T20:00:00+08:00",
      [(0,0),(1,0),(2,0),(3,0),(4,0)], "THB"),
-    ("7.25夜市甜品3人",             850.0,  3, "2026-07-25T22:00:00+08:00",
+    ("7.25夜市甜品3人",                       850.0,  3, "2026-07-25T22:00:00+08:00",
      [(0,0),(1,0),(3,0)], "THB"),
-    ("7.25打车去酒店4人",           200.0,  4, "2026-07-25T23:00:00+08:00",
+    ("7.25打车去酒店4人",                     200.0,  4, "2026-07-25T23:00:00+08:00",
      [(0,0),(1,0),(3,0),(4,0)], "THB"),
-    ("7.25便利店零食Q独占",         350.0,  3, "2026-07-25T23:30:00+08:00",
+    ("7.25便利店零食Q独占",                   350.0,  3, "2026-07-25T23:30:00+08:00",
      [(3, 350.0)], "THB"),
-    ("7.25按摩Ju+Canyina独占",     1600.0,  1, "2026-07-25T22:00:00+08:00",
+    # 解耦 #1: payer=像汤圆一样圆 (idx 4), exclusive=[Ju 800, Canyina 800]
+    ("7.25按摩Ju+Canyina独占(像汤圆付)",     1600.0,  4, "2026-07-25T22:00:00+08:00",
      [(1, 800.0),(2, 800.0)], "THB"),
-    ("7.25WeChat午餐",              280.0,  0, "2026-07-25T17:30:00+08:00",
+    ("7.25WeChat午餐(微信)",                  280.0,  0, "2026-07-25T17:30:00+08:00",
      [(0,0),(1,0),(2,0),(3,0),(4,0)], "CNY"),
-    ("7.25支付宝按摩小费",           60.0,  2, "2026-07-25T22:30:00+08:00",
+    ("7.25支付宝按摩小费",                     60.0,  2, "2026-07-25T22:30:00+08:00",
      [(0,0),(1,0),(2,0)], "CNY"),
 
     # Day 2 — 2026-07-26 (周日, 10 bills, 大皇宫 + 卧佛寺)
-    ("7.26酒店早餐Ju独占",           250.0,  1, "2026-07-26T08:00:00+08:00",
+    ("7.26酒店早餐Ju独占",                    250.0,  1, "2026-07-26T08:00:00+08:00",
      [(1, 250.0)], "THB"),
-    ("7.26打车大皇宫5人",           250.0,  0, "2026-07-26T09:30:00+08:00",
+    ("7.26打车大皇宫5人",                     250.0,  0, "2026-07-26T09:30:00+08:00",
      [(0,0),(1,0),(2,0),(3,0),(4,0)], "THB"),
-    ("7.26大皇宫门票5人",          1000.0,  0, "2026-07-26T10:00:00+08:00",
+    ("7.26大皇宫门票5人",                    1000.0,  0, "2026-07-26T10:00:00+08:00",
      [(0,0),(1,0),(2,0),(3,0),(4,0)], "THB"),
-    ("7.26午餐5人",                 2800.0,  2, "2026-07-26T13:00:00+08:00",
+    ("7.26午餐5人",                          2800.0,  2, "2026-07-26T13:00:00+08:00",
      [(0,0),(1,0),(2,0),(3,0),(4,0)], "THB"),
-    ("7.26下午咖啡圆独占",           220.0,  4, "2026-07-26T15:30:00+08:00",
+    ("7.26下午咖啡圆独占",                    220.0,  4, "2026-07-26T15:30:00+08:00",
      [(4, 220.0)], "THB"),
-    ("7.26打车卧佛寺3人",           180.0,  1, "2026-07-26T16:00:00+08:00",
-     [(0,0),(1,0),(3,0)], "THB"),
-    ("7.26卧佛寺门票5人",           600.0,  1, "2026-07-26T16:30:00+08:00",
+    # 2 人专属 (情侣/搭档) — Jesse + Ju
+    ("7.26打车卧佛寺2人(Jesse+Ju)",            180.0,  1, "2026-07-26T16:00:00+08:00",
+     [(0,0),(1,0)], "THB"),
+    ("7.26卧佛寺门票5人",                     600.0,  1, "2026-07-26T16:30:00+08:00",
      [(0,0),(1,0),(2,0),(3,0),(4,0)], "THB"),
-    ("7.26晚饭中餐5人",             2400.0,  0, "2026-07-26T20:00:00+08:00",
+    ("7.26晚饭中餐5人",                      2400.0,  0, "2026-07-26T20:00:00+08:00",
      [(0,0),(1,0),(2,0),(3,0),(4,0)], "THB"),
-    ("7.26酒吧4人",                 3600.0,  2, "2026-07-26T22:00:00+08:00",
+    ("7.26酒吧4人",                          3600.0,  2, "2026-07-26T22:00:00+08:00",
      [(0,0),(1,0),(3,0),(4,0)], "THB"),
-    ("7.26支付宝按摩后加菜",         128.0,  2, "2026-07-26T21:30:00+08:00",
+    ("7.26支付宝按摩后加菜",                   128.0,  2, "2026-07-26T21:30:00+08:00",
      [(0,0),(1,0),(2,0),(3,0),(4,0)], "CNY"),
 
     # Day 3 — 2026-07-27 (周一, 10 bills, 湄南河 + Asiatique)
-    ("7.27酒店早餐3人",             320.0,  1, "2026-07-27T08:30:00+08:00",
+    ("7.27酒店早餐3人",                       320.0,  1, "2026-07-27T08:30:00+08:00",
      [(0,0),(1,0),(3,0)], "THB"),
-    ("7.27打车湄南河5人",           220.0,  0, "2026-07-27T10:00:00+08:00",
+    ("7.27打车湄南河5人",                     220.0,  0, "2026-07-27T10:00:00+08:00",
      [(0,0),(1,0),(2,0),(3,0),(4,0)], "THB"),
-    ("7.27湄南河船票5人",          1200.0,  0, "2026-07-27T10:30:00+08:00",
+    ("7.27湄南河船票5人",                    1200.0,  0, "2026-07-27T10:30:00+08:00",
      [(0,0),(1,0),(2,0),(3,0),(4,0)], "THB"),
-    ("7.27午饭码头5人",             1800.0,  2, "2026-07-27T13:00:00+08:00",
+    ("7.27午饭码头5人",                      1800.0,  2, "2026-07-27T13:00:00+08:00",
      [(0,0),(1,0),(2,0),(3,0),(4,0)], "THB"),
-    ("7.27下午咖啡Canyina独占",      200.0,  2, "2026-07-27T15:30:00+08:00",
+    ("7.27下午咖啡Canyina独占",               200.0,  2, "2026-07-27T15:30:00+08:00",
      [(2, 200.0)], "THB"),
-    ("7.27打车Asiatique4人",        150.0,  3, "2026-07-27T17:00:00+08:00",
+    ("7.27打车Asiatique4人",                  150.0,  3, "2026-07-27T17:00:00+08:00",
      [(0,0),(1,0),(2,0),(3,0)], "THB"),
-    ("7.27晚餐Asiatique5人",        3200.0,  0, "2026-07-27T20:00:00+08:00",
+    ("7.27晚餐Asiatique5人",                 3200.0,  0, "2026-07-27T20:00:00+08:00",
      [(0,0),(1,0),(2,0),(3,0),(4,0)], "THB"),
-    ("7.27Asiatique摩天轮5人",      1200.0,  4, "2026-07-27T21:00:00+08:00",
+    ("7.27Asiatique摩天轮5人",               1200.0,  4, "2026-07-27T21:00:00+08:00",
      [(0,0),(1,0),(2,0),(3,0),(4,0)], "THB"),
-    ("7.27夜市烧烤4人",             1800.0,  4, "2026-07-27T22:30:00+08:00",
+    ("7.27夜市烧烤4人",                      1800.0,  4, "2026-07-27T22:30:00+08:00",
      [(0,0),(2,0),(3,0),(4,0)], "THB"),
-    ("7.27微信打车",                  88.0,  3, "2026-07-27T18:00:00+08:00",
+    ("7.27微信打车",                           88.0,  3, "2026-07-27T18:00:00+08:00",
      [(0,0),(1,0),(3,0),(4,0)], "CNY"),
 
     # Day 4 — 2026-07-28 (周二, 10 bills, 返程)
-    ("7.28酒店早餐3人",             280.0,  0, "2026-07-28T08:00:00+08:00",
+    ("7.28酒店早餐3人",                       280.0,  0, "2026-07-28T08:00:00+08:00",
      [(0,0),(1,0),(3,0)], "THB"),
-    ("7.28酒店退房前午餐5人",       1500.0,  1, "2026-07-28T11:00:00+08:00",
+    ("7.28酒店退房前午餐5人",                1500.0,  1, "2026-07-28T11:00:00+08:00",
      [(0,0),(1,0),(2,0),(3,0),(4,0)], "THB"),
-    ("7.28打车去机场5人",           350.0,  2, "2026-07-28T12:30:00+08:00",
+    ("7.28打车去机场5人",                     350.0,  2, "2026-07-28T12:30:00+08:00",
      [(0,0),(1,0),(2,0),(3,0),(4,0)], "THB"),
-    ("7.28机场咖啡Jesse独占",        220.0,  0, "2026-07-28T13:30:00+08:00",
+    ("7.28机场咖啡Jesse独占",                 220.0,  0, "2026-07-28T13:30:00+08:00",
      [(0, 220.0)], "THB"),
-    ("7.28机场免税店Q独占",         1500.0,  3, "2026-07-28T14:00:00+08:00",
+    # 解耦 #2: payer=Canyina (idx 2), exclusive consumer=Q (idx 3)
+    ("7.28机场免税店Q独占(Canyina垫付)",     1500.0,  2, "2026-07-28T14:00:00+08:00",
      [(3, 1500.0)], "THB"),
-    ("7.28机场午餐5人",             1200.0,  0, "2026-07-28T15:00:00+08:00",
+    ("7.28机场午餐5人",                      1200.0,  0, "2026-07-28T15:00:00+08:00",
      [(0,0),(1,0),(2,0),(3,0),(4,0)], "THB"),
-    ("7.28机场便利店圆独占",         180.0,  4, "2026-07-28T15:30:00+08:00",
+    # 解耦 #3: payer=Ju (idx 1), exclusive consumer=像汤圆一样圆 (idx 4)
+    ("7.28机场便利店圆独占(Ju垫付)",          180.0,  1, "2026-07-28T15:30:00+08:00",
      [(4, 180.0)], "THB"),
-    ("7.28打车去机场2段",           250.0,  1, "2026-07-28T13:00:00+08:00",
+    ("7.28打车去机场2段",                     250.0,  1, "2026-07-28T13:00:00+08:00",
      [(0,0),(1,0),(2,0),(3,0),(4,0)], "THB"),
-    ("7.28机场晚餐Jesse+Ju独占",     380.0,  0, "2026-07-28T18:00:00+08:00",
+    # 解耦 #4: payer=Q (idx 3), exclusive consumers=[Jesse 190, Ju 190]
+    ("7.28机场晚餐Jesse+Ju独占(Q垫付)",       380.0,  3, "2026-07-28T18:00:00+08:00",
      [(0, 190.0),(1, 190.0)], "THB"),
-    ("7.28支付宝机场免税",           150.0,  3, "2026-07-28T16:00:00+08:00",
+    ("7.28支付宝机场免税",                    150.0,  3, "2026-07-28T16:00:00+08:00",
      [(3, 150.0)], "CNY"),
 ]
-# 共 40 bills: 36 THB (含 8 笔独占) + 4 CNY (含 1 笔独占)
+# 共 40 bills: 35 THB (含 8 笔独占, 4 笔 payer≠consumer 解耦) + 5 CNY (含 1 笔独占)
+
 
 # Auxiliary user accounts backing the non-owner Thailand members.
 # Each entry: (email, default_name). The seed creates the User on first
@@ -299,108 +301,10 @@ def _ensure_user(db: OrmSession, email: str, default_name: str) -> User:
     return user
 
 
-def _ensure_thailand_session(
-    db: OrmSession, owner: User, now: datetime
-) -> tuple[BillSession, list[SessionMember]]:
-    """Find-or-create the Thailand session + its 5 members.
-
-    Returns ``(session, members)``. If the session already exists we
-    fetch and return its current members without mutation. Also seeds
-    the v0.2.2 session_exchange_rates row(s) so the bills in this
-    session can settle without 422 — the Thailand trip's canonical
-    rate was 1 THB ≈ 0.2150 CNY at the time of recording.
-
-    v0.3.14.1 hotfix #2: the rate-seeding strategy differs between the
-    two paths:
-      * existing-session path → ``_maybe_backfill_thailand_rates``
-        (skips if no THB bills exist; the session might be a stray)
-      * new-session path → ``_seed_thailand_rates_always``
-        (bills haven't been created yet, so the has_foreign_bills
-        guard would always short-circuit; this is unconditional)
-    The exchange_rate_snapshot backfill on the bills is handled
-    later by ``_backfill_bill_snapshots`` after
-    ``_seed_thailand_bills`` runs.
-    """
-    session = (
-        db.query(BillSession)
-        .filter(
-            BillSession.name == THAILAND_SESSION_NAME,
-            BillSession.owner_user_id == owner.id,
-        )
-        .first()
-    )
-    if session is not None:
-        members = (
-            db.query(SessionMember)
-            .filter(SessionMember.session_id == session.id)
-            .order_by(SessionMember.id)
-            .all()
-        )
-        # v0.2.2 (T12) + v0.3.14.1 hotfix #2: For an EXISTING session,
-        # only seed rates if there are actual THB bills to settle. The
-        # migration's data backfill only fires once during alembic
-        # upgrade, so a re-seeded DB that lost its rates would 422
-        # otherwise.
-        _maybe_backfill_thailand_rates(db, session, owner)
-        # v0.3.14.1 hotfix #2: also repair the `currencies` JSON if it
-        # was left at the model default ["CNY"] by an earlier seed run
-        # (pre-hotfix the session was always created with no explicit
-        # `currencies` arg, so it inherited the default). The bills
-        # are THB — the echo must reflect that for the FE.
-        if "THB" not in (session.currencies or []):
-            session.currencies = ["CNY", "THB"]
-            db.flush()
-        return session, members
-
-    session = BillSession(
-        name=THAILAND_SESSION_NAME,
-        owner_user_id=owner.id,
-        invite_token="thailand-test-2026-07-01-xinhua",
-        invite_expires_at=now + timedelta(days=30),
-        invite_created_at=now,
-        session_code=_generate_session_code(),
-        # v0.3.14.1 hotfix #2: this session will hold 27 THB bills, so
-        # declare both currencies up front. Without this, the session
-        # is born with currencies=["CNY"] (model default) and the
-        # settle API's `currencies` echo returns ["CNY"], which leaves
-        # the FE "原始数据" radio disabled (single-currency mode).
-        currencies=["CNY", "THB"],
-        primary_currency="CNY",
-    )
-    db.add(session)
-    db.flush()
-
-    # Resolve each member's owner user. Index 0 is the test user;
-    # indices 1..4 are the auxiliary accounts (already ensured).
-    aux_by_email = {
-        email: _ensure_user(db, email, default_name)
-        for email, default_name in THAILAND_AUX_USERS
-    }
-
-    members: list[SessionMember] = []
-    for display_name, role, owner_email in THAILAND_MEMBERS:
-        if owner_email:
-            member_user = aux_by_email[owner_email]
-        else:
-            member_user = owner
-        sm = SessionMember(
-            session_id=session.id,
-            user_id=member_user.id,
-            display_name=display_name,
-            role=role,
-        )
-        db.add(sm)
-        members.append(sm)
-    db.flush()
-    # v0.3.14.1 hotfix #2: Unconditionally seed rates for a newly
-    # created session. ``_seed_thailand_bills`` runs AFTER this, so a
-    # has_foreign_bills check would always be False. The session is
-    # Thailand by construction, so always inserting the canonical
-    # THB<->CNY pair is the right default. The exchange_rate_snapshot
-    # backfill on the (about-to-be-created) bills is handled later by
-    # ``_backfill_bill_snapshots``.
-    _seed_thailand_rates_always(db, session, owner)
-    return session, members
+# (Legacy ``_ensure_thailand_session`` removed in v0.3.x /
+#  UAT #0723-3 #5 — the ``6.19-6.22`` Thailand session was retired.
+#  THAILAND2 is the sole canonical multi-bill session now; see
+#  ``_ensure_thailand2_session`` below.)
 
 
 # v0.2.2 (T12): the canonical THB<->CNY rate the test suite recorded
@@ -418,13 +322,13 @@ def _seed_thailand_rates_always(
     """Unconditionally insert THB<->CNY rates for the Thailand session.
 
     v0.3.14.1 hotfix #2: a newly created session has no bills yet at
-    this point (``_seed_thailand_bills`` runs AFTER this), so the
+    this point (``_seed_thailand2_bills`` runs AFTER this), so the
     has_foreign_bills guard that ``_maybe_backfill_thailand_rates``
     uses would always return False. We just always insert the rates
     here — the session IS Thailand by construction, the rates are
     idempotent, and the snapshot backfill on bills is handled later
     by ``_backfill_bill_snapshots`` (which runs after
-    ``_seed_thailand_bills``).
+    ``_seed_thailand2_bills``).
 
     Safe to call multiple times — early-returns when rate rows
     already exist. ``db.commit()`` is the caller's job; we only
@@ -606,57 +510,6 @@ def _backfill_bill_snapshots(db: OrmSession, session_id: int) -> None:
     )
 
 
-def _seed_thailand_bills(
-    db: OrmSession,
-    session: BillSession,
-    members: list[SessionMember],
-    now: datetime,
-) -> int:
-    """Create 27 bills (25 THB + 5 CNY) for the Thailand session.
-
-    Returns the number of bills created (0 if they already exist — we
-    never recreate). Idempotent: only inserts when there are no bills
-    yet for this session.
-    """
-    existing_count = (
-        db.query(Bill).filter(Bill.session_id == session.id).count()
-    )
-    if existing_count > 0:
-        return 0
-
-    thailand_bills = THAILAND_BILLS
-    for i, entry in enumerate(thailand_bills):
-        desc = entry[0]
-        amount = entry[1]
-        payer_idx = entry[2]
-        occurred_iso = entry[3]
-        pax_indices = entry[4]
-        occurred = datetime.fromisoformat(occurred_iso)
-        bill = Bill(
-            session_id=session.id,
-            payer_id=members[payer_idx].id,
-            amount=amount,
-            currency=entry[5] if len(entry) > 5 else "THB",
-            description=desc,
-            occurred_at=occurred,
-            created_by=session.owner_user_id,
-            created_at=now,
-            status="draft",
-        )
-        db.add(bill)
-        db.flush()
-        for pax_idx in pax_indices:
-            bp = BillParticipant(
-                bill_id=bill.id,
-                member_id=members[pax_idx].id,
-                is_exclusive=False,
-                exclusive_amount=0.0,
-            )
-            db.add(bp)
-    return len(thailand_bills)
-
-
-# --------------------------------------------------------------------------- #
 # Thailand #2 session lifecycle (v0.3.25 #17):
 #   - _ensure_thailand2_session: find-or-create 2nd Thailand session
 #     with same 5-member roster as session #1 (idempotent User rows).
@@ -668,9 +521,9 @@ def _ensure_thailand2_session(
 ) -> tuple[BillSession, list[SessionMember]]:
     """Find-or-create Thailand #2 session + its 5 members (idempotent).
 
-    Mirrors the lifecycle of ``_ensure_thailand_session`` (rates seeded
-    unconditionally, currencies declared up front, 5-member roster
-    resolved from the same auxiliary User rows used by session #1).
+    Sole canonical multi-bill session since v0.3.x / UAT #0723-3 #5.
+    Rates seeded unconditionally, currencies declared up front,
+    5-member roster resolved from the same auxiliary User rows.
     """
     session = (
         db.query(BillSession)
@@ -694,6 +547,39 @@ def _ensure_thailand2_session(
         if "THB" not in (session.currencies or []):
             session.currencies = ["CNY", "THB"]
             db.flush()
+        # v0.3.x / UAT #0723-3 #5: if the session exists but the
+        # member roster is empty (e.g. we just truncated members + bills
+        # for a fresh reseed of the same session), recreate the 5-member
+        # roster using the same auxiliary User rows as the new-session
+        # path. Without this, _seed_thailand2_bills would crash with
+        # IndexError because the members list would be empty when the
+        # bills loop tries to look up payer / participant IDs.
+        if not members:
+            aux_by_email = {
+                email: _ensure_user(db, email, default_name)
+                for email, default_name in THAILAND_AUX_USERS
+            }
+            new_members: list[SessionMember] = []
+            for display_name, role, owner_email in THAILAND_MEMBERS:
+                if owner_email:
+                    member_user = aux_by_email[owner_email]
+                else:
+                    member_user = owner
+                sm = SessionMember(
+                    session_id=session.id,
+                    user_id=member_user.id,
+                    display_name=display_name,
+                    role=role,
+                )
+                db.add(sm)
+                new_members.append(sm)
+            db.flush()
+            members = (
+                db.query(SessionMember)
+                .filter(SessionMember.session_id == session.id)
+                .order_by(SessionMember.id)
+                .all()
+            )
         return session, members
 
     session = BillSession(
@@ -832,39 +718,30 @@ def seed_dev_data(db: OrmSession | None = None) -> dict[str, Any]:
         # 1. Main test user (xinhua1001) — owner of all seeded sessions.
         xinhua = _ensure_user(db, TEST_USER_EMAIL, default_name="Jesse")
 
-        # 2. Thailand session + 5 members + 27 bills.
-        thailand, thailand_members = _ensure_thailand_session(db, xinhua, now)
-        bills_created = _seed_thailand_bills(db, thailand, thailand_members, now)
+        # 2. v0.3.x / UAT #0723-3 #5 (PO msg #8645): Thailand #2
+        #    session is the **sole** canonical multi-bill session.
+        #    5 members + 40 bills (35 THB + 5 CNY) covering every
+        #    member's payer + shared-consumer + exclusive-consumer
+        #    roles, plus 4 payer≠consumer 解耦 examples.
+        thailand2, thailand2_members = _ensure_thailand2_session(db, xinhua, now)
+        bills_created_v2 = _seed_thailand2_bills(db, thailand2, thailand2_members, now)
 
         # 3. Personal session (1 owner-member, no bills).
         personal = _ensure_personal_session(db, xinhua, now)
 
         # 4. v0.2.2 (T12): re-apply the snapshot backfill now that the
-        #    rates exist, so newly seeded Thailand bills have a non-NULL
+        #    rates exist, so newly seeded THB bills have a non-NULL
         #    exchange_rate_snapshot (the migration's backfill runs at
         #    alembic upgrade time, which is a separate step from the
         #    runtime seed). Keep this idempotent — UPDATE just leaves
         #    already-populated rows alone when the rate still matches.
-        _backfill_bill_snapshots(db, thailand.id)
-
-        # 5. v0.3.25 #17 (PO msg 16:35 #17, 2026-07-23): Thailand #2
-        #    session — 4-day weekend trip (2026-07-25 ~ 2026-07-28) with
-        #    40 bills (36 THB + 4 CNY) covering every member's
-        #    payer + participant + exclusive roles. Members + aux Users
-        #    are shared with Thailand #1 (idempotent). Snapshot backfill
-        #    re-applied the same way so THB bills settle cleanly.
-        thailand2, thailand2_members = _ensure_thailand2_session(db, xinhua, now)
-        bills_created_v2 = _seed_thailand2_bills(db, thailand2, thailand2_members, now)
         _backfill_bill_snapshots(db, thailand2.id)
 
         db.commit()
         return {
             "xinhua_user_id": xinhua.id,
-            "thailand_session_id": thailand.id,
             "thailand2_session_id": thailand2.id,
             "personal_session_id": personal.id,
-            "bills_created": bills_created,
-            "bill_count_target": len(THAILAND_BILLS),
             "thailand2_bills_created": bills_created_v2,
             "thailand2_bill_count_target": len(THAILAND2_BILLS),
         }
