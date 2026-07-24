@@ -396,7 +396,7 @@
       tabindex={rightProgress >= 1 ? 0 : -1}
       aria-hidden={rightProgress <= 0}
       aria-label="删除账本: {session.name}"
-      on:click={onSwipeDelete}
+      on:click|stopPropagation={onSwipeDelete}
     >
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <polyline points="3 6 5 6 21 6"/>
