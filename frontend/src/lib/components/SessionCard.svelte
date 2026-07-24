@@ -261,7 +261,21 @@
     window.removeEventListener('mouseup', onWindowMouseUp);
   }
 
-  function onRowTap(e: MouseEvent | TouchEvent) {
+  function onWrapClick(e: MouseEvent) {
+    // v0.3.28 UAT 0724-1 #3 续修 3: mouseup 触发的 synthetic click event 在 wrap
+    // (target === currentTarget), SvelteKit router 看 wrap descendant <a> → 误判
+    // navigation → /s/{code} → SessionCard unmount → button DOM 消失.
+    // 修法: wrap 自身 click 直接 preventDefault + stopPropagation, 让 SvelteKit
+    // router 看不到 (router 拦截的是 child <a> 的 click, wrap self-click 不该
+    // 触发 nav). user 主动点 child (e.g. 标题) → click event 在 child fire,
+    // target != wrap → guard 不触发 → 正常 bubble 到 <a> → navigate.
+    if (e.target === e.currentTarget) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    // v0.3.28 UAT 0724-1 #3 续修 2 (上一 commit): user tap child 不是 delete-btn →
+    // 关 swipe (cancelDrag). wrap self-click 已在上方 guard 拦下.
     const curOpen = get(openSwipeIdStore);
     if (curOpen !== null) {
       const target = e.target as HTMLElement;
@@ -378,6 +392,7 @@
   on:touchend={onTouchEnd}
   on:touchcancel={onTouchCancel}
   on:mousedown={onMouseDown}
+  on:click={onWrapClick}
   role="group"
   aria-label="账本: {session.name}"
 >
