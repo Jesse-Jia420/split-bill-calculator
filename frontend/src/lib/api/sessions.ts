@@ -264,6 +264,14 @@ export interface SessionMemberPreview {
   claimed_at: string | null;
   /** Only present for anon-claimed slots (user_id === null). */
   nickname_secret: string | null;
+  /**
+   * v0.3.x (UAT #0723-3 #2 续): the bound user's email, surfaced by
+   * GET /sessions/{id}/preview so the /join page can render
+   * "已被 {masked_email} 绑定" for anon visitors. Null for unbound
+   * (anon-created placeholder) slots. Optional so older FE builds that
+   * don't yet read it stay compile-clean.
+   */
+  email?: string | null;
 }
 
 export interface SessionPreview {

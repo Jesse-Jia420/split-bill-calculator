@@ -333,10 +333,18 @@ class SessionMemberOut(BaseModel):
 class SessionPreviewMember(BaseModel):
     """One slot in the session preview.
 
-    No secrets (no nickname_secret, no email). No joined_at (preview is
-    for the /join page which only cares about the slot identity + claim
-    state). The ``display_name`` and ``role`` are sufficient for /join's
-    "select your nickname" UI.
+    Public-safe subset of session_members: nickname_secret / joined_at
+    are excluded. email is optional - included only when the slot is
+    bound to a real user account (user_id != null). For unbound slots
+    (anon-created placeholders awaiting claim) email stays None.
+
+    v0.3.x (UAT #0723-3 #2 续): let the /join page's "已被 {email} 绑定"
+    text and avatar+nickname+email rendering work for anon visitors,
+    who reach this branch when getSession() 403s and they fall back to
+    the public preview endpoint. Email exposure here is acceptable
+    because (a) the FE masks it down to local-prefix(3) + *** + domain,
+    and (b) the same email is already exposed via the session-detail
+    endpoint once the anon user authenticates.
     """
 
     id: int
@@ -346,6 +354,8 @@ class SessionPreviewMember(BaseModel):
     is_anon: bool
     # ISO datetime string; null when the slot has never been claimed.
     claimed_at: str | None
+    # v0.3.x (UAT #0723-3 #2 续): see class docstring.
+    email: str | None = None
 
 
 class SessionPreview(BaseModel):
@@ -883,17 +893,20 @@ async def get_session_preview(
             detail={"error": "session not found"},
         )
 
-    # Pull every slot. No JOIN needed -- we don't expose email here, so
-    # the User table is irrelevant for this endpoint.
-    members_rows = (
-        db.query(SessionMember)
+    # Pull every slot. LEFT OUTEr JOIN User so we can surface email
+    # for user-bound slots (v0.3.x UAT #0723-3 #2 续) without a second
+    # round-trip per slot. Unbound slots (user_id IS NULL) get email=None
+    # (LEFT JOIN produces NULL on the right side for missing rows).
+    sm_user_pairs = (
+        db.query(SessionMember, User)
+        .outerjoin(User, User.id == SessionMember.user_id)
         .filter(SessionMember.session_id == session.id)
         .order_by(SessionMember.claimed_at.is_(None).desc(), SessionMember.id.asc())
         .all()
     )
 
     members_payload: list[dict] = []
-    for sm_row in members_rows:
+    for sm_row, user_row in sm_user_pairs:
         members_payload.append(
             {
                 "id": sm_row.id,
@@ -903,6 +916,10 @@ async def get_session_preview(
                 "is_anon": bool(sm_row.is_anon),
                 # None for unclaimed slots; ISO string once claimed.
                 "claimed_at": _iso(sm_row.claimed_at) if sm_row.claimed_at else None,
+                # v0.3.x (UAT #0723-3 #2 续): surface the bound user's
+                # email so the FE can render "已被 {masked_email} 绑定".
+                # None when the slot has no user (anon-created placeholder).
+                "email": user_row.email if user_row else None,
             }
         )
 
