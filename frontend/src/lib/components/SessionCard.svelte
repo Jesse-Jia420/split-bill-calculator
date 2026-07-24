@@ -134,6 +134,7 @@
   let dragStartY = 0;
   let dragLastX = 0;
   let dragAxis: 'h' | 'v' | null = null;
+  let lastDragEndTime = 0;
 
   // v0.3.28 UAT 0724-1 #3: 跟 BillListGrouped 同步, ACTION_WIDTH = 56 (Apple HIG
   // ≥ 44pt, 56 跟 row 高度协调). 但 SessionCard 删账按钮 #2 修复时是 28×28 真圆
@@ -214,6 +215,7 @@
     dragStartX = 0;
     dragStartY = 0;
     dragLastX = 0;
+    lastDragEndTime = Date.now();
   }
 
   function cancelDrag(id: number) {
@@ -392,7 +394,7 @@
   on:touchend={onTouchEnd}
   on:touchcancel={onTouchCancel}
   on:mousedown={onMouseDown}
-  on:click|capture={onWrapClick}
+  on:click={onWrapClick}
   role="group"
   aria-label="账本: {session.name}"
 >
