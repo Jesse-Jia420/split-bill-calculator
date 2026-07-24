@@ -5617,3 +5617,91 @@ svelte-check: 2 errors / 20 warnings (baseline 同, 0 new error)
 - **anon availableSlots 没 email** — 已实现 (`{#if (slot as SessionMember).email}` 条件渲染, unbound slot email=null 自动隐藏), 但 sandbox session 9 全 bound 没 unbound slot 测不到 DOM path 反向验. 模板逻辑等价, 跟 #2 bound 同源. 如要绝对真机, 可下次 wizard 创建 unbound slot 后验.
 - **「已被 {email} 绑定」文案** — 沿用 v0.3.28 #2 (PO 字面 "已被 {email} 绑定"), 不变.
 - **maskEmail 函数继续单测** — 实现 + Playwright DOM 全覆盖, 无新单测.
+
+### v0.3.x — UAT #0723-3 #3: Session URL hash (session_code) (Coder 自写自验 已走 ✓)
+
+- [x] **修法** (PO spec #8645 "只接新. 没有外部链接."):
+  - 新 UI 链接: `/s/{session_code}` 格式 (10 字符 unguessable, BE alphabet
+    "ABCDEFGHJKLMNPQRSTUVWXYZ23456789", ~10^15 entropy).
+  - 老 URL `/sessions/{id}`: 保持工作, **不删除** (UI 不再生成但兼容 — 用户
+    书签/外部分享进仍可访问, 向后兼容).
+  - FE-only 改动, **不改 BE** (BE SessionSummary/Detail/SessionPreview 从
+    v0.3.1 起已暴露 session_code 字段).
+  - **不迁移老 session** — 不重写 DB, 不批量改 URL.
+- [x] **4 个新 mirror redirect 文件** (在 `/s/[code]/` 下, 解析 code 跳
+  `/sessions/{id}/...`):
+  - `frontend/src/routes/s/[code]/settle/+page.svelte` — 透传 `#personal` hash
+  - `frontend/src/routes/s/[code]/bills/new/+page.svelte`
+  - `frontend/src/routes/s/[code]/bills/[billId]/edit/+page.svelte`
+  - `frontend/src/routes/s/[code]/join/+page.svelte`
+  - 每个加 BUG-V031-A 403 处理 (anon 非成员 → 跳 `/sessions/{sid}/join`,
+    跟主入口 `/s/[code]/+page.svelte` 同源).
+- [x] **现有 `/s/[code]/+page.svelte`**: 保留所有 redirect logic, 加 UAT 注释.
+- [x] **改 7 处 UI href/goto**:
+  - `SessionCard.svelte:196` (6 个 card-link 全改)
+  - `sessions/[id]/+page.svelte` 5 处 (login returnTo / settle / settle#personal /
+    bills/new / 非成员 join redirect)
+  - `sessions/[id]/bills/new/+page.svelte:59,83` (handleSubmit + back-btn)
+  - `sessions/[id]/bills/[billId]/edit/+page.svelte:54,82` (handleSubmit + back-btn)
+  - `sessions/[id]/settle/+page.svelte:132,170` (非成员 redirect + back-btn)
+  - `sessions/[id]/join/+page.svelte:88,103,160,187` (4 gotos)
+  - `sessions/new/+page.svelte:155` (wizard 创建完成 → /s/{code})
+  - `invites/[token]/+page.svelte` Case A + B (2 gotos, 用 verified.session_code)
+- [x] **TS types**: `SessionSummary.session_code?: string` (optional, 老 client fallback)
+  + `SessionPreview.session_code?: string`. 这修了一个 pre-existing svelte-check
+  error (SessionDetail.session_code 缺失), baseline 4 errors → 3 errors.
+- [x] **Playwright iPhone 13 @3x 真机 walk** (`frontend/scripts/v0723-3-3-url-hash-verify.cjs`,
+  22 项 assertion 全 pass, exitCode=0):
+  - Step 1-2: login via BE API + cookie jar, `/sessions` 列表返回 6 sessions
+    + session 9 session_code="64BZQNX9NU"
+  - Step 3: 6 个 `a.card-link` href 全部 `/s/{10-char-code}` (新格式), 无 `/sessions/{digit}`
+  - Step 4: click SessionCard → URL bar `/s/{code}` → 透传 redirect → `/sessions/9`
+  - Step 5: session 9 detail 页正常 render (invite-btn / bills-section / members-section / settle-link 全在)
+  - Step 6: 直接 navigate `/s/64BZQNX9NU/settle` → URL = `/sessions/9/settle` ✓
+  - Step 7: `/s/64BZQNX9NU/settle#personal` → URL = `/sessions/9/settle#personal` (hash 透传) ✓
+  - Step 8: `/s/64BZQNX9NU/bills/new` → URL = `/sessions/9/bills/new` ✓
+  - Step 9: anon path `/s/64BZQNX9NU/join` (清 cookie) → 403 → redirect → URL = `/sessions/9/join` ✓
+  - Step 10: 向后兼容 — 直接 `/sessions/9` 仍渲染详情页 (不 redirect), settle link
+    href = `/s/64BZQNX9NU/settle` (新格式) ✓
+- [x] **5 PNG 截图** 存 `~/.openclaw/media/browser/v0723-3-3-url-hash/`:
+  - 01-sessions-list-card-link.png (6 个 card-link 视觉)
+  - 02-after-click-url-bar.png (detail 页 render 视觉)
+  - 03-settle-page-via-s-code.png (settle 页 render 视觉)
+  - 04-bills-new-via-s-code.png (bills/new 页 render 视觉)
+  - 05-backward-compat-sessions-id.png (老 URL `/sessions/9` 仍 work)
+  - image tool 视觉确认: sessions 列表 6 个卡片布局清晰, owner badge + 头像组 +
+    delete icon + 日期 都在; detail 页 render 完整 (5 成员 / 40 笔 / settle/personal 按钮).
+  - 注: PWA 模式隐藏 URL bar, 但 Playwright `page.url()` 程序化验过 URL 变化.
+- [x] **svelte-check**: 3 errors / 20 warnings (baseline 4 → 3, **净减 1** —
+  pre-existing error `+page.svelte:553 SessionDetail.session_code missing`
+  因类型加 session_code 自动修好; 新增 0 error. 剩 3 个 pre-existing 跟本次无关:
+  `join/+page.svelte:32 SessionPreviewMember import alias` + `settle/+page.svelte:104
+  session is possibly null × 2`).
+- [x] **vite build**: ✓ 32.29s 0 error.
+- [x] **dev server 反 #159/#160** (验证脚本期间一直在跑, vite HMR 自动 reload,
+  无需 restart): PID 113996 vite + PID 123027 uvicorn 都 detached (PPID=1).
+- [x] **单分支铁律**: origin 仅有 main (2 commits: `b96252a` + `cb7dbb9`,
+  push e1d027d..cb7dbb9 成功).
+- [x] **反 #150 ✅ Coder 自写自验** (Playwright 程序化 + DOM 22 项 check + URL bar
+  programmatic + 向后兼容验证 + vite build + svelte-check 净减 + image tool 视觉 六证).
+- [x] **反 #162 ✅ §11 sync 与 fix commits 同一 batch** (2 commits + §11 sync).
+- [x] **反 #167 ✅ iPhone 13 真机 profile** (390×844 @3x, webkit, locale zh-CN).
+- [x] **反 #170 ✅ codeserver_exec_clean.js** (用 clean 版写 /s/[code]/* redirect
+  文件, 避免 8 字节 binary header 污染).
+- [x] **反 #189 ✅ SPEC append 用 heredoc** (不用 sed 多匹配).
+- [x] **反 #53 ✅ Gitea PAT token-only URL** (沿用旧 token, push 成功).
+
+### v0.3.x — UAT #0723-3 #3 排除范围 (本任务不修, 待 PO 决定)
+- **`/sessions/{id}/settle` 直接访问** — 老 URL 仍渲染详情页, settle link 用新
+  `/s/{code}/settle` 格式 (从 SessionCard 路径上的 link). 已实测.
+- **`/s/{code}` 老 session (没 session_code 字段)** — sandbox 当前 session 都从
+  v0.3.1 后创建, 都已有 session_code. 老 session (无字段) 的 fallback 是
+  `String(session.id)`, 仍跳到 `/s/{id}` 这种数字 URL 但 BE 找不到 404 — 这是
+  不可避免的兼容边界. 可下次 BE migration 加 batch 后扫老 session 补 field.
+- **anon invite link 格式** — `/invites/{token}` 仍用 token 格式 (per PO spec
+  "没有外部链接" — 内部 share token 不改). 仅 session URL 改 hash.
+- **`/sessions/{id}` 完全删除** — 不删 (向后兼容, UI 不再生成但用户书签进仍 work).
+  下次 sprint 大改 URL 路径时再决定删不删.
+- **svelte-check 剩 3 errors** — 全是 pre-existing (SessionPreviewMember import
+  alias + settle/+page.svelte:104 `session is possibly null × 2`), 跟本次任务无关,
+  不在本次范围.
