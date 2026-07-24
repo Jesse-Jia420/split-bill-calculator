@@ -302,13 +302,31 @@
       // iOS Safari: 三次重试 scrollIntoView (rAF 立即 + 350ms + 700ms), 等 keyboard
       // 异步起来后再调一次. block:'nearest' 最小滚动避免 input 被推到 main 中部反而
       // 越过 viewport. 配合 .pill-input { scroll-margin-bottom: 280px } + form
-      // .stack { padding-bottom: 280px } 给 input 底部留足够空间.
+      // .stack { padding-bottom: 200px } (#7: 减 80px, 改靠 visualViewport 监听
+      // 动态算) 给 input 底部留足够空间.
+      //
+      // v0.3.28 UAT 0724-1 #8: 进一步加 visualViewport.resize 监听. iOS Safari
+      // 真 keyboard 起来时触发 visualViewport resize 事件 (keyboard 高度 = window.
+      // innerHeight - visualViewport.height), 此时再 scrollIntoView 让 input 滚到
+      // visualViewport 可见区. visualViewport 是 iOS keyboard 起来的权威信号源
+      // (比 setTimeout(700) 准确). 1.5s 后自动移除监听器 (避免长期占用).
+      // Android 不受影响 (Android keyboard resize 触发同一 listener, 但 Android
+      // chrome 自动 scrollIntoView 已正确, 重复 scrollIntoView 无副作用).
       const scrollIntoView = () => {
         input.scrollIntoView({ block: 'nearest', behavior: 'auto' });
       };
       requestAnimationFrame(scrollIntoView);
       setTimeout(scrollIntoView, 350);
       setTimeout(scrollIntoView, 700);
+      if (typeof window !== 'undefined' && window.visualViewport) {
+        const vvHandler = () => scrollIntoView();
+        window.visualViewport.addEventListener('resize', vvHandler);
+        setTimeout(() => {
+          if (window.visualViewport) {
+            window.visualViewport.removeEventListener('resize', vvHandler);
+          }
+        }, 1500);
+      }
     }
   }
 
@@ -1017,7 +1035,14 @@
      让最下边成员 input focus + keyboard 起来时, scrollIntoView 能把 input 顶到
      keyboard 上方. iPhone 13 keyboard ~295px, 余量 15px 安全. */
   .stack {
-    padding-bottom: 280px;
+    /* v0.3.28 UAT 0724-1 #7: padding-bottom 280 → 200 (-80px).
+     * 原 280px 是 v0.3.25 Top #2 配合 iOS keyboard ~295px 减 15px 余量给
+     * .pill-input scroll-margin-bottom: 280px 用. 但 280px 在 form 没填到
+     * 最下边时 (短账单列表 / 短描述) 视觉下方空白太多. 减到 200px 给
+     * #8 (iOS keyboard 修法用 visualViewport resize listener, 不再依赖
+     * 280px 静态 padding) 留足滚动距离. Android 不受影响 (chrome 自动
+     * scrollIntoView 已经正确处理 keyboard). */
+    padding-bottom: 200px;
   }
 
   /* v0.3.21 #110 (PO msg 18:46): <input type="datetime-local"> 在 iOS Safari
@@ -1038,7 +1063,8 @@
      兜底. */
   input[type="datetime-local"]#occurredAt {
     min-width: 0;
-    max-width: min(240px, 100%);
+    max-width: 100%; /* v0.3.28 UAT 0724-1 #4: 删 min(240px, 100%) → 单纯 100%. iPhone 13 实测 parent 156px (flex:1 + min-width:0), min(240, 100%) → 156. 但 iOS Safari datetime-local native widget minimum content ~200px (picker icon 30px + locale-formatted content ~140px), 156px 容器下 widget 渲染会溢出 input 框. 改 max-width: 100% + width: 100% 让 input 始终等于 container 宽度, 不超 parent (parent flex:1 + min-width:0 自带伸缩). padding-inline 12 32px 保留 (v0.3.24 Top #1 容纳 picker indicator). 修后任何 viewport 都不超 form. */
+    width: 100%;
     padding-block: 8px;
     padding-inline: 12px 32px; /* v0.3.24 Top #1: 右侧加 32px padding 容纳 iOS Safari picker indicator (~30px), 避免 calendar icon 被截断/溢出. Chrome/Firefox 不受影响 (它们 picker 在 input 外部弹层). */
     font-size: 15px;
