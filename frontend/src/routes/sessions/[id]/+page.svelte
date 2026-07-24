@@ -1796,12 +1796,29 @@
        在视觉中央. --bills-search-h 60px 不变 (那是 region 计算用, search 高度
        仍是 50px, 实际 region 高度由 BillListGrouped 偏移自行处理). */
     padding: 13px var(--space-3) 13px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md, 8px);
+    color: var(--gray-500);
+  }
+  /* v0.3.28 (UAT 0723-2 #7 测试不通过修复): 玻璃背景移到 ::before, 负 top/bottom
+     偏移覆盖搜索框上下 padding 区域 (上方 .bills-card-head margin-bottom 12px +
+     下方 BillListGrouped 间隔). 之前 backdrop-filter 只在 .bills-search 本体内
+     生效, gap 区域透明, 内容从缝隙漏出. 现在 ::before 在 z-index:-1 占满
+     -12px 到 +height+12px 区域, 玻璃 + blur 覆盖整个 padding. */
+  .bills-search::before {
+    content: '';
+    position: absolute;
+    top: -12px;
+    bottom: -12px;
+    left: 0;
+    right: 0;
     background: rgba(255, 255, 255, 0.55);
     backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
     border: 1px solid var(--color-border, #e5e7eb);
     border-radius: var(--radius-md, 8px);
-    color: var(--gray-500);
+    z-index: -1;
   }
   @supports not (backdrop-filter: blur(1px)) {
     .bills-search {
