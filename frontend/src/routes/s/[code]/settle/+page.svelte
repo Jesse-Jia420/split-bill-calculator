@@ -39,6 +39,12 @@
       // 透传 hash (e.g. #personal for 个人视图 tab)
       await goto('/sessions/' + session.id + '/settle' + (page.url.hash || ''), { replaceState: true });
     } catch (e: any) {
+      // BUG-V031-A: anon 非成员 → 跳 /join (跟 /s/[code]/+page.svelte 主入口同源)
+      const sidFromDetail = e?.detail?.detail?.session_id ?? e?.detail?.session_id;
+      if (e?.status === 403 && sidFromDetail) {
+        await goto('/sessions/' + sidFromDetail + '/join', { replaceState: true });
+        return;
+      }
       error = e?.message ?? '加载失败';
       loading = false;
     }
