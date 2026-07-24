@@ -112,6 +112,167 @@
   import { goto } from "$app/navigation";
   import { toast } from "$stores/toast";
   import { removeSession } from "$stores/sessions";
+  import { writable, get, type Writable } from "svelte/store";
+
+  // v0.3.28 UAT 0724-1 #3 (PO 拍板 "swipe 才出现"): 删除按钮从 always-visible 改为
+  // 左滑才出现 (跟 BillListGrouped 账单 item swipe gesture 同款). 复用其 store + 6 函数
+  // 模板 (dragOffsetStore / swipeOffsetStore / isDraggingStore / openSwipeIdStore +
+  // startDrag/moveDrag/endDrag/cancelDrag/onTouchStart/onTouchMove/onTouchEnd/onTouchCancel/
+  // onMouseDown/onWindowMouseMove/onWindowMouseUp + rubberBandProgress).
+  // SessionCard 跟 BillListGrouped 唯一不同:
+  //   - key 用 session.id (SessionCard 一张卡一个 session, 账单 item 一个 bill)
+  //   - 只有 right swipe action (左滑 = 右边缘显红删除按钮, 跟账单 item 删账动作一致)
+  //   - 没左滑 edit action (账本 item 没有 edit 概念)
+  // 单分支铁律 + 删 owner-only 守卫跟 #2 一致 (session.role === 'owner').
+  const dragOffsetStore: Writable<Record<number, number>> = writable({});
+  const swipeOffsetStore: Writable<Record<number, number>> = writable({});
+  const isDraggingStore: Writable<Record<number, boolean>> = writable({});
+  const openSwipeIdStore: Writable<number | null> = writable(null);
+
+  let dragId: number | null = null;
+  let dragStartX = 0;
+  let dragStartY = 0;
+  let dragLastX = 0;
+  let dragAxis: 'h' | 'v' | null = null;
+
+  // v0.3.28 UAT 0724-1 #3: 跟 BillListGrouped 同步, ACTION_WIDTH = 56 (Apple HIG
+  // ≥ 44pt, 56 跟 row 高度协调). 但 SessionCard 删账按钮 #2 修复时是 28×28 真圆
+  // (always-visible 设计意图), 现在 supersede 为 swipe-style 56×56. min-height: 0
+  // 覆盖全局 button min-height: 44px 跟 #2 同样的修法.
+  const ACTION_WIDTH = 56;
+  const SWIPE_THRESHOLD = 60;
+  const TAP_THRESHOLD = 10;
+
+  function rubberBandProgress(rowOffset: number): number {
+    const abs = Math.abs(rowOffset);
+    if (abs <= ACTION_WIDTH) return abs / ACTION_WIDTH;
+    const overshoot = abs - ACTION_WIDTH;
+    return 1 + (1 - Math.exp(-overshoot / 30)) * 0.5;
+  }
+
+  function getRowOffset(id: number): number {
+    const dragging = get(isDraggingStore)[id];
+    const dragVal = get(dragOffsetStore)[id] ?? 0;
+    const swipeVal = get(swipeOffsetStore)[id] ?? 0;
+    return dragging ? dragVal : swipeVal;
+  }
+
+  function startDrag(id: number, clientX: number, clientY: number) {
+    dragId = id;
+    dragStartX = clientX;
+    dragStartY = clientY;
+    dragLastX = clientX;
+    dragAxis = null;
+    const curOpen = get(openSwipeIdStore);
+    if (curOpen !== null && curOpen !== id) {
+      swipeOffsetStore.update((o) => ({ ...o, [curOpen]: 0 }));
+      openSwipeIdStore.set(null);
+    }
+    const baseOffset = get(swipeOffsetStore)[id] ?? 0;
+    dragOffsetStore.update((o) => ({ ...o, [id]: baseOffset }));
+    isDraggingStore.update((o) => ({ ...o, [id]: true }));
+  }
+
+  function moveDrag(id: number, clientX: number, clientY: number, e?: MouseEvent | TouchEvent) {
+    if (dragId !== id) return;
+    const dx = clientX - dragStartX;
+    const dy = clientY - dragStartY;
+
+    if (dragAxis === null) {
+      if (Math.abs(dx) < TAP_THRESHOLD && Math.abs(dy) < TAP_THRESHOLD) return;
+      dragAxis = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v';
+      if (dragAxis === 'h' && e && 'cancelable' in e && e.cancelable) {
+        e.preventDefault();
+      }
+    }
+
+    if (dragAxis === 'v') return;
+    if (Math.abs(dx) < TAP_THRESHOLD && (get(swipeOffsetStore)[id] ?? 0) === 0) return;
+
+    dragLastX = clientX;
+    let next = (get(swipeOffsetStore)[id] ?? 0) + (clientX - dragStartX);
+    if (next > 300) next = 300;
+    if (next < -300) next = -300;
+    dragOffsetStore.update((o) => ({ ...o, [id]: next }));
+  }
+
+  function endDrag(id: number) {
+    if (dragId !== id) return;
+    const finalOffset = get(dragOffsetStore)[id] ?? 0;
+    if (Math.abs(finalOffset) >= SWIPE_THRESHOLD) {
+      const snap = finalOffset > 0 ? ACTION_WIDTH : -ACTION_WIDTH;
+      swipeOffsetStore.update((o) => ({ ...o, [id]: snap }));
+      openSwipeIdStore.set(id);
+    } else {
+      swipeOffsetStore.update((o) => ({ ...o, [id]: 0 }));
+      if (get(openSwipeIdStore) === id) openSwipeIdStore.set(null);
+    }
+    isDraggingStore.update((o) => ({ ...o, [id]: false }));
+    dragOffsetStore.update((o) => ({ ...o, [id]: 0 }));
+    dragId = null;
+    dragAxis = null;
+    dragStartX = 0;
+    dragStartY = 0;
+    dragLastX = 0;
+  }
+
+  function cancelDrag(id: number) {
+    if (dragId === id) {
+      swipeOffsetStore.update((o) => ({ ...o, [id]: 0 }));
+      isDraggingStore.update((o) => ({ ...o, [id]: false }));
+      dragOffsetStore.update((o) => ({ ...o, [id]: 0 }));
+      dragId = null;
+      dragAxis = null;
+    }
+  }
+
+  function onTouchStart(e: TouchEvent) {
+    const t = e.touches[0];
+    if (!t) return;
+    startDrag(session.id, t.clientX, t.clientY);
+  }
+  function onTouchMove(e: TouchEvent) {
+    const t = e.touches[0];
+    if (!t) return;
+    moveDrag(session.id, t.clientX, t.clientY, e);
+  }
+  function onTouchEnd(_e: TouchEvent) {
+    endDrag(session.id);
+  }
+  function onTouchCancel(_e: TouchEvent) {
+    cancelDrag(session.id);
+  }
+  function onMouseDown(e: MouseEvent) {
+    if (e.button !== 0) return;
+    startDrag(session.id, e.clientX, e.clientY);
+    window.addEventListener('mousemove', onWindowMouseMove);
+    window.addEventListener('mouseup', onWindowMouseUp);
+    e.preventDefault();
+  }
+  function onWindowMouseMove(e: MouseEvent) {
+    if (dragId === null) return;
+    moveDrag(dragId, e.clientX, e.clientY, e);
+  }
+  function onWindowMouseUp(_e: MouseEvent) {
+    if (dragId === null) return;
+    const id = dragId;
+    endDrag(id);
+    window.removeEventListener('mousemove', onWindowMouseMove);
+    window.removeEventListener('mouseup', onWindowMouseUp);
+  }
+
+  function onRowTap(e: MouseEvent | TouchEvent) {
+    const curOpen = get(openSwipeIdStore);
+    if (curOpen !== null) {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.delete-btn')) {
+        swipeOffsetStore.update((o) => ({ ...o, [curOpen]: 0 }));
+        openSwipeIdStore.set(null);
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }
+  }
 
   export let session: SessionSummary;
 
@@ -136,15 +297,22 @@
 
   /** v0.3.25 #16 (UAT: /sessions item 加红色删除按钮, owner only):
    * 删除按钮 + confirm modal 状态. 删除按钮仅在 session.role === 'owner' 时显示.
-   * non-owner 完全看不到按钮 (CSS 数据属性 [data-owner="false"] 隐藏). */
+   * non-owner 完全看不到按钮 (CSS 数据属性 [data-owner="false"] 隐藏).
+   *
+   * v0.3.28 UAT 0724-1 #3 (PO 拍板 "swipe 才出现"): 改 onSwipeDelete — 删按钮从
+   * always-visible 改为 swipe-action, onSwipeDelete 是 swipe 打开后 (progress >= 1)
+   * 点击触发, 跟 handleDeleteClick 同样的 modal 开启逻辑. */
   let showDeleteModal = false;
   let deleting = false;
 
-  /** 点删除按钮 — stopPropagation 避免冒泡到 .card-link 触发导航.
-   * 同样 stopPropagation 避免跟 v0.3.24 #3 fix (InviteLinkButton 不 toggle 成员 section) 一样的 bug. */
-  function handleDeleteClick(e: MouseEvent) {
+  /** v0.3.28 UAT 0724-1 #3: 从 swipe-action button 调用. stopPropagation 避免冒泡
+   * 到 .card-link 触发导航 (跟原 #16 handleDeleteClick 同款), 同时关掉 swipe 状态
+   * 让卡片回到原位. */
+  function onSwipeDelete(e: MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
+    swipeOffsetStore.update((o) => ({ ...o, [session.id]: 0 }));
+    if (get(openSwipeIdStore) === session.id) openSwipeIdStore.set(null);
     showDeleteModal = true;
   }
 
@@ -197,7 +365,53 @@
      老 URL /sessions/{id} 仍工作 (UI 不再生成, 但用户书签/外部分享进仍
      能访问, 向后兼容). session_code 不是 nullable (BE SessionSummary 字段),
      但保险起见 fallback 到 String(session.id) (老 client 走 fallback). -->
-<a href="/s/{session.session_code || String(session.id)}" class="card-link">
+<!-- v0.3.28 UAT 0724-1 #3 (PO 拍板 "swipe 才出现"): 整个 session-card 改成 swipe wrap 结构
+     - 顶层 .session-swipe-wrap 包 swipe-action button + card-link
+     - card-link 内 .session-card 跟 .row.between + .row-bottom 保持原 #9 / #139 / #140 layout
+     - swipe gesture 复用 BillListGrouped 模板 (touch + mouse handlers 在 wrap 上)
+     - onRowTap 关 swipe (点 card 内容, 不是点删除按钮) -->
+<div
+  class="session-swipe-wrap"
+  data-testid="swipe-trigger"
+  on:touchstart={onTouchStart}
+  on:touchmove={onTouchMove}
+  on:touchend={onTouchEnd}
+  on:touchcancel={onTouchCancel}
+  on:mousedown={onMouseDown}
+  on:click={onRowTap}
+  role="group"
+  aria-label="账本: {session.name}"
+>
+  <!-- v0.3.28 UAT 0724-1 #3: swipe 才出现的删除按钮. owner only (跟 #16 同).
+       绝对定位右边缘 (跟 .bill-swipe-action-right 同款), width/opacity 跟随 --swipe-progress
+       (rubberBandProgress(rowOffset<0 ? -rowOffset : 0) — 仅左滑显). -->
+  {#if session.role === "owner"}
+    {@const rowOffset = $isDraggingStore[session.id] ? ($dragOffsetStore[session.id] ?? 0) : ($swipeOffsetStore[session.id] ?? 0)}
+    {@const rightProgress = rowOffset < 0 ? rubberBandProgress(-rowOffset) : 0}
+    <button
+      type="button"
+      class="delete-btn"
+      data-testid="swipe-action-delete"
+      style="--swipe-progress: {rightProgress}"
+      tabindex={rightProgress >= 1 ? 0 : -1}
+      aria-hidden={rightProgress <= 0}
+      aria-label="删除账本: {session.name}"
+      on:click={onSwipeDelete}
+    >
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="3 6 5 6 21 6"/>
+        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+        <path d="M10 11v6"/>
+        <path d="M14 11v6"/>
+        <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+      </svg>
+    </button>
+  {/if}
+  <a
+    href="/s/{session.session_code || String(session.id)}"
+    class="card-link"
+    style="--swipe-clip-right: {($isDraggingStore[session.id] || ($swipeOffsetStore[session.id] ?? 0) < 0) ? rubberBandProgress(-($dragOffsetStore[session.id] ?? $swipeOffsetStore[session.id] ?? 0)) : 0}"
+  >
   <div class="session-card">
     <div class="row between">
       <!-- v0.3.23 #140 (UAT bug #7): 账本名称加 pill 玻璃效果.
@@ -213,28 +427,6 @@
         {#if session.role === "owner"}<span class="dot-led"></span>{/if}
         {session.role === "owner" ? "owner" : "member"}
       </span>
-      <!-- v0.3.25 #16 (UAT: /sessions item 加红色删除按钮, owner only):
-           仅 owner 可见 (CSS data-owner 属性控制). 点击不导航 (stopPropagation).
-           跟 v0.3.23 #140 owner pill 同行右侧. 圆形 28×28 + 半透明红玻璃 + 🗑️ icon.
-           z-index 1 (在 card-link 内, 但 stopPropagation 避免触发出 click navigation). -->
-      {#if session.role === "owner"}
-        <button
-          type="button"
-          class="delete-btn"
-          aria-label="删除账本"
-          title="删除账本"
-          data-owner="true"
-          on:click={handleDeleteClick}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <polyline points="3 6 5 6 21 6"/>
-            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-            <path d="M10 11v6"/>
-            <path d="M14 11v6"/>
-            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-          </svg>
-        </button>
-      {/if}
     </div>
     <!-- v0.3.24 #9 (UAT bug 账本 item 重设计): row-bottom 拆 3 段
          v0.3.24 #9.3 flip (PO msg #8299 反馈):
@@ -291,7 +483,8 @@
       </div>
     </div>
   </div>
-</a>
+  </a>
+</div>
 
 <!-- v0.3.25 #16 (UAT: /sessions item 加红色删除按钮, owner only):
      确认删除 modal. 跟 InviteLinkButton v0.3.24 #14 modal 风格一致
@@ -346,10 +539,33 @@
 {/if}
 
 <style>
+  /* v0.3.28 UAT 0724-1 #3 (PO 拍板 "swipe 才出现"): 加 .session-swipe-wrap 包 swipe-action
+   * button + card-link. position relative + overflow hidden 让绝对定位 button 在 wrap 内,
+   * 但按钮宽度跟随 progress (--swipe-progress × 56px) 仍能在 wrap 边界内.
+   * border-radius 跟 .session-card 一致 (18px), 让 button 视觉露在 card 边缘.
+   * 触摸手势 (touchstart/touchmove/touchend + mousedown/mousemove/mouseup) 在 wrap 上.
+   * 不可选 user-select 避免拖动时误选中卡片文字.
+   * 关键: card-link 跟 .session-card clip-path 让 card 内的 row 内容左移时, 不让 button
+   * 区域看到 (跟 BillListGrouped .bill-row clip-path 同款机制). */
+  .session-swipe-wrap {
+    position: relative;
+    overflow: hidden;
+    border-radius: 18px;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    touch-action: pan-y;
+  }
+
   .card-link {
     text-decoration: none;
     color: inherit;
     display: block;
+    /* v0.3.28 UAT 0724-1 #3: clip-path 让 card 内容左移时, 让右边缘 (56 × progress px) 给
+     * swipe-action button 让位. inset(top right bottom left) — right 是 clip 右边距.
+     * --swipe-clip-right = rubberBandProgress(-rowOffset) [0, 1.5], 跟 button width 同步. */
+    clip-path: inset(0 calc(var(--swipe-clip-right, 0) * 56px) 0 0);
+    -webkit-clip-path: inset(0 calc(var(--swipe-clip-right, 0) * 56px) 0 0);
   }
   /* v0.3.18 #67 (PO #6865 反馈 #2 拍板 A — 单一玻璃):
    *   - 纯白玻璃 (回 v0318-62-task-1 拍板).
@@ -644,60 +860,77 @@
    * 覆盖全局 + `aspect-ratio: 1` 防御性防止 line-height / padding 再次撑高 (跟 v0.3.17 #19
    * 圆形按钮修法同源). 触摸区 28×28 比 44 推荐小, 但设计明确 28×28 (PO msg 字面
    * "账本列表页账本 item 内, 删除按钮应该是圆形"), PO 接受. */
+  /* v0.3.28 UAT 0724-1 #3 (PO 拍板 "swipe 才出现"): 从 always-visible 28×28 改为
+   * swipe 才出现的 56×56 真圆 (跟 BillListGrouped .bill-swipe-action.glass-pill--delete 同款).
+   *
+   * 跟 v0.3.25 #16 always-visible 28×28 设计的 supersede 关系: #16 当时是「永远显 + 触摸小
+   * 但圆形」折中, 现在 PO 拍 swipe-style, 按钮默认 opacity 0 + width 0 (按 progress),
+   * progress >= 1 才 pointer-events: auto. 触摸区 56×56 (Apple HIG ≥ 44pt) 比 #16 28×28
+   * 更友好 (用户能更准地点). 真正 1:1 圆形靠 aspect-ratio: 1, 跟 v0.3.17 #19 同源.
+   * min-height: 0 覆盖全局 button min-height: 44px (跟 #2 同样的修法 — progress=0 时
+   * width=0 不被全局规则撑成 44px). */
   .delete-btn {
-    flex: 0 0 auto;
-    width: 28px;
-    height: 28px;
-    min-height: 28px;
-    aspect-ratio: 1;
-    display: inline-flex;
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    transform: translateY(-50%);
+    width: calc(var(--swipe-progress, 0) * 56px);
+    aspect-ratio: 1 / 1;
+    min-height: 0;
+    border-radius: 50%;
+    display: flex;
     align-items: center;
     justify-content: center;
     background: linear-gradient(
       135deg,
-      rgba(239, 68, 68, 0.18) 0%,
-      rgba(220, 38, 38, 0.12) 100%
+      rgba(220, 38, 38, 0.18) 0%,
+      rgba(239, 68, 68, 0.12) 100%
     );
-    border: 1px solid rgba(239, 68, 68, 0.28);
-    border-radius: 50%;
-    color: rgba(220, 38, 38, 0.95);
+    border: 1px solid rgba(220, 38, 38, 0.28);
+    color: var(--error-700, #be123c);
     cursor: pointer;
     padding: 0;
-    margin-left: 8px;
     backdrop-filter: blur(8px) saturate(1.8);
     -webkit-backdrop-filter: blur(8px) saturate(1.8);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.5),
       0 1px 2px rgba(220, 38, 38, 0.12);
+    /* v0.3.28 (跟 BillListGrouped .bill-swipe-action 同步): width 220ms spring overshoot,
+     * opacity 180ms ease-out. 出来瞬间轻微 bounce + 收尾稳定到 56px. */
     transition:
-      transform 160ms ease,
-      box-shadow 160ms ease,
-      background 160ms ease,
-      border-color 160ms ease;
-    z-index: 1;
-    position: relative;
+      width 220ms cubic-bezier(0.34, 1.56, 0.64, 1),
+      opacity 180ms ease-out,
+      background 180ms ease,
+      border-color 180ms ease,
+      color 180ms ease;
+    z-index: 2;
+    appearance: none;
+    font-family: inherit;
+    pointer-events: none;
+    overflow: hidden;
+    white-space: nowrap;
+    box-sizing: border-box;
+    opacity: var(--swipe-progress, 0);
+  }
+  /* v0.3.28: 阈值 (>= 1) 才允许点击, 避免 0~80px 之间误触 (跟 BillListGrouped 同款) */
+  .delete-btn[aria-hidden="false"] {
+    pointer-events: auto;
   }
   .delete-btn:hover {
     background: linear-gradient(
       135deg,
-      rgba(239, 68, 68, 0.32) 0%,
-      rgba(220, 38, 38, 0.22) 100%
+      rgba(220, 38, 38, 0.28) 0%,
+      rgba(239, 68, 68, 0.22) 100%
     );
-    border-color: rgba(239, 68, 68, 0.45);
+    border-color: rgba(220, 38, 38, 0.40);
+    color: #9f1239;
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.6),
-      0 0 0 2px rgba(239, 68, 68, 0.16),
+      0 0 0 2px rgba(220, 38, 38, 0.16),
       0 2px 6px rgba(220, 38, 38, 0.18);
-    transform: translateY(-1px);
-  }
-  .delete-btn:active {
-    transform: translateY(0);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.4),
-      0 1px 2px rgba(220, 38, 38, 0.14);
   }
   .delete-btn:focus-visible {
-    outline: 2px solid rgba(239, 68, 68, 0.55);
+    outline: 2px solid rgba(220, 38, 38, 0.55);
     outline-offset: 2px;
   }
 
