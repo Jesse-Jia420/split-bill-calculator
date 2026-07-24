@@ -255,6 +255,20 @@ class CreateSessionRequest(BaseModel):
         return self
 
 
+class AvatarItem(BaseModel):
+    """One member's avatar info for the SessionCard avatar stack.
+
+    v0.3.x (UAT 0723 #6): 让 /sessions 列表的 SessionCard 在彩色圆点内
+    显示成员昵称首字母. name 是原始 display_name (FE 可作 aria-label /
+    tooltip / fallback). initial 是 1 字符显示字符串 — Latin 取首字母后
+    大写, CJK 取原首字符 (e.g. "Jesse" → "J", "像汤圆一样圆" → "像",
+    "我" → "我").
+    """
+
+    name: str  # 原始 display_name (FE aria-label / tooltip, 也作 initial fallback)
+    initial: str  # 1 char 显示文字 (Latin 大写 + CJK 原字符)
+
+
 class SessionSummary(BaseModel):
     """Single-session payload used in POST + GET /sessions responses."""
 
@@ -279,6 +293,10 @@ class SessionSummary(BaseModel):
     primary_currency: str = "CNY"
     # v0.3.1: only on POST /sessions response when member_nicknames supplied.
     created_member_ids: list[int] = Field(default_factory=list)
+    # v0.3.x (UAT 0723 #6): 前 N 个成员的 name/initial 数组 (N 跟 FE
+    # SessionCard.MAX_AVATARS=6 对齐). FE 用 initial 在 .avatar-mini 圆点
+    # 内显示首字符. 超出 +N 显示跟 N+1 错开 (仍用 avatar-mini-overflow).
+    avatars: list[AvatarItem] = Field(default_factory=list)
 
 
 class SessionMemberOut(BaseModel):
@@ -377,6 +395,9 @@ class SessionDetail(BaseModel):
     currencies: list[str]
     primary_currency: str
     exchange_rates: list[ExchangeRateOut] = []
+    # v0.3.x (UAT 0723 #6): 给详情页 hero 也可用 (虽然 FE 当前主要
+    # 用在 SessionCard 列表页). 跟 SessionSummary.avatars 同源.
+    avatars: list[AvatarItem] = Field(default_factory=list)
 
 
 class UpdateMemberRequest(BaseModel):
@@ -446,11 +467,47 @@ def _iso(dt: datetime | None) -> str:
     return dt.isoformat()
 
 
+def _get_member_avatars(
+    db: Session,
+    session_id: int,
+    limit: int = 6,
+) -> list[AvatarItem]:
+    """Return up to ``limit`` AvatarItem rows for the SessionCard avatar stack.
+
+    v0.3.x (UAT 0723 #6): 让 /sessions 列表的 SessionCard 在彩色圆点内
+    显示成员昵称首字母 (e.g. "Jesse" → "J", "像汤圆一样圆" → "像").
+
+    Implementation notes:
+      - Order: 按 SessionMember.id ASC (跟加入顺序一致 — 跟 SessionDetail
+        endpoint 用 .order_by(SessionMember.joined_at.asc()) 顺序一致, 因为
+        实际写入是连续 INSERT, id 顺序跟 joined_at 顺序保证 deterministic).
+        Owner 是第 1 个加入的, 所以总是先显示; 其它成员按加入顺序.
+      - Initial 计算: ``name[:1].upper()`` — Latin 字符 .upper() 变
+        大写, CJK 字符 .upper() 留原字符 (Unicode 标准行为), 多字符表情
+        部分也会留首字符. 空字符串走 fallback "?" 给单测更好 trace.
+      - Limit: 跟 SessionCard.MAX_AVATARS=6 对齐. 超出 +N 显示交 FE 处理.
+    """
+    rows = (
+        db.query(SessionMember)
+        .filter(SessionMember.session_id == session_id)
+        .order_by(SessionMember.id.asc())
+        .limit(limit)
+        .all()
+    )
+    out: list[AvatarItem] = []
+    for sm in rows:
+        name = sm.display_name or ""
+        initial = name[:1].upper() if name else "?"
+        out.append(AvatarItem(name=name, initial=initial))
+    return out
+
+
 def _summary_dict(
     session: SessionModel,
     role: str,
     member_count: int | None,
     created_member_ids: list[int] | None = None,
+    avatars: list[AvatarItem] | None = None,
 ) -> dict:
     out: dict = {
         "id": session.id,
@@ -464,6 +521,10 @@ def _summary_dict(
         "primary_currency": session.primary_currency or "CNY",
         # v0.3.1 (Bug & Issues #5): unguessable public code.
         "session_code": session.session_code or "",
+        # v0.3.x (UAT 0723 #6): 前 6 个成员的 name/initial, 供 SessionCard
+        # avatar stack 在彩色圆点内显示首字符. None → [] 保 Pydantic 默认
+        # 与 backward compatible (老 client 不读 avatars 字段不挂).
+        "avatars": list(avatars) if avatars is not None else [],
     }
     # v0.3.1: only surface on create response.
     if created_member_ids is not None:
@@ -709,11 +770,16 @@ async def create_session(
     owner_in_created = 1 if owner_placeholder_id is not None else 0
     nickname_count = len(created_member_ids) - owner_in_created
     total_members = 1 + nickname_count
+    # v0.3.x (UAT 0723 #6): 拉前 6 个成员的 name/initial 供 SessionCard
+    # avatar stack 显示. members 刚 INSERT 完, flush 已 hold, 立刻读可拿
+    # 到 (跟 detail endpoint 同 session 内读 pattern 一致).
+    avatars = _get_member_avatars(db, session.id, limit=6)
     return _summary_dict(
         session,
         role=SessionRole.OWNER.value if user else "owner",
         member_count=total_members,
         created_member_ids=created_member_ids,
+        avatars=avatars,
     )
 
 
@@ -750,7 +816,17 @@ async def list_sessions(
             .filter(SessionMember.session_id == session.id)
             .scalar()
         )
-        out.append(_summary_dict(session, role=sm.role, member_count=int(count or 0)))
+        # v0.3.x (UAT 0723 #6): 拉前 6 个成员的 name/initial 供 SessionCard
+        # avatar stack 显示.
+        avatars = _get_member_avatars(db, session.id, limit=6)
+        out.append(
+            _summary_dict(
+                session,
+                role=sm.role,
+                member_count=int(count or 0),
+                avatars=avatars,
+            )
+        )
     return out
 
 
@@ -1126,6 +1202,13 @@ async def get_session(
         "currencies": list(session.currencies or ["CNY"]),
         "primary_currency": session.primary_currency or "CNY",
         "exchange_rates": [_exchange_rate_dict(r) for r in rates],
+        # v0.3.x (UAT 0723 #6): 详情页 hero 也可以用 same avatar 数组
+        # (虽然 FE 当前主要消费 SessionCard 列表页). 拉前 6 跟 SessionSummary
+        # 同步. members 已用 .order_by(joined_at.asc()) 拿到, _get_member_avatars
+        # 内部按 id ASC 重拉 — 同样数据, double query 但保证顺序一致.
+        "avatars": [
+            a.model_dump() for a in _get_member_avatars(db, session.id, limit=6)
+        ],
     }
 
     # Owner-only invite preview. Non-owners still get 200 but with NULL

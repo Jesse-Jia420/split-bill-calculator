@@ -118,10 +118,21 @@
   /** v0.3.24 #9: 跟 mockup refined 一致 — 最多显示 6 个头像, 超出显示 +N. */
   const MAX_AVATARS = 6;
 
-  /** v0.3.24 #9: 占位 avatars — N 个 palette 渐变实心圆点 (后端 avatars 字段后续 sprint 补). */
+  /** v0.3.24 #9: 占位 avatars — N 个 palette 渐变实心圆点 (后端 avatars 字段后续 sprint 补).
+
+   * v0.3.x (UAT 0723 #6): 后端现在返回 avatars: [{name, initial}], avatar
+   * 圆点内显示 initial (e.g. "J" for "Jesse", "像" for "像汤圆一样圆").
+   * 用 #each session.avatars ?? [] as avatar 渲染 — 老 client 没 avatars
+   * 字段也不挂, 走 N 个 palette 渐变实心圆点 fallback (跟原 #9 占位一致). */
   $: memberCount = session.member_count ?? 1;
   $: displayAvatars = Math.min(memberCount, MAX_AVATARS);
   $: overflowCount = Math.max(0, memberCount - MAX_AVATARS);
+  /** v0.3.x (UAT 0723 #6): true 表示 BE 已返 avatars 数组, FE 渲染 initial;
+   * false 走老 fallback N 个 palette 渐变实心圆点 (跟原 #9 占位一致).
+   * 严格 length > 0 查 (undefined 和 [] 都 fallback, 让老 client / 残缺
+   * payload 不挂). */
+  $: hasAvatars =
+    Array.isArray(session.avatars) && session.avatars.length > 0;
 
   /** v0.3.25 #16 (UAT: /sessions item 加红色删除按钮, owner only):
    * 删除按钮 + confirm modal 状态. 删除按钮仅在 session.role === 'owner' 时显示.
@@ -238,13 +249,30 @@
            #9.3 flip 把 date 从最右挪到最左, 整组 avatars + users-count 推右 -->
       <div class="date">{formatDate(session.created_at)}</div>
       <!-- MIDDLE→RIGHT (v0.3.24 #9.3): avatars stack (palette 渐变实心圆点占位 — 后端 avatars 字段后续 sprint 补).
-           #9.3 加 margin-left: auto 把整组 (avatars + users-count) 推到右 -->
+           #9.3 加 margin-left: auto 把整组 (avatars + users-count) 推到右.
+
+           v0.3.x (UAT 0723 #6): BE 返回 avatars 后, .avatar-mini 圆点内
+           显示 initial 字符 (e.g. "J" for "Jesse", "像" for "像汤圆一样圆").
+           老 client 没 avatars 字段走 fallback (跟原 #9 占位一致 — N 个
+           palette 渐变实心圆点). overflow +N 走 avatar-mini-overflow 不变. -->
       <div class="avatars" aria-label="{memberCount} 个成员头像">
-        {#each Array(displayAvatars) as _, i (i)}
-          <span class="avatar-mini palette-{i % 5}" aria-hidden="true"></span>
-        {/each}
-        {#if overflowCount > 0}
-          <span class="avatar-mini avatar-mini-overflow" aria-label="还有 {overflowCount} 个成员">+{overflowCount}</span>
+        {#if hasAvatars}
+          {#each session.avatars.slice(0, MAX_AVATARS) as avatar, i (i)}
+            <span
+              class="avatar-mini palette-{i % 5}"
+              aria-label={avatar.name}
+              title={avatar.name}>{avatar.initial}</span>
+          {/each}
+          {#if overflowCount > 0}
+            <span class="avatar-mini avatar-mini-overflow" aria-label="还有 {overflowCount} 个成员">+{overflowCount}</span>
+          {/if}
+        {:else}
+          {#each Array(displayAvatars) as _, i (i)}
+            <span class="avatar-mini palette-{i % 5}" aria-hidden="true"></span>
+          {/each}
+          {#if overflowCount > 0}
+            <span class="avatar-mini avatar-mini-overflow" aria-label="还有 {overflowCount} 个成员">+{overflowCount}</span>
+          {/if}
         {/if}
       </div>
       <!-- RIGHTMOST (v0.3.24 #9.3): users icon + 人数 (紧挨 avatars 在右) -->
