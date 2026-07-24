@@ -42,7 +42,9 @@ fs.mkdirSync(SHOT_DIR, { recursive: true });
 //   id=3:  666 (CNY)
 // 用 id=9 作为主测 session (跟 #2 续 anon-email-verify 一致).
 const PRIMARY_SESSION_ID = 9;
-const SESSION_CODE_REGEX = /^\/[A-HJ-NP-Z2-9]{10}$/;
+// BE alphabet: "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" (32 chars, no I/O/0/1).
+// /s/{10-char-code}
+const SESSION_CODE_REGEX = /^\/s\/[A-HJ-NP-Z2-9]{10}$/;
 
 function expect(label, actual, expected) {
   const ok = JSON.stringify(actual) === JSON.stringify(expected);
@@ -293,6 +295,12 @@ async function main() {
   await page.goto(`${TEST_URL}/s/${sessionCodeFromApi}/join`, {
     waitUntil: 'networkidle',
   });
+  // Wait for the 403 → redirect chain to settle (BUG-V031-A)
+  await page.waitForURL(
+    (u) => new RegExp(`/sessions/${primarySessionId}/join$`).test(u.pathname),
+    { timeout: 8000 }
+  ).catch(() => null);
+  await page.waitForLoadState('networkidle');
   await page.waitForTimeout(800);
   const joinUrl = page.url();
   console.log(`  URL after anon /s/{code}/join = ${joinUrl}`);
