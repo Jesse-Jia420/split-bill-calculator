@@ -67,6 +67,8 @@
   import SettleMemberBreakdown from '$components/SettleMemberBreakdown.svelte';
   import SessionCurrencyBadge from '$components/SessionCurrencyBadge.svelte';
   import CurrencyAddModal from '$components/CurrencyAddModal.svelte';
+  // v0.3.28 UAT 0724-1 #5 (Option C 玻璃圆环): settle 计算 / settle 初次 fetch 时显示 LoadingOverlay.
+  import LoadingOverlay from '$components/LoadingOverlay.svelte';
   import IosSwitch from '$lib/components/IosSwitch.svelte';
   import { user } from '$stores/user';
   import { ArrowLeft } from 'lucide-svelte';
@@ -153,7 +155,8 @@
 
 <section>
   {#if loading}
-    <p class="muted">加载中…</p>
+    <!-- v0.3.28 UAT 0724-1 #5 (Option C 玻璃圆环): 跟 wizard + 账单详情一致. -->
+    <LoadingOverlay text="加载结算..." />
   {:else if session}
     <h2>{session.name} · 结算</h2>
     <!-- v0.3.19 #85 (PO #7308): 删 onRateChange (弹窗 PATCH 后 parent onAdded 统一 reload).

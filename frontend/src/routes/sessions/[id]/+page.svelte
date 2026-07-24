@@ -43,6 +43,8 @@
   import EmptyState from '$components/EmptyState.svelte';
   import SessionCurrencyBadge from '$components/SessionCurrencyBadge.svelte';
   import CurrencyAddModal from '$components/CurrencyAddModal.svelte';
+  // v0.3.28 UAT 0724-1 #5 (Option C 玻璃圆环): 加载账单数据 fetch 时显示 LoadingOverlay.
+  import LoadingOverlay from '$components/LoadingOverlay.svelte';
   import { getSessionWithSecret, claimSession } from '$api/sessions';
   import { user, loadUser } from '$stores/user';
   import { toast } from '$stores/toast';
@@ -506,7 +508,8 @@
 
 <section>
   {#if loading}
-    <p class="muted">加载中…</p>
+    <!-- v0.3.28 UAT 0724-1 #5 (Option C 玻璃圆环): 跟 loading-screen (settle) + wizard 一致. -->
+    <LoadingOverlay text="加载账单..." />
   {:else if session}
     <div class="row between session-header" style="margin-bottom: var(--space-3); flex-wrap: wrap; gap: var(--space-2);">
       <h2 style="margin: 0;">
