@@ -20,10 +20,11 @@
   // (纸张纹理, 不可改) 替代 v0.3.18 #51 之前的纯色. AppBackground 之前是 archive,
   // 现在重新挂载作为 body 第一层 (在 <slot/> 之前的 <main> 之前).
   import AppBackground from '$components/AppBackground.svelte';
+  import LoadingOverlay from '$components/LoadingOverlay.svelte';
   import { onMount } from 'svelte';
   import { fade } from 'svelte/transition';
   import { loadUser } from '$stores/user';
-  import { page } from '$app/state';
+  import { page, navigating } from '$app/state';
 
   // Best-effort user load on every page mount.
   // v0.3.20 #99-fix5 (PO msg 14:29 #7602 padding-top 不够 + 透明度再降):
@@ -56,6 +57,13 @@
   <NavBar />
 {/if}
 <Toast />
+<!-- v0.3.28 UAT 0724-1 #5: 全局路由导航时显示 LoadingOverlay (玻璃圆环).
+     $navigating store (SvelteKit 5 runes) 在跳转前 fire 非 null, 跳转完成后回到 null.
+     跨页面 nav 通常 50-300ms 内完成 — 显示完整 overlay 让用户知道 "系统在加载"
+     而不是 "页面卡死". Option C 玻璃圆环 + 玻璃 pill (跟 design-mocks/v0328-0724-1-5-loading/03-glass-ring.html 一致). -->
+{#if navigating.to}
+  <LoadingOverlay text="加载中..." />
+{/if}
 <!-- v0.3.17 #30 (PO msg 14:28 #5957): <main class="page"> 改成内层滚动容器 —
      外层 html/body 已 lock overflow (见 app.css), body 是 flex column,
      .page flex:1 占满中间剩余高度, overflow-y:auto 让内容在 main 内滚,

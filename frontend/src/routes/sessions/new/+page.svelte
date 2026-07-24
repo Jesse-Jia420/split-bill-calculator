@@ -5,6 +5,8 @@
   import { loadUser } from "$stores/user";
   import { toast } from "$stores/toast";
   import IosSwitch from "$lib/components/IosSwitch.svelte";
+  // v0.3.28 UAT 0724-1 #5 (Option C 玻璃圆环): wizard 初次加载 + step 切换时显示 LoadingOverlay.
+  import LoadingOverlay from '$components/LoadingOverlay.svelte';
 
   let step = 1;
   let sessionName = "";
@@ -171,9 +173,9 @@
 </svelte:head>
 
 {#if loading}
-  <div class="loading-screen">
-    <p class="muted">加载中…</p>
-  </div>
+  <!-- v0.3.28 UAT 0724-1 #5 (Option C 玻璃圆环): 取代旧版 muted 文本 loading,
+       跟全站 loading style 一致 (玻璃圆环 + 玻璃 pill + '加载中...' 文案). -->
+  <LoadingOverlay text="加载中..." />
 {:else}
   <div class="wizard">
     <div class="progress">
