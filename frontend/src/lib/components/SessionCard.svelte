@@ -255,10 +255,16 @@
     if (dragId === null) return;
     moveDrag(dragId, e.clientX, e.clientY, e);
   }
-  function onWindowMouseUp(_e: MouseEvent) {
+  function onWindowMouseUp(e: MouseEvent) {
     if (dragId === null) return;
     const id = dragId;
     endDrag(id);
+    // v0.3.28 UAT 0724-1 #3 续修 6: mouseup preventDefault() 在 chromium synthetic
+    // events 上可靠 — 阻止浏览器 dispatch synthetic click event on mousedown
+    // target. 之前 mousedown preventDefault 不可靠 (Playwright 报告); mouseup
+    // preventDefault 一致地阻止 click.
+    e.preventDefault();
+    e.stopPropagation();
     window.removeEventListener('mousemove', onWindowMouseMove);
     window.removeEventListener('mouseup', onWindowMouseUp);
   }
