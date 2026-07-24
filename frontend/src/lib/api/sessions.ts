@@ -12,6 +12,16 @@ export interface SessionMember {
   joined_at: string;
 }
 
+/** v0.3.x (UAT 0723 #6): 一名成员的 avatar 信息. BE 在 POST /sessions
+ *  和 GET /sessions 返回的 SessionSummary.avatars 用这个 shape.
+ *  SessionCard 渲染 .avatar-mini 圆点时把 `initial` 当 textContent
+ *  显示 (e.g. "J" for "Jesse", "像" for "像汤圆一样圆").
+ */
+export interface AvatarItem {
+  name: string;  // 原始 display_name (FE aria-label / tooltip / fallback)
+  initial: string;  // 1 char 显示文字 (Latin 大写 + CJK 原字符)
+}
+
 export interface SessionSummary {
   id: number;
   name: string;
@@ -24,6 +34,11 @@ export interface SessionSummary {
    *  can render the right chip without a follow-up detail round-trip. */
   currencies: string[];
   primary_currency: string;
+  /** v0.3.x (UAT 0723 #6): 最多 6 个成员的 name/initial (跟 SessionCard
+   *  MAX_AVATARS=6 对齐). 老 client (没有 avatars 字段) 走 fallback
+   *  N 个 palette 渐变实心圆点占位.
+   */
+  avatars?: AvatarItem[];
 }
 
 /** v0.2.2 (T08/T09): one row of the session_exchange_rates table. */
