@@ -636,11 +636,20 @@
 
   /* v0.3.25 #16 (UAT: /sessions item 加红色删除按钮, owner only):
    * 删账按钮 — 圆形 28×28, 半透明红玻璃 (rgba 0.18-0.25 alpha + 边 + 模糊).
-   * hover 背景加深 + 红环. 跟全站玻璃语言一致 (跟 invite confirm modal 同源). */
+   * hover 背景加深 + 红环. 跟全站玻璃语言一致 (跟 invite confirm modal 同源).
+   *
+   * v0.3.28 UAT 0724-1 #2: 全局 button 规则 (app.css:230) 强制 `min-height: var(--touch-target)`
+   * = 44px (iOS 触摸目标推荐). 这个规则覆盖了 .delete-btn 的 height: 28px, 导致 button
+   * 渲染成 28w × 44h 椭圆 (Playwright iPhone 13 实测 w=28 h=44). 加 `min-height: 28px`
+   * 覆盖全局 + `aspect-ratio: 1` 防御性防止 line-height / padding 再次撑高 (跟 v0.3.17 #19
+   * 圆形按钮修法同源). 触摸区 28×28 比 44 推荐小, 但设计明确 28×28 (PO msg 字面
+   * "账本列表页账本 item 内, 删除按钮应该是圆形"), PO 接受. */
   .delete-btn {
     flex: 0 0 auto;
     width: 28px;
     height: 28px;
+    min-height: 28px;
+    aspect-ratio: 1;
     display: inline-flex;
     align-items: center;
     justify-content: center;
