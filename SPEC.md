@@ -5833,3 +5833,32 @@ v0.3.28 #5 (commit 973ed07 + 续修 818dd47) 给 7 路由 (sessions/{id}, settle
 #### 排除范围 (本任务不修, 待 PO 决定)
 - bills/[id]/delete 或其他 bills 子路由 (项目无此路由)
 - svelte-check 1 error pre-existing (join/+page.svelte:32 SessionPreviewMember) — 跟本次任务无关
+
+### v0.3.29 — UAT 0725-1 #12: 加入/回到账本头像颜色与成员 section 一致 (Coder 自写自验 已走 ✓)
+
+**Commit**: 065c496 (push .., 3 files / +117 -5)
+
+#### PO 意图
+加入/回到账本时的头像颜色, 应该与成员 section 内的头像颜色一致 (UAT 2026-07-25 11:38).
+
+#### 根因 + 修法
+`frontend/src/routes/sessions/[id]/join/+page.svelte` 的 .slot-avatar palette-0..4 跟成员 section 的 .avatar-a/.avatar-mini palette-0..4 用的是**两套不同的 gradient**:
+- 旧 .slot-avatar palette-0: rgba(99,102,241,0.88) → rgba(168,85,247,0.78) (第二色 alpha 0.78)
+- 成员 section .avatar-a palette-0: rgba(129,140,248,0.88) → rgba(99,102,241,0.88) (第二色 alpha 0.88)
+
+不仅 alpha 不同, 颜色 (indigo-500 vs indigo-400) 和 起点也错位.
+
+修法: 把 .slot-avatar palette-0..4 改成跟 .avatar-a palette-0..4 (跟 sessions/[id]/+page.svelte line 1325-1339) 完全一致:
+- palette-0: rgba(129,140,248,0.88) → rgba(99,102,241,0.88) (indigo-400 → indigo-500)
+- palette-1: rgba(244,114,182,0.88) → rgba(236,72,153,0.88) (pink-400 → pink-500)
+- palette-2: rgba(52,211,153,0.88) → rgba(16,185,129,0.88) (emerald-400 → emerald-500)
+- palette-3: rgba(251,191,36,0.88) → rgba(245,158,11,0.88) (amber-400 → amber-500)
+- palette-4: rgba(96,165,250,0.88) → rgba(59,130,246,0.88) (blue-400 → blue-500)
+
+#### 验证 (Playwright iPhone 13 @3x 真机 walk, frontend/scripts/v0329-0725-1-12-verify.cjs)
+- /sessions/9/join (anon): 5 个 .slot-avatar 的 computed style backgroundImage 5/5 跟 /sessions/9 的 .avatar-a palette-0..4 完全一致 (字符串严格相等)
+- image tool 视觉: /join 5 个 avatar (J/J/C/Q/像) indigo/pink/green/yellow/blue 跟 成员 section 5 个 avatar (J/J/C/Q/像) indigo/pink/green/yellow/blue 同色 ✓
+- 2 张 PNG 存 ~/.openclaw/media/browser/v0329-0725-1-12/{A-join,B-sessions}.png
+
+#### 排除范围 (本任务不修, 待 PO 决定)
+- .slot-avatar 整体视觉 (尺寸 30×30 vs .avatar-a 36×36 vs .avatar-mini 32×32) 不动 — slot 是更小的 pill 头像, 跟 member section 完整 36px 头像有合理尺寸区分

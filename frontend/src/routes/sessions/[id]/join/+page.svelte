@@ -451,11 +451,11 @@
       inset 0 -1px 0 rgba(0, 0, 0, 0.06),
       0 2px 4px rgba(99, 102, 241, 0.10);
   }
-  .palette-0 { background: linear-gradient(135deg, rgba(99, 102, 241, 0.88) 0%, rgba(168, 85, 247, 0.78) 100%); }
-  .palette-1 { background: linear-gradient(135deg, rgba(236, 72, 153, 0.88) 0%, rgba(244, 114, 182, 0.78) 100%); }
-  .palette-2 { background: linear-gradient(135deg, rgba(16, 185, 129, 0.88) 0%, rgba(52, 211, 153, 0.78) 100%); }
-  .palette-3 { background: linear-gradient(135deg, rgba(245, 158, 11, 0.88) 0%, rgba(251, 191, 36, 0.78) 100%); }
-  .palette-4 { background: linear-gradient(135deg, rgba(59, 130, 246, 0.88) 0%, rgba(96, 165, 250, 0.78) 100%); }
+  .palette-0 { background: linear-gradient(135deg, rgba(129, 140, 248, 0.88) 0%, rgba(99, 102, 241, 0.88) 100%); }
+  .palette-1 { background: linear-gradient(135deg, rgba(244, 114, 182, 0.88) 0%, rgba(236, 72, 153, 0.88) 100%); }
+  .palette-2 { background: linear-gradient(135deg, rgba(52, 211, 153, 0.88) 0%, rgba(16, 185, 129, 0.88) 100%); }
+  .palette-3 { background: linear-gradient(135deg, rgba(251, 191, 36, 0.88) 0%, rgba(245, 158, 11, 0.88) 100%); }
+  .palette-4 { background: linear-gradient(135deg, rgba(96, 165, 250, 0.88) 0%, rgba(59, 130, 246, 0.88) 100%); }
   .slot-info {
     display: flex;
     flex-direction: column;
