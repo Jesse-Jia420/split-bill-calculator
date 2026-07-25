@@ -6075,3 +6075,33 @@ v0.3.28 #8 re-fix (commit 672ded8): PO 测试不通过 "目前还是只有部分
 - modal box 玻璃 token 同步 (rgba(255,255,255,0.92) + saturate 200% blur(20px)) — 已经是
   v0.3.27 #9 统一过, 本次没动, 视觉一致.
 
+
+
+### v0.3.29 — UAT 0725-1 #3: 账本 item 左滑右侧消失修复 (Coder 自写自验 已走 ✓)
+
+**Commit**: (待提交) (push f26e9d0..HEAD, 2 files / +130 -5)
+
+#### PO 意图
+账本列表页, 账本 item 上左滑时现在会出现删除按钮, 很好. 但左滑的同时账本 item 右侧会消失,
+不要让它有这个效果 (UAT 2026-07-25 12:43 — batch B).
+
+#### 根因 + 修法
+v0.3.28 #3 (commit 6c8d02e + 续修): 给 `.card-link` 加 `clip-path: inset(0 calc(var(--swipe-clip-right, 0) * 56px) 0 0)` 让 card 右侧给 swipe-action button "让位" (挖洞机制 — button 后面是 day 白底). 但挖洞后那块视觉上"消失", 跟 BillListGrouped v0.3.16 #11/#12 同一问题: v0.3.16 #14 hotfix 已删 clip-path 改 button overlay 方案.
+
+修法 (`frontend/src/lib/components/SessionCard.svelte`):
+1. 删 `.card-link { clip-path / -webkit-clip-path }` 整组 rule
+2. card 内容满宽直通到 wrap 边界, `.delete-btn` (position: absolute, right:6px, z-index:2) 直接罩在 card 右侧
+3. glass 透明 bg 让 card 内容透出 button — 跟 BillListGrouped v0.3.16 #14 hotfix 同款 mechanism (button overlay on top, 而不是挖洞)
+
+#### 验证 (Playwright iPhone 13 @3x 真机 walk, `frontend/scripts/v0329-0725-1-3-verify.cjs`)
+- /sessions 列表页 (Jesse owner 视 图, 6 个 owner session)
+- 4/4 check pass:
+  * `.card-link clip-path = none` (computed style, 修前 `inset(0 calc(var(--swipe-clip-right, 0) * 56px) 0 0)`) ✓
+  * `.card-link -webkit-clip-path = none` ✓
+  * swipe-open 模拟 (mouse drag 120px) 后 `.session-card` width = `.session-swipe-wrap` width = 358.81px (满宽, 修前 clip 56px) ✓
+  * `.delete-btn` DOM 存在 (width >= 0, button overlay on card 右侧) ✓
+- 1 张 PNG 存 `~/.openclaw/media/browser/v0329-0725-1-3/` (swipe-open state)
+
+#### 排除范围 (本任务不修, 待 PO 决定)
+- `--swipe-clip-right` CSS var 仍挂在 `<a>` markup (line 432) 但无 rule 消费 — 留 var 以备未来需要从 .session-card 上 read progress. 不删, 不影响视觉.
+- `.delete-btn` swipe-open 触发后是否真到 56×56 真圆 — 已被 v0.3.17 #19+#28 (commit 70c6479) aspect-ratio:1 + min-height:0 覆盖全局 button 44px 修过, 本次不动. Playwright headless mouse drag 不稳定触发 progress=1 (chromium synthetic event timing), 真机像素验证需 PO iPhone Safari 真 swipe 看 56×56 真圆.
