@@ -136,50 +136,13 @@
   }
   let viewMode: ViewMode = defaultViewMode(session);
 
-  // v0.3.32 -- UAT 0725-2 #1: Section 3 reactive declarations.
-  /**
-   * pairAggregates: 按 (payer_id, payee_id) pair 聚合 records (in primary currency),
-   * 用于 section 3 "最新应结算" 渲染. 同时聚合 session.bills 产生的 raw transfer
-   * amount for this pair (作为 "原 ¥X" 标注, = raw transfer - sum_settlements,
-   * 但我们没拿 raw; 简化: raw 暂时用 0 占位, section 3 仅显示 "已结 ¥Y").
-   *
-   * 真正的 "原 X - 已结 Y = Z" 算式需要在 BE 加 ?raw=true 返回未调整的 transfers.
-   * 本期不在 BE 范围, 用 0 占位不显示 raw 部分 (但留 raw > 0 时的渲染分支, 等 BE
-   * 后续暴露 raw 后即可工作).
-   */
-  type PairAggregate = {
-    payerName: string;
-    payeeName: string;
-    settlementSum: number;
-    rawAmount: number;
-  };
-  $: pairAggregates = (() => {
-    if (!session || records.length === 0) return {} as Record<string, PairAggregate>;
-    const rates = session.exchange_rates ?? [];
-    const primary = session.primary_currency;
-    const out: Record<string, PairAggregate> = {};
-    for (const r of records) {
-      const k = r.payer_id + '->' + r.payee_id;
-      const rate = r.currency === primary ? 1
-        : Number((rates.find((x) => x.from_currency === r.currency && x.to_currency === primary)?.rate ?? 0));
-      const sum = Number(r.amount) * rate;
-      if (!out[k]) {
-        out[k] = {
-          payerName: r.payer_name,
-          payeeName: r.payee_name,
-          settlementSum: 0,
-          rawAmount: 0,
-        };
-      }
-      out[k].settlementSum += sum;
-    }
-    return out;
-  })();
-
-  function fmtPrimary(n: number): string {
-    if (!session) return '';
-    return currencySymbol(session.primary_currency) + formatMoney(n, { showSymbol: false });
-  }
+  // v0.3.33 — UAT 0725-3 #4 (PO 14:59 batch):
+  //   删 section 3 「最新应结算」整块 (template + reactive + helpers + type),
+  //   配套 .latest-* / .new-amount CSS 已在 v0.3.33 b350ebc commit 删过 (故 source 已无 .latest- CSS).
+  //   PO 字面: 「最新应结算金额直接修改 建议转账 内的金额即可」.
+  //   BE 的 GET /settle 已经返回 adjusted transfers (原 transfer - sum_settlements),
+  //   顶部 SettleTransferPath 直接展示; section 3 重复同一数字反而让用户怀疑 '到底哪个对'.
+  //   配套清理: pairAggregates reactive + PairAggregate type + fmtPrimary helper 一并删 (orphaned after section 3 删).
 
   // v0.3.32 -- UAT 0725-2 #1: AddSettlementSheet open + onAdded callback.
   function openAddSheet() {
@@ -328,6 +291,10 @@
               已结算记录
               <span class="badge-n" data-sbc="settle-records-count">({records.length})</span>
             </h3>
+            <!-- v0.3.33 — UAT 0725-3 #3 (PO 14:59 batch):
+                 .add-btn 之前 28×28 circle (only Plus icon) 视觉混乱 ("乱码").
+                 改 pill 形 (icon + 「添加」label), 跟全站 btn-sm 玻璃同族.
+                 跟 wizard step 3 currency-mode-row 跟 sessions/[id] .fab 视觉一致 (跟 .glass-pill 全局 utility). -->
             <button
               class="add-btn"
               type="button"
@@ -335,7 +302,8 @@
               on:click={openAddSheet}
               data-sbc="settle-add-record-btn"
             >
-              <Plus size={18} strokeWidth={2.4} />
+              <Plus size={16} strokeWidth={2.4} />
+              <span>添加</span>
             </button>
           </div>
           <div class="glass-card" data-sbc="settle-records-list">
@@ -357,56 +325,6 @@
           </div>
         </div>
 
-        <!-- ===== Section 3: 最新应结算 =====
-             简化实现: 不重复渲染 transfer cards (避免数据重复),
-             只在 records 非空时显示顶部 note + 列出受影响的 (pair, sum) 信息.
-             受影响的 pair 列表 = 那些 payer→payee 至少有一条 record 的对.
-             用户能看到:
-               - 哪些 pair 被手工结算过
-               - 各自累加多少 (主币种, rate-converted)
-             最终 transfer cards 在顶部 section 1 (SettleTransferPath) 已经反映了
-             这些调整, 所以不需要在 section 3 重复.
-
-             设计意图: section 3 是 "审计 + 算式" 视图, 顶部 section 1 是 "动作" 视图.
-             mockup 1 把数字也放 section 3 是为了一次性看清, 但实现上重复同一个数
-             容易让用户怀疑 "到底哪个对?". 我们把 section 1 标 "建议转账"
-             (= adjusted 后), section 3 标 "最新应结算" (= 同样 adjusted 后但带
-             adjustment math), 让用户从 section 3 看到 "原 X - 已结 Y = 新 Z" 的算式.
-        -->
-        {#if records.length > 0}
-          <div class="section" data-sbc="settle-latest-section">
-            <div class="section-head">
-              <h3>最新应结算</h3>
-              <span class="badge-n">主币种 {session.primary_currency}</span>
-            </div>
-            <div class="glass-card">
-              {#each Object.entries(pairAggregates) as [pairKey, agg] (pairKey)}
-                <div class="latest-card" data-sbc="settle-latest-row">
-                  <div class="label">已根据已结算记录调整</div>
-                  <div class="latest-row">
-                    <div class="latest-meta">
-                      <span class="from-to">
-                        {agg.payerName}
-                        <span class="arrow" aria-hidden="true">→</span>
-                        {agg.payeeName}
-                      </span>
-                      <span class="adjusted">
-                        {#if agg.rawAmount > 0}
-                          原 {fmtPrimary(agg.rawAmount)} - 已结 {fmtPrimary(agg.settlementSum)} = {fmtPrimary(agg.rawAmount - agg.settlementSum)}
-                        {:else}
-                          已结 {fmtPrimary(agg.settlementSum)} (该 transfer 已结清)
-                        {/if}
-                      </span>
-                    </div>
-                    {#if agg.rawAmount > 0}
-                      <span class="new-amount">{fmtPrimary(Math.max(agg.rawAmount - agg.settlementSum, 0))}</span>
-                    {/if}
-                  </div>
-                </div>
-              {/each}
-            </div>
-          </div>
-        {/if}
       {:else}
         <!--
           个人视图 tab: radio 只在此处出现 (PO 拍板 C1+D1 — 主币种
@@ -603,29 +521,47 @@
     font-weight: 400;
     margin-left: 4px;
   }
+  /* v0.3.33 — UAT 0725-3 #3: pill 形 add-btn (高度 36px / border-radius 999px / gap 4px icon+text / 全站玻璃同族).
+     跟 wizard step 3 全局 glass-pill + sessions/[id] pages .fab 视觉一致. */
   .add-btn {
-    width: 28px;
-    height: 28px;
+    height: 36px;
+    padding: 0 14px;
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.85);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(99, 102, 241, 0.20);
-    color: #6366f1;
+    gap: 4px;
+    border-radius: 999px;
+    background: linear-gradient(
+      135deg,
+      rgba(99, 102, 241, 0.16) 0%,
+      rgba(59, 130, 246, 0.12) 100%
+    );
+    backdrop-filter: saturate(180%) blur(16px);
+    -webkit-backdrop-filter: saturate(180%) blur(16px);
+    border: 1px solid rgba(99, 102, 241, 0.28);
+    color: var(--accent-700, #4338ca);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
     cursor: pointer;
-    transition: transform 120ms ease;
+    transition: transform 150ms ease, background 150ms ease, box-shadow 150ms ease;
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.8),
-      0 1px 3px rgba(99, 102, 241, 0.18);
+      inset 0 1px 0 rgba(255, 255, 255, 0.55),
+      0 1px 3px rgba(99, 102, 241, 0.16);
+    flex-shrink: 0;
   }
   .add-btn:hover {
     transform: translateY(-1px);
+    background: linear-gradient(
+      135deg,
+      rgba(99, 102, 241, 0.22) 0%,
+      rgba(59, 130, 246, 0.18) 100%
+    );
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.65),
+      0 2px 6px rgba(99, 102, 241, 0.22);
   }
   .add-btn:active {
-    transform: scale(0.96);
+    transform: scale(0.97);
   }
 
   /* Glass card (跟全站 glass 语言同源) */
