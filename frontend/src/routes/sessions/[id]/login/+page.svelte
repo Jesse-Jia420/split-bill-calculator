@@ -1,0 +1,444 @@
+<script lang="ts">
+  /**
+   * v0.3.29 — UAT 0725-1 #13 v4 Feature B + C: 新登录页 + 路由集成.
+   *
+   * URL: /sessions/{id}/login?as={memberId}&nickname={nickname}&emailMasked={masked_email}
+   *
+   * 来源: 从 /sessions/{id}/join 点击有邮箱槽位 → 跳到这里 (Feature A 点击分流).
+   *
+   * 跟 /auth/login 区别:
+   * - /auth/login: 通用登录页 (returnTo 推导 H2 文案), 用于全站 401 redirect.
+   * - /sessions/{id}/login: 账本专属登录页 (per-session, 从 join 跳转).
+   *   H2 文案固定 "登录 {nickname}({emailMasked})以回到账本", 不依赖 returnTo.
+   *
+   * 设计语言 (PO v4 字面 + 配套 mockup v4-3-login.html):
+   * - Header row (高 ~56-64px):
+   *   左: 圆形 back FAB (settle 同款 56×56, rgba(99,102,241,0.16) 玻璃)
+   *   右: pill "登录 →" 按钮 (半透明白 18px 圆角玻璃)
+   * - 副标题区: "登录 {nickname}({emailMasked})以回到账本" (15px muted)
+   *   nickname 用 indigo #4f46e5 高亮 + font-weight 600
+   *   email 用更浅 muted gray
+   * - "清迈" 副副标题 (13px 更浅)
+   * - 表单: 邮箱 + 验证码 (空 value, placeholder, 不 pre-fill 真邮箱)
+   * - 主 CTA: 全宽 "登录并回到账本" (indigo 渐变 #6366f1→#4f46e5)
+   *
+   * 反模式 (PO v4 强调):
+   * - ❌ pre-fill 真邮箱到 input (让用户手填验证身份)
+   * - ❌ 视觉提示 email 槽位"已被绑定" (PO v4 视觉平等)
+   */
+  import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { page } from '$app/state';
+  import { ArrowLeft } from 'lucide-svelte';
+  import { ChevronRight } from 'lucide-svelte';
+  import { sendCode, verifyCode } from '$api/auth';
+  import { getSessionPreview } from '$api/sessions';
+  import { loadUser } from '$stores/user';
+  import { toast } from '$stores/toast';
+
+  // 表单状态
+  let email = $state('');
+  let code = $state('');
+  let step: 'send' | 'verify' = $state('send');
+  let busy = $state(false);
+  let codeCooldown = $state(0);  // 60s 倒计时 (disable button + show countdown)
+
+  // 从 query params 拿: nickname, emailMasked, session name (从 preview 拿)
+  let memberId = $derived(page.url.searchParams.get('as') || '');
+  let nickname = $derived(page.url.searchParams.get('nickname') || '');
+  let emailMasked = $derived(page.url.searchParams.get('emailMasked') || '');
+  let sessionId = $derived(Number(page.params.id) || 0);
+  let sessionName = $state('');  // 副副标题 "清迈" — 从 preview 拿
+
+  onMount(async () => {
+    // 拿 session 名称 (副副标题用)
+    if (sessionId) {
+      try {
+        const preview = await getSessionPreview(sessionId);
+        sessionName = preview.name;
+      } catch {
+        sessionName = '';  // 拿不到就空
+      }
+    }
+
+    // 已登录用户: 直接跳走
+    const u = await loadUser();
+    if (u) {
+      await goto(`/s/${page.url.searchParams.get('sessionCode') || sessionId}`, { replaceState: true });
+    }
+  });
+
+  async function handleSend() {
+    if (busy) return;
+    const trimmed = email.trim();
+    if (!trimmed || !trimmed.includes('@')) {
+      toast.error('请输入有效邮箱', 4000);
+      return;
+    }
+    busy = true;
+    try {
+      const res = await sendCode(trimmed);
+      toast.success('验证码已发送 (' + res.ttl_minutes + ' 分钟内有效)');
+      step = 'verify';
+      // 60s 倒计时 (避免 spam / rate limit)
+      codeCooldown = 60;
+      const tick = setInterval(() => {
+        codeCooldown -= 1;
+        if (codeCooldown <= 0) clearInterval(tick);
+      }, 1000);
+    } catch (e: any) {
+      const c = e?.code ?? '';
+      if (c === 'rate limit exceeded') {
+        toast.error('请求过于频繁,请稍后再试', 4000);
+      } else if (c === 'invalid email format') {
+        toast.error('邮箱格式不正确', 4000);
+      } else {
+        toast.error(e?.message ?? '发送失败', 4000);
+      }
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function handleVerify() {
+    if (busy) return;
+    const trimmed = code.trim();
+    if (!/^\d{6}$/.test(trimmed)) {
+      toast.error('验证码是 6 位数字', 4000);
+      return;
+    }
+    busy = true;
+    try {
+      await verifyCode(email.trim(), trimmed);
+      await loadUser();
+      // 验证成功后跳回 join 页 (anon → BE 应该已经 auto-redirect 跳过),
+      // 或者直接跳账本详情 (logged-in 用户不是 member → /s/{code} 会 redirect 回 /join)
+      // 这里跳 /s/{code} 让 BE / FE 决定下一步.
+      // 没 sessionCode 就用 sessionId fallback.
+      await goto(`/s/${page.url.searchParams.get('sessionCode') || sessionId}`, { invalidateAll: true });
+    } catch (e: any) {
+      const c = e?.code ?? '';
+      if (c === 'invalid or expired code') {
+        toast.error('验证码无效或已过期', 4000);
+      } else {
+        toast.error(e?.message ?? '验证失败', 4000);
+      }
+    } finally {
+      busy = false;
+    }
+  }
+
+  function goBack() {
+    // 跳回 join 页 (用户决定不登录了, 用回现有 anon 加入流程)
+    goto(`/sessions/${sessionId}/join`);
+  }
+</script>
+
+<!-- v0.3.29 #13 v4 Feature B: Header row + pill 登录 -->
+<section class="login-page">
+  <header class="login-header">
+    <!-- 圆形 back FAB (settle v0.3.15 #6 v2 + v0.3.18 #63 风格) -->
+    <button
+      class="login-back-fab"
+      type="button"
+      aria-label="返回加入账本"
+      onclick={goBack}
+      data-testid="login-back-fab"
+    >
+      <ArrowLeft size={22} strokeWidth={2.5} />
+    </button>
+
+    <!-- pill "登录 →" 按钮 (decorative — 不点击, 仅视觉) -->
+    <div class="login-pill-btn" data-testid="login-pill-btn" aria-hidden="true">
+      <span>登录</span>
+      <ChevronRight size={16} strokeWidth={2.5} />
+    </div>
+  </header>
+
+  <!-- v0.3.29 #13 v4 Feature B: 副标题区 -->
+  <p class="page-title" data-testid="login-subtitle">
+    登录 <span class="nickname">{nickname || '用户'}</span><span class="email-wrap"><span class="paren">(</span>{emailMasked || 'x***@outlook.com'}<span class="paren">)</span></span>以回到账本
+  </p>
+
+  {#if sessionName}
+    <p class="page-subtitle" data-testid="login-session-name">
+      <span class="session-name">{sessionName}</span>
+    </p>
+  {/if}
+
+  <!-- v0.3.29 #13 v4 Feature B: 表单 -->
+  <div class="form-section">
+    <!-- 邮箱 -->
+    <div class="form-field">
+      <label class="form-label" for="email">邮箱<span class="required">*</span></label>
+      <input
+        id="email"
+        class="glass-input"
+        type="email"
+        bind:value={email}
+        placeholder="请输入邮箱"
+        autocomplete="off"
+        disabled={busy && step === 'verify'}
+        data-testid="login-email-input"
+      />
+    </div>
+
+    <!-- 验证码 -->
+    <div class="form-field">
+      <label class="form-label" for="code">验证码<span class="required">*</span></label>
+      <div class="code-row">
+        <input
+          id="code"
+          class="glass-input"
+          type="text"
+          inputmode="numeric"
+          maxlength="6"
+          bind:value={code}
+          placeholder="请输入 6 位验证码"
+          autocomplete="off"
+          disabled={step === 'send'}
+          data-testid="login-code-input"
+        />
+        <button
+          class="btn-code"
+          type="button"
+          onclick={handleSend}
+          disabled={busy || codeCooldown > 0}
+          data-testid="login-send-code-btn"
+        >
+          {#if codeCooldown > 0}{codeCooldown}s{:else}获取验证码{/if}
+        </button>
+      </div>
+      <!-- helper: 验证码将发送至 {masked email} -->
+      <p class="helper-text" data-testid="login-code-helper">
+        验证码将发送至 {emailMasked || 'x***@outlook.com'}
+      </p>
+    </div>
+
+    <!-- 主 CTA -->
+    <button
+      class="btn-primary"
+      type="button"
+      onclick={handleVerify}
+      disabled={busy}
+      data-testid="login-submit-btn"
+    >
+      {busy ? '验证中…' : '登录并回到账本'}
+    </button>
+  </div>
+</section>
+
+<style>
+  /* v0.3.29 — UAT 0725-1 #13 v4 Feature B: 登录页 (跟 /auth/login 区分).
+   * 设计 mockup: /tmp/mockup-0725-1-13-v4-3-login.html
+   * iOS app-shell 已由 +layout.svelte + app.css 全局处理 (html/body locked + main 内滚),
+   * 这里只做 header + 表单 + 副标题视觉. */
+
+  .login-page {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 0 20px 24px;
+  }
+
+  /* ===== Header row (高 ~64px) ===== */
+  .login-header {
+    height: 64px;
+    padding: 4px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  /* 圆形 back FAB — 跟 settle v0.3.18 #63 同款 (56×56 玻璃 indigo) */
+  .login-back-fab {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: rgba(99, 102, 241, 0.16);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.6) inset,
+      0 -1px 0 rgba(99, 102, 241, 0.15) inset,
+      0 6px 16px rgba(99, 102, 241, 0.18),
+      0 2px 4px rgba(15, 23, 42, 0.06);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.18s ease-out, background 0.18s ease-out;
+    color: #4f46e5;
+    flex-shrink: 0;
+  }
+  .login-back-fab:active {
+    transform: scale(0.96);
+    background: rgba(99, 102, 241, 0.24);
+  }
+
+  /* pill "登录 →" 按钮 — 半透明白玻璃 (decorative, 不点击) */
+  .login-pill-btn {
+    height: 40px;
+    padding: 8px 16px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: saturate(200%) blur(20px);
+    -webkit-backdrop-filter: saturate(200%) blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.8) inset,
+      0 -1px 0 rgba(0, 0, 0, 0.04) inset,
+      0 2px 8px rgba(15, 23, 42, 0.08);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #4f46e5;
+    letter-spacing: 0.01em;
+    flex-shrink: 0;
+  }
+
+  /* ===== 副标题区 ===== */
+  .page-title {
+    font-size: 15px;
+    font-weight: 500;
+    color: rgba(0, 0, 0, 0.62);
+    margin: 4px 0 4px;
+    line-height: 1.45;
+    letter-spacing: -0.005em;
+    word-break: break-word;
+  }
+  .page-title .nickname {
+    color: #4f46e5;
+    font-weight: 600;
+  }
+  .page-title .email-wrap {
+    color: rgba(0, 0, 0, 0.42);
+    font-weight: 500;
+    font-feature-settings: "tnum";
+  }
+  .page-title .email-wrap .paren {
+    color: rgba(0, 0, 0, 0.32);
+    font-weight: 400;
+  }
+  .page-subtitle {
+    font-size: 13px;
+    font-weight: 400;
+    color: rgba(0, 0, 0, 0.42);
+    margin-bottom: 28px;
+    line-height: 1.5;
+  }
+  .page-subtitle .session-name {
+    color: rgba(0, 0, 0, 0.7);
+    font-weight: 600;
+  }
+
+  /* ===== 表单 ===== */
+  .form-section {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .form-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+    letter-spacing: 0.01em;
+  }
+  .form-label .required {
+    color: #ec4899;
+    margin-left: 2px;
+  }
+  .glass-input {
+    width: 100%;
+    height: 52px;
+    padding: 0 16px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.62);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border: 1px solid rgba(99, 102, 241, 0.10);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.5),
+      0 1px 3px rgba(15, 23, 42, 0.05);
+    font-size: 16px;
+    color: #171717;
+    outline: none;
+    -webkit-appearance: none;
+  }
+  .glass-input::placeholder { color: #9ca3af; }
+
+  .code-row {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+  }
+  .code-row .glass-input {
+    flex: 1;
+    min-width: 0;
+  }
+  .btn-code {
+    height: 52px;
+    padding: 0 16px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.62);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border: 1px solid rgba(99, 102, 241, 0.20);
+    color: #6366f1;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    flex-shrink: 0;
+    white-space: nowrap;
+    letter-spacing: 0.01em;
+  }
+  .btn-code:active {
+    background: rgba(255, 255, 255, 0.85);
+  }
+  .btn-code:disabled {
+    color: #9ca3af;
+    cursor: not-allowed;
+  }
+
+  /* 主 CTA — 全宽 indigo 渐变 */
+  .btn-primary {
+    width: 100%;
+    height: 52px;
+    margin-top: 8px;
+    padding: 0 28px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.95) 0%, rgba(168, 85, 247, 0.95) 100%);
+    color: white;
+    font-size: 16px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    box-shadow:
+      0 4px 12px rgba(99, 102, 241, 0.30),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    letter-spacing: 0.01em;
+  }
+  .btn-primary:active {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 1) 0%, rgba(168, 85, 247, 1) 100%);
+  }
+  .btn-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .helper-text {
+    font-size: 12px;
+    color: #6b7280;
+    margin-top: 6px;
+    line-height: 1.4;
+  }
+</style>
