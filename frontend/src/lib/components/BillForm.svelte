@@ -642,7 +642,15 @@
               data-testid={`ppts-row-${m.id}`}
               aria-pressed={st?.included ?? false}
             >
-              <span class="ppt-check-icon" aria-hidden="true">{st?.included ? '☑' : '☐'}</span>
+              <!-- v0.3.29 UAT 0725-1 #11: 玻璃选框 (替代 emoji ☑☐, 跟全站玻璃语言同源)
+                   18x18 square, 半透明白底 + backdrop-filter blur(8px) saturate(180%) + 1px 白边 + inset highlight
+                   .included: 填充 indigo 玻璃 (跟主按钮同源 rgba(99,102,241,0.55) bg + border 0.85)
+                   .not-included: 0.45 alpha 白玻璃 + 0.18 蓝边 (空态淡) -->
+              <span class="ppt-check-icon" class:included={st?.included} aria-hidden="true">
+                {#if st?.included}
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                {/if}
+              </span>
               <span class="ppt-avatar" aria-hidden="true"
                 style="background: {st?.included ? avatarGradient(i) : 'rgba(160,160,160,0.25)'};">
                 {avatarInitial(m.display_name)}
@@ -773,12 +781,37 @@
   .ppt-main:active {
     background: var(--gray-100, #f3f4f6);
   }
+  /* v0.3.29 UAT 0725-1 #11: 玻璃选框 (跟 v0.3.23 #132 avatar Option B 玻璃语言同源)
+     18x18 square + 半透明白底 + backdrop-filter blur(8px) saturate(180%) + 1px 蓝白边 + glass shadow.
+     .not-included (空态): 白玻璃 0.45 alpha, 蓝边 0.18
+     .included (亮态): indigo 玻璃 rgba(99,102,241,0.55) bg, 蓝边 0.85, 实心 ✓ */
   .ppt-check-icon {
-    font-size: 18px;
-    line-height: 1;
-    flex: 0 0 22px;
-    text-align: center;
-    color: var(--accent-500, #3b82f6);
+    flex: 0 0 18px;
+    width: 18px;
+    height: 18px;
+    border-radius: 5px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.45);
+    backdrop-filter: blur(8px) saturate(180%);
+    -webkit-backdrop-filter: blur(8px) saturate(180%);
+    border: 1px solid rgba(99, 102, 241, 0.18);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.50),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.04),
+      0 1px 2px rgba(15, 23, 42, 0.04);
+    color: transparent;
+    transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+  }
+  .ppt-check-icon.included {
+    background: rgba(99, 102, 241, 0.55);
+    border-color: rgba(99, 102, 241, 0.85);
+    color: #ffffff;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.40),
+      inset 0 -1px 0 rgba(67, 56, 202, 0.18),
+      0 1px 3px rgba(99, 102, 241, 0.18);
   }
   /* v0.3.20 #91 (PO msg 03:06 #7375): 头像 — 36×36 圆形 + 5 色 palette + 1 字符首字母.
      复用 SessionMemberList 的 5 色 AVATAR_GRADIENTS, 尺寸放大到 36×36 (比 chip 28px 大)
