@@ -532,6 +532,13 @@
        不再渲染 inline 错误块. form 仍保留 padding-bottom: 96px 让最后
        一行 member 不被左右下角 FAB 遮挡 (5-member session 测过). -->
   <!-- v0.3.23 #136 (UAT bug #3): 金额 + 时间 一行, flex:1 each 让输入框长度一致 -->
+  <!-- v0.3.29 — UAT 0725-1 #6: 时间 input 从金额行挪到独立整行. iOS Safari datetime-local
+       native widget 有 implicit min-width ~200px (picker indicator 30px + locale text 140-170px),
+       WebKit bug #119175 12 年未修, CSS max-width 只能压上限不能压下限. 任何 padding 调整
+       / flex:1 / min-width:0 都不解决 (v0.3.24 Top #1 padding-inline / v0.3.28 #4
+       max-width 100% 都只缓解症状, 物理上 input box ~156px < widget ~200px 仍溢出).
+       方案 B: 挪 occurredAt 到独立整行 .occurredAt-row { width: 100% }, 物理给 widget 200px+
+       container. amount 行变 flex 单 item, 时间行变独立 full-width block. -->
   <div class="row" style="gap: var(--space-3); align-items: flex-start;">
     <div style="flex: 1; min-width: 0;">
       <label class="label" for="amount">金额</label>
@@ -547,11 +554,11 @@
         on:amountChange={(e) => (amount = e.detail)}
       />
     </div>
-    <div style="flex: 1; min-width: 0;">
-      <!-- v0.3.20 #95 Fix 2 (PO msg 02:41 #7459): 标签 "发生时间" → "时间" -->
-      <label class="label" for="occurredAt">时间</label>
-      <input id="occurredAt" type="datetime-local" bind:value={occurredAt} />
-    </div>
+  </div>
+  <div class="occurredAt-row">
+    <!-- v0.3.20 #95 Fix 2 (PO msg 02:41 #7459): 标签 "发生时间" → "时间" -->
+    <label class="label" for="occurredAt">时间</label>
+    <input id="occurredAt" type="datetime-local" bind:value={occurredAt} />
   </div>
 
   <div class="row" style="gap: var(--space-3); align-items: center;">
@@ -1116,15 +1123,42 @@
      到刚好装下内容 + picker indicator, 视觉平衡. iPhone 13 (content 宽
      326px) 240 留 86px 空; iPhone SE 375 (content 311px) 240 留 71px 空;
      小屏 320 (content 256px) 240 超出 → 用 max-width: min(240px, 100%)
-     兜底. */
+     兜底.
+
+     v0.3.28 UAT 0724-1 #4 (commit be9d25b): 删 min(240px, 100%) → 单纯 100%.
+     iPhone 13 实测 parent 156px (flex:1 + min-width:0), min(240, 100%) → 156.
+     但 iOS Safari datetime-local native widget minimum content ~200px
+     (picker icon 30px + locale-formatted content ~140px), 156px 容器下
+     widget 渲染会溢出 input 框.
+
+     v0.3.29 — UAT 0725-1 #6: 物理根因修. 之前 v0.3.24 Top #1 (padding-inline)
+     + v0.3.28 #4 (max-width 100%) 都只缓解症状, 物理上 input box ~156px <
+     widget ~200px 仍溢出. WebKit bug #119175 12 年未修, iOS 26.4 没改
+     datetime-local 渲染规则. CSS max-width 只能压上限不能压下限, 任何
+     padding 调整都不管用. 方案 B: 挪 occurredAt 到独立整行 .occurredAt-row
+     (width: 100%, ~326px iPhone 13 content area), 物理给 widget 200px+
+     container, 容纳 picker indicator 30px + locale text 140-170px + 8px margin.
+     input width: 100% 现在真生效 (parent 已 full-width, 不再被 flex:1 兄弟
+     amount 挤). padding-inline 12 16px 保留 (容纳 picker indicator 16px 右侧). */
   input[type="datetime-local"]#occurredAt {
     min-width: 0;
-    max-width: 100%; /* v0.3.28 UAT 0724-1 #4: 删 min(240px, 100%) → 单纯 100%. iPhone 13 实测 parent 156px (flex:1 + min-width:0), min(240, 100%) → 156. 但 iOS Safari datetime-local native widget minimum content ~200px (picker icon 30px + locale-formatted content ~140px), 156px 容器下 widget 渲染会溢出 input 框. 改 max-width: 100% + width: 100% 让 input 始终等于 container 宽度, 不超 parent (parent flex:1 + min-width:0 自带伸缩). padding-inline 12 32px 保留 (v0.3.24 Top #1 容纳 picker indicator). 修后任何 viewport 都不超 form. */
     width: 100%;
     padding-block: 8px;
     padding-inline: 12px 16px; /* v0.3.28 UAT 0724-2 #5: 从 32px 减到 16px, 减小日历 icon 右侧空白. 保留 16px 防 picker indicator 截断. */
     font-size: 15px;
     letter-spacing: -0.01em;
+  }
+
+  /* v0.3.29 — UAT 0725-1 #6: 时间 input 独立整行, full-width container 让 iOS Safari
+     datetime-local widget (~200px implicit min-width) 不被挤. 跟上面 v0.3.23 #136
+     "金额 + 时间 同行 flex:1 each" 是反方向改动 — 上次是把 amount 时间挤一排
+     视觉对齐, 这次承认 datetime-local 物理需要独立 row 才能装下 native widget. */
+  .occurredAt-row {
+    width: 100%;
+    margin-top: var(--space-3);
+  }
+  .occurredAt-row input[type="datetime-local"]#occurredAt {
+    display: block;
   }
 
 </style>

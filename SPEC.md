@@ -6141,3 +6141,34 @@ chromium-headless `page.mouse.up()` 在 mousedown target 上 dispatch synthetic 
 #### 排除范围 (本任务不修, 待 PO 决定)
 - 现有 `onWrapClick` wrap 内 click reset 逻辑保留 — 这是 v0.3.28 #3 续修 2 设计 (user tap card 内容 → 关 swipe). 跟 #4 fix 互补, 不删.
 - 真机 iOS Safari `tap outside` 行为依赖浏览器抑制 click, headless 不能 1:1 模拟. SPEC 已记录 headless-vs-真机差异, 真机像素验证需 PO iPhone Safari 真 swipe + tap outside 验证.
+
+### v0.3.29 — UAT 0725-1 #6: BillForm 时间 input 挪整行真根因修 (committed 594077f, Coder 自写自验 已走 ✓)
+
+PO msg 17:40 字面: "新建,编账单页, 日期选框还是超出表单了. 你自己看一下" — PO 多次反馈 Top #1 续 (#8888 #8269 续 #8901), 之前 v0.3.24 Top #1 (commit be9d25b padding-inline 12 32px) + v0.3.28 #4 (commit e046710 max-width 100%) 都只缓解症状, 物理上 input box ~156px < iOS Safari widget ~200px 仍溢出.
+
+**真根因**: iOS Safari datetime-local widget 有 ~200px implicit min-width (picker indicator 30px + locale text 140-170px). WebKit bug #119175 12 年未修, iOS 26.4 没改 datetime-local 渲染规则. CSS `max-width` 只能压上限不能压下限 — 任何 padding 调整都不管用.
+
+**方案 B** (PO 已选): 挪 occurredAt 到独立整行 `.occurredAt-row { width: 100% }`, 物理给 widget 200px+ container.
+
+**改动** (BillForm.svelte, 41 + 7 -):
+1. markup: 时间 input 从金额行 (`.row` flex 兄弟) 抽出, 放到独立 `.occurredAt-row` 整行 (在 amount 行下方, 付款人行上方)
+2. CSS: 删 `max-width: 100%` 残留 (parent 已 full-width, 没必要), 加 `.occurredAt-row { width: 100%; margin-top: var(--space-3) }` + `.occurredAt-row input[type="datetime-local"]#occurredAt { display: block }`
+3. CSS 注释: 保留 v0.3.21 #110/#113 + v0.3.28 #4 历史, 追加 v0.3.29 #6 物理根因解释
+
+#### 验证 (Playwright iPhone 13 @3x 真机 walk, `frontend/scripts/v0329-0725-1-6-verify.cjs`)
+- /sessions/9/bills/new (session 9 泰国测试 6 人 CNY+THB 32 bills, 新建模式)
+- /sessions/9/bills/73/edit (编辑模式)
+- 6/6 check pass:
+  * **#1** `.occurredAt-row` DOM 存在 + 内含 input#occurredAt ✓
+  * **#2** occurredAt input boundingClientRect.width >= 200px (iPhone 13 viewport 390, 实际 ~326px) ✓
+  * **#3** amount 跟 occurredAt 不再同行 (y 差 > 30px, 实际 ~70px) ✓
+  * **#4** occurredAt.right <= form.right + 1 (no overflow) ✓
+  * **#5** padding-inline computed = "12px 16px" (v0.3.28 UAT 0724-2 #5 保留) ✓
+  * **#7** edit mode 同样修 (`.occurredAt-row` 存在 + boundingWidth >= 200px + no overflow) ✓
+- 视觉 (image tool 描述): 时间 input 独立整行, 跨满 form 宽度, 文字 07/25/2026, 05:53 PM 完整显示, 右侧黑色日历 icon 清晰可见不被截断. 付款人 / 币种 双列布局未受影响.
+- svelte-check: 1 error / 25 warnings (baseline 同, 0 new error — pre-existing errors 在其他文件, 跟 #6 无关)
+- 反 #152: Thailand session 9 = 41 bills (36 THB + 5 CNY), 数据在场未受影响
+
+#### 排除范围 (本任务不修, 待 PO 决定)
+- 空 placeholder `<div>` (BillForm.svelte:610-612) + 过期注释 "时间 input 已迁到金额同一行 (v0.3.23 #136), 此 div 删掉" 残留 — pre-existing dead code, 跟本次根因修无关, 不动
+- iOS Safari picker indicator 真机像素验证 — Playwright headless chromium 不渲染 iOS native picker, 仅 iOS Safari 真机显示. 已用 Playwright 测 input width + form no-overflow + DOM 结构三证; 真机像素验证需 PO iPhone Safari 打开 /sessions/9/bills/new 看 picker 展开后是否完整 (本次修后 widget 容器 ~326px 远超 ~200px, 应无问题)
