@@ -134,26 +134,16 @@
   }
 </script>
 
-<!-- v0.3.29 #13 v4 Feature B: Header row + pill 登录 -->
+<!-- v0.3.33 — UAT 0725-3 #1 (PO 14:59 batch):
+     页面 redesign.
+       - 删顶部「登录 →」pill (原来 header 右侧 decorative pill, 跟主 CTA 文案重复, 视觉冲突)
+       - 返回按钮从 header 移到 主 CTA「登录并回到账本」左侧 (形成 cta-row: back FAB + submit pill)
+       - 主 CTA 改 pill 形 (border-radius 14px → 999px, 全宽 = 减去 back FAB 宽 = 容器宽 - 56px - 12px gap)
+       - 视觉一致性: back FAB 在 submit pill 左侧 row 布局, 主操作只有 1 个, 避免双 CTA 误读
+-->
 <section class="login-page">
-  <header class="login-header">
-    <!-- 圆形 back FAB (settle v0.3.15 #6 v2 + v0.3.18 #63 风格) -->
-    <button
-      class="login-back-fab"
-      type="button"
-      aria-label="返回加入账本"
-      onclick={goBack}
-      data-testid="login-back-fab"
-    >
-      <ArrowLeft size={22} strokeWidth={2.5} />
-    </button>
-
-    <!-- pill "登录 →" 按钮 (decorative — 不点击, 仅视觉) -->
-    <div class="login-pill-btn" data-testid="login-pill-btn" aria-hidden="true">
-      <span>登录</span>
-      <ChevronRight size={16} strokeWidth={2.5} />
-    </div>
-  </header>
+  <!-- header 保留空白 (PO 字面「取消」header 顶部 pill + 返回 FAB, 不再放任何控件) -->
+  <header class="login-header" data-testid="login-header"></header>
 
   <!-- v0.3.29 #13 v4 Feature B: 副标题区 -->
   <p class="page-title" data-testid="login-subtitle">
@@ -215,16 +205,28 @@
       </p>
     </div>
 
-    <!-- 主 CTA -->
-    <button
-      class="btn-primary"
-      type="button"
-      onclick={handleVerify}
-      disabled={busy}
-      data-testid="login-submit-btn"
-    >
-      {busy ? '验证中…' : '登录并回到账本'}
-    </button>
+    <!-- v0.3.33 #1: cta-row (back FAB + submit pill) — back FAB 在 submit pill 左侧 -->
+    <div class="cta-row">
+      <button
+        class="login-back-fab"
+        type="button"
+        aria-label="返回加入账本"
+        onclick={goBack}
+        data-testid="login-back-fab"
+      >
+        <ArrowLeft size={22} strokeWidth={2.5} />
+      </button>
+
+      <button
+        class="btn-primary submit-pill"
+        type="button"
+        onclick={handleVerify}
+        disabled={busy}
+        data-testid="login-submit-btn"
+      >
+        {busy ? '验证中…' : '登录并回到账本'}
+      </button>
+    </div>
   </div>
 </section>
 
@@ -240,66 +242,40 @@
     padding: 0 20px 24px;
   }
 
-  /* ===== Header row (高 ~64px) ===== */
+  /* ===== Header row (高 ~64px, v0.3.33 #1: header 现在空白, 保留 64px 占位) ===== */
   .login-header {
     height: 64px;
     padding: 4px 0;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    position: relative;
     flex-shrink: 0;
   }
 
-  /* 圆形 back FAB — 跟 settle v0.3.18 #63 同款 (56×56 玻璃 indigo) */
+  /* 圆形 back FAB — 跟 settle v0.3.18 #63 同款 (56×56 玻璃 indigo).
+     v0.3.33 #1: 从 header 移到 cta-row (submit pill 左侧). */
   .login-back-fab {
+    flex: 0 0 auto;
     width: 56px;
-    height: 56px;
+    height: 52px;
     border-radius: 50%;
-    background: rgba(99, 102, 241, 0.16);
+    background: rgba(99, 102, 241, 0.12);
     backdrop-filter: saturate(180%) blur(20px);
     -webkit-backdrop-filter: saturate(180%) blur(20px);
-    border: 2px solid rgba(255, 255, 255, 0.5);
+    border: 1.5px solid rgba(255, 255, 255, 0.5);
     box-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.6) inset,
-      0 -1px 0 rgba(99, 102, 241, 0.15) inset,
-      0 6px 16px rgba(99, 102, 241, 0.18),
-      0 2px 4px rgba(15, 23, 42, 0.06);
+      inset 0 1px 0 rgba(255, 255, 255, 0.6),
+      0 4px 10px rgba(99, 102, 241, 0.14);
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     transition: transform 0.18s ease-out, background 0.18s ease-out;
     color: #4f46e5;
-    flex-shrink: 0;
   }
   .login-back-fab:active {
     transform: scale(0.96);
-    background: rgba(99, 102, 241, 0.24);
+    background: rgba(99, 102, 241, 0.20);
   }
 
-  /* pill "登录 →" 按钮 — 半透明白玻璃 (decorative, 不点击) */
-  .login-pill-btn {
-    height: 40px;
-    padding: 8px 16px;
-    border-radius: 18px;
-    background: rgba(255, 255, 255, 0.92);
-    backdrop-filter: saturate(200%) blur(20px);
-    -webkit-backdrop-filter: saturate(200%) blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.7);
-    box-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.8) inset,
-      0 -1px 0 rgba(0, 0, 0, 0.04) inset,
-      0 2px 8px rgba(15, 23, 42, 0.08);
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 15px;
-    font-weight: 600;
-    color: #4f46e5;
-    letter-spacing: 0.01em;
-    flex-shrink: 0;
-  }
+  /* v0.3.33 — UAT 0725-3 #1: header pill 删了 (PO 字面「取消」), .login-pill-btn CSS 同步清理. */
 
   /* ===== 副标题区 ===== */
   .page-title {
@@ -409,13 +385,22 @@
     cursor: not-allowed;
   }
 
-  /* 主 CTA — 全宽 indigo 渐变 */
-  .btn-primary {
-    width: 100%;
-    height: 52px;
+  /* cta-row: back FAB 56×56 + submit pill 全宽, 12px gap. PO 字面「返回按钮移到提交 btn 左侧」. */
+  .cta-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
     margin-top: 8px;
-    padding: 0 28px;
-    border-radius: 14px;
+    width: 100%;
+  }
+
+  /* 主 CTA — pill 形 (border-radius 999px), 占 cta-row 剩余宽度 (calc(100% - 56px - 12px)). */
+  .btn-primary.submit-pill {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 52px;
+    padding: 0 20px;
+    border-radius: 999px;
     background: linear-gradient(135deg, rgba(99, 102, 241, 0.95) 0%, rgba(168, 85, 247, 0.95) 100%);
     color: white;
     font-size: 16px;

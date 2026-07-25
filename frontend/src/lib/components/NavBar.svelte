@@ -21,6 +21,13 @@
   function isJoinPage(): boolean {
     return /^\/sessions\/\d+\/join/.test(page.url.pathname);
   }
+  // v0.3.33 — UAT 0725-3 #1 (PO 14:59 batch):
+  //   /sessions/{id}/login 是账本专属登录页 (用户进入 OTP 时已在登录流程),
+  //   NavBar 上的 "登录以保存" 跟页面本身重复 — 隐藏.
+  //   跟 /auth/login 一样, 整个 .right 区在此路由下不渲染.
+  function isLoginPage(): boolean {
+    return /^\/sessions\/\d+\/login/.test(page.url.pathname);
+  }
 </script>
 
 <!-- v0.3.17 #22 hotfix (PO msg 16:32 #1): 整个 .right 区在 /auth/login 隐藏
@@ -36,7 +43,7 @@
        分支 (login btn / login-以保存 / logout btn) 都不该出现在登录页 -->
 <header class="navbar">
   <a href="/" class="brand">SplitIt</a>
-  {#if page.url.pathname !== '/auth/login'}
+  {#if page.url.pathname !== '/auth/login' && !isLoginPage()}
     <div class="right">
       {#if $user}
         <span class="email" title="{$user.email}">{$user.default_name}</span>
