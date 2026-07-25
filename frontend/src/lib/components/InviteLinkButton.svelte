@@ -21,6 +21,13 @@
   - 复制失败仍走 toast.error 兜底 (保留错误反馈)
   - z-index 1000 (在 Toast 9999 之下, 在普通 modal 999 之上)
   - 半透明黑 backdrop (rgba 0,0,0,0.10 + blur 4px) + 玻璃 modal (圆角 18px, 白底 + backdrop-filter, padding 24px)
+
+  v0.3.31 #2 (UAT 0725-2 #2, PO msg ~20:03 字面 "匿名用户创建账本,首次进入账单页时,邀请链接按钮高亮呼吸"):
+  - 加 `breathing: boolean = false` prop
+  - breathing=true 时按钮加 `.invite-btn-breathing` class (CSS keyframes 1.5s ease-in-out infinite,
+    box-shadow 16→24px indigo + scale 1↔1.02; keyframes @keyframes invite-breath 在 frontend/src/app.css)
+  - 触发条件: 由 /sessions/[id]/+page.svelte 在 isAnonOwner && sessionStorage 首次访问 设 true
+  - 文案 pill (.expiry-anon-a 红色 pill) 在 page-level 渲染, InviteLinkButton 不参与
 -->
 <script lang="ts">
   import { toast } from '$stores/toast';
@@ -30,6 +37,11 @@
   export let sessionCode: string = '';
   /** True if the caller is the session owner (保留 prop,后续 v0.2 rotate 功能回归使用)。 */
   export const isOwner: boolean = false;
+  /** v0.3.31 #2 (UAT 0725-2 #2): 匿名 owner 首次进入账单页时由 parent 设 true,
+   *  按钮加 .invite-btn-breathing class 触发 CSS keyframes @keyframes invite-breath
+   *  (1.5s ease-in-out infinite, 紫光晕 16→24px + scale 1↔1.02).
+   *  默认 false, 不触发.  触发后立即写 sessionStorage 避免刷新重触. */
+  export let breathing: boolean = false;
   /* v0.3.18 #66 (PO #6899 Mockup A): 过期提示已移到 page-level .expiry-inline-a (amber pill),
      ownerEmail / inviteExpiresAt / formatExpiresDate / expiresDate 全部不再需要,
      删除以避免 svelte-check unused export warning. */
@@ -130,6 +142,7 @@
     type="button"
     class="glass-pill invite-btn"
     class:copied
+    class:invite-btn-breathing={breathing}
     on:click={(e) => { e.stopPropagation(); handleInviteClick(); }}
     title="复制邀请链接"
     aria-label="复制邀请链接"

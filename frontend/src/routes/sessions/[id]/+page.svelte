@@ -29,6 +29,7 @@
    * - BillListGrouped 在 T7 中已支持「默认最新一天展开」智能逻辑
    */
   import { onMount } from 'svelte';
+  import { browser } from '$app/environment';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import { fly } from 'svelte/transition';
@@ -123,6 +124,13 @@
   );
   let isOwner = $derived(currentMember?.role === 'owner');
 
+  // v0.3.31 #2 (UAT 0725-2 #2): 匿名 owner 首次进入账单页触发呼吸 + 文案 pill.
+  // showBreathing → 传给 InviteLinkButton 的 breathing prop, 触发 CSS keyframes.
+  // showAnonHint → 控制红色玻璃 pill .expiry-anon-a 渲染 (邀请按钮正下方).
+  // 两者由 onMount() 一次性设置 (sessionStorage 二次访问不重触).
+  let showBreathing = $state(false);
+  let showAnonHint = $state(false);
+
   // v0.3.28 (UAT 0723-3 #9): session 至少有一名已认领成员 (user_id !== null) → "已永久保存" 提示
   //   取代原 "yyyy.mm.dd 过期 · 登录即可永久保存" 过期提示.
   //   判定: session.members.some(m => m.user_id != null) — m.user_id nullable = anon.
@@ -208,6 +216,30 @@
     }
 
     await load();
+
+    // v0.3.31 #2 (UAT 0725-2 #2, PO msg ~20:03 字面):
+    //   "匿名用户创建账本,首次进入账单页时,邀请链接按钮高亮呼吸。
+    //    下方的提示目前是"邀请朋友加入,开始分摊第一笔账单吧",
+    //    改为"当前未登录,请收藏此链接,这是您回到此账本的唯一密钥！""
+    // 触发条件:
+    //   1) session.members[0]?.user_id === null → owner 匿名创建 (即 anon owner)
+    //   2) sessionStorage 没有 sbc-visited-{session.id} 标记 → 首次进入账单页
+    // 满足两条件则:
+    //   - showBreathing = true → InviteLinkButton 加 .invite-btn-breathing (1.5s 紫光晕 + scale 1↔1.02)
+    //   - showAnonHint = true → 邀请按钮下方渲染红色玻璃 pill .expiry-anon-a (PO 新文案)
+    //   - 立即写 sessionStorage, 刷新/重进不重触 (PO 明确 "首次进入")
+    // 不满足 (已认领 member / 二次访问) → 两个 flag 保持 false, 既不呼吸也不显 pill.
+    // 注: members 在 load() 后已就绪, 此时 session.members[0].user_id 反映 owner 是否匿名.
+    if (browser) {
+      const isAnonOwner = !session?.members?.[0]?.user_id;
+      const visitedKey = `sbc-visited-${session?.id ?? ''}`;
+      const sessionVisited = sessionStorage.getItem(visitedKey);
+      if (isAnonOwner && !sessionVisited) {
+        showBreathing = true;
+        showAnonHint = true;
+        sessionStorage.setItem(visitedKey, '1');
+      }
+    }
   });
 
   /**
@@ -637,7 +669,23 @@
               sessionId={session.id}
               sessionCode={session?.session_code ?? ""}
               {isOwner}
+              breathing={showBreathing}
             />
+            <!-- v0.3.31 #2 (UAT 0725-2 #2, PO 字面 "下方的提示改为"当前未登录,请收藏此链接,这是您回到此账本的唯一密钥！"):
+                 仅匿名 owner + 首次进入账单页时渲染, 替代原 amber pill "邀请朋友加入,开始分摊第一笔账单吧".
+                 视觉: 红色玻璃 pill (跟 expiry-inline-a 同族), 1px border + backdrop-filter blur(8px).
+                 位置: 邀请按钮正下方, 跟 .members-row2-right 一起 align-items: flex-end 右对齐.
+                 二次访问 sessionStorage 有标记 → 不渲染 (PO 明确 "首次进入"). -->
+            {#if showAnonHint}
+              <span class="expiry-anon-a" data-testid="invite-anon-hint">
+                <!-- Lucide `lock` 11×11 -->
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+                <span>当前未登录,请收藏此链接,这是您回到此账本的唯一密钥！</span>
+              </span>
+            {/if}
           </div>
         </div>
 
@@ -1092,6 +1140,14 @@
     min-width: 0;
   }
   .members-row2-right {
+    /* v0.3.31 #2 (UAT 0725-2 #2): 加 display: flex + flex-direction: column + align-items: flex-end
+       让 InviteLinkButton + .expiry-anon-a (匿名 hint pill) 纵向堆叠 + 跟原 invite-btn 一样右对齐.
+       原 layout 是块状, pill 加进来后默认占满整行 + 左对齐 → 不符 .members-row2-right 右对齐.
+       margin-left: auto 让整个 right 区域靠 section 右边. */
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--space-2);
     flex: 0 0 auto;
     margin-left: auto;
   }
@@ -1199,6 +1255,37 @@
   .expiry-inline-a svg {
     flex-shrink: 0;
     opacity: 0.85;
+  }
+  /* v0.3.31 #2 (UAT 0725-2 #2, PO msg ~20:03 字面): 匿名 owner 首次进入账单页文案 pill.
+     视觉跟 .expiry-inline-a 同族 (pill shape + font-size 11px + gap 4px + border-radius 999px),
+     配色改 red-50 系 (caution 色, 跟 amber / emerald 视觉同族但语义区分, 表示「未登录,链接唯一密钥」紧急).
+     比 expiry-inline-a / expiry-saved-a 大一档 (font-size 13px / padding 6px 14px) — 主信息
+     级而非备注级, 因为文案更长且承载 owner 首次进入的引导 + 提醒.  */
+  .expiry-anon-a {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--red-700, #b91c1c);
+    background: rgba(239, 68, 68, 0.10);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-weight: 500;
+    line-height: 1.4;
+    white-space: normal;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    text-align: left;
+    /* 跟邀请按钮纵向 + 横向都右对齐 (跟 .members-row2-right 同 align-items).
+       flex-end 让长文案 wrap 时不溢出右边 (iPhone 13 = 390 - 32 padding = 358 内容区,
+       pill 不超 200 字符宽, 安全). */
+    align-self: flex-end;
+    max-width: 100%;
+  }
+  .expiry-anon-a svg {
+    flex-shrink: 0;
+    opacity: 0.95;
   }
   /* v0.3.28 (UAT 0723-3 #9): "已永久保存" 绿色版 — 跟 .expiry-inline-a 视觉同族 (pill shape + font-size 11px + gap 4px + border-radius 999px + flex-shrink 0), 配色改 emerald 系 (跟 .is-me ring / 已登录状态色系区分, 表示「已成功认领」). */
   .expiry-saved-a {

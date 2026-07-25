@@ -572,3 +572,25 @@ button.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
     padding-inline: clamp(var(--space-3), 4vw, var(--space-4));
   }
 }
+
+/* ============================================================
+ * v0.3.31 #2 (UAT 0725-2 #2, PO msg ~20:03 字面 "匿名用户创建账本,首次进入账单页时,邀请链接按钮高亮呼吸")
+ * 匿名 owner 首次进入账单页时, 邀请链接按钮加 .invite-btn-breathing class 触发此 keyframes.
+ * 1.5s ease-in-out infinite, 紫光晕 16→24px + scale 1↔1.02.
+ * - transform 用 scale 而非 translate, 不影响 button 的 click box (button click 区域跟 layout 一致).
+ * - box-shadow indigo-500 rgba(99,102,241, 0.35↔0.55) 跟项目主色 token --accent-500 同源.
+ * - z-index / pointer-events 不动, 动画期间不影响 button 可点击性 (a11y).
+ * ============================================================ */
+@keyframes invite-breath {
+  0%, 100% {
+    box-shadow: 0 0 16px rgba(99, 102, 241, 0.35);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 24px rgba(99, 102, 241, 0.55);
+    transform: scale(1.02);
+  }
+}
+.invite-btn-breathing {
+  animation: invite-breath 1.5s ease-in-out infinite;
+}

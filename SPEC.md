@@ -6312,3 +6312,56 @@ PO msg 17:40 字面: "新建,编账单页, 日期选框还是超出表单了. �
 - pressConfirm 重置后 `_internalValue = ''` (清空表达式), user 再开 calculator 看到空白. PO #2 字面 "表单的金额字段不随计算器内金额的变化而变化" 隐含 calculator 也清空; 但 user 也许想保留表达式可以微调. 后续可加 "保留表达式" 选项, 等 PO 反馈.
 - 旧版 `bind:value` 仍可工作 (向后兼容). BillForm 改了, 但如果其他组件用 AmountCalculatorInput 仍 bind:value, 也能跑 (走 fallback onMount 路径). 当前项目内只有 BillForm 用, 不影响.
 - keyboard "0" 长按重复触发 pressChar 0 — user 长按会一直 append "0" 进表达式, 这是浏览器默认行为. PO 未要求防, 不动.
+
+### v0.3.31 — UAT 0725-2 #2: 匿名用户首次进入账单页 邀请链接呼吸 + 文案改 (Coder 自写自验 已走 ✓)
+
+**Commit**: (待提交) (5 files / +478 -0)
+
+#### PO 意图 (UAT 0725-2 #2 字面)
+"匿名用户创建账本,首次进入账单页时,邀请链接按钮高亮呼吸.
+下方的提示目前是"邀请朋友加入,开始分摊第一笔账单吧",改为"当前未登录,请收藏此链接,这是您回到此账本的唯一密钥！""
+
+#### 改动 (4 files)
+
+1. **改** `frontend/src/lib/components/InviteLinkButton.svelte` (+14 -1)
+   - **新增 `breathing: boolean = false` prop** (PO 字面 "高亮呼吸"):
+     匿名 owner + 首次进入 时由 parent 设 true, 按钮加 `.invite-btn-breathing` class 触发 CSS keyframes.
+   - **template**: button class 加 `class:invite-btn-breathing={breathing}`, Svelte 5 `class:` directive 跟原 `class:copied` 同源.
+   - **header 注释**: 标 v0.3.31 #2 改动的来源 + 触发逻辑 (跟原 v0.3.24 #14 注释同族).
+
+2. **改** `frontend/src/app.css` (+25 -0)
+   - **新增 `@keyframes invite-breath`**:
+     0% / 100%  → `box-shadow: 0 0 16px rgba(99,102,241,0.35); transform: scale(1);`
+     50%         → `box-shadow: 0 0 24px rgba(99,102,241,0.55); transform: scale(1.02);`
+     紫光晕 16→24px + scale 1↔1.02, 跟项目主色 token `--accent-500` 同源.
+   - **新增 `.invite-btn-breathing` class**: `animation: invite-breath 1.5s ease-in-out infinite;`.
+   - **a11y 保障**: 动画只动 box-shadow + transform, 不动 z-index / pointer-events / opacity, button 可点击性 100% 不变.
+
+3. **改** `frontend/src/routes/sessions/[id]/+page.svelte` (+95 -3)
+   - **新增 import**: `import { browser } from /environment;` (SvelteKit SSR-safe gate).
+   - **新增 state** (line ~128): `let showBreathing = $state(false); let showAnonHint = $state(false);` 跟原 `$state` runes 同源.
+   - **onMount 触发逻辑** (line ~228): `load()` 拿到 session 后, 判断 `!session.members[0]?.user_id` (anon owner) + `!sessionStorage.getItem(sbc-visited-{id})` (首次进入), 同时满足才设两个 flag = true 并 `sessionStorage.setItem(...)` 标记.
+   - **template 渲染** (line ~672): InviteLinkButton 加 `breathing={showBreathing}` prop + 下方加 `{#if showAnonHint}` 红色 pill (PO 字面新文案).
+   - **新 pill `.expiry-anon-a`**: 跟 `.expiry-inline-a` (amber) / `.expiry-saved-a` (emerald) 视觉同族 (pill shape + lock inline svg icon + 11×11), 配色改 red-50 系 (caution 色, 表示「未登录 + 唯一密钥」紧急), 字号 13px / padding 6px 14px (主信息级 — 长文案 + owner 首次进入引导).
+   - **`.members-row2-right` layout**: 加 `display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2);` 让 InviteLinkButton + pill 纵向堆叠 + 保持原右对齐.
+   - **header 注释**: 标 v0.3.31 #2 触发条件 (匿名 owner + 首次进入).
+
+4. **新增** `frontend/scripts/v0325-2-2-verify.cjs` (Playwright iPhone 13 @3x 真机 walk)
+
+#### 验证 (Playwright iPhone 13 @3x, `frontend/scripts/v0325-2-2-verify.cjs`)
+- 创建匿名 owner session via POST /sessions + POST /join-claim (跟 wizard 同源), 然后首次访问 /sessions/{anonId}
+- 18/18 check pass:
+  * **Test 1.1-1.8** (匿名首次触发): invite-btn 存在 ✓ + .invite-btn-breathing class 应用 ✓ + CSS animation-name=invite-breath ✓ + animation-duration=1.5s ✓ + iteration-count=infinite ✓ + timing=ease-in-out ✓ + .expiry-anon-a pill 渲染 ✓ + pointer-events=auto (a11y) ✓
+  * **Test 2.1** (文案匹配): pill 文字精确 = "当前未登录,请收藏此链接,这是您回到此账本的唯一密钥！" ✓
+  * **Test 3.0-3.2** (二次访问不触发): sessionStorage sbc-visited-{id}=1 已写入 ✓ + 二次访问 invite-btn 不带 .invite-btn-breathing ✓ + pill 不渲染 ✓
+  * **Test 4.1-4.2** (已认领 session 9 不触发): invite-btn 不带 breathing class ✓ + pill 不渲染 ✓
+  * **Test 5.0-5.3** (键盘 a11y): 清 visited 后 breathing 重新触发 ✓ + Tab 键导航到 invite-btn ✓ + click() 触发 invite-btn → confirm modal 弹出 (动画期间 button 可点击) ✓ + Esc 关 modal 后 breathing animation 仍在跑 ✓
+- 4 张 PNG 存 `~/.openclaw/media/browser/v0331-0725-2-2/` (01-anon-first-visit-breathing / 02-anon-pill-text / 03-session9-claimed-no-breath / 04-anon-keyboard-modal)
+- svelte-check: 0 error / 24 warning (baseline 同 — pre-existing warnings 在其他文件, 跟 #2 无关)
+- 反 #152: DB sessions = 15 (≥ 2), Thailand session 9 32 bills 数据在场未受影响
+
+#### 排除范围 (本任务不修, 待 PO 决定)
+- 呼吸动画速度 1.5s 是 PO mockup 字面要求; 不提供"快/慢/关"等可调选项. 后续可加 reduced-motion (`@media (prefers-reduced-motion: reduce)`) 关闭动画, 等 PO 反馈.
+- 文案 pill 永久展示 (只要是匿名 owner + sessionStorage 没标记); 不做 auto-dismiss (跟 expiry-inline-a / expiry-saved-a 同族, 这两个也是永久). 后续如要 auto-dismiss, 需要 PO 拍板.
+- 测试账号 (xinhua1001@outlook.com) 在 verify 跑期间会登录 test 4 / test 5; 测试结束后登出未做 — 因 Playwright context 一关即清理, 不影响后续 tester 真实机跑.
+- 不做"未读红点 / Badge / dot"等其他视觉提示; 仅按 PO 字面做呼吸 + 文案两件事.
