@@ -649,50 +649,5 @@
   }
   .record-empty strong { color: #6366f1; font-weight: 600; }
 
-  /* Latest-card (mockup 1) */
-  .latest-card {
-    padding: 16px 14px;
-    border-bottom: 1px solid rgba(15, 23, 42, 0.04);
-  }
-  .latest-card:last-child { border-bottom: 0; }
-  .latest-card .label {
-    font-size: 12px;
-    color: #737373;
-    margin-bottom: 8px;
-    letter-spacing: 0.02em;
-  }
-  .latest-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .latest-meta {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    min-width: 0;
-  }
-  .latest-row .from-to {
-    font-size: 15px;
-    font-weight: 600;
-    color: #171717;
-  }
-  .latest-row .from-to .arrow {
-    color: #a3a3a3;
-    padding: 0 4px;
-    font-weight: 400;
-  }
-  .latest-row .adjusted {
-    font-size: 12px;
-    color: #10b981;
-    font-variant-numeric: tabular-nums;
-  }
-  .new-amount {
-    flex: 0 0 auto;
-    font-size: 22px;
-    font-weight: 700;
-    color: #10b981;
-    font-variant-numeric: tabular-nums;
-  }
+  /* v0.3.33 — UAT 0725-3 #4: section 3「最新应结算」template + reactive 都删了, 一并清理 .latest-* / .new-amount CSS. */
 </style>
