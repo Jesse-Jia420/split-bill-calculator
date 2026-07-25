@@ -5831,3 +5831,48 @@ v0.3.28 #5 (commit 973ed07 + 续修 818dd47) 给 7 路由 (sessions/{id}, settle
 
 #### 排除范围 (本任务不修, 待 PO 决定)
 - .slot-avatar 整体视觉 (尺寸 30×30 vs .avatar-a 36×36 vs .avatar-mini 32×32) 不动 — slot 是更小的 pill 头像, 跟 member section 完整 36px 头像有合理尺寸区分
+
+### v0.3.29 — UAT 0725-1 #11: BillForm 参与者选框玻璃化 (Coder 自写自验 已走 ✓)
+
+**Commit**: 0275d8a (push 072ebba..0275d8a, 3 files / +212 -6)
+
+#### PO 意图
+新建编辑账单页, 每个参与者左侧的正方形选框, 也加入玻璃效果, 变成玻璃选框 (UAT 2026-07-25 11:38).
+
+#### 根因 + 修法
+v0.3.20 #91 (commit 历史) BillForm 参与者选框用 emoji 字符 (☑ / ☐), 跟 v0.3.23 #132 加的 avatar 玻璃语言脱节 —
+emoji 字符不能继承 backdrop-filter, 不能改 bg / border / box-shadow 颜色, 视觉也跟全站玻璃 token 不统一.
+
+修法 (`frontend/src/lib/components/BillForm.svelte`):
+- 模板 `<span class="ppt-check-icon">{st?.included ? '☑' : '☐'}</span>` → 18×18 square + SVG checkmark (lucide-svelte `check` 24×24 polyline):
+  ```html
+  <span class="ppt-check-icon" class:included={st?.included} aria-hidden="true">
+    {#if st?.included}
+      <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+    {/if}
+  </span>
+  ```
+- CSS `.ppt-check-icon` 重写: 18×18 square + border-radius 5px + 半透明白底 rgba(255,255,255,0.45) +
+  backdrop-filter blur(8px) saturate(180%) + 1px indigo border (0.18 alpha) + 3-layer glass shadow.
+- CSS `.ppt-check-icon.included` 亮态: 填 indigo 玻璃 rgba(99,102,241,0.55) bg + border 0.85 + 实心 ✓ 白字.
+- transition 150ms ease 让 toggle 平滑.
+
+跟 v0.3.23 #132 avatar Option B 玻璃语言同源 (rgba alpha + backdrop-filter + glass shadow). 跟主按钮 / 主币种 chip 同 indigo rgba token.
+
+#### 验证 (Playwright iPhone 13 @3x 真机 walk, `frontend/scripts/v0329-0725-1-11-verify.cjs`)
+- /sessions/9/bills/new: 5 个 .ppt-check-icon 渲染, 部分 included (亮态 + SVG ✓) 部分 not-included (空态 + 白玻璃).
+- 16/16 check pass:
+  * 0 emoji ☑☐ 字符残留 (textContent 不含 unicode 2610/2611)
+  * .ppt-check-icon 数 = session.members.length (5)
+  * included 数 >= 1, not-included 数 >= 1 (混合状态覆盖)
+  * included: width/height 18px + border-radius 5px + bg rgba(99,102,241,0.55) + backdrop-filter blur+saturate + box-shadow + color rgb(255,255,255)
+  * not-included: width/height 18px + bg rgba(255,255,255,0.45) + border 存在 + backdrop-filter 存在 + color rgba(0,0,0,0) (空)
+  * 点击 ppt-main row: class 'included' 切换 ✓ (功能保留)
+  * included 内 SVG checkmark 数 >= 1 ✓
+- 1 张 PNG 存 `~/.openclaw/media/browser/v0329-0725-1-11/A-glass-checkbox.png` (image tool 待 Jesse 真机 review)
+
+#### 排除范围 (本任务不修, 待 PO 决定)
+- 选框尺寸 18×18 偏小 — 跟整 row 高度 (44px+padding) 视觉比例合理, 不放大避免挤头像. PO 真机反馈再迭代.
+- 选框 focus ring — 当前 click 走整 row (.ppt-main), 不需要单独 focus ring. 键盘导航 (tab .ppt-main) browser default outline 走 button 默认, 视觉合理.
+- 选框颜色改用 .ppt-avatar 同一 palette (跟 #12 同色策略) — 当前 indigo accent 跟主按钮同源, PO 没要求 palette 对齐, 不改.
+- svelte-check 1 error pre-existing (`join/+page.svelte:32 SessionPreviewMember`) — 跟本次任务无关
