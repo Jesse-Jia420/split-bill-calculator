@@ -583,11 +583,13 @@
     text-decoration: none;
     color: inherit;
     display: block;
-    /* v0.3.28 UAT 0724-1 #3: clip-path 让 card 内容左移时, 让右边缘 (56 × progress px) 给
-     * swipe-action button 让位. inset(top right bottom left) — right 是 clip 右边距.
-     * --swipe-clip-right = rubberBandProgress(-rowOffset) [0, 1.5], 跟 button width 同步. */
-    clip-path: inset(0 calc(var(--swipe-clip-right, 0) * 56px) 0 0);
-    -webkit-clip-path: inset(0 calc(var(--swipe-clip-right, 0) * 56px) 0 0);
+    /* v0.3.29 (UAT 0725-1 #3, PO msg 12:43): 删 clip-path. 原 clip-path: inset(0 right 0 0)
+     * 让 .session-card 右侧 "消失" (看似被切掉), PO 字面 "左滑的同时账本 item 右侧会消失,
+     * 不要让它有这个效果". 改: card 内容满宽直通到 wrap 边界, .delete-btn (position: absolute,
+     * right:6px, z-index:2) 直接罩在 card 右侧上, glass 玻璃透明仍能透出底层 card 内容
+     * (跟 BillListGrouped v0.3.16 #14 hotfix 删 clip-path 同款 mechanism — button overlay on
+     * top, 而不是挖洞让 button "露出来"). --swipe-clip-right CSS var 仍挂在 markup (line 432),
+     * 但无 CSS rule 消费, 不影响视觉. 留 var 以备未来需要从 .session-card 上 read progress. */
   }
   /* v0.3.18 #67 (PO #6865 反馈 #2 拍板 A — 单一玻璃):
    *   - 纯白玻璃 (回 v0318-62-task-1 拍板).
