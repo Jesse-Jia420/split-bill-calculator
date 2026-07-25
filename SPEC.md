@@ -6172,3 +6172,46 @@ PO msg 17:40 字面: "新建,编账单页, 日期选框还是超出表单了. �
 #### 排除范围 (本任务不修, 待 PO 决定)
 - 空 placeholder `<div>` (BillForm.svelte:610-612) + 过期注释 "时间 input 已迁到金额同一行 (v0.3.23 #136), 此 div 删掉" 残留 — pre-existing dead code, 跟本次根因修无关, 不动
 - iOS Safari picker indicator 真机像素验证 — Playwright headless chromium 不渲染 iOS native picker, 仅 iOS Safari 真机显示. 已用 Playwright 测 input width + form no-overflow + DOM 结构三证; 真机像素验证需 PO iPhone Safari 打开 /sessions/9/bills/new 看 picker 展开后是否完整 (本次修后 widget 容器 ~326px 远超 ~200px, 应无问题)
+
+### v0.3.29 — UAT 0725-1 #13 v4 Feature A: join 页列表合并 + 同时显昵称邮箱 (Coder 自写自验 已走 ✓)
+
+**Commit**: (待提交) (3 files / +177 -93)
+
+#### PO 意图
+账本加入页 (anon / logged-in not-member 都能看) 把"选择已有昵称" + "选择昵称以回到账本"两段合并为一段, 每项同时显昵称 (主行 16px font-weight 600) + masked email (副行 12px muted). 有邮箱用户/无邮箱用户视觉同等 (PO v2 强调 — 不置灰, 无 chevron, 无"已被 xxx 绑定"文案). 点击分流: 有邮箱 → /sessions/{id}/login (走登录流程); 无邮箱 → 现有 handleClaim 匿名流程.
+
+#### 改动
+1. **新增** `frontend/src/lib/utils/mask.ts` (44 行)
+   - `maskEmail(email)` 函数: 首 1 字符 + `***` + `@domain` (e.g. `x***@outlook.com`)
+   - PO v4 拍板方案 B (改前是首 3 字符, v3 mockup 字面)
+   - 抽到 lib 是为 §11 跨页面共享 (join 页 + 登录页 subtitle 都用)
+
+2. **改** `frontend/src/routes/sessions/[id]/join/+page.svelte` (+135 -93)
+   - 删 `availableSlots` / `takenSlots` 双段, 改 `allSlots = members.filter(() => true)` 单段
+   - 删 `<div class="slot-btn.taken">` 灰显 + "已被 xxx 绑定" 文案 (PO v2 强调视觉平等)
+   - 加 `data-testid="member-pick-row"` + `data-has-email="0|1"` 给 verify script 用
+   - 加 `.member-nickname` (16px font-weight 600, PO v4 字面)
+   - 加 `.member-email-masked` (12px muted, PO v4 字面)
+   - 加 `palette-5` / `palette-6` 支持 6-7 成员头像
+   - 加 `.slot-btn-v3` 满宽 row layout (跟 v3.28 v2 pill 横向不同, 改 column row)
+   - 加 `handleEmailSlotClick(slot)` 函数: 有邮箱槽位 → `/sessions/{id}/login?as=...&nickname=...&emailMasked=...`
+
+3. **新增** `frontend/scripts/v0329-0725-1-13-A-verify.cjs` (Playwright iPhone 13 @3x 真机 walk)
+   - 数据前置: session 7 "清迈" 3 人 (Jes owner 邮箱绑定 + Ju/Bb 匿名)
+   - 跑本地 codeserver dev server (8470) + production BE (8449)
+
+#### 验证 (Playwright iPhone 13 @3x, `frontend/scripts/v0329-0725-1-13-A-verify.cjs`)
+- 7/7 check pass:
+  * **#1** .member-pick-row DOM 数量 == 3 (1 email + 2 anon) ✓
+  * **#2** 每 row nickname + (有邮箱) email masked 完整 ✓
+  * **#3** 有邮箱/无邮箱 nickname 颜色相同 rgb(23,23,23) + opacity 1 (PO v4 视觉平等) ✓
+  * **#4** nickname 字号 16px font-weight 600 (PO v4 字面) ✓
+  * **#5** masked email 副行 `x***@outlook.com` (PO 拍 B 方案: 首 1 字符 + *** + @domain) ✓
+  * **#6** 点有邮箱 row → navigate 到 `/sessions/7/login?as=16&nickname=Jes&emailMasked=x***@outlook.com` ✓
+  * **#7** 1 张 PNG 存 `/home/node/.openclaw/media/browser/v0329-0725-1-13-A/merge-list.png` ✓
+- svelte-check: 0 error / 25 warning (baseline, 0 new error)
+
+#### 排除范围 (本任务不修, 待 PO 决定)
+- 「或」字 divider 保留 (PO v4 没动, 新建昵称 section 跟选择昵称 section 还是分开)
+- ".slot-btn-v2" 旧 class 残留 (被 .slot-btn-v3 取代, 但 v2 还在样式表, scoped 无害)
+- 真机 iOS Safari 视觉验证 — Playwright headless chromium 测了 computed style + DOM, 真机像素验证需 PO iPhone Safari 打开 /sessions/7/join 看.
