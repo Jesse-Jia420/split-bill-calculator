@@ -5908,3 +5908,38 @@ emoji 字符不能继承 backdrop-filter, 不能改 bg / border / box-shadow 颜
 - shared pill 的 .pill-label (个人消费 文字) baseline — text-anchor 计算跟 input 不同源, 实测 labelTextCenter - pillCenter delta=-1.0px (sub-pixel 容忍范围, 视觉无明显偏移), 跟 .pill-currency button 视觉一致. PO 真机反馈再迭代.
 - number input min/max step 验证 — 当前 step="0.01" + min="0" 是 v0.3.20 #92 已实施, 不动
 - svelte-check 1 error pre-existing (`join/+page.svelte:32 SessionPreviewMember`) — 跟本次任务无关
+
+### v0.3.29 — UAT 0725-1 #5: BillForm 参与者头像 灰/亮两态增强识别度 (Coder 自写自验 已走 ✓)
+
+**Commit**: 236d7cf (push 36c20c2..236d7cf, 3 files / +141 -1)
+
+#### PO 意图
+新建编辑账单页, 参与者头像的样式应和成员 section 内一致, 都是玻璃效果. 参与者这里的头像, 有置灰和点亮两种状态 (UAT 2026-07-25 11:38 — PO 重申 "现在应该已经实现了" 要求 spot-check).
+
+#### 根因 + 修法
+v0.3.23 #132 (commit b997bf6) 给 .ppt-avatar 加 Option B 玻璃 (rgba 0.88 + backdrop-filter + 4-layer glass shadow). 未选中态用 `background: rgba(160,160,160,0.25)` 灰色 bg. 但 #132 glass shadow (white inset highlight) + text color: #fff 在亮系统资料里仍「亮晃晃」, 看起来像「变色」而非「关闭」.
+
+修法 (`frontend/src/lib/components/BillForm.svelte`):
+1. 模板 `<span class="ppt-avatar">` 加 `class:dim={!st?.included}` 切换
+2. CSS 加 `.ppt-avatar.dim { filter: grayscale(1); opacity: 0.5; }` — 让未选中头像明显「关闭」状态
+   - `filter: grayscale(1)` 去彩 (彩色 → 灰度)
+   - `opacity: 0.5` 减透明度 (跟 v0.3.20 #92 `.currency-pill.disabled opacity 0.5` 同源 design philosophy)
+3. 不动 #132 glass shadow 与 backdrop-filter, 保留玻璃语言同源 — dim 态仍享受 glass on glass 效果
+
+#### 验证 (Playwright iPhone 13 @3x 真机 walk, `frontend/scripts/v0329-0725-1-5-verify.cjs`)
+- /sessions/9/bills/new: 5 个 .ppt-avatar 渲染, 默认 3 dim + 2 lit (混合状态)
+- 12/12 check pass:
+  * dim avatar: filter=`grayscale(1)` + opacity=`0.5` + bg=`rgba(160,160,160,0.25)` ✓
+  * dim avatar: backdrop-filter=`blur(4px) saturate(1.8)` 保留 (#132 glass) ✓
+  * dim avatar: box-shadow 含 rgba inset (4-layer glass shadow 保留) ✓
+  * lit avatar: filter=`none` + opacity=`1` ✓
+  * lit avatar: bgImage=`linear-gradient(135deg, rgba(...,0.88), rgba(...,0.88))` (palette gradient 保留) ✓
+  * 点击 ppt-main row: class 'dim' 切换 ✓ (功能保留)
+- 1 张 PNG 存 `~/.openclaw/media/browser/v0329-0725-1-5/A-dim-enhanced.png`
+- image tool 视觉 (post-fix): 未选中头像明显「灰色 + 半透 + 虚化」(Canyina/Q/像汤圆/Jesse 4 个 灰白washed-out), 选中头像明显「彩色 + 不透 + 鲜艳」(Ju 1 个 粉红 vibrant). 区别一眼可辨, 设计目标达成.
+
+#### 排除范围 (本任务不修, 待 PO 决定)
+- .ppt-avatar 整体尺寸 (36×36) 不动 — 跟 #132 设计语言同源
+- row 整体 opacity 0.5 (整个 row 变灰, 包括 checkbox + name + pill) — 当前只动 avatar, row 其他部分保持原色, PO 没要求 row 级别 dim. 真机反馈再迭代.
+- .ppt-check-icon dim 态当前不跟随 .ppt-avatar.dim — checkbox 自己的玻璃设计 (#11 已实施) 是设计语言一部分, 选中态 ✓ 满, 不选中态空白方框. PO 真机反馈再考虑 dim 时 checkbox 颜色变化.
+- svelte-check 1 error pre-existing (`join/+page.svelte:32 SessionPreviewMember`) — 跟本次任务无关

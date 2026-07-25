@@ -651,7 +651,7 @@
                   <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                 {/if}
               </span>
-              <span class="ppt-avatar" aria-hidden="true"
+              <span class="ppt-avatar" class:dim={!st?.included} aria-hidden="true"
                 style="background: {st?.included ? avatarGradient(i) : 'rgba(160,160,160,0.25)'};">
                 {avatarInitial(m.display_name)}
               </span>
@@ -817,6 +817,14 @@
      复用 SessionMemberList 的 5 色 AVATAR_GRADIENTS, 尺寸放大到 36×36 (比 chip 28px 大)
      以适配 row 高度 ~60px. */
   /* v0.3.23 #132 (UAT old #4, PO msg 17:16 option B): 加 backdrop-filter + 强化玻璃 shadow */
+  /* v0.3.29 UAT 0725-1 #5 (PO msg 2026-07-25 11:38): 参与者头像置灰状态增强识别度.
+     现状: 未选中态用 rgba(160,160,160,0.25) 灰色 bg. 修法: 加 filter: grayscale(1) + opacity: 0.5.
+     跟 v0.3.20 #92 (.currency-pill.disabled opacity 0.5) 同源 design philosophy.
+     不动 #132 glass shadow 与 backdrop-filter, 保留玻璃语言同源. */
+  .ppt-avatar.dim {
+    filter: grayscale(1);
+    opacity: 0.5;
+  }
   .ppt-avatar {
     flex: 0 0 auto;
     width: 36px;
