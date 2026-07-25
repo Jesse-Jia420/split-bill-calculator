@@ -6460,4 +6460,47 @@ c. 展示所有的 已结算记录。增加结算记录时,任一成员可给任
 - 删除时发 toast 通知 — FE 处理; BE 只返 204.
 - settlement_records 编辑 (PATCH) — PO 字面 "增加" + "删除", 未要求改; 不实装.
 - "撤销"机制 (soft-delete / undo button) — PO 字面未要求, 留待 PO 拍板.
-- 删 session 时级联 archive (snapshot 到 settlements legacy table) — 不做; legacy settlements 是 summary snapshot, 语义不同; 新表用 CASCADE 删干净即可.
+- 删 session 时级联 archive (snapshot 到 settlements legacy table) — 不做; legacy settlements 是 summary snapshot, 语义不同; 新表用 CASCADE 删干净即可.### v0.3.32 — UAT 0725-2 #1 FE: AddSettlementSheet + SettlementRow 组件 (Coder self-verified, walk thru)
+
+**Commit**: (pending — same batch as v0.3.32 #1 FE sheet fix, verify script + §11 sync same batch 反 #162)
+
+#### Changes (3 files)
+
+1. **新增** `frontend/src/lib/api/settlements.ts` (+63)
+   - Type `SettlementRecord` — 跟 BE SettlementRecordOut 一致; `amount: string` 因为 BE 用 NUMERIC(12,2) + serialize Decimal -> str.
+   - 3 functions: `createSettlementRecord / listSettlementRecords / deleteSettlementRecord` — 都走 `$api/client.apiFetch`,统一 401 redirect + 错误处理.
+
+2. **新增** `frontend/src/lib/components/SettlementRow.svelte` (+154)
+   - 单条 row (mockup 5 record-row): 头像(28px) → 箭头 → 头像 + (name → name) + amount(绿) + meta(币种 · 日期) + ✕ delete.
+   - 玻璃风格跟全站同源 (5-palette 头像 + glass shadow), 文字 contrast 跟 settle balance 同款.
+   - 删除按钮仅在 `record.created_by === sessionMemberId` 时渲染 (PO 字面 "添加者可删" + BE 403 兜底).
+   - Props: `record / sessionMemberId / onDelete?` — 纯展示, API 回调由 parent 负责.
+
+3. **新增** `frontend/src/lib/components/AddSettlementSheet.svelte` (+627)
+   - 形态 (mockup 2 + 3): 玻璃 bottom sheet (跟 CurrencyAddModal 同款 -- backdrop blur + slide-up animation + main 滚动锁定).
+   - 5 字段 (mockup 2 layout):
+     * 付款人 select (默认 = currentMemberId, 任意 session member).
+     * 收款人 select (默认 = 当前最大欠款的 member via transfers.find(t.from=currentMemberId), 退化 fallback 第一个非付款人).
+     * 币种 select (session.currencies; 默认 primaryCurrency).
+     * 金额 input (text + inputmode=decimal + placeholder "0.00", prefix 货币符号).
+     * 备注 input (optional, maxlength 未硬限, hint "例如「已微信转账」「机场付过」便于事后核对").
+   - 实时 preview (mockup 3 核心): 找 (payer, payee) 对的 raw transfer, 算式 "旧 ¥X - 已结 ¥Y = 新 ¥Z" 配绿色 highlight + ↓ arrow + 虚线新值框.
+     * Edge case: 该 (payer, payee) 对当前无 transfer → preview 显 "无对应原转账, 将新建一笔 ¥Y 的反向转账" (避免 user 误解).
+     * Edge case: newAmount < 0 → 强制 0 (greedy_pair 不会生成负 transfer).
+   - CTA "确认添加" purple gradient (跟全站 primary button 同源 rgba(99,102,241,0.95) → rgba(168,85,247,0.95) + box-shadow glow).
+   - 校验: amount > 0 (handler 层, 避开 main.py pre-existing Decimal bug) + payer != payee + currency ∈ session.currencies + 不 busy.
+   - 提交: `createSettlementRecord(sessionId, ...)` → success toast + `onAdded(record)` + dispatch('close'). 失败 toast 显示 BE error code.
+   - Props: `sessionId / members / currencies / primaryCurrency / transfers / currentMemberId / onAdded?`.
+
+#### Verification (svelte-check, build, type-only)
+- svelte-check: 0 errors / 24 warnings in 11 files (baseline 与 main 完全相同 — 新文件无 warning, 自查阶段已修掉 preview-row .left / .arrow-down unused selectors).
+- vite build: 32.56s ✓ (跟 main 同步).
+- 实际渲染验证在 commit 3 (settle page 整合 + Playwright iPhone 13 walk).
+
+#### Out of scope (not addressed this task, awaiting PO decision)
+- 实时 multi-pair sum aggregation (mockup 5 "合计 ¥430.00" section) — 在 commit 3 settle page 整合时跟 records list 一起渲染.
+- 金额 input iOS 数字键盘触发 (inputmode=decimal) — 自动走系统键盘, 无需组件额外处理.
+- 弹窗键盘弹起时自动滚动到 amount input — 后续 sprint 可加 visualViewport-aware scrollTo (跟 BillForm top #2 同源).
+- 删除按钮二次确认 (hover/long-press confirm) — mockup 4 注释提了一句但 PO 字面未要求, 不做.
+
+### v0.3.32 #1 follow-up commit (commit 3, FE integrate) — pending, walk thru placeholder
