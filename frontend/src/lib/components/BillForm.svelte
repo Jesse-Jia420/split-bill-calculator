@@ -545,13 +545,22 @@
       <!-- v0.2.1 T01: AmountCalculatorInput replaces the bare number input.
            Calculator preview lives inside the component; this row holds the
            currency suffix only. -->
+      <!-- v0.3.30 #8 (PO msg 18:30 UAT 0725-1 #8): calculator functionality opt.
+           new flow:
+           - amount is controlled prop (form-row shows final digit after confirm)
+           - initialValue/initialAmount is edit-mode prefill (one-shot on mount)
+           - on:confirm is one-way: parent receives -> sets amount + amountExpression
+           - no more bind:value/bind:evaluated (PO literal #2) -->
       <AmountCalculatorInput
-        bind:value={amountExpression}
-        bind:evaluated={amount}
+        {amount}
+        initialValue={amountExpression}
+        initialAmount={amount}
         {currency}
         disabled={submitting}
-        on:change={(e) => (amountExpression = e.detail)}
-        on:amountChange={(e) => (amount = e.detail)}
+        on:confirm={(e) => {
+          amount = e.detail.value;
+          amountExpression = e.detail.expression;
+        }}
       />
     </div>
   </div>
