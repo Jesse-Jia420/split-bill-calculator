@@ -79,6 +79,7 @@ from app.core.database import get_db
 from app.core.session_isolation import get_session_member, get_session_member_or_secret, require_session_owner
 from app.db.models.session_exchange_rates import SessionExchangeRate
 from app.db.models.session_members import SessionMember, SessionRole
+from app.db.models.settlement_records import SettlementRecord
 from app.db.models.sessions import Session as SessionModel
 from app.db.models.users import User
 
@@ -2034,3 +2035,251 @@ async def bind_acting_member(
         "display_name": sm.display_name,
         "user_id": sm.user_id,
     }
+
+
+
+# ---------------------------------------------------------------------------
+# v0.3.32 -- UAT 0725-2 #1: settlement_records endpoints
+#
+# PO 2026-07-25 20:24 UAT 0725-2 #1 added the "已结算记录" feature: a user
+# can record "I already gave Y X (in currency Z)" and the suggested
+# transfer list subtracts that X so the remaining balance is visible.
+#
+# Endpoints (mounted under /sessions; FE calls them as /api/sessions/...):
+#
+#   POST   /sessions/{id}/settlement_records
+#   GET    /sessions/{id}/settlement_records
+#   DELETE /sessions/{id}/settlement_records/{record_id}
+#
+# Auth model:
+# - POST / GET: any session member (mirrors exchange_rates pattern).
+# - DELETE: only the original creator (created_by == sm.id) can delete.
+#   This matches PRD section 3.5 spirit -- a record represents someone's
+#   claim about a real-world transfer, so they should be the one to
+#   remove it.
+#
+# Validation guards:
+# - payer_id != payee_id (422)
+# - amount > 0 (422)
+# - currency in session.currencies (422)
+# - payer_id, payee_id are members of this session (422)
+#
+# Settlement adjustment:
+# - GET /sessions/{id}/settle subtracts the per-pair sum of these
+#   records from the transfer list in primary currency (1:1 rate when
+#   currency == primary; rate-converted otherwise). See
+#   `_adjust_transfers_for_settlements` in settle.py for the math.
+# ---------------------------------------------------------------------------
+
+
+class CreateSettlementRequest(BaseModel):
+    """POST body for creating a 已结算记录 entry."""
+
+    payer_id: int = Field(..., description="SessionMember.id who paid")
+    payee_id: int = Field(..., description="SessionMember.id who received")
+    currency: str = Field(..., min_length=3, max_length=3, description="ISO 4217 code")
+    # amount > 0 is enforced at the handler (see create_settlement_record).
+    # We deliberately do NOT use Field(gt=Decimal("0")) because main.py's
+    # validation_exception_handler fails to JSON-serialize Decimal context
+    # values in exc.errors() -- returns 500 instead of 422. This is a
+    # pre-existing bug affecting all Decimal field constraints in the
+    # codebase (e.g. exchange_rates POST rate=-1 also 500s); out of scope
+    # for v0.3.32, so we validate at the handler instead.
+    amount: Decimal = Field(..., description="Positive amount")
+    note: str | None = Field(default=None, max_length=500)
+
+    @field_validator("currency")
+    @classmethod
+    def _upper_currency(cls, v: str) -> str:
+        return v.strip().upper()
+
+
+class SettlementRecordOut(BaseModel):
+    """Response shape for a single record (POST/GET)."""
+
+    id: int
+    payer_id: int
+    payer_name: str
+    payee_id: int
+    payee_name: str
+    currency: str
+    amount: Decimal
+    note: str | None
+    created_by: int | None
+    created_by_name: str | None
+    created_at: str
+
+
+def _settlement_record_dict(
+    record: SettlementRecord,
+    member_id_to_name: dict[int, str],
+) -> dict:
+    """Serialize a SettlementRecord ORM row + cross-reference names.
+
+    Names come from a pre-built SessionMember.id -> display_name map so
+    we avoid N+1 lookups (matches the per_member / balance patterns in
+    settle.py and sessions.py).
+    """
+    return {
+        "id": record.id,
+        "payer_id": record.payer_id,
+        "payer_name": member_id_to_name.get(record.payer_id, f"#{record.payer_id}"),
+        "payee_id": record.payee_id,
+        "payee_name": member_id_to_name.get(record.payee_id, f"#{record.payee_id}"),
+        "currency": record.currency,
+        "amount": record.amount,
+        "note": record.note,
+        "created_by": record.created_by,
+        "created_by_name": (
+            member_id_to_name.get(record.created_by) if record.created_by else None
+        ),
+        "created_at": _iso(record.created_at) if record.created_at else "",
+    }
+
+
+@router.post(
+    "/{session_id}/settlement_records",
+    response_model=SettlementRecordOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_settlement_record(
+    body: CreateSettlementRequest,
+    sm: Annotated[SessionMember, Depends(get_session_member)],
+    db: Annotated[Session, Depends(get_db)],
+    session_id: int = Path(..., description="sessions.id"),
+) -> dict:
+    """Create a new 已结算记录 entry.
+
+    Any session member can add a record on behalf of any (payer, payee)
+    pair. Records survive session_member deletion (FK ON DELETE SET NULL
+    for created_by) but are wiped when the session itself is deleted
+    (FK ON DELETE CASCADE).
+    """
+    if body.payer_id == body.payee_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"error": "payer_and_payee_must_differ"},
+        )
+
+    # See CreateSettlementRequest docstring -- the Decimal gt=0 constraint
+    # at the Pydantic layer triggers a pre-existing main.py bug, so we
+    # re-check at the handler with a friendly 422 error code.
+    if body.amount <= Decimal("0"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"error": "amount_must_be_positive", "amount": str(body.amount)},
+        )
+
+    session = db.get(SessionModel, session_id)
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "session not found"},
+        )
+
+    session_currencies = list(session.currencies or ["CNY"])
+    if body.currency not in session_currencies:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "error": "currency_not_in_session",
+                "currency": body.currency,
+                "session_currencies": session_currencies,
+            },
+        )
+
+    # Validate payer / payee are members of this session.
+    member_ids = {
+        row.id
+        for row in db.query(SessionMember).filter_by(session_id=session_id).all()
+    }
+    for label, mid in (("payer_id", body.payer_id), ("payee_id", body.payee_id)):
+        if mid not in member_ids:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "error": f"{label}_not_session_member",
+                    label: mid,
+                    "session_id": session_id,
+                },
+            )
+
+    record = SettlementRecord(
+        session_id=session_id,
+        payer_id=body.payer_id,
+        payee_id=body.payee_id,
+        currency=body.currency,
+        amount=body.amount,
+        note=body.note,
+        created_by=sm.id,
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+
+    # Build the member name map once for the response.
+    name_map = {
+        row.id: row.display_name
+        for row in db.query(SessionMember).filter_by(session_id=session_id).all()
+    }
+    return _settlement_record_dict(record, name_map)
+
+
+@router.get(
+    "/{session_id}/settlement_records",
+    response_model=list[SettlementRecordOut],
+)
+async def list_settlement_records(
+    sm: Annotated[SessionMember, Depends(get_session_member)],
+    db: Annotated[Session, Depends(get_db)],
+    session_id: int = Path(..., description="sessions.id"),
+) -> list[dict]:
+    """Return every 已结算记录 for the session, newest first.
+
+    Sorting by created_at DESC matches the FE list view (mockup 5: "按时间
+    倒序展示"). Ties broken by id DESC for stability.
+    """
+    records = (
+        db.query(SettlementRecord)
+        .filter_by(session_id=session_id)
+        .order_by(SettlementRecord.created_at.desc(), SettlementRecord.id.desc())
+        .all()
+    )
+    name_map = {
+        row.id: row.display_name
+        for row in db.query(SessionMember).filter_by(session_id=session_id).all()
+    }
+    return [_settlement_record_dict(r, name_map) for r in records]
+
+
+@router.delete(
+    "/{session_id}/settlement_records/{record_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_settlement_record(
+    sm: Annotated[SessionMember, Depends(get_session_member)],
+    db: Annotated[Session, Depends(get_db)],
+    session_id: int = Path(..., description="sessions.id"),
+    record_id: int = Path(..., description="settlement_records.id"),
+) -> Response:
+    """Delete a 已结算记录 entry. Only the original creator can delete.
+
+    Mirrors the v0.3.17 #36fix3 "creator only" pattern (the bill creator
+    is the only one allowed to delete their bill). 403 if the caller is
+    not the creator, 404 if the record doesn't exist or belongs to a
+    different session.
+    """
+    record = db.get(SettlementRecord, record_id)
+    if record is None or record.session_id != session_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "settlement_record_not_found"},
+        )
+    if record.created_by != sm.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": "only_creator_can_delete"},
+        )
+    db.delete(record)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -14,6 +14,7 @@ from app.db.models.bills import Bill
 from app.db.models.session_exchange_rates import SessionExchangeRate
 from app.db.models.session_members import SessionMember
 from app.db.models.sessions import Session as BillSession
+from app.db.models.settlement_records import SettlementRecord
 from app.db.models.settlements import Settlement
 from app.db.models.users import User
 from app.db.models.verification_codes import (
@@ -30,6 +31,7 @@ __all__ = [
     "BillSession",
     "SessionMember",
     "Settlement",
+    "SettlementRecord",
     "User",
     "VerificationCode",
     "VerificationPurpose",

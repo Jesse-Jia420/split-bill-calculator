@@ -105,6 +105,10 @@ from app.db.models.bills import Bill
 from app.db.models.session_exchange_rates import SessionExchangeRate
 from app.db.models.session_members import SessionMember
 from app.db.models.sessions import Session as SessionModel
+from app.db.models.session_exchange_rates import SessionExchangeRate
+from app.db.models.session_members import SessionMember
+from app.db.models.sessions import Session as SessionModel
+from app.db.models.settlement_records import SettlementRecord
 from app.db.models.settlements import Settlement
 
 logger = logging.getLogger(__name__)
@@ -426,6 +430,77 @@ def _compute_currency_breakdown(
     return result
 
 
+def _apply_settlement_records(
+    balances: dict[int, Decimal],
+    session_id: int,
+    primary_currency: str,
+    session_rates: dict[tuple[str, str], Decimal],
+    db: Session,
+) -> dict[int, Decimal]:
+    """v0.3.32 -- UAT 0725-2 #1: shift balances by per-pair settlement_records.
+
+    Each SettlementRecord means "payer already gave payee X (in
+    ``currency``)", which is economically equivalent to:
+      - payer paid an extra X (in primary currency)
+      - payee consumed an extra X (in primary currency)
+
+    In balance terms (balance = paid - consumed):
+      - payer.balance += X_primary  (payer is owed more)
+      - payee.balance -= X_primary  (payee owes more)
+
+    The resulting greedy_pair output therefore lists only the REMAINING
+    transfers. If the sum already covers the raw-bill imbalance, the
+    affected pair drops out of the output entirely.
+
+    Rate conversion:
+    - When record.currency == primary_currency: 1:1 (no rate lookup).
+    - Otherwise: lookup session_rates[(currency, primary_currency)].
+      If missing (rare -- the pair was never tracked), 422 with a
+      structured error so the FE can prompt the user to set the rate.
+      Same fallback behaviour as the bill-to-primary conversion above.
+
+    Returns a NEW dict; the input is not mutated (matches _greedy_pair's
+    contract -- it also operates on a copy).
+    """
+    records = (
+        db.query(SettlementRecord)
+        .filter(SettlementRecord.session_id == session_id)
+        .all()
+    )
+    if not records:
+        return balances
+
+    out = dict(balances)
+    for r in records:
+        if r.currency == primary_currency:
+            amount_primary = _quantize(Decimal(r.amount))
+        else:
+            rate = session_rates.get((r.currency, primary_currency))
+            if rate is None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail={
+                        "error": "missing_exchange_rate_for_settlement",
+                        "settlement_record_id": r.id,
+                        "currency": r.currency,
+                        "primary_currency": primary_currency,
+                    },
+                )
+            amount_primary = _quantize(Decimal(r.amount) * rate)
+
+        # Skip if either side isn't a tracked member (legacy data) -- keeps
+        # the math from blowing up if a member was hard-deleted outside
+        # the cascade.
+        if r.payer_id not in out:
+            continue
+        if r.payee_id not in out:
+            continue
+
+        out[r.payer_id] = _quantize(out[r.payer_id] + amount_primary)
+        out[r.payee_id] = _quantize(out[r.payee_id] - amount_primary)
+    return out
+
+
 def _greedy_pair(net: dict[int, Decimal]) -> list[dict]:
     """Pair largest creditor with largest debtor until balances are zero.
 
@@ -734,6 +809,18 @@ async def settle_session(
 
     # ---- 4. Aggregate balances (Decimal) + greedy pair (Decimal) ---------
     balances = _compute_balances(bills_with_primary, participants_by_bill, member_ids)
+
+    # v0.3.32 -- UAT 0725-2 #1: subtract per-pair settlement_records so the
+    # remaining transfer list reflects "what's still owed" rather than the
+    # raw bills math. See _apply_settlement_records for the per-pair shift
+    # in primary currency (rate-converted when record currency != primary).
+    balances = _apply_settlement_records(
+        balances=balances,
+        session_id=sm.session_id,
+        primary_currency=primary_currency,
+        session_rates=session_rates,
+        db=db,
+    )
     transfers = _greedy_pair(balances)
 
     # ---- 5. Per-member breakdown (primary currency) -----------------------

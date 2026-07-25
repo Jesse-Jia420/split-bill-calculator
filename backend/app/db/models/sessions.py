@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from app.db.models.bills import Bill
     from app.db.models.session_exchange_rates import SessionExchangeRate
     from app.db.models.session_members import SessionMember
+    from app.db.models.settlement_records import SettlementRecord
     from app.db.models.settlements import Settlement
     from app.db.models.users import User
 
@@ -124,6 +125,13 @@ class Session(Base):  # noqa: F811 — intentional re-export as BillSession in m
         back_populates="session", cascade="all, delete-orphan"
     )
     settlements: Mapped[list["Settlement"]] = relationship(
+        back_populates="session", cascade="all, delete-orphan"
+    )
+    # v0.3.32 -- UAT 0725-2 #1: settlement_records (manual 'already paid X' entries
+    # that reduce the suggested transfers). Cascade drops every record when the
+    # session is deleted -- PRD section 3.5 does not require archival, the legacy
+    # settlements table above is the audit trail.
+    settlement_records: Mapped[list["SettlementRecord"]] = relationship(
         back_populates="session", cascade="all, delete-orphan"
     )
     exchange_rates: Mapped[list["SessionExchangeRate"]] = relationship(

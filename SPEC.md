@@ -6365,3 +6365,99 @@ PO msg 17:40 字面: "新建,编账单页, 日期选框还是超出表单了. �
 - 文案 pill 永久展示 (只要是匿名 owner + sessionStorage 没标记); 不做 auto-dismiss (跟 expiry-inline-a / expiry-saved-a 同族, 这两个也是永久). 后续如要 auto-dismiss, 需要 PO 拍板.
 - 测试账号 (xinhua1001@outlook.com) 在 verify 跑期间会登录 test 4 / test 5; 测试结束后登出未做 — 因 Playwright context 一关即清理, 不影响后续 tester 真实机跑.
 - 不做"未读红点 / Badge / dot"等其他视觉提示; 仅按 PO 字面做呼吸 + 文案两件事.
+### v0.3.32 — UAT 0725-2 #1 BE: settlement_records table + POST/GET/DELETE endpoints + transfer calc adjustment (Coder self-verified, walk thru)
+
+**Commit**: (pending — same batch as v0.3.32 #1 BE fix, verify script + §11 sync same batch 反 #162)
+
+#### PO 意图 (UAT 0725-2 #1 字面 a+b+c)
+"结算概览页,新增"已结算记录 section"功能。
+a. 用户可以增加 已结算的记录 (比如: a 本应给 b 600 人民币,但此前 a 已经给过 b 150 人民币了,就需要在此记录)
+b. 系统应根据本来的结算内容,结合已有的结算记录,生成最新的 应结算的金额,在原有的结算区域展示出来
+c. 展示所有的 已结算记录。增加结算记录时,任一成员可给任一其它成员任一 session 内币种的任意正金额。"
+
+#### 改动 (5 files)
+
+1. **新增** `backend/app/db/models/settlement_records.py` (+63)
+   - 新表 `settlement_records` (命名跟既有 `settlements` 区分 — 既有 table 是 settle summary snapshot,语义完全不同):
+     id / session_id (FK CASCADE) / payer_id (FK session_members CASCADE) / payee_id (FK session_members CASCADE) / currency (VARCHAR(3)) / amount (NUMERIC(12,2) CHECK > 0) / note (TEXT NULL) / created_by (FK session_members SET NULL NULL) / created_at (DateTime UTC default now())
+   - 加索引: ix_settlement_records_session_id / payer_id / payee_id (用于 GET 列表 + ON DELETE CASCADE 反向查询).
+   - session relationship = back_populates Session.settlement_records.
+
+2. **改** `backend/app/db/models/sessions.py` (+5 -1)
+   - TYPE_CHECKING 块加 import from app.db.models.settlement_records import SettlementRecord.
+   - 加 relationship settlement_records: Mapped[list["SettlementRecord"]] = relationship(back_populates="session", cascade="all, delete-orphan").
+
+3. **改** `backend/app/db/models/__init__.py` (+1 -1)
+   - 注册 SettlementRecord 到 Base.metadata, __all__ 加 "SettlementRecord".
+
+4. **新增** `backend/alembic/versions/20260725_v0325_0725_2_1_settlement_records.py` (+99)
+   - 迁移 down_revision = 20260718_v0317_bills_creator_sm_id (latest).
+   - op.create_table with inline FKs (SQLite batch_alter_table 对 inline FK 友好,见 fc3262e0bb12_init_9_tables_bill_comments 同模式) + inline CHECK amount > 0 (避免 SQLite "ALTER of constraints" 报错).
+   - 3 indexes 单独 op.create_index.
+   - 幂等: insp.has_table("settlement_records") guard before CREATE.
+   - downgrade: drop_table.
+
+5. **改** `backend/app/api/sessions.py` (+256)
+   - 新加 import from app.db.models.settlement_records import SettlementRecord.
+   - 新加 pydantic models:
+     * CreateSettlementRequest (payer_id / payee_id / currency / amount / note?, _upper_currency field_validator).
+       - amount > 0 不在 Pydantic 层做 (Field(gt=...) 触发 main.py validation_exception_handler 的 pre-existing JSON 序列化 bug — 影响所有 Decimal field constraint, exchange_rates 同样 500) — 改在 handler 层 raise HTTPException(422, "amount_must_be_positive").
+     * SettlementRecordOut (id / payer_id / payer_name / payee_id / payee_name / currency / amount / note / created_by / created_by_name / created_at).
+   - 新加 helper _settlement_record_dict(record, name_map) — N+1 防御: 一次性拿全部 SessionMember.name, build map, serialize.
+   - 3 新端点:
+     * POST /sessions/{id}/settlement_records (response 201 + SettlementRecordOut)
+       - 校验: payer != payee (422) + amount > 0 (422 handler 层) + currency ∈ session.currencies (422) + payer_id/payee_id ∈ session members (422).
+       - 权限: get_session_member — 任一成员可加 (PO 字面 c).
+       - 写: created_by = sm.id (SessionMember.id of caller), commit.
+     * GET /sessions/{id}/settlement_records (response list[SettlementRecordOut])
+       - 排序: created_at DESC, id DESC (新→旧, FE list mockup 5 同款).
+     * DELETE /sessions/{id}/settlement_records/{record_id} (204 No Content)
+       - 权限: 仅 created_by == sm.id (creator-only — 跟 v0.3.17 #36fix3 bill 删 同款), 其它成员 → 403.
+       - 404 if 不存在 / 跨 session.
+
+6. **改** `backend/app/api/settle.py` (+91 -2)
+   - 新加 import SettlementRecord.
+   - 新加 helper _apply_settlement_records (在 _greedy_pair 之前定义):
+     - 输入: balances dict + session_id + primary_currency + session_rates + db Session.
+     - 流程: 拿所有 SettlementRecord, 对每条:
+       1. 转换 amount 到 primary (1:1 if same, else session_rates[(currency, primary)]).
+       2. 若 rate 缺 → 422 missing_exchange_rate_for_settlement (跟 bill-to-primary fallback 同语义).
+       3. payer.balance += amount_primary, payee.balance -= amount_primary.
+     - 返回新 dict (不 mutate 入参, 跟 _greedy_pair 不变量一致).
+   - 修改 settle endpoint (line ~735):
+     balances = _compute_balances(...) → 加 _apply_settlement_records(balances=...) → transfers = _greedy_pair(balances).
+   - 数学正确性:
+     - raw balance = paid - consumed.
+     - 加 settlement (payer→payee X): 等价于 payer 多付了 X (paid += X), payee 多吃了 X (consumed += X).
+     - net 影响: payer.net += X (他们被欠更多), payee.net -= X (他们欠更多).
+     - 跑 greedy_pair → 剩余 transfers 列表 (覆盖了原 imbalance 减去 X).
+
+#### 验证 (Backend API smoke test, tmp/test_api*.py)
+
+- **tmp/test_api2.py** (基础流, session 9 Thailand 32 bills 5 members):
+  * GET records initially = 0 (ok)
+  * POST 150 CNY (39 -> 38) -> 201 + record id 1 (ok)
+  * 重新 GET /settle?view=primary → transfer 39->38: 1324.91 → 1174.91 (delta 150 精确) (ok)
+  * GET records -> 1 row, payer_name=Q, payee_name=Canyina (ok)
+- **tmp/test_api5.py** (边界):
+  * 422 payer==payee (payer_and_payee_must_differ)
+  * 422 amount=0 (amount_must_be_positive)
+  * 422 amount=-50 (amount_must_be_positive)
+  * 422 currency=USD (CNY+THB session) (currency_not_in_session)
+  * 422 payer_id=9999 (不在 session members) (payer_id_not_session_member)
+  * 204 DELETE existing (ok)
+  * 404 DELETE non-existent (ok)
+  * DELETE 后 GET records=0 (ok) + settle transfers 还原 (1324.91 回来) (ok)
+- **tmp/test_thb.py** (跨币种):
+  * POST 100 THB (40->38, session 9) -> 201 (ok)
+  * 重新 GET /settle: transfer 40->38: 328.52 → 307.02 (delta 21.50 = 100 THB × 0.215 rate) (ok)
+- DB sessions = 15 (≥ 2), Thailand session 9 32 bills 数据在场未受影响 (manual backup @ /config/workspace/split-bill-calculator/backend/data/sbc.db.bak-pre-v0325-0725-2-1-*)
+- svelte-check / pytest baseline 不变 (本批次只动 backend, FE 在 commit 2/3 才动)
+
+#### 排除范围 (本任务不修, 待 PO 决定)
+- main.py validation_exception_handler Decimal JSON 序列化 bug — pre-existing,影响所有 Decimal Field constraint (exchange_rates POST rate=-1 也 500),超出本任务范围. 已在 commit msg 留指引,后续 sprint 单独立项修.
+- SettlementRecord 跨币种 sum 的"总计 section" — FE commit 2/3 才渲染合计; BE 只暴露 list 不做服务端 sum.
+- 删除时发 toast 通知 — FE 处理; BE 只返 204.
+- settlement_records 编辑 (PATCH) — PO 字面 "增加" + "删除", 未要求改; 不实装.
+- "撤销"机制 (soft-delete / undo button) — PO 字面未要求, 留待 PO 拍板.
+- 删 session 时级联 archive (snapshot 到 settlements legacy table) — 不做; legacy settlements 是 summary snapshot, 语义不同; 新表用 CASCADE 删干净即可.
