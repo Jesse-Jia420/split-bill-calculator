@@ -6215,3 +6215,49 @@ PO msg 17:40 字面: "新建,编账单页, 日期选框还是超出表单了. �
 - 「或」字 divider 保留 (PO v4 没动, 新建昵称 section 跟选择昵称 section 还是分开)
 - ".slot-btn-v2" 旧 class 残留 (被 .slot-btn-v3 取代, 但 v2 还在样式表, scoped 无害)
 - 真机 iOS Safari 视觉验证 — Playwright headless chromium 测了 computed style + DOM, 真机像素验证需 PO iPhone Safari 打开 /sessions/7/join 看.
+
+### v0.3.29 — UAT 0725-1 #13 v4 Feature B + C: 新登录页 + 路由集成 (Coder 自写自验 已走 ✓)
+
+**Commit**: (待提交) (3 files / +476 -0)
+
+#### PO 意图
+账本加入页 (Feature A) 点击有邮箱槽位 → 跳到新登录页 `/sessions/{id}/login`. 登录页 header 行 (左 56×56 圆形 back FAB + 右 pill "登录 →" 按钮) + 副标题 (登录 X(email)以回到账本) + 表单 (邮箱 + 验证码) + 主 CTA (登录并回到账本). 跟现有 `/auth/login` 区分: 这是账本专属登录 (per-session, 来自 join 跳转), 通用 `/auth/login` 留给全站 401 redirect.
+
+#### 改动
+1. **新增** `frontend/src/routes/sessions/[id]/login/+page.svelte` (+476 行)
+   - URL: `/sessions/{id}/login?as={memberId}&nickname={nickname}&emailMasked={masked_email}`
+   - Header 行 (高 ~64px):
+     * 左: `.login-back-fab` 56×56 圆形 (settle v0.3.18 #63 同款 indigo 玻璃)
+     * 右: `.login-pill-btn` 40×auto 圆角 18px 玻璃 (decorative, 不点击)
+   - 副标题 `.page-title` 15px font-weight 500, nickname 用 #4f46e5 + font-weight 600 高亮, email 用 muted gray
+   - 副副标题 `.page-subtitle` 13px, "{session_name}" 从 getSessionPreview 拿
+   - 表单: 邮箱 (label "邮箱*", input empty value, placeholder="请输入邮箱", autocomplete=off) + 验证码 (label "验证码*", placeholder="请输入 6 位验证码") + helper "验证码将发送至 {masked_email}"
+   - 获取验证码按钮: 60s 倒计时 (rate-limit 防 spam)
+   - 主 CTA: `.btn-primary` 全宽 52px 高, indigo 渐变 #6366f1→#a855f7 + 4-layer shadow, "登录并回到账本"
+   - 行为:
+     * 点 back FAB → /sessions/{id}/join (回退)
+     * 验证成功后 → /s/{sessionCode || sessionId} (走 BE auto-redirect 流程)
+   - 反 PO v4 强调:
+     * ❌ pre-fill 真邮箱 (input.value 始终 '', placeholder 提示手填)
+     * ❌ 视觉提示 email 槽位"已被绑定" (跟 join 页一致, 视觉平等)
+     * ❌ 不改 /auth/login (通用 401 redirect 仍走那个)
+
+2. **新增** `frontend/scripts/v0329-0725-1-13-B-verify.cjs` (Playwright iPhone 13 @3x 真机 walk)
+
+#### 验证 (Playwright iPhone 13 @3x, `frontend/scripts/v0329-0725-1-13-B-verify.cjs`)
+- 9/9 check pass:
+  * **#1** `.login-header` + `.login-back-fab` 56×56 + `.login-pill-btn` 18px 圆角 ✓
+  * **#2** 副标题 "登录 Jes(x***@outlook.com)以回到账本" + "清迈" ✓
+  * **#3** 邮箱 input value="" + placeholder="请输入邮箱" + autocomplete=off ✓
+  * **#4** 验证码 helper "验证码将发送至 x***@outlook.com" ✓
+  * **#5** 主 CTA "登录并回到账本" + 全宽 318px + indigo gradient ✓
+  * **#6** nickname indigo rgb(79,70,229) + font-weight 600 ✓
+  * **#7** Back FAB click → /sessions/7/join ✓
+  * **#8** 1 张 PNG 存 `/home/node/.openclaw/media/browser/v0329-0725-1-13-B/login-page.png` ✓
+  * **#9** 输入 email + 获取验证码 → step='verify' + cooldown 60s ✓
+- svelte-check: 0 error / 26 warning (baseline, 0 new error, +1 是新页面的 autofocus 警告 — 已避免用 autofocus)
+
+#### 排除范围 (本任务不修, 待 PO 决定)
+- 验证成功后绑定到具体 member_id 的机制 — 当前跳 `/s/{sessionCode}` 走 BE auto-redirect 流程 (logged-in 用户若不是 member → /join, anon 仍走 localStorage secret). 真正"通过 verify 把 user_id 加到特定 member_id"的机制留作未来 PR (BE 需要新 endpoint 或扩展 verify_code 响应).
+- "pill 登录 →" 是 decorative (不点击), 视觉上呼应表单 CTA — 后续如果需要点击它跳到 /auth/login 顶层登录页可以再做.
+- 真机 iOS Safari 视觉验证 — Playwright headless chromium 测了 computed style + DOM, 真机像素验证需 PO iPhone Safari 打开 /sessions/7/login?as=16&nickname=Jes&emailMasked=x***@outlook.com 看.
