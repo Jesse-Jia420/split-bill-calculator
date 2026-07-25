@@ -1333,6 +1333,18 @@
   .bill-swipe-action[aria-hidden="false"] {
     pointer-events: auto;
   }
+  /* v0.3.29 (UAT 0725-1 #10, PO msg 12:43): 按下时按钮位置变化 bug 真修.
+     根因: 全局 .glass-pill:active { transform: scale(0.97); } (app.css:357) 覆盖了基类
+     的 transform: translateY(-50%) — 失去垂直居中 + 缩放, 按钮从 row 中央跳到顶部
+     (translateY 变成 0) + 微缩 (scale 0.97), 视觉上"位置变化" / "漂走".
+     修法: specificity (0,1,1) 高于 .glass-pill:active (0,1,0),
+     transform: translateY(-50%) scale(0.97) — 复合 transform 顺序 (translateY
+     在前 scale 在后), transform-origin: center 让 scale 围绕按钮中心, 不会"漂走".
+     保持按下反馈 (scale 0.97 跟全站 .glass-pill:active 一致) + 保持垂直居中. */
+  .bill-swipe-action:active {
+    transform: translateY(-50%) scale(0.97);
+    transform-origin: center;
+  }
   /* v0.3.17 #36fix3 (PO msg 14:53): owner-only swipe actions. The
      .disabled class is applied when the bill's
      ``created_by_session_member_id`` does NOT match the current
