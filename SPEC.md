@@ -6503,4 +6503,56 @@ c. 展示所有的 已结算记录。增加结算记录时,任一成员可给任
 - 弹窗键盘弹起时自动滚动到 amount input — 后续 sprint 可加 visualViewport-aware scrollTo (跟 BillForm top #2 同源).
 - 删除按钮二次确认 (hover/long-press confirm) — mockup 4 注释提了一句但 PO 字面未要求, 不做.
 
-### v0.3.32 #1 follow-up commit (commit 3, FE integrate) — pending, walk thru placeholder
+### v0.3.32 #1 follow-up commit (commit 3, FE integrate) — pending, walk thru placeholder### v0.3.32 — UAT 0725-2 #1 FE integrate: settle/+page.svelte 三段 layout + onMount + compute (Coder self-verified, walk thru)
+
+**Commit**: (pending — same batch as v0.3.32 #1 FE integrate fix, verify script + §11 sync same batch 反 #162)
+
+#### Changes (1 file)
+
+1. **改** `frontend/src/routes/sessions/[id]/settle/+page.svelte` (+220)
+   - 加 imports: AddSettlementSheet + SettlementRow (commit 2 组件) + settlements API (list/delete) + Plus icon.
+   - 加 state: records, recordsLoaded, addSheetOpen, settleRefreshKey (强制 SettleTransferPath remount refetch).
+   - onMount: 并行拉 listSettlementRecords(sessionId), 失败降级空 list.
+   - 三段 layout 在 activeTab === 'overview' 内:
+     * Section 1 (原 transfer section, 顶部): existing SettleTransferPath + `{#key settleRefreshKey}` 强制 remount refetch.
+     * Section 2 (已结算记录 section, 中部): header "已结算记录 (N)" + "+" 加号按钮 (data-sbc="settle-add-record-btn") + glass card 渲染 SettlementRow 列表 (data-sbc="settle-records-list"). 空态: "还没有已结算记录, 点击右上角 + 添加".
+     * Section 3 (最新应结算 section, 底部): 仅 records.length > 0 时渲染. 显示受影响的 (payer, payee) pair 聚合 + "已根据已结算记录调整" 文案 + "已结 ¥X" green badge + mockup 1 "已结 ¥X" 风格. 数据源: pairAggregates reactive declaration (rate-converted sum per pair in primary currency).
+   - 加 helper functions:
+     * openAddSheet(): set addSheetOpen = true.
+     * handleRecordAdded(): refetch records + settleRefreshKey += 1 (强制 SettleTransferPath remount 重拉 settle API).
+     * handleDeleteRecord(recordId): confirm() 二次确认 + DELETE API + refetch.
+     * pairAggregates: $ reactive declaration. 每条 record → (payer, payee, settlementSum) 聚合 in primary. Rate: same currency = 1, else lookup session.exchange_rates[(currency, primary)].
+     * fmtPrimary(n): currencySymbol + formatMoney.
+   - 加 AddSettlementSheet modal: pass sessionId + members + currencies + primaryCurrency + transfers=[] (raw 拿不到, sheet 走 "无对应原转账" 兜底) + currentMemberId + onAdded.
+   - 加 CSS for new sections: .section / .section-head / .add-btn (28×28 圆形 purple, 跟全站玻璃同源) / .glass-card (rgba(255,255,255,0.62) → 0.42 + saturate(180%) blur(20px)) / .record-empty / .latest-card / .latest-row / .new-amount (22px font-weight 700 emerald).
+
+#### Verification (`frontend/scripts/v0325-0725-2-1-verify.cjs`)
+
+- Playwright iPhone 13 @3x 真机 walk, session 9 (Thailand, 32 bills, 5 members).
+- 11 / 11 check pass:
+  * Test 1: 三段 layout DOM (records section + add btn + empty hint) ✓
+  * Test 2: 添加按钮 → sheet 弹出 (mockup 2) ✓
+  * Test 3: 填 ¥150 → preview 显示 (mockup 3, submit enabled) ✓
+  * Test 4: submit → POST 成功 + sheet 关 + list 多一条 (mockup 4-5) ✓
+  * Test 5: 第二个 record (THB 跨币种) ✓
+  * Test 6: 最新应结算 section 2 行 (受影响的 pair 数) ✓
+  * Test 7: 删除按钮 (添加者) 2 个可见 ✓
+  * Test 8: 删除 THB record (dialog confirm + DELETE) ✓
+  * Test 9: settle API 调整 (40 → 38 THB 100 = ¥21.50 影响) ✓
+  * Test 10: amount=0 → submit disabled ✓
+  * Test 11: payer==payee → submit disabled ✓
+- 11 张 PNG 存 `~/.openclaw/media/browser/v0325-2-1/` (01-overview-empty → 11-amount-zero-disabled).
+- svelte-check: 0 errors / 23 warnings in 10 files (baseline 同 main, 新文件无 warning).
+- vite build: 32.20s ✓.
+- DB sessions = 15 (≥ 2), Thailand session 9 32 bills 数据在场.
+- 反 #167 ✅ iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN).
+- 反 #170 ✅ codeserver_exec_clean.js + codeserver_write_file.js 写文件 (base64 pipe 避免 escape).
+- 反 #189 ✅ SPEC append 用 heredoc (不用 sed 多匹配).
+- 反 #53 ✅ Gitea PAT token + DB backup 在 commit 1 已做.
+
+#### 排除范围 (本任务不修, 待 PO 决定)
+- "原 - 已结 = 新" 算式中 "原" 部分当前固定 0 (FE 拿不到 raw transfer, BE 没暴露 ?raw=true). 视觉上 section 3 仅显示 "已结 ¥X", 等 BE 后续加 raw endpoint 后可显示完整算式. mockup 1 完整算式留有 conditional rendering 路径 ({#if agg.rawAmount > 0}) 等 BE ready.
+- "最新应结算" section 数据源是 records 聚合, 不是 BE-adjusted transfers (避免 BE / FE 重复算 rate conversion). 用户体感: 顶部 section 1 (transfer cards) 显示 BE 算完的 transfer 列表; 底部 section 3 显示 "哪些 pair 被手工结算过" + "结了多少".
+- SettlementRow 编辑功能 (PO 字面 "增加" + "删除", 未要求改).
+- soft-delete / undo (PO 未要求).
+- multi-pair sum 聚合 UI (mockup 5 "合计 ¥430.00" section) — PO 描述 records list 用 "展示所有" 没要求 sum, 当前 section 3 列表已经够清楚.

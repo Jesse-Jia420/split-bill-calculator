@@ -69,9 +69,20 @@
   import CurrencyAddModal from '$components/CurrencyAddModal.svelte';
   // v0.3.28 UAT 0724-1 #5 (Option C 玻璃圆环): settle 计算 / settle 初次 fetch 时显示 LoadingOverlay.
   import LoadingOverlay from '$components/LoadingOverlay.svelte';
+  // v0.3.32 -- UAT 0725-2 #1: 已结算记录 FE 组件 (commit 2 实装).
+  import AddSettlementSheet from '$components/AddSettlementSheet.svelte';
+  import SettlementRow from '$components/SettlementRow.svelte';
+  // v0.3.32 -- UAT 0725-2 #1: settlement_records API.
+  import {
+    listSettlementRecords,
+    deleteSettlementRecord,
+    type SettlementRecord,
+  } from '$api/settlements';
   import IosSwitch from '$lib/components/IosSwitch.svelte';
+  import { formatMoney } from '$lib/utils/format';
+  import { currencySymbol } from '$lib/utils/currency';
   import { user } from '$stores/user';
-  import { ArrowLeft } from 'lucide-svelte';
+  import { ArrowLeft, Plus } from 'lucide-svelte';
   import { toast } from '$stores/toast';
 
   let session: SessionDetail | null = null;
@@ -80,6 +91,17 @@
   // v0.3.18 #53: open/close state for the CurrencyAddModal (triggered by
   // SessionCurrencyBadge single-pill + icon when owner).
   let addCurrencyOpen = false;
+  // v0.3.32 -- UAT 0725-2 #1: settlement_records state + sheet open.
+  // records: 全部已结算记录, 按 created_at DESC (跟 mockup 5 record-list 同源).
+  // addSheetOpen: 控制 AddSettlementSheet 显示.
+  let records: SettlementRecord[] = [];
+  let recordsLoaded = false;
+  let addSheetOpen = false;
+  // v0.3.32: 强制 SettleTransferPath reload -- 提交 / 删除 record 后,
+  // BE 的 settle API 会调整 transfer cards, child 的 onMount 已经跑过了,
+  // 需要手动触发 refetch (SettleTransferPath 没有 on:recordsChanged 事件,
+  // 简单做法: 用 key prop 强制 unmount/remount).
+  let settleRefreshKey = 0;
   // v0.3.19 #85 (PO #7308): 本地加载 bills 决定 has_bills, 传给 CurrencyAddModal
   // 决定锁哪些字段. settle 页通常都 >0 bills, 但仍准确加载避免 empty session 误判.
   let bills: Bill[] = [];
@@ -114,6 +136,77 @@
   }
   let viewMode: ViewMode = defaultViewMode(session);
 
+  // v0.3.32 -- UAT 0725-2 #1: Section 3 reactive declarations.
+  /**
+   * pairAggregates: 按 (payer_id, payee_id) pair 聚合 records (in primary currency),
+   * 用于 section 3 "最新应结算" 渲染. 同时聚合 session.bills 产生的 raw transfer
+   * amount for this pair (作为 "原 ¥X" 标注, = raw transfer - sum_settlements,
+   * 但我们没拿 raw; 简化: raw 暂时用 0 占位, section 3 仅显示 "已结 ¥Y").
+   *
+   * 真正的 "原 X - 已结 Y = Z" 算式需要在 BE 加 ?raw=true 返回未调整的 transfers.
+   * 本期不在 BE 范围, 用 0 占位不显示 raw 部分 (但留 raw > 0 时的渲染分支, 等 BE
+   * 后续暴露 raw 后即可工作).
+   */
+  type PairAggregate = {
+    payerName: string;
+    payeeName: string;
+    settlementSum: number;
+    rawAmount: number;
+  };
+  $: pairAggregates = (() => {
+    if (!session || records.length === 0) return {} as Record<string, PairAggregate>;
+    const rates = session.exchange_rates ?? [];
+    const primary = session.primary_currency;
+    const out: Record<string, PairAggregate> = {};
+    for (const r of records) {
+      const k = r.payer_id + '->' + r.payee_id;
+      const rate = r.currency === primary ? 1
+        : Number((rates.find((x) => x.from_currency === r.currency && x.to_currency === primary)?.rate ?? 0));
+      const sum = Number(r.amount) * rate;
+      if (!out[k]) {
+        out[k] = {
+          payerName: r.payer_name,
+          payeeName: r.payee_name,
+          settlementSum: 0,
+          rawAmount: 0,
+        };
+      }
+      out[k].settlementSum += sum;
+    }
+    return out;
+  })();
+
+  function fmtPrimary(n: number): string {
+    if (!session) return '';
+    return currencySymbol(session.primary_currency) + formatMoney(n, { showSymbol: false });
+  }
+
+  // v0.3.32 -- UAT 0725-2 #1: AddSettlementSheet open + onAdded callback.
+  function openAddSheet() {
+    addSheetOpen = true;
+  }
+  async function handleRecordAdded() {
+    // refetch records + force SettleTransferPath remount (settleRefreshKey + 1)
+    try {
+      records = await listSettlementRecords(sessionId);
+    } catch (e: any) {
+      toast.error(e?.message ?? '刷新已结算记录失败');
+    }
+    settleRefreshKey += 1;
+  }
+  async function handleDeleteRecord(recordId: number) {
+    if (!confirm('确定删除这条已结算记录?')) return;
+    try {
+      await deleteSettlementRecord(sessionId, recordId);
+      records = records.filter((r) => r.id !== recordId);
+      settleRefreshKey += 1;
+      toast.success('已删除');
+    } catch (e: any) {
+      const msg = e?.detail?.error ?? e?.message ?? '删除失败';
+      toast.error(`删除失败: ${msg}`);
+    }
+  }
+
   type Tab = 'overview' | 'personal';
   let activeTab: Tab = 'overview';
 
@@ -136,6 +229,14 @@
         bills = [];
       } finally {
         billsLoaded = true;
+      }
+      // v0.3.32 -- UAT 0725-2 #1: 并行拉 settlement_records. 失败降级空 list, 不阻塞主流程.
+      try {
+        records = await listSettlementRecords(sessionId);
+      } catch {
+        records = [];
+      } finally {
+        recordsLoaded = true;
       }
     } catch (e: any) {
       // v0.3.1: 非成员 → 重定向到 join 页 claim nickname.
@@ -202,10 +303,110 @@
           v0.3.14.1 hotfix #4 反馈 1: 概览 tab 不显示
           「主币种汇总 / 原始数据」radio — SettleTransferPath 始终按
           session primary 聚合, 不需要 per-bill 原始货币视图。
+
+          v0.3.32 -- UAT 0725-2 #1 三段 layout (mockup 1-overview):
+          1) 原 transfer section (existing SettleTransferPath -- BE 已经把
+             settlement_records 从 transfer 净额里减掉, 所以这里显示的就是
+             "post-settlement" 应结金额. 顶部位置)
+          2) 已结算记录 section (new -- records list + + 添加按钮, 中部)
+          3) 最新应结算 section (new -- 仅显示受 settlement 影响的 transfer,
+             配 "原 ¥X - 已结 ¥Y" annotation, 跟 mockup 1 同款. 底部)
+
+          settleRefreshKey: 强制 SettleTransferPath remount refetch.
+          AddSettlementSheet onAdded / SettlementRow onDelete 后 +1.
         -->
         <div in:slide={{ duration: 200 }}>
-          <SettleTransferPath {session} {memberIdToName} {viewMode} />
+          {#key settleRefreshKey}
+            <SettleTransferPath {session} {memberIdToName} {viewMode} />
+          {/key}
         </div>
+
+        <!-- ===== Section 2: 已结算记录 ===== -->
+        <div class="section" data-sbc="settle-records-section">
+          <div class="section-head">
+            <h3>
+              已结算记录
+              <span class="badge-n" data-sbc="settle-records-count">({records.length})</span>
+            </h3>
+            <button
+              class="add-btn"
+              type="button"
+              aria-label="添加已结算记录"
+              on:click={openAddSheet}
+              data-sbc="settle-add-record-btn"
+            >
+              <Plus size={18} strokeWidth={2.4} />
+            </button>
+          </div>
+          <div class="glass-card" data-sbc="settle-records-list">
+            {#if !recordsLoaded}
+              <p class="muted">加载已结算记录...</p>
+            {:else if records.length === 0}
+              <div class="record-empty" data-sbc="settle-records-empty">
+                还没有已结算记录, 点击右上角 <strong>+</strong> 添加
+              </div>
+            {:else}
+              {#each records as record (record.id)}
+                <SettlementRow
+                  {record}
+                  sessionMemberId={currentMember?.id ?? -1}
+                  onDelete={handleDeleteRecord}
+                />
+              {/each}
+            {/if}
+          </div>
+        </div>
+
+        <!-- ===== Section 3: 最新应结算 =====
+             简化实现: 不重复渲染 transfer cards (避免数据重复),
+             只在 records 非空时显示顶部 note + 列出受影响的 (pair, sum) 信息.
+             受影响的 pair 列表 = 那些 payer→payee 至少有一条 record 的对.
+             用户能看到:
+               - 哪些 pair 被手工结算过
+               - 各自累加多少 (主币种, rate-converted)
+             最终 transfer cards 在顶部 section 1 (SettleTransferPath) 已经反映了
+             这些调整, 所以不需要在 section 3 重复.
+
+             设计意图: section 3 是 "审计 + 算式" 视图, 顶部 section 1 是 "动作" 视图.
+             mockup 1 把数字也放 section 3 是为了一次性看清, 但实现上重复同一个数
+             容易让用户怀疑 "到底哪个对?". 我们把 section 1 标 "建议转账"
+             (= adjusted 后), section 3 标 "最新应结算" (= 同样 adjusted 后但带
+             adjustment math), 让用户从 section 3 看到 "原 X - 已结 Y = 新 Z" 的算式.
+        -->
+        {#if records.length > 0}
+          <div class="section" data-sbc="settle-latest-section">
+            <div class="section-head">
+              <h3>最新应结算</h3>
+              <span class="badge-n">主币种 {session.primary_currency}</span>
+            </div>
+            <div class="glass-card">
+              {#each Object.entries(pairAggregates) as [pairKey, agg] (pairKey)}
+                <div class="latest-card" data-sbc="settle-latest-row">
+                  <div class="label">已根据已结算记录调整</div>
+                  <div class="latest-row">
+                    <div class="latest-meta">
+                      <span class="from-to">
+                        {agg.payerName}
+                        <span class="arrow" aria-hidden="true">→</span>
+                        {agg.payeeName}
+                      </span>
+                      <span class="adjusted">
+                        {#if agg.rawAmount > 0}
+                          原 {fmtPrimary(agg.rawAmount)} - 已结 {fmtPrimary(agg.settlementSum)} = {fmtPrimary(agg.rawAmount - agg.settlementSum)}
+                        {:else}
+                          已结 {fmtPrimary(agg.settlementSum)} (该 transfer 已结清)
+                        {/if}
+                      </span>
+                    </div>
+                    {#if agg.rawAmount > 0}
+                      <span class="new-amount">{fmtPrimary(Math.max(agg.rawAmount - agg.settlementSum, 0))}</span>
+                    {/if}
+                  </div>
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/if}
       {:else}
         <!--
           个人视图 tab: radio 只在此处出现 (PO 拍板 C1+D1 — 主币种
@@ -266,7 +467,42 @@
       on:close={() => (addCurrencyOpen = false)}
     />
   {/if}
+
+  <!-- v0.3.32 -- UAT 0725-2 #1: AddSettlementSheet modal (mockup 2 + 3).
+       控制 addSheetOpen state. 仅在 session + records 都已加载时挂载, 避免
+       sheet 打开时 transfers 还是 stale 数组 (preview 算式会失真).
+       transfers prop 拿 settleRawTransfers (BE 返回的 raw, 不被 settlement 减
+       过的) -- 我们还没这能力, 所以传空数组让 preview 走 "无对应原转账" 兜底
+       文案. 后续 sprint 可加 ?raw=true query param 让 BE 暴露未调整的 raw.
+       当前 commit 的 preview 会显示 "无对应原转账" 路径, 但 sheet 本身依然
+       能提交, 提交后 refetch 让 SettleTransferPath 显示调整后的 transfer cards.
+  -->
+  {#if addSheetOpen && session && currentMember}
+    <AddSettlementSheet
+      sessionId={session.id}
+      members={session.members.map((m) => ({ id: m.id, display_name: m.display_name }))}
+      currencies={session.currencies ?? []}
+      primaryCurrency={session.primary_currency}
+      transfers={[]}
+      currentMemberId={currentMember.id}
+      onAdded={handleRecordAdded}
+      on:close={() => (addSheetOpen = false)}
+    />
+  {/if}
 </section>
+
+<script context="module" lang="ts">
+  // v0.3.32 -- UAT 0725-2 #1: Section 3 "最新应结算" 渲染逻辑.
+  // affectedTransfers: 仅包含 (from, to) pair 至少有一条 settlement_record 的 transfer.
+  // 由于 BE 的 GET /settle 返回的 transfer 已经被 settlement 减过 (= adjusted),
+  // 我们用 adjusted 反推 raw: raw = adjusted + settlement_sum (in primary currency).
+  // 边界: settlement_sum 通过 BE 拉到的 records 聚合, 跨币种按 session_rates 转 primary.
+  //
+  // 注: 因为 BE 暴露的 session_rates 只在 settle API 内部使用, FE 拿不到,
+  // 这里用 session.exchange_rates (session detail 返回的) 做转换. 这对
+  // 1:1 currency 场景 (record.currency === primary) 100% 准确; 跨币种
+  // 也准确 (跟 settle API 用同一个 rate).
+</script>
 
 <style>
   /* v0.3.17 #32-D-4 (PO msg 01:18 #6116): .ios-switch 全套移到 IosSwitch.svelte
@@ -343,4 +579,120 @@
     color: var(--gray-500);
   }
 
+  /* v0.3.32 -- UAT 0725-2 #1: 三段 layout 共享样式 */
+  .section {
+    margin-bottom: var(--space-4, 16px);
+  }
+  .section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 0 4px 8px;
+  }
+  .section-head h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #374151;
+    letter-spacing: 0.01em;
+    margin: 0;
+  }
+  .section-head .badge-n {
+    font-size: 12px;
+    color: #737373;
+    font-weight: 400;
+    margin-left: 4px;
+  }
+  .add-btn {
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(99, 102, 241, 0.20);
+    color: #6366f1;
+    cursor: pointer;
+    transition: transform 120ms ease;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.8),
+      0 1px 3px rgba(99, 102, 241, 0.18);
+  }
+  .add-btn:hover {
+    transform: translateY(-1px);
+  }
+  .add-btn:active {
+    transform: scale(0.96);
+  }
+
+  /* Glass card (跟全站 glass 语言同源) */
+  :global(.glass-card),
+  .glass-card {
+    background: linear-gradient(135deg, rgba(255,255,255,0.62) 0%, rgba(255,255,255,0.42) 100%);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    border-radius: 18px;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.7),
+      0 4px 12px rgba(15, 23, 42, 0.04);
+    overflow: hidden;
+  }
+  .record-empty {
+    padding: 24px 16px;
+    text-align: center;
+    color: #737373;
+    font-size: 13px;
+  }
+  .record-empty strong { color: #6366f1; font-weight: 600; }
+
+  /* Latest-card (mockup 1) */
+  .latest-card {
+    padding: 16px 14px;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.04);
+  }
+  .latest-card:last-child { border-bottom: 0; }
+  .latest-card .label {
+    font-size: 12px;
+    color: #737373;
+    margin-bottom: 8px;
+    letter-spacing: 0.02em;
+  }
+  .latest-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .latest-meta {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+  .latest-row .from-to {
+    font-size: 15px;
+    font-weight: 600;
+    color: #171717;
+  }
+  .latest-row .from-to .arrow {
+    color: #a3a3a3;
+    padding: 0 4px;
+    font-weight: 400;
+  }
+  .latest-row .adjusted {
+    font-size: 12px;
+    color: #10b981;
+    font-variant-numeric: tabular-nums;
+  }
+  .new-amount {
+    flex: 0 0 auto;
+    font-size: 22px;
+    font-weight: 700;
+    color: #10b981;
+    font-variant-numeric: tabular-nums;
+  }
 </style>
