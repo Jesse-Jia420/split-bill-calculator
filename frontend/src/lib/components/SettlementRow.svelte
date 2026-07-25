@@ -116,6 +116,11 @@
     padding: 12px 14px;
     border-bottom: 1px solid rgba(15, 23, 42, 0.05);
   }
+  /* v0.3.33 — UAT 0725-3 #2 (PO 14:59 batch):
+     avatar 跟 SessionMemberList + BillForm .ppt-avatar 同款 Option B 玻璃 (v0.3.23 #132).
+     之前 SettlementRow 自己一套: 28x28 但 font-size 11px + text-shadow 让 initial 模糊,
+     跟成员 section 头像对不齐. 改为跟 SessionMemberList 完全同款 (font-size 12px, no text-shadow).
+     背景渐变继续用 palette inline style (5 色按 payer_id / payee_id 稳定 hash). */
   .avatar {
     flex: 0 0 auto;
     width: 28px;
@@ -124,8 +129,9 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
+    line-height: 1;
     color: #fff;
     border: 1.5px solid #fff;
     backdrop-filter: blur(4px) saturate(180%);
@@ -134,7 +140,6 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.5),
       inset 0 -1px 0 rgba(0, 0, 0, 0.08),
       0 1px 2px rgba(0, 0, 0, 0.08);
-    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.10);
   }
   .arrow-mini { color: #a3a3a3; font-size: 12px; padding: 0 1px; }
   .row-info {
