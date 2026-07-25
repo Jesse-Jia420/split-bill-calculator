@@ -6261,3 +6261,54 @@ PO msg 17:40 字面: "新建,编账单页, 日期选框还是超出表单了. �
 - 验证成功后绑定到具体 member_id 的机制 — 当前跳 `/s/{sessionCode}` 走 BE auto-redirect 流程 (logged-in 用户若不是 member → /join, anon 仍走 localStorage secret). 真正"通过 verify 把 user_id 加到特定 member_id"的机制留作未来 PR (BE 需要新 endpoint 或扩展 verify_code 响应).
 - "pill 登录 →" 是 decorative (不点击), 视觉上呼应表单 CTA — 后续如果需要点击它跳到 /auth/login 顶层登录页可以再做.
 - 真机 iOS Safari 视觉验证 — Playwright headless chromium 测了 computed style + DOM, 真机像素验证需 PO iPhone Safari 打开 /sessions/7/login?as=16&nickname=Jes&emailMasked=x***@outlook.com 看.
+
+### v0.3.30 — UAT 0725-1 #8: 计算器功能优化 (Coder 自写自验 已走 ✓)
+
+**Commit**: (待提交) (3 files / +478 -83)
+
+#### PO 意图 (UAT 0725-1 #8 字面)
+"新建编辑账单页, 计算器的功能要优化. 其中 等于 号, 应该是计算结果并加括号的功能. 如当用户输出 60, -, 10, =, /, 5 时, 代表 (60-10)/5.
+ - 计算器内的结果框最右侧新增 对号 按钮, 点击可让计算器组件消失, 金额填入表单的金额字段.
+ - 表单的金额字段不随计算器内金额的变化而变化, 仅填入并展示计算后的结果.
+ - 表单内去除金额 input 右侧的 '= xxx货币符号', 仅保留 input.
+ - 表达式错误时, 在计算器的结果框内, 使用红色玻璃 pill 展示 '表达式错误'.
+ - 计算器内的结果部分, 等号之后只展示金额数字, 不展示币种."
+
+#### 改动 (3 files)
+
+1. **改** `frontend/src/lib/components/AmountCalculatorInput.svelte` (+478 -83)
+   - **加括号逻辑** (PO #1 字面): `pressEquals()` 不再 evaluate 关闭 keypad. 改成 evaluate 当前 `_internalValue` → 存 `preEqualsResult` → 把 `=` 追加到 `_internalValue` 上. 后续用户输入 operator/number 时, parser 在 preEqualsResult 基础上接续. 例: `60-10=/5` → display `(60-10)/5` + value 10.
+   - **新增解析函数** `parseInput(input, preEqualsResult)`: 找 `=` 位置, 之前的部分作为 `preEquals`, 之后的部分作为 `postEquals`. 拼接成 `(preEquals)${postEquals}` 形式 display. evaluate 时用 `preEqualsResult + postEquals` (e.g. `50/5` → 10). 无 `=` 时直接 evaluate 整个 expression.
+   - **对号按钮** (PO #2): sheet-amount-row 最右侧加 `<button class="confirm-btn">`, 圆形 44×44, 紫色渐变 #6366f1→#4f46e5, 4 层 shadow (inset highlight + inset lowlight + outer drop + ambient). 点击 → emit('confirm', { value, expression }) + 关闭 keypad + 重置内部状态.
+   - **红色错误 pill** (PO #6): error 态 → `<span class="sheet-amount-error-pill">表达式错误</span>`, bg rgba(239,68,68,0.16) + backdrop-filter blur(20) saturate(180) + border rgba(239,68,68,0.48) + inset highlight + outer shadow. confirm 按钮同步置灰 rgba(148,163,184,0.4).
+   - **form-row 重设** (PO #2, #3): form-row input 不再显示 raw expression, 也不再有右侧 "= xxx currency" preview. 只显示 parent 提供的 `amount` (confirm 后的最终数字) 或 `initialAmount` (edit mode prefill). 接受 parent 传 `initialValue` + `initialAmount` 给 edit mode prefill.
+   - **sheet preview 等号后去币种** (PO #5): hasEquals 时 preview 格式 `= ${formatted}` (无币种), 否则 `= ${formatted} ${currency}`.
+   - **内部状态重构**: 旧用 `let value: string = ''` (prop) 作为 source of truth, 改用独立 `let _internalValue: string = ''` (非 prop). 旧版 Svelte 4 在某种赋值模式下, 内部 prop 赋值后 reactive 读旧值, 改用独立 let 避免. value prop 仍 export, 跟 parent `bind:value` backward compat.
+   - **prefill 用 reactive $:** 不用 onMount (child onMount 在 parent onMount 之前跑, initialValue 还没设). 改用 `$: if (!prefillDone && initialValue) { _internalValue = initialValue; ... }`, parent onMount 设 initialValue 时触发一次.
+
+2. **改** `frontend/src/lib/components/BillForm.svelte` (+11 -8)
+   - **删 bind:value / bind:evaluated** (PO #2 字面): form 不再 live-bind 表达式或结果.
+   - **改用 controlled props**: `{amount} initialValue={amountExpression} initialAmount={amount} {currency}`.
+   - **on:confirm 事件 handler**: `amount = e.detail.value; amountExpression = e.detail.expression;` (PO #3 字面 "仅填入并展示计算后的结果" — 之前 form 一直显示 raw 表达式, 现在只在 confirm 时填入最终数字).
+
+3. **新增** `frontend/scripts/v0330-0725-1-8-verify.cjs` (Playwright iPhone 13 @3x 真机 walk)
+
+#### 验证 (Playwright iPhone 13 @3x, `frontend/scripts/v0330-0725-1-8-verify.cjs`)
+- /sessions/9/bills/new (session 9 泰国测试 6 人 CNY+THB 32 bills, 新建模式)
+- /sessions/9/bills/74/edit (bill 74 amount=150, 编辑模式 prefill)
+- 30/30 check pass:
+  * **State 1** (S1, "60 - 10" 无等号): 验 expr="60-10" + preview="= 50.00 CNY" + **无 confirm btn** (hidden) + 无 error pill ✓
+  * **State 2** (S2, "60-10=/5" 等号+续): 验 expr="(60-10)/5" + preview="= 10.00" (无 CNY) + confirm btn visible + 44×44 圆形 + 紫色渐变 ✓
+  * **State 3** (S3, "60 /" 除号后空): 验 expr="60/" + 红色 error pill "表达式错误" + preview hidden + confirm hidden ✓
+  * **State 3b** (S3b, "60-10=/" 等号+续错): 验 expr="(60-10)/" + 红色 error pill + confirm visible 但 disabled + 灰底 rgba(148,163,184,0.4) ✓
+  * **State 4** (S4, 点 confirm): 验 sheet 关闭 + backdrop 关闭 + form input value="10.00" + form-row 无 preview span ✓
+  * **State 5** (S5, edit mode prefill bill 74): 验 form input="150.00" + calculator sheet expr="150" + preview="= 150.00 CNY" ✓
+- 5 张 PNG 存 `~/.openclaw/media/browser/v0330-0725-1-8/` (01-state-input/02-state-result/03-state-error/04-state-confirm/05-state-edit)
+- svelte-check: 0 error / 24 warning (baseline 同 — pre-existing warnings 在其他文件, 跟 #8 无关)
+- 反 #152: Thailand session 9 = 32 bills (前 27 THB + 5 CNY), 数据在场未受影响
+
+#### 排除范围 (本任务不修, 待 PO 决定)
+- 表达式 input "0.5+0.5" 在 = 后的括号显示 "(0.5+0.5)" → 当前 decimal display 没问题, 但 user 多次按小数点会触发 "two dots" 校验拒绝. 不修, 跟原 calculator 行为一致.
+- pressConfirm 重置后 `_internalValue = ''` (清空表达式), user 再开 calculator 看到空白. PO #2 字面 "表单的金额字段不随计算器内金额的变化而变化" 隐含 calculator 也清空; 但 user 也许想保留表达式可以微调. 后续可加 "保留表达式" 选项, 等 PO 反馈.
+- 旧版 `bind:value` 仍可工作 (向后兼容). BillForm 改了, 但如果其他组件用 AmountCalculatorInput 仍 bind:value, 也能跑 (走 fallback onMount 路径). 当前项目内只有 BillForm 用, 不影响.
+- keyboard "0" 长按重复触发 pressChar 0 — user 长按会一直 append "0" 进表达式, 这是浏览器默认行为. PO 未要求防, 不动.
