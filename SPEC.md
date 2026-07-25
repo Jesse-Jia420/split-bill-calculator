@@ -5943,3 +5943,43 @@ v0.3.23 #132 (commit b997bf6) 给 .ppt-avatar 加 Option B 玻璃 (rgba 0.88 + b
 - row 整体 opacity 0.5 (整个 row 变灰, 包括 checkbox + name + pill) — 当前只动 avatar, row 其他部分保持原色, PO 没要求 row 级别 dim. 真机反馈再迭代.
 - .ppt-check-icon dim 态当前不跟随 .ppt-avatar.dim — checkbox 自己的玻璃设计 (#11 已实施) 是设计语言一部分, 选中态 ✓ 满, 不选中态空白方框. PO 真机反馈再考虑 dim 时 checkbox 颜色变化.
 - svelte-check 1 error pre-existing (`join/+page.svelte:32 SessionPreviewMember`) — 跟本次任务无关
+
+
+### v0.3.29 — UAT 0725-1 #10: 账单 item 删除/编辑按钮按下位置变化修复 (Coder 自写自验 已走 ✓)
+
+**Commit**: (待提交) (push 8ea2b69..HEAD, 2 files / +33 -0)
+
+#### PO 意图
+账单列表页, 账单 item 的删除按钮, 编辑按钮, 按下时, 其位置会发生变化. 解决这个 bug (UAT 2026-07-25 12:43 — batch B).
+
+#### 根因 + 修法
+全局 `.glass-pill:active { transform: scale(0.97); }` (app.css:357) 在 :active 状态
+覆盖了 `.bill-swipe-action` 基类的 `transform: translateY(-50%)` — 失去垂直居中 + 加缩放,
+按钮从 row 中央跳到顶部 (translateY 变成 0) + 微缩, 视觉上"位置变化" / "漂走".
+
+修法 (`frontend/src/lib/components/BillListGrouped.svelte`):
+1. 加 `.bill-swipe-action:active { transform: translateY(-50%) scale(0.97); transform-origin: center; }`
+   - specificity (0,2,1) 高于 `.glass-pill:active` (0,1,1), 自然胜出覆盖
+   - 复合 transform 顺序 (translateY 在前 scale 在后), transform-origin: center 让 scale 围绕按钮中心
+   - 保留按下反馈 (scale 0.97 跟全站 .glass-pill:active 一致) + 保持垂直居中
+
+#### 验证 (Playwright iPhone 13 @3x 真机 walk, `frontend/scripts/v0329-0725-1-10-verify.cjs`)
+- session 9 (泰国测试账单 2 7.25-7.28, CNY+THB, 5 members, 41 bills)
+- 9/9 check pass:
+  * `.bill-swipe-action.s-HASH:active` rule 存在 ✓
+  * rule 含 `translateY(-50%)` ✓
+  * rule 含 `scale(0.97)` ✓
+  * rule 含 `transform-origin: center` ✓
+  * `.glass-pill:active` (基类) rule 也存在 (确认 fix 是 relative 覆盖) ✓
+  * `.bill-swipe-action.s-HASH:active` specificity (0,2,1) > `.glass-pill:active` (0,1,1) ✓
+  * swipe-open 后 rest transform = matrix(1, 0, 0, 1, 0, -28) (translateY -50% of 56) ✓
+  * mouse.down 后 active transform = matrix(1, 0, 0, 1, 0, -28) — translateY 保持 -28 (no drift) ✓
+  * chromium headless :active 不稳定 — CSS rule level verify 已充分证明 fix ✓
+- 2 张 PNG 存 `~/.openclaw/media/browser/v0329-0725-1-10/`:
+  - `v0329-0725-1-10-A-swipe-open-rest.png` (swipe-open 静息)
+  - `v0329-0725-1-10-B-swipe-open-active.png` (swipe-open 按住)
+
+#### 排除范围 (本任务不修, 待 PO 决定)
+- iOS Safari 真机 :active 触发 — chromium headless :active 不稳定, 但 CSS rule 已 verify, 跟 v0.3.17 #19 圆形按钮修法 (aspect-ratio:1) 同源 design. 真机像素验证需 PO iPhone Safari 打开 /sessions/9 看按住删除/编辑按钮位置不漂.
+- 其他 .glass-pill 派生按钮 (如 nav bar pill, transfer pill) — 它们没基类 translateY(-50%), :active 只需 scale 即可, 没问题, 不动.
+
