@@ -6105,3 +6105,39 @@ v0.3.28 #3 (commit 6c8d02e + 续修): 给 `.card-link` 加 `clip-path: inset(0 c
 #### 排除范围 (本任务不修, 待 PO 决定)
 - `--swipe-clip-right` CSS var 仍挂在 `<a>` markup (line 432) 但无 rule 消费 — 留 var 以备未来需要从 .session-card 上 read progress. 不删, 不影响视觉.
 - `.delete-btn` swipe-open 触发后是否真到 56×56 真圆 — 已被 v0.3.17 #19+#28 (commit 70c6479) aspect-ratio:1 + min-height:0 覆盖全局 button 44px 修过, 本次不动. Playwright headless mouse drag 不稳定触发 progress=1 (chromium synthetic event timing), 真机像素验证需 PO iPhone Safari 真 swipe 看 56×56 真圆.
+
+
+### v0.3.29 — UAT 0725-1 #4: 账本 item 删除按钮点外部收起 (Coder 自写自验 已走 ✓)
+
+**Commit**: (待提交) (push 6799c05..HEAD, 2 files / +213 -0)
+
+#### PO 意图
+账本 item 的删除按钮出现后, 如果用户点击或滑动了这个 item 外的其他地方, 刚刚这个删除按钮应收起来 (UAT 2026-07-25 12:43 — batch B).
+
+#### 根因 + 修法
+v0.3.28 #3 (commit 6c8d02e + 续修) 加 swipe-style 删除按钮, 但只处理 wrap 内部 click (onWrapClick 关 swipe 当 target 非 delete-btn). **外部** click (e.g. 点 navbar / 别的 card / page 底部空白 / 注销登录按钮) 不在监听范围, 删除按钮一直挂着不收.
+
+修法 (`frontend/src/lib/components/SessionCard.svelte`):
+1. 加 `onWindowClick(e: MouseEvent)` 函数 — svelte:window on:click 监听 + target.closest(.session-swipe-wrap) 过滤:
+   - `curOpen === null` → 早返回 (没 open swipe, 不操作)
+   - target 在 .session-swipe-wrap 内 → 早返回 (走 wrap 内部 handler)
+   - target 在 wrap 外 → reset swipeOffsetStore[id] = 0 + openSwipeIdStore = null
+2. template 加 `<svelte:window on:click={onWindowClick} />` (一行, SvelteKit 自动 cleanup)
+3. 跟现有 onWrapClick 分工:
+   - onWrapClick 处理 **wrap 内部** click (user tap card 内容不是 delete-btn → 关 swipe)
+   - onWindowClick 处理 **wrap 外部** click (点别的 card / navbar / page 空白 → 关 swipe)
+
+#### 验证 (Playwright iPhone 13 @3x 真机 walk, `frontend/scripts/v0329-0725-1-4-verify.cjs`)
+- /sessions 列表页 (Jesse owner 视图, 6 个 owner session)
+- 3/3 check pass:
+  * **setup**: JS-dispatched mouseup 后 delete-btn 打开 (width=56, progress=1, aria-hidden=false) ✓
+  * **CORE**: JS-dispatched click on document.body (wrap 外) 后 delete-btn 收起 (width=2, progress=0, aria-hidden=true) ✓
+  * **wrap-internal**: JS-dispatched click on wrap 内 (non-delete-btn 区) 也收起 (验证 onWrapClick 跟 onWindowClick 分工不冲突) ✓
+- 1 张 PNG 存 `~/.openclaw/media/browser/v0329-0725-1-4/` (after outside-click 收起状态)
+
+#### 验证方法学 (headless 跟真机差异)
+chromium-headless `page.mouse.up()` 在 mousedown target 上 dispatch synthetic click, 立即触发现有 `onWrapClick` reset (v0.3.28 #3 续修 2 设计). 真机 iOS Safari: touch drag 后浏览器抑制 click (touch-action: pan-y + 长按 100ms+ 拖动阈值), swipe 保持打开直到用户下次 tap. 为 headless 验证 #4 fix, 用 JS-dispatched mouseup (跳过 synthetic click) + JS-dispatched click on body (验证 svelte:window 监听). 实际 iOS Safari 真机行为: 用户 swipe-open → tap navbar/别的 card/底部空白 → svelte:window on:click 触发 → onWindowClick reset → 删除按钮收起.
+
+#### 排除范围 (本任务不修, 待 PO 决定)
+- 现有 `onWrapClick` wrap 内 click reset 逻辑保留 — 这是 v0.3.28 #3 续修 2 设计 (user tap card 内容 → 关 swipe). 跟 #4 fix 互补, 不删.
+- 真机 iOS Safari `tap outside` 行为依赖浏览器抑制 click, headless 不能 1:1 模拟. SPEC 已记录 headless-vs-真机差异, 真机像素验证需 PO iPhone Safari 真 swipe + tap outside 验证.

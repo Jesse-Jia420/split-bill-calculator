@@ -296,6 +296,30 @@
     }
   }
 
+  /**
+   * v0.3.29 (UAT 0725-1 #4, PO msg 12:43): 点 wrap 外区域收起 delete-btn.
+   * PO 字面: "如果用户点击或滑动了这个 item 外的其他地方, 刚刚这个删除按钮应收起".
+   * 实现: svelte:window on:click 监听 + closest 过滤 — 如果 click target 不在任何
+   * .session-swipe-wrap 内, reset 当前 open swipe (swipeOffsetStore + openSwipeIdStore).
+   *
+   * 跟现有 onWrapClick 的分工:
+   * - onWrapClick 处理 **wrap 内部** click (user tap card content 不是 delete-btn → 关 swipe)
+   * - onWindowClick 处理 **wrap 外部** click (点别的 card / header / navbar / backdrop → 关 swipe)
+   *
+   * 用 svelte:window (而非 onMount + window.addEventListener) 让 SvelteKit lifecycle
+   * 自动 cleanup, 避免 listener 泄漏. bubble-phase 即可 (window 不在 capture path 起点).
+   */
+  function onWindowClick(e: MouseEvent) {
+    const curOpen = get(openSwipeIdStore);
+    if (curOpen === null) return;
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
+    if (target.closest(".session-swipe-wrap")) return;
+    // 点 wrap 外 → reset 当前 open swipe (跟 onWrapClick 同款机制)
+    swipeOffsetStore.update((o) => ({ ...o, [curOpen]: 0 }));
+    openSwipeIdStore.set(null);
+  }
+
   export let session: SessionSummary;
 
   /** v0.3.24 #9: 跟 mockup refined 一致 — 最多显示 6 个头像, 超出显示 +N. */
@@ -382,6 +406,8 @@
     }
   }
 </script>
+
+<svelte:window on:click={onWindowClick} />
 
 <!-- v0.3.x (UAT #0723-3 #3): unguessable 10-char session_code (代替 /sessions/{id}).
      老 URL /sessions/{id} 仍工作 (UI 不再生成, 但用户书签/外部分享进仍
