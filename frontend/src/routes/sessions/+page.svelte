@@ -75,6 +75,14 @@
      因为 Svelte scoped CSS 不能跨组件).
      v0.3.27-#17 (PO 0723-3 续): FAB bg 条件化 — 有 sessions 浅色 (默认, v0.3.17 原值),
      0 sessions 深色 (.emphasized 状态). 取消箭头改走颜色引导路径. */
+  /* v0.3.33 — UAT 0725-3 #5 (PO msg 21:00 后 batch):
+     FAB bg 之前 alpha 0.04/0.02 + font-weight 300 太淡, "+" 几乎看不见.
+     还原 v0.3.27 #10 原意 (玻璃 + 显著 "+" icon).
+     - bg alpha 0.04/0.02 → 0.18/0.14 (跟 .emphasized 同色, 跟全站 glass 同族)
+     - border 1px 0.18 → 1.5px 0.35 (玻璃边缘补偿)
+     - font-weight 300 → 500 ("+" 不再发虚)
+     - text-align center (而不是 display:grid 跟 padding-bottom 3px 互相打架)
+     - 加 glass shadow (inset highlight + outer lift) 跟全站 .glass-pill 同族 */
   .fab {
     position: fixed;
     right: 28px;
@@ -84,36 +92,41 @@
     border-radius: 50%;
     background: linear-gradient(
       135deg,
-      rgba(99, 102, 241, 0.04) 0%,
-      rgba(59, 130, 246, 0.02) 100%
-    );
-    border: 1px solid rgba(99, 102, 241, 0.18);
-    font-size: 36px;
-    font-weight: 300;
-    line-height: 1;
-    z-index: 50;
-    cursor: pointer;
-    display: grid;
-    place-items: center;
-    padding: 0;
-    padding-bottom: 3px;
-    text-decoration: none;
-    color: var(--accent-700, #4338ca);
-    transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease, color 150ms ease;
-  }
-  .fab:hover {
-    transform: translateY(-2px);
-    text-decoration: none;
-  }
-  /* v0.3.27-#17 (PO 0723-3 续): 0 sessions 状态 — FAB 颜色更深以引导创建.
-     跟 .fab 默认浅色对比: bg alpha 0.04/0.02 → 0.18/0.14 (+0.14), border 1px 0.18 → 1.5px 0.35. */
-  .fab.emphasized {
-    background: linear-gradient(
-      135deg,
       rgba(99, 102, 241, 0.18) 0%,
       rgba(59, 130, 246, 0.14) 100%
     );
     border: 1.5px solid rgba(99, 102, 241, 0.35);
+    font-size: 38px;
+    font-weight: 500;
+    line-height: 76px;       /* 80 - 2*2 border, 视觉居中 "+" */
+    text-align: center;
+    z-index: 50;
+    cursor: pointer;
+    display: block;
+    padding: 0;
+    text-decoration: none;
+    color: var(--accent-700, #4338ca);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.45),
+      0 6px 16px rgba(99, 102, 241, 0.18);
+    transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease, color 150ms ease;
+  }
+  .fab:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.55),
+      0 8px 20px rgba(99, 102, 241, 0.24);
+    text-decoration: none;
+  }
+  /* v0.3.27-#17 (PO 0723-3 续): 0 sessions 状态 — FAB 颜色更深以引导创建.
+     0 sessions 状态 bg alpha 0.18/0.14 → 0.32/0.26 (比默认更深一档, 但保持玻璃语言). */
+  .fab.emphasized {
+    background: linear-gradient(
+      135deg,
+      rgba(99, 102, 241, 0.32) 0%,
+      rgba(59, 130, 246, 0.26) 100%
+    );
+    border: 1.5px solid rgba(99, 102, 241, 0.50);
   }
   .fab:active {
     transform: scale(0.96);
