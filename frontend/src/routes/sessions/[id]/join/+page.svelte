@@ -18,6 +18,14 @@
    * 跟 v0.3.17 #27 全玻璃化 polish + #30/#31/#32 liquid glass 设计语言一致.
    * 复用现有 utility (.glass-pill / .glass-input / .btn-primary), 不引入新 design token.
    * #6149 PO 文案 polish: 标题「回到/加入账本」/ taken slot 描述 / 「或」字 divider / 新建昵称描述.
+   *
+   * v0.3.29 — UAT 0725-1 #13 v4: 合并两段列表为一段 (PO v4 字面).
+   * - 旧版分 "选择已有昵称" + "选择昵称以回到账本" 两段, 中间夹 "或" 字 divider.
+   * - PO v2 拍板: 视觉平等 — 无邮箱/有邮箱用户同等对待 (不置灰, 无 chevron, 无 "已被 xxx 绑定" 文案).
+   * - 段标题统一为 "选择昵称加入账本", 内含混合槽位 (有邮箱显示 masked email 副行, 无邮箱只显昵称).
+   * - 点击分流: 有邮箱 → /sessions/{id}/login?as=...&nickname=...&emailMasked=...,
+   *              无邮箱 → 现有 handleClaim (匿名 claim, 落 localStorage secret).
+   * - maskEmail 抽到 lib/utils/mask.ts (v0.3.29 #13 v4 #5), 跨 join 页 + 登录页共享.
    */
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
@@ -29,11 +37,13 @@
     type SessionDetail,
     type SessionMember,
     type SessionPreview,
-    type SessionPreviewMember
+    type SessionMemberPreview
   } from '$api/sessions';
   import { getInvite, type InvitePublicView } from '$api/invites';
   import { loadUser } from '$stores/user';
   import { toast } from '$stores/toast';
+  // v0.3.29 — UAT 0725-1 #13 v4 #5: maskEmail 抽到 lib/utils/mask.ts (跨 join 页 + 登录页共享).
+  import { maskEmail } from '$lib/utils/mask';
   // v0.3.28 UAT 0724-1 #5 (Option C 玻璃圆环): /sessions/[id]/join 路由.
   import LoadingOverlay from '$components/LoadingOverlay.svelte';
 
@@ -52,10 +62,10 @@
 
   /** Combined member list — prefers full session detail, falls back to
    * public preview. Used by the slots derivations below. */
-  type AnyMember = SessionMember | SessionPreviewMember;
+  type AnyMember = SessionMember | SessionMemberPreview;
   function _combinedMembers(): AnyMember[] {
     const fromDetail: SessionMember[] = session?.members ?? [];
-    const fromPreview: SessionPreviewMember[] = preview?.members ?? [];
+    const fromPreview: SessionMemberPreview[] = preview?.members ?? [];
     return (fromDetail.length > 0 ? fromDetail : fromPreview) as AnyMember[];
   }
   let members = $derived(_combinedMembers());
@@ -180,6 +190,32 @@
     }
   }
 
+  /**
+   * v0.3.29 — UAT 0725-1 #13 v4: 邮箱绑定槽位的点击处理.
+   * 跳到 /sessions/{id}/login, 让用户走"登录以使用该槽位"流程.
+   * 不再直接 joinClaim (有邮箱槽位 user_id !== null, BE claim 会 409).
+   */
+  async function handleEmailSlotClick(slot: AnyMember) {
+    if (busy) return;
+    const email = (slot as SessionMember).email ?? (slot as SessionMemberPreview).email ?? null;
+    if (!email) {
+      // 防御性 fallback: 没邮箱但走到这里 → 当 anon 处理
+      await handleClaim(slot.id);
+      return;
+    }
+    busy = true;
+    try {
+      const params = new URLSearchParams({
+        as: String(slot.id),
+        nickname: slot.display_name,
+        emailMasked: maskEmail(email),
+      });
+      await goto(`/sessions/${sessionId}/login?${params.toString()}`);
+    } finally {
+      busy = false;
+    }
+  }
+
   async function handleAdd() {
     if (busy) return;
     const nickname = newNickname.trim();
@@ -212,35 +248,10 @@
     }
   }
 
-  // Derive the list of available (unclaimed / unbound) nickname slots.
-  // For anonymous users: show slots with nickname_secret=NULL (unclaimed).
-  // For logged-in users: show all slots (they can bind any).
-  let availableSlots = $derived(members.filter((m: AnyMember) => {
-    if (user) {
-      // Logged-in users see all slots (any can be bound)
-      return true;
-    }
-    // Anonymous users only see unclaimed slots
-    return m.user_id === null;
-  }));
-
-  // Slots that are already claimed/bound (for display only)
-  let takenSlots = $derived(members.filter((m: AnyMember) => {
-    if (user) return false; // Don't grey out for logged-in
-    return m.user_id !== null;
-  }));
-
-  // v0.3.28 (UAT 0723-3 #2): 邮箱脱敏显示 — 头 3 位 + *** + @ + 完整 domain
-  // 例 `xinhua1001@outlook.com` → `xin***@outlook.com`. domain 完整保留
-  // 是为了让 user 还能从邮箱区分是哪个账号绑定的 (e.g. outlook vs gmail).
-  function maskEmail(email: string): string {
-    const atIdx = email.indexOf('@');
-    if (atIdx < 0) return email.slice(0, 3) + '***';
-    const localPart = email.slice(0, atIdx);
-    const domain = email.slice(atIdx + 1);
-    const visible = localPart.slice(0, 3);
-    return visible + '***@' + domain;
-  }
+  // v0.3.29 — UAT 0725-1 #13 v4: 合并一段列表 (无邮箱/有邮箱 混排).
+  // - anon 用户: 看 user_id === null 的槽位 (未认领) + 已绑定 user_id 的 (PO v2 强调视觉平等, 匿名也能看)
+  // - logged-in 用户: 看所有槽位 (任何槽位都能点)
+  let allSlots = $derived(members.filter(() => true));
 
   // v0.3.28 (UAT 0723-3 #2): slot 头像首字母 (跟详情页成员头像同源, 用 .avatar-mini palette).
   function avatarLetter(name: string): string {
@@ -248,6 +259,12 @@
     const c = name.codePointAt(0) ?? 63;
     // CJK 字符 + Latin 首字母 都拿一个 unicode point.
     return String.fromCodePoint(c).toUpperCase();
+  }
+
+  /** v0.3.29 — UAT 0725-1 #13 v4: 是否该槽位有 email (走 login 流程). */
+  function hasEmail(slot: AnyMember): boolean {
+    const email = (slot as SessionMember).email ?? (slot as SessionMemberPreview).email;
+    return !!email;
   }
 </script>
 
@@ -277,21 +294,26 @@
       <p>登录身份: <strong>{user.email}</strong></p>
 
       <div class="stack" style="max-width: 480px;">
-        {#if availableSlots.length > 0}
+        {#if allSlots.length > 0}
           <div>
-            <p class="label">选择已有昵称（绑定到你的账号）</p>
-            <div class="slot-list">
-              {#each availableSlots as slot, i (slot.id)}
+            <p class="label">选择昵称加入账本</p>
+            <!-- v0.3.29 — UAT 0725-1 #13 v4: 合并段 (有邮箱/无邮箱 混排, 视觉平等, 无 chevron). -->
+            <div class="slot-list slot-list-merged">
+              {#each allSlots as slot, i (slot.id)}
                 <button
-                  class="glass-pill slot-btn slot-btn-v2"
-                  onclick={() => handleClaim(slot.id)}
+                  class="glass-pill slot-btn slot-btn-v3"
+                  onclick={hasEmail(slot) ? () => handleEmailSlotClick(slot) : () => handleClaim(slot.id)}
                   disabled={busy}
+                  data-testid="member-pick-row"
+                  data-has-email={hasEmail(slot) ? '1' : '0'}
                 >
-                  <span class="slot-avatar palette-{i % 5}" aria-hidden="true">{avatarLetter(slot.display_name)}</span>
+                  <span class="slot-avatar palette-{i % 7}" aria-hidden="true">{avatarLetter(slot.display_name)}</span>
                   <span class="slot-info">
-                    <span class="slot-nickname">{slot.display_name}</span>
-                    {#if (slot as SessionMember).email}
-                      <span class="slot-email-masked">{maskEmail((slot as SessionMember).email as string)}</span>
+                    <span class="member-nickname slot-nickname">{slot.display_name}</span>
+                    {#if hasEmail(slot)}
+                      <span class="member-email-masked slot-email">
+                        {maskEmail((slot as SessionMember).email ?? (slot as SessionMemberPreview).email ?? '')}
+                      </span>
                     {/if}
                   </span>
                 </button>
@@ -320,40 +342,29 @@
     {:else}
       <!-- Anonymous user -->
       <div class="stack" style="max-width: 480px;">
-        {#if availableSlots.length > 0}
+        {#if allSlots.length > 0}
           <div>
-            <p class="label">选择已有昵称</p>
-            <div class="slot-list">
-              {#each availableSlots as slot, i (slot.id)}
+            <p class="label">选择昵称加入账本</p>
+            <!-- v0.3.29 — UAT 0725-1 #13 v4: 合并段 (有邮箱/无邮箱 混排, 视觉平等, 无 chevron, 无 "已被 xxx 绑定"). -->
+            <div class="slot-list slot-list-merged">
+              {#each allSlots as slot, i (slot.id)}
                 <button
-                  class="glass-pill slot-btn slot-btn-v2"
-                  onclick={() => handleClaim(slot.id)}
+                  class="glass-pill slot-btn slot-btn-v3"
+                  onclick={hasEmail(slot) ? () => handleEmailSlotClick(slot) : () => handleClaim(slot.id)}
                   disabled={busy}
+                  data-testid="member-pick-row"
+                  data-has-email={hasEmail(slot) ? '1' : '0'}
                 >
-                  <span class="slot-avatar palette-{i % 5}" aria-hidden="true">{avatarLetter(slot.display_name)}</span>
+                  <span class="slot-avatar palette-{i % 7}" aria-hidden="true">{avatarLetter(slot.display_name)}</span>
                   <span class="slot-info">
-                    <span class="slot-nickname">{slot.display_name}</span>
-                  </span>
-                </button>
-              {/each}
-            </div>
-          </div>
-        {/if}
-
-        {#if takenSlots.length > 0}
-          <div>
-            <p class="label muted">选择昵称以回到账本</p>
-            <div class="slot-list">
-              {#each takenSlots as slot, i (slot.id)}
-                <span class="glass-pill slot-btn slot-btn-v2 taken">
-                  <span class="slot-avatar palette-{i % 5}" aria-hidden="true">{avatarLetter(slot.display_name)}</span>
-                  <span class="slot-info">
-                    <span class="slot-nickname">{slot.display_name}</span>
-                    {#if (slot as SessionMember).email}
-                      <span class="slot-email-muted">已被 {maskEmail((slot as SessionMember).email as string)} 绑定</span>
+                    <span class="member-nickname slot-nickname">{slot.display_name}</span>
+                    {#if hasEmail(slot)}
+                      <span class="member-email-masked slot-email">
+                        {maskEmail((slot as SessionMember).email ?? (slot as SessionMemberPreview).email ?? '')}
+                      </span>
                     {/if}
                   </span>
-                </span>
+                </button>
               {/each}
             </div>
           </div>
@@ -430,6 +441,20 @@
     font-size: 0.9rem;
     text-align: left;
   }
+  /* v0.3.29 — UAT 0725-1 #13 v4: 合并列表的 row 样式 (跨整列, 头像 + 昵称/邮箱 堆叠).
+     跟 v0.3.28 v2 不同 — v2 是 flex-wrap pill 横向排, v4 是 column row 满宽.
+     PO 拍板 v2-1 mockup (.slot-list flex-direction:column, .slot-btn width:100%). */
+  .slot-btn-v3 {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 10px 14px 10px 10px;
+    border-radius: 16px;
+    font-size: 14px;
+    text-align: left;
+    min-height: 56px;
+  }
   .slot-avatar {
     width: 30px;
     height: 30px;
@@ -451,17 +476,27 @@
       inset 0 -1px 0 rgba(0, 0, 0, 0.06),
       0 2px 4px rgba(99, 102, 241, 0.10);
   }
+  /* v0.3.29 — UAT 0725-1 #13 v4: 加 palette-5/6 支持 6-7 成员头像 (合并列表槽位更多).
+     跟 v0.3.28 v2 mockup 同源 (palette 0..6). */
+  .slot-btn-v3 .slot-avatar {
+    width: 36px;
+    height: 36px;
+    font-size: 13px;
+  }
   .palette-0 { background: linear-gradient(135deg, rgba(129, 140, 248, 0.88) 0%, rgba(99, 102, 241, 0.88) 100%); }
   .palette-1 { background: linear-gradient(135deg, rgba(244, 114, 182, 0.88) 0%, rgba(236, 72, 153, 0.88) 100%); }
   .palette-2 { background: linear-gradient(135deg, rgba(52, 211, 153, 0.88) 0%, rgba(16, 185, 129, 0.88) 100%); }
   .palette-3 { background: linear-gradient(135deg, rgba(251, 191, 36, 0.88) 0%, rgba(245, 158, 11, 0.88) 100%); }
   .palette-4 { background: linear-gradient(135deg, rgba(96, 165, 250, 0.88) 0%, rgba(59, 130, 246, 0.88) 100%); }
+  .palette-5 { background: linear-gradient(135deg, rgba(168, 85, 247, 0.88) 0%, rgba(236, 72, 153, 0.88) 100%); }
+  .palette-6 { background: linear-gradient(135deg, rgba(34, 197, 94, 0.88) 0%, rgba(16, 185, 129, 0.88) 100%); }
   .slot-info {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     gap: 1px;
     min-width: 0;
+    flex: 1;
   }
   .slot-nickname {
     font-weight: 600;
@@ -469,7 +504,15 @@
     color: var(--gray-900, #171717);
     line-height: 1.2;
   }
-  .slot-email-masked {
+  /* v0.3.29 — UAT 0725-1 #13 v4: nickname 16px font-weight 600 (PO v4 字面). */
+  .member-nickname {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--gray-900, #171717);
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+  .slot-email {
     font-size: 11px;
     color: var(--gray-500, #737373);
     font-weight: 400;
@@ -479,7 +522,19 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 180px;
+    max-width: 240px;
+  }
+  /* v0.3.29 — UAT 0725-1 #13 v4: 邮箱副行 12-13px muted (PO v4 字面). */
+  .member-email-masked {
+    font-size: 12px;
+    color: var(--gray-500, #6b7280);
+    font-weight: 400;
+    line-height: 1.2;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 240px;
   }
   .slot-email-muted {
     font-size: 11px;
@@ -501,27 +556,7 @@
     cursor: not-allowed;
     opacity: 0.6;
   }
-  /* taken 状态: display-only (灰显 + 中性 bg), 跟 .glass-pill 默认 accent 区分 */
-  .slot-btn.taken {
-    background: rgba(255, 255, 255, 0.45);
-    color: var(--color-text-muted, #6b7280);
-    border-color: rgba(99, 102, 241, 0.08);
-    cursor: default;
-    opacity: 0.7;
-  }
-  .slot-btn.taken:hover {
-    /* display-only, 不响应 hover */
-    transform: none;
-    background: rgba(255, 255, 255, 0.45);
-  }
-
-  .gap {
-    gap: 0.5rem;
-  }
-  .row {
-    display: flex;
-  }
-
+  /* 旧版 taken 状态 (v0.3.28): 已删 — v0.3.29 #13 v4 PO 拍板视觉平等, 有邮箱/无邮箱 同一视觉. */
   /* v0.3.17 #33 续: 「或」字 divider — 跟全站 glass language 一致 (#6149 PO msg 01:37)
    * 蓝紫半透 0.5px 装饰 + 中间 "或" 灰显文字 (跟 login .or-divider 同结构, 玻璃描边替换灰边) */
   .divider-with-text {
@@ -538,5 +573,12 @@
     flex: 1;
     height: 0.5px;
     background: rgba(99, 102, 241, 0.18);
+  }
+
+  .gap {
+    gap: 0.5rem;
+  }
+  .row {
+    display: flex;
   }
 </style>
