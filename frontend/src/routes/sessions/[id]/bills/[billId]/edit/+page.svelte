@@ -24,6 +24,8 @@
   import { ArrowLeft, Check } from 'lucide-svelte';
   import { fly } from 'svelte/transition';
   import BillForm from '$components/BillForm.svelte';
+  // v0.3.29 UAT 0725-1 #7: bills/new + bills/edit 补 LoadingOverlay 跟其他 7 路由一致.
+  import LoadingOverlay from '$components/LoadingOverlay.svelte';
   import { toast } from '$stores/toast';
 
   let session: SessionDetail | null = null;
@@ -58,7 +60,8 @@
 
 <section>
   {#if loading}
-    <p class="muted">加载中…</p>
+    <!-- v0.3.29 UAT 0725-1 #7: LoadingOverlay (Option C 玻璃圆环) 跟 v0.3.28 #5 一致. -->
+    <LoadingOverlay text="加载账单..." />
   {:else if session && bill}
     <h2>编辑账单</h2>
     <!-- v0.3.16 #8 (PO msg 19:26): 字段简化 — 去 'session:' 前缀 +
