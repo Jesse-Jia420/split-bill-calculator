@@ -607,7 +607,12 @@
     position: fixed;
     inset: 0;
     /* v0.3.27 (UAT 0723-2 #9): 跟 InviteLinkButton .invite-modal-backdrop 完全一致
-     *   — 之前 v0.3.19 #85 刪掉的全屏模糊遮罩加回来, 跟邀请 modal 同风格. */
+     *   — 之前 v0.3.19 #85 刪掉的全屏模糊遮罩加回来, 跟邀请 modal 同风格.
+     * v0.3.29 (UAT 0725-1 #2, PO msg 12:43): PO 重申 "同汇率设置一样". v0.3.28 #8 re-fix
+     *   把 invite backdrop 改到 blur(24px) saturate(200%) + bg 0.45, 跟这里脱节.
+     *   修法: invite 改回跟这里完全一致 (bg 0.30 / blur 16px saturate 180% / z 999).
+     *   两个组件 backdrop token 同源, 未来若改 backdrop blur 强度, 两个 .modal-backdrop
+     *   rule 需同步更新 (或抽到 app.css .modal-backdrop-full 全局类). */
     background: rgba(0, 0, 0, 0.30);
     backdrop-filter: blur(16px) saturate(180%);
     -webkit-backdrop-filter: blur(16px) saturate(180%);
