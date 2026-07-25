@@ -5772,7 +5772,7 @@ v0.3.17 #32-D-4 用 `disabled: !session.currencies || session.currencies.length 
 
 ### v0.3.29 — UAT 0725-1 #7: bills/new + bills/[id]/edit 路由补 LoadingOverlay (Coder 自写自验 已走 ✓)
 
-**Commit**: d9a189b (push .., 4 files / +184 -2)
+**Commit**: 023df1b (push .., 4 files / +184 -2)
 
 #### PO 意图
 退出浏览器, 重新打开时, 新建, 编辑账单页的页面没有进入加载动画, 其他页面好像好着 (UAT 2026-07-25 11:38).
@@ -5802,41 +5802,10 @@ v0.3.28 #5 (commit 973ed07 + 续修 818dd47) 给 7 路由 (sessions/{id}, settle
 - bills/[id]/delete 或其他 bills 子路由 (项目无此路由)
 - svelte-check 1 error pre-existing (`join/+page.svelte:32 SessionPreviewMember`) — 跟本次任务无关
 
-### v0.3.29 — UAT 0725-1 #7: bills/new + bills/[id]/edit 路由补 LoadingOverlay (Coder 自写自验 已走 ✓)
-
-**Commit**: d9a189b (push .., 4 files / +184 -2)
-
-#### PO 意图
-退出浏览器, 重新打开时, 新建, 编辑账单页的页面没有进入加载动画, 其他页面好像好着 (UAT 2026-07-25 11:38).
-
-#### 根因 + 修法
-v0.3.28 #5 (commit 973ed07 + 续修 818dd47) 给 7 路由 (sessions/{id}, settle, join, sessions/new, invites/[token], s/{code}, s/{code}/settle, s/{code}/join) 补了 LoadingOverlay (Option C 玻璃圆环). 但 bills/new + bills/[billId]/edit 这两个路由当时漏补, 仍用 <p class="muted">加载中…</p> 文字提示.
-
-修法 (frontend/src/routes/sessions/[id]/bills/new/+page.svelte + frontend/src/routes/sessions/[id]/bills/[billId]/edit/+page.svelte):
-- 顶部 import 区追加 `import LoadingOverlay from /LoadingOverlay.svelte;`
-- `<p class="muted">加载中…</p>` → `<LoadingOverlay text="加载账单..." />`
-- 注释标 v0.3.29 UAT 0725-1 #7 跟 v0.3.28 #5 同源
-
-#### 验证 (Playwright iPhone 13 @3x 真机 walk, frontend/scripts/v0329-0725-1-7-verify.cjs)
-- bills/new 路由: page.route 拦截 /api/sessions/{id} GET 延迟 2500ms, 等 LoadingOverlay 出现 (.loading-overlay DOM 节点 visible)
-  - .glass-ring iOS 圆环渲染 ✓
-  - .text 文案 = 加载账单... ✓
-  - overlay computed style position: fixed + bg: rgba(250,250,250,0.65) ✓ (跟其他 7 路由完全一致)
-  - 2.5s 后 route 放行, form (form#bill-form) 渲染 ✓
-  - LoadingOverlay 节点 unmount (count=0) ✓
-- bills/[billId]/edit 路由: 同上, LoadingOverlay 出现 + form 渲染 ✓
-- 旁路: sessions/{id} 主路由仍正常渲染 (无 regression) ✓
-- 12/12 check pass
-- 4 张 PNG 存 ~/.openclaw/media/browser/v0329-0725-1-7/{A-new-loading,A-new-loaded,B-edit-loading,B-edit-loaded}.png
-- image tool 视觉确认: iOS spinner 圆环 + 玻璃 pill 加载账单... + 下方表单字段 (金额/时间/付款人/币种/说明/参与者 6 行) 全部正常
-
-#### 排除范围 (本任务不修, 待 PO 决定)
-- bills/[id]/delete 或其他 bills 子路由 (项目无此路由)
-- svelte-check 1 error pre-existing (join/+page.svelte:32 SessionPreviewMember) — 跟本次任务无关
 
 ### v0.3.29 — UAT 0725-1 #12: 加入/回到账本头像颜色与成员 section 一致 (Coder 自写自验 已走 ✓)
 
-**Commit**: 065c496 (push .., 3 files / +117 -5)
+**Commit**: 97b1df9 (push .., 3 files / +117 -5)
 
 #### PO 意图
 加入/回到账本时的头像颜色, 应该与成员 section 内的头像颜色一致 (UAT 2026-07-25 11:38).
