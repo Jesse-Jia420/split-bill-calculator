@@ -5876,3 +5876,35 @@ emoji 字符不能继承 backdrop-filter, 不能改 bg / border / box-shadow 颜
 - 选框 focus ring — 当前 click 走整 row (.ppt-main), 不需要单独 focus ring. 键盘导航 (tab .ppt-main) browser default outline 走 button 默认, 视觉合理.
 - 选框颜色改用 .ppt-avatar 同一 palette (跟 #12 同色策略) — 当前 indigo accent 跟主按钮同源, PO 没要求 palette 对齐, 不改.
 - svelte-check 1 error pre-existing (`join/+page.svelte:32 SessionPreviewMember`) — 跟本次任务无关
+
+### v0.3.29 — UAT 0725-1 #9: BillForm 个人金额 pill 文字垂直对齐 (Coder 自写自验 已走 ✓)
+
+**Commit**: ca0de56 (push f109ffc..ca0de56, 3 files / +173 -0)
+
+#### PO 意图
+新建编辑账单页, 个人金额 pill 内的文字高度有问题, 跟 pill 没对齐 (UAT 2026-07-25 11:38).
+
+#### 根因 + 修法
+`.pill-input` (exclusive 态 personal amount input) 在 `.excl-pill` 父级 (height: 32px, display: inline-flex, align-items: center) 内, 但 native `<input type="number">` 默认 line-height 偏大 (Chrome ~20px / Safari ~24px), 即使父级 flex align-items: center 也无法完美居中 — input 文字 baseline 跟兄弟 `.pill-currency` button (line-height: 1 = 13px) 不一致, 视觉上 input 文字往下沉.
+
+修法 (`frontend/src/lib/components/BillForm.svelte` line ~977 `.pill-input` rule):
+- 加 `height: 32px; line-height: 32px;` 跟父级 `.excl-pill` 完全一致
+- 显式钉死 line-height + height 让 flex align-items: center 完美居中 (跟 .pill-currency button 视觉同源)
+- 注释标 v0.3.29 UAT 0725-1 #9 跟 #132 glass language 同源 design philosophy
+
+#### 验证 (Playwright iPhone 13 @3x 真机 walk, `frontend/scripts/v0329-0725-1-9-verify.cjs`)
+- /sessions/9/bills/new: 默认 5 个 shared pill (¥ 灰 + 个人消费 文字)
+- 点第一个 pill 的 ¥ button → 进 exclusive 模式 → .pill-input 出现
+- 8/8 check pass:
+  * .pill-input computed height="32px" + lineHeight="32px" + rectH=32 ✓
+  * .pill-input 文字 baseline 跟 .pill-currency 文字 baseline y 坐标差 = 0px (inputCenter=369.41, currencyCenter=369.41) ✓
+  * input 垂直居中在 pill (delta=0px) ✓
+  * currency 垂直居中在 pill (delta=0px) ✓
+  * shared pills count maintained (退出 exclusive 后 5 个 shared pill 仍正常) ✓
+- 1 张 PNG 存 `~/.openclaw/media/browser/v0329-0725-1-9/A-pill-alignment.png`
+- image tool 视觉 (post-fix): input 文字 ¥ 0.00 跟 pill 边框完美居中, 跟兄弟 ¥ button 视觉同源, 文字 baseline 齐平
+
+#### 排除范围 (本任务不修, 待 PO 决定)
+- shared pill 的 .pill-label (个人消费 文字) baseline — text-anchor 计算跟 input 不同源, 实测 labelTextCenter - pillCenter delta=-1.0px (sub-pixel 容忍范围, 视觉无明显偏移), 跟 .pill-currency button 视觉一致. PO 真机反馈再迭代.
+- number input min/max step 验证 — 当前 step="0.01" + min="0" 是 v0.3.20 #92 已实施, 不动
+- svelte-check 1 error pre-existing (`join/+page.svelte:32 SessionPreviewMember`) — 跟本次任务无关

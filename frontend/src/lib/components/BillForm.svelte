@@ -974,9 +974,17 @@
     font-weight: 600;
   }
   /* v0.3.20 #93 (Fix 2): pill-input accent-600 -> accent-700 跟新 pill-currency 一致 */
+  /* v0.3.29 UAT 0725-1 #9 (PO msg 2026-07-25 11:38): 个人金额 pill 内的文字高度有问题, 跟 pill 没对齐.
+     修法: .pill-input 加 line-height: 32px + height: 32px, 跟 .excl-pill 父级 height: 32px 完全一致.
+     native number input 默认 line-height 偏大 (Chrome ~20px / Safari ~24px), 即使父级 flex
+     align-items: center 也无法完美居中 — input 文字 baseline 跟兄弟 .pill-currency button
+     (line-height: 1 = 13px) 不一致, 视觉上 input 文字往下沉. 显式钉死 line-height + height
+     让 flex 完美居中 (跟 button 视觉同源). */
   .pill-input {
     flex: 0 0 auto;
     width: 40px;
+    height: 32px;
+    line-height: 32px;
     min-width: 0;
     background: transparent;
     border: 0;
