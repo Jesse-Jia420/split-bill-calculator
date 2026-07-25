@@ -6025,3 +6025,53 @@ v0.3.20 #98 (commit 023df1b 系列): 把 .bills-search padding 13px + content 22
 - input 自身 line-height / font-size — 不动 (input height 22px 跟 .bills-search-clear 22px 同源, 跟 v0.3.20 #98 设计一致).
 - --bills-search-h 进一步收到 50px — 当前 54px 留 10px region 给 day-header sticky offset 缓冲 (跟 v0.3.20 #94 设计意图同源), 不动.
 
+
+
+### v0.3.29 — UAT 0725-1 #2: 邀请弹窗背景跟汇率设置弹窗统一 (Coder 自写自验 已走 ✓)
+
+**Commit**: (待提交) (push c056ed9..HEAD, 3 files / +131 -16)
+
+#### PO 意图
+账本邀请按钮点击后的弹窗背景要全屏模糊, 同汇率设置一样
+(UAT 2026-07-25 12:43 — batch B). PO 字面重申: 两个弹窗应视觉一致.
+
+#### 根因 + 修法
+v0.3.27 #8+#9 (commit 80abeda): 两个弹窗统一在 `bg rgba(0,0,0,0.30) + blur(16px) saturate(180%) + z 999`.
+v0.3.28 #8 re-fix (commit 672ded8): PO 测试不通过 "目前还是只有部分模糊" — 升级 invite 到
+`bg rgba(0,0,0,0.45) + blur(24px) saturate(200%) + z 1000`. 但这次升级让两个弹窗 token
+脱节 — currency 还停在 v0.3.27 #9 设置.
+
+修法:
+- `frontend/src/lib/components/InviteLinkButton.svelte`:
+  - `.invite-modal-backdrop` 改回 CurrencyAddModal 同款 token:
+    `bg rgba(0,0,0,0.30) + blur(16px) saturate(180%) + z 999`
+  - `@supports not backdrop-filter` fallback bg `0.48 → 0.30` (跟主值一致)
+- `frontend/src/lib/components/CurrencyAddModal.svelte`:
+  - 加 comment 标注 token 同步约束: 未来改 backdrop blur 强度, 两个 .modal-backdrop rule 需同步更新
+    (或抽到 app.css .modal-backdrop-full 全局类 — 留待后续 sprint).
+
+#### 验证 (Playwright iPhone 13 @3x 真机 walk, `frontend/scripts/v0329-0725-1-2-verify.cjs`)
+- session 9 (泰国测试账单 2 7.25-7.28, CNY+THB, 5 members, 41 bills)
+- 13/13 check pass:
+  * invite-modal-backdrop position: fixed ✓
+  * invite-modal-backdrop inset: 0 ✓
+  * invite-modal-backdrop bg: rgba(0,0,0,0.30) ✓
+  * invite-modal-backdrop backdrop-filter: blur(16px) saturate(1.8) [180%] ✓
+  * invite-modal-backdrop z-index: 999 ✓
+  * currency-modal-backdrop position: fixed ✓
+  * currency-modal-backdrop inset: 0 ✓
+  * currency-modal-backdrop bg: rgba(0,0,0,0.30) ✓
+  * currency-modal-backdrop backdrop-filter: blur(16px) saturate(1.8) [180%] ✓
+  * currency-modal-backdrop z-index: 999 ✓
+  * invite bg === currency bg (rgba(0,0,0,0.3)) ✓
+  * invite backdrop-filter === currency backdrop-filter ✓
+  * invite z-index === currency z-index ✓
+- 2 张 PNG 存 `~/.openclaw/media/browser/v0329-0725-1-2/` (invite modal + currency modal).
+
+#### 排除范围 (本任务不修, 待 PO 决定)
+- 抽到 app.css .modal-backdrop-full 全局类 — 当前两个组件各自 scoped CSS, token 同源但
+  物理重复. 真要抽全局类需更多代码改动 + 测试回归, 留待后续 sprint. 当前 commit 注释里
+  明确两个 rule 必须同步更新, 短期足够.
+- modal box 玻璃 token 同步 (rgba(255,255,255,0.92) + saturate 200% blur(20px)) — 已经是
+  v0.3.27 #9 统一过, 本次没动, 视觉一致.
+

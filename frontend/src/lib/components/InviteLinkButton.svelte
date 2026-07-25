@@ -237,23 +237,22 @@
   /* ============================================================
    * v0.3.24 #14 (PO msg 16:35 UAT) — confirm modal (替换 toast)
    * ============================================================ */
+  /* v0.3.29 (UAT 0725-1 #2, PO msg 12:43): 跟 CurrencyAddModal .modal-backdrop 完全一致.
+     PO 字面 "同汇率设置一样". 之前 v0.3.28 #8 re-fix 把 invite backdrop 升级到
+     blur(24px) saturate(200%) + bg 0.45, 跟 CurrencyAddModal 不一致. PO 反馈
+     两者看起来不同. 修法: 改回 CurrencyAddModal 同款 token — bg rgba(0,0,0,0.30)
+     + blur(16px) saturate(180%) + z-index 999. 同步更新 fallback bg 0.48→0.30
+     跟 bg 主值一致 (Safari iOS < 18). 两个弹窗现在视觉完全统一 (跨组件但
+     token 同源, 跟 v0.3.27 #9 commit 80abeda 原始统一设计一致). */
   .invite-modal-backdrop {
     position: fixed;
     inset: 0;
-    /* v0.3.28 (UAT 0723-2 #8 测试不通过修复): v0.3.27 commit 80abeda 承诺升级 backdrop-filter 到
-       saturate(2) blur(24px), 但实际未落地 (当前文件还是 blur(16px) saturate(180%)).
-       PO 测试不通过: "目前还是只有部分模糊, 而非全屏模糊" — 16px 强度不够, 模糊效果
-       不明显. 升级到 blur(24px) saturate(200%) + bg 0.30→0.45 (深底色更显全屏
-       占据感), 跟全站 NavBar glass bg 0.55 视觉对偶 (dark overlay 0.45 配
-       light glass 0.55). 同时补全 explicit top/right/bottom/left: 0 fallback
-       (部分老浏览器 inset 不支持). */
-    background: rgba(0, 0, 0, 0.45);
-    top: 0; right: 0; bottom: 0; left: 0;
-    backdrop-filter: blur(24px) saturate(200%);
-    -webkit-backdrop-filter: blur(24px) saturate(200%);
-    /* z-index 1000: 高于 modal 999 (CurrencyAddModal), 低于 toast 9999 —
-       用户操作 modal 时 toast 仍可见 (但本用例 modal 期间不发 toast). */
-    z-index: 1000;
+    background: rgba(0, 0, 0, 0.30);
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    /* z-index 999: 跟 CurrencyAddModal .modal-backdrop 一致 (Toast 9999 之下,
+       普通 modal 999 之上, 跟 InviteLinkButton modal 同一层, 互不覆盖). */
+    z-index: 999;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -285,7 +284,10 @@
       background: rgba(255, 255, 255, 0.96);
     }
     .invite-modal-backdrop {
-      background: rgba(0, 0, 0, 0.48);
+      /* v0.3.29 (UAT 0725-1 #2): 跟 CurrencyAddModal .modal-backdrop fallback 一致 (0.30)
+         (Safari iOS < 18 无 backdrop-filter, fallback bg = 主值 bg, 让两个弹窗 fallback
+         状态也完全相同, 不需要 0.48 让 invite backdrop 更浓液). */
+      background: rgba(0, 0, 0, 0.30);
     }
   }
   .invite-modal-msg {
