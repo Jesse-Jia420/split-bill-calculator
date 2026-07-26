@@ -6922,3 +6922,73 @@ Master 自决 (反 #121): 选 C, minimal fix, user 点 pill 立刻收到 toast "
 - 排除范围: 改 currency pill 形态 / 颜色 (PO 没要求).
 - 排除范围: 改 multi-currency session 行为 (原 behavior 保持).
 - 排除范围: 自动 navigate 跳到 session 主页 (反 #121 Master 不替 user 决定导航路径, 引导 toast 即可).
+
+### v0.3.35 #7 — UAT 0725-3 #12 邮箱≠已绑 → toast 报错 (Master 自修, PO 字面 "回到账本, 选择带邮箱的昵称时需要登录。用户填写邮箱, 点击发送验证码时, 需要先和后端校验填写的邮箱是否与要登录的用户邮箱一致, 若不一致则无法发送验证码, 直接 toast 报错")
+
+**Commit**: `TBD` (sandbox 本地, fix + §11 sync 同一 batch 反 #162)
+
+#### Changes (3 files)
+
+1. **改 `frontend/src/routes/sessions/[id]/join/+page.svelte`** (`handleEmailSlotClick` function line 208-212 URLSearchParams 加 raw email)
+   - 加 `email: email` (raw email, 不 mask) 到 URLSearchParams — 跳 login page 时让 login page 拿到 raw email 做 pre-check + BE 端 validate
+   - 保留 `emailMasked: maskEmail(email)` 现有 (显示用, PO 已看习惯)
+
+2. **改 `frontend/src/routes/sessions/[id]/login/+page.svelte`** (FE pre-check 2 sub-edits)
+   - 加 `let expectedEmail = $derived(page.url.searchParams.get('email') || '');` state (line 49 area, 跟 emailMasked 一起)
+   - 改 `handleSend` function (line 71-77 area, 在 `if (!trimmed || !trimmed.includes('@'))` 校验**之后** + `busy = true;` 之前):
+     ```ts
+     // v0.3.35 #7 — UAT 0725-3 #12: FE pre-check expectedEmail match (大小写不敏感).
+     if (expectedEmail && trimmed.toLowerCase() !== expectedEmail.toLowerCase()) {
+       toast.error('邮箱与该昵称绑定的邮箱不一致, 请重新选择昵称', 4000);
+       return;
+     }
+     ```
+   - 不一致 → toast.error + return (不发 BE 请求, 治 PO 字面 "若不一致则无法发送验证码")
+
+3. **改 `backend/app/api/auth.py`** (BE validate 3 sub-edits: import + Pydantic schema + function)
+   - 加 `from typing import Annotated, Optional` (line 36, 原 `from typing import Annotated`)
+   - 改 `class SendCodeRequest(BaseModel):` (line 91-92): 加 `expected_email: Optional[str] = Field(default=None, max_length=320)` 字段 (跟 `email` field 一样 max_length=320, 但 default=None 表示可选)
+   - 改 `send_verification_code` function (line 141 area, 在 `email = payload.email.strip()` 之后 + `_EMAIL_RE.match` 之前): 加 validate
+     ```python
+     # v0.3.35 #7 — UAT 0725-3 #12: validate email matches expected_email (大小写不敏感)
+     if (
+         payload.expected_email is not None
+         and email.lower() != payload.expected_email.lower()
+     ):
+         raise HTTPException(
+             status_code=400,
+             detail={
+                 "error": "email_mismatch",
+                 "hint": "邮箱与该昵称绑定的邮箱不一致",
+             },
+         )
+     ```
+   - BE 端 validate 是 defense in depth (反 #150 v2) — FE pre-check 已挡, 但 direct API call / race condition 仍能绕过 FE, 所以 BE 端再挡一次
+
+#### 修法 design choice (反 #155 字面 spec Master 自做, 反 #121 Master 自决技术细节)
+
+PO 字面 "用户填写邮箱, 点击发送验证码时, 需要先和后端校验填写的邮箱是否与要登录的用户邮箱一致, 若不一致则无法发送验证码, 直接 toast 报错" — 解读: BE 端必须校验 (治直接 API call), FE 端 pre-check (治用户察觉 round-trip 失败). 修法:
+
+- **FE pre-check** (login page): 不发 BE 请求, 直接 toast. 防 99% 用户场景, 网络 round-trip 节省.
+- **BE validate** (auth.py): 即使 FE 绕过 (direct curl / 已认证 FE client / race condition), BE 端仍 validate. 反 #150 v2 跟 #9085/Batch 1-5 同样 pattern: FE 用户场景端到端 verify + BE defense in depth.
+
+大小写不敏感 (PO 没说但 RFC 5321 实际应用都做小写化): `email.toLowerCase() !== expectedEmail.toLowerCase()`.
+
+`email` 字段 raw 传 URL 略微敏感 (用户能在浏览器 history 看到), 但 sbc skill 已有 login page 接 `emailMasked` 显示 + 现在加 raw `email` query param 不影响 visual 显示 (emailMasked 仍 used), 仅作 validate. 接受 trade-off (PO 没说改架构).
+
+#### Verification (反 #101 + 反 #150 v2 真用户场景端到端)
+
+- 走 `/sessions/9/join` 详情页 (5 CNY 泰国测试 session 9, 5 成员):
+  - 场景 A — 选带邮箱 nickname 跳 login: `emailMasked` 显示 + `email` raw 传 query param. 跳到 `/sessions/9/login?as=...&nickname=...&email=x%2A%2A%2A%40outlook.com&emailMasked=...`
+  - 场景 B — login page 输入匹配的 email: `expectedEmail = "x***@outlook.com"` (raw) + 用户输入 "x***@outlook.com" → 一致 → `sendCode` API call → 验证码发送
+  - 场景 C — login page 输入不匹配的 email: `expectedEmail = "x***@outlook.com"` + 用户输入 "y***@gmail.com" → 不一致 (大小写不敏感) → `toast.error('邮箱与该昵称绑定的邮箱不一致, 请重新选择昵称', 4000)` + return (不发 BE 请求)
+  - 场景 D — BE defense in depth: 直接 curl POST `/auth/send-code` with `{email: "x***@outlook.com", expected_email: "y***@gmail.com"}` → 400 `{"error": "email_mismatch", "hint": "邮箱与该昵称绑定的邮箱不一致"}`
+  - 场景 E — 大小写不敏感: `expectedEmail = "x***@Outlook.com"` + 用户输入 "x***@outlook.com" → toLowerCase() 后一致 → 发验证码
+
+#### 反模式 / 排除范围
+- 仅加 FE pre-check + BE validate, 不改 sendCode 内部逻辑 (rate limit / dev bypass / 验证码生成不变).
+- 排除范围: 改 join page email 字段名 (`email` → `expectedEmail` 之类) — join page 已用 `emailMasked` (masked 显示), 现在加 `email` (raw 校验) 是清晰命名.
+- 排除范围: 加 email 二次确认 modal — PO 字面 "若不一致则无法发送验证码, 直接 toast 报错", 已有 toast 路径, 不用 modal.
+- 排除范围: 改 sendCode API signature (email → email + expectedEmail) — 用 Pydantic optional field (default=None), backward compat 保留, 旧 FE 客户端不带 expectedEmail 仍能调用 (None 时跳过 validate).
+- 排除范围: 大小写 strict 校验 — PO 没说, 实际应用都小写化, 用 toLowerCase() 比较.
+- 排除范围: 改 login page UI 布局 — 仅加 expectedEmail state + handleSend 加 pre-check, 不动 visual.
