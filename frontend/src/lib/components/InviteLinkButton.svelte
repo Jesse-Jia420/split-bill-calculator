@@ -161,12 +161,12 @@
      文案两段中间 <br /> 换行 (PO 字面要求); "知道了" 按钮 manual close. -->
 {#if modalOpen}
   <div
-    class="invite-modal-backdrop"
+    class="invite-sheet-backdrop"
     role="presentation"
     on:click={handleBackdropClick}
   >
     <div
-      class="invite-modal"
+      class="invite-sheet"
       role="dialog"
       aria-modal="true"
       aria-label="账本链接已复制"
@@ -263,47 +263,58 @@
      - CurrencyAddModal: blur(24px) saturate(200%) bg rgba(0,0,0,0.45)
      - invite (旧): blur(16px) saturate(180%) bg rgba(0,0,0,0.30)
      修法: invite 升级到 CurrencyAddModal 同款 token — blur(24px) saturate(200%) bg rgba(0,0,0,0.45).
-     两个弹窗现在真的一致 (跨组件 token 完全同源, 含 z-index 999, position fixed, inset 0). */
-  .invite-modal-backdrop {
+     两个弹窗现在真的一致 (跨组件 token 完全同源, 含 z-index 999, position fixed, inset 0).
+     v0.3.35 #5 (UAT 0725-3 #11, PO 字面 "样式要与 添加已结算记录的弹窗一致"): 形态从 centered modal
+     改 bottom sheet (跟 AddSettlementSheet 同款). 保留 v0.3.34 #1 backdrop blur 强度 (24/200%/0.45)
+     — 比 AddSettlementSheet (4/0.40) 更暗一档, 视觉上还跟 centered modal 一样. z-index 999 跟
+     CurrencyAddModal .sheet-backdrop 同一层 (Toast 9999 之下, 普通 modal 999 之上). */
+  .invite-sheet-backdrop {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.45);
     backdrop-filter: blur(24px) saturate(200%);
     -webkit-backdrop-filter: blur(24px) saturate(200%);
-    /* z-index 999: 跟 CurrencyAddModal .modal-backdrop 一致 (Toast 9999 之下,
-       普通 modal 999 之上, 跟 InviteLinkButton modal 同一层, 互不覆盖). */
     z-index: 999;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: var(--space-4);
     animation: backdropFadeIn 200ms ease-out;
   }
-  .invite-modal {
-    /* 玻璃风 PO 字面: 圆角 18px + 白底 + backdrop-filter + padding 24px */
-    width: 100%;
-    max-width: 320px;
+  /* v0.3.35 #5: 形态从 centered modal 改 bottom sheet (跟 AddSettlementSheet 同款).
+     圆角只在顶部 24px, 底部贴屏 max-width 480px, slide-up 280ms cubic-bezier 动效. */
+  .invite-sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    margin: 0 auto;
+    max-width: 480px;
+    max-height: 92vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     background: rgba(255, 255, 255, 0.92);
-    backdrop-filter: saturate(200%) blur(20px);
-    -webkit-backdrop-filter: saturate(200%) blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.6);
-    border-radius: 18px;
-    padding: 24px;
+    backdrop-filter: saturate(220%) blur(28px);
+    -webkit-backdrop-filter: saturate(220%) blur(28px);
+    border-top-left-radius: 24px;
+    border-top-right-radius: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    border-bottom: 0;
+    padding: 8px 16px 0;
+    box-shadow:
+      0 -8px 32px rgba(15, 23, 42, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.85);
+    z-index: 1000;
+    animation: inviteSheetUp 280ms cubic-bezier(0.32, 0.72, 0, 1);
     display: flex;
     flex-direction: column;
-    gap: 20px;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.6),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.04),
-      0 12px 36px rgba(0, 0, 0, 0.18),
-      0 0 0 1px rgba(99, 102, 241, 0.10);
-    animation: modalSlideUp 220ms cubic-bezier(0.16, 1, 0.3, 1);
+    gap: 12px;
+  }
+  @keyframes inviteSheetUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
   }
   @supports not (backdrop-filter: blur(1px)) {
-    .invite-modal {
+    .invite-sheet {
       background: rgba(255, 255, 255, 0.96);
     }
-    .invite-modal-backdrop {
+    .invite-sheet-backdrop {
       /* v0.3.29 (UAT 0725-1 #2): 跟 CurrencyAddModal .modal-backdrop fallback 一致 (0.30)
          (Safari iOS < 18 无 backdrop-filter, fallback bg = 主值 bg, 让两个弹窗 fallback
          状态也完全相同, 不需要 0.48 让 invite backdrop 更浓液). */

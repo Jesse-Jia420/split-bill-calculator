@@ -6837,3 +6837,50 @@ c. 展示所有的 已结算记录。增加结算记录时,任一成员可给任
 - 仅 catch-up 没改 SPEC.md (已 in 9b92c67).
 - 排除范围: amend 9b92c67 — single-branch 铁律下 amend + force-with-lease 风险大, 用独立 catch-up commit 更稳.
 - 排除范围: 全 retry 9b92c67 自写入 — 没意义, commit message 已 publish.
+
+### v0.3.35 #5 — UAT 0725-3 #11 改币种弹窗 + 邀请链接弹窗 → 跟 AddSettlementSheet 统一 (Master 自修, PO 字面 "彻底改变更改币种弹窗，还有邀请链接弹窗。样式要与 添加已结算记录的弹窗一致")
+
+**Commit**: `TBD` (sandbox 本地, fix + §11 sync 同一 batch 反 #162)
+
+#### Changes (2 files)
+
+1. **改 `frontend/src/lib/components/CurrencyAddModal.svelte`** (template + CSS 改 centered modal → bottom sheet)
+   - template 改: `<div class="modal-backdrop">` → `<div class="sheet-backdrop">` + `<div class="modal">` → `<div class="sheet">` + `<header class="modal-head">` → `<header class="sheet-head">` + `<h3 class="modal-title">` → `<h3 class="sheet-title">` + `<div class="modal-body">` → `<div class="sheet-body">` + `<footer class="modal-foot">` → `<footer class="sheet-foot">` + footer button `<button class="fab fab--cancel">XIcon 22>` 圆形 icon button → `<button class="btn-cancel-sheet">取消</button>` 文字 button + `<button class="fab fab--submit">Check 22>` → `<button class="btn-primary">{submitLabel}</button>` 文字 button (跟 AddSettlementSheet .cta-row 风格)
+   - CSS 改: `.modal-backdrop` 删 `display: flex; align-items: center; justify-content: center;` (no centering for bottom sheet) + bg `rgba(0, 0, 0, 0.30)` 维持 v0.3.29 PO 反馈 + blur `16px` → `4px` (跟 AddSettlementSheet .backdrop token blur 4px 同步)
+   - CSS 改: `.modal` 改 `.sheet` 形态 (跟 AddSettlementSheet .sheet 同款): position: fixed, left: 0, right: 0, bottom: 0, max-width: 480px, margin: 0 auto, border-top-left-radius: 24px, border-top-right-radius: 24px, padding: 8px 16px 0, box-shadow 改 0 -8px 32px rgba(15, 23, 42, 0.12) (跟 AddSettlementSheet 一致, 上方阴影替代原 12px 全向阴影), animation: slideUp 280ms cubic-bezier(0.32, 0.72, 0, 1) (跟 AddSettlementSheet @keyframes slideUp 同源 cubic-bezier)
+   - CSS 改: `.modal-foot` → `.sheet-foot` (padding 跟 flex direction 调整)
+   - CSS 改: `@supports not (backdrop-filter: blur(1px))` 内部 `.modal`/`.modal-backdrop` → `.sheet`/`.sheet-backdrop` (Safari iOS < 18 fallback bg 兼容)
+2. **改 `frontend/src/lib/components/InviteLinkButton.svelte`** (template + CSS 改 centered modal → bottom sheet, 跟 CurrencyAddModal + AddSettlementSheet 同款)
+   - template 改: `<div class="invite-modal-backdrop">` → `<div class="invite-sheet-backdrop">` + `<div class="invite-modal">` → `<div class="invite-sheet">`
+   - CSS 改: `.invite-modal-backdrop` 删 `display: flex; align-items: center; justify-content: center;` + `padding: var(--space-4)` (no centering for bottom sheet)
+   - CSS 改: `.invite-modal` 改 `.invite-sheet` 形态 (跟 AddSettlementSheet + CurrencyAddModal 同款 bottom sheet): position: fixed, left: 0, right: 0, bottom: 0, max-width: 480px, margin: 0 auto, border-top-left-radius 24px, slideUp 280ms cubic-bezier(0.32, 0.72, 0, 1) 跟 AddSettlementSheet @keyframes slideUp 同源
+   - CSS 保留: v0.3.34 #1 backdrop blur 强度 (24/200%/0.45) — 比 AddSettlementSheet (4/0.40) 更暗一档, PO 视为全屏 darkener (UAT 0725-1 #2 反馈 "同汇率设置一样" 当时升级成这强度), 视觉上还跟 centered modal 一致 (z-index 999 跟 CurrencyAddModal .sheet-backdrop 同一层)
+   - CSS 改: `@keyframes modalSlideUp` → `@keyframes inviteSheetUp` (跟 AddSettlementSheet slideUp 同源 cubic-bezier, 仅命名区分避免跨组件冲突)
+   - CSS 改: `@supports not (backdrop-filter: blur(1px))` 内部 `.invite-modal`/`.invite-modal-backdrop` → `.invite-sheet`/`.invite-sheet-backdrop` (Safari iOS < 18 fallback bg 兼容)
+   - inner element classes (.invite-modal-msg / .invite-modal-foot / .invite-modal-btn) 不动 (跟 AddSettlementSheet 一样, 保持现状命名; 改 `.invite-sheet-msg` / `.invite-sheet-foot` / `.invite-sheet-btn` 跨组件会脱节)
+
+#### 修法 design choice (反 #155 字面 spec Master 自做)
+
+PO 字面 "彻底改变更改币种弹窗，还有邀请链接弹窗。样式要与 添加已结算记录的弹窗一致" — AddSettlementSheet 是 bottom sheet 形态 (slide-up from bottom, 圆角 24px top, max-width 480px, slideUp 280ms cubic-bezier(0.32, 0.72, 0, 1)). 修法: 两个 modal (CurrencyAddModal + InviteLinkButton) 都改 bottom sheet 跟 AddSettlementSheet 同款.
+
+**backdrop blur 强度保留各组件原值** (反 #121 Master 自决技术细节):
+- CurrencyAddModal 4px blur 跟 AddSettlementSheet 一致 (视觉最 transparent)
+- InviteLinkButton 24px blur 保留 v0.3.34 #1 (UAT 0725-1 #2 PO 反馈 "同汇率设置一样" 当时升级成这强度, 比 AddSettlementSheet 更暗一档, PO 视为全屏 darkener)
+- 两个 backdrop 视觉强度不同, 但 sheet 形态一致, 是 PO 字面 "样式一致" 解读 (形态对齐 vs 强度对齐 Master 自决)
+
+#### Verification (反 #101 + 反 #150 v2 真用户场景端到端)
+
+- 走 `/sessions/9` 详情页 (5 CNY 泰国测试 session 9):
+  - 场景 A — 单币种 session CurrencyAddModal bottom sheet: 点 currency pill bar → sheet 从底部滑出 (280ms slideUp cubic-bezier 跟 AddSettlementSheet 同动效), 形态跟 AddSettlementSheet 一致 (圆角 24px top, max-width 480px, 玻璃 + 0.92 bg)
+  - 场景 B — 邀请链接 modal bottom sheet: 点 invite 链接按钮 → sheet 从底部滑出 (280ms slideUp 跟 AddSettlementSheet 同动效), 形态跟 AddSettlementSheet 一致
+  - 场景 C — backdrop 强度: CurrencyAddModal 4px blur (跟 AddSettlementSheet 一致, 玻璃透明), InviteLinkButton 24px blur (保留 v0.3.34 #1, 强 darkener 全屏模糊)
+  - 场景 D — slideUp 动效: 两个 modal 都从底部 translateY(100%) 滑出, 跟 AddSettlementSheet 同步 cubic-bezier(0.32, 0.72, 0, 1) 动效, 用户视觉感觉"这是同一个 modal 系统"
+
+#### 反模式 / 排除范围
+- 仅 modal → bottom sheet 视觉转换, 不改功能逻辑 (CurrencyAddModal 仍 add/edit 币种, InviteLinkButton 仍复制 invite link).
+- 排除范围: 改 backdrop blur 强度统一 (反 #121 Master 自决技术细节, 不是 PO 字面 "一致" 范围).
+- 排除范围: inner element classes (.modal-msg / .modal-foot / .modal-btn / .invite-modal-msg / .invite-modal-foot / .invite-modal-btn) 改 .sheet- / .invite-sheet- 前缀 — 跨组件会脱节, 保持现状命名.
+- 排除范围: CurrencyAddModal 头部 padding (8px 16px 0) 跟 AddSettlementSheet 完全 0 圆角 padding 同步 — 头部 24px padding 跟 AddSettlementSheet .sheet-head 8 12 视觉差不多, 不改.
+- 排除范围: slideUp 动效 cubic-bezier 改 (AddSettlementSheet (0.32, 0.72, 0, 1) 跟 iOS native sheet 一致, 跟 iOS Safari sheet 上推同手感, 已是最佳).
+- 排除范围: 引入全局 sheet 组件 — 反 #127 不引入新 component 文件, 当前 inline 保持低复杂度.
+- 排除范围: CurrencyAddModal 多币种 form 内部 — 现有多币种 select + rate input 等保留原状, 仅改外层 sheet 形态.

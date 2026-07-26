@@ -381,11 +381,11 @@
 <svelte:window on:keydown={handleKeydown} />
 
 <div
-  class="modal-backdrop"
+  class="sheet-backdrop"
   role="presentation"
 >
   <div
-    class="modal"
+    class="sheet"
     role="dialog"
     aria-modal="true"
     aria-label={modalTitle}
@@ -393,11 +393,11 @@
     data-mode={mode}
     data-has-bills={has_bills ? 'true' : 'false'}
   >
-    <header class="modal-head">
-      <h3 class="modal-title">{modalTitle}</h3>
+    <header class="sheet-head">
+      <h3 class="sheet-title">{modalTitle}</h3>
     </header>
 
-    <div class="modal-body">
+    <div class="sheet-body">
       {#if mode === 'single' && !has_bills}
         <!-- ===== single + !has_bills: 添加副币种 (add flow) ===== -->
         <section class="field">
@@ -574,28 +574,27 @@
     <!-- v0.3.19 #85 v3 PO #7731 (#5): 取消 + 保存 改圆形按钮 (跟账单保存 consistency).
          左圆形 X 按钮 = 取消 / 右圆形 ✓ 按钮 = 保存(submit). 视觉一致: 圆形 44×44 +
          glass material + Lucide X / Check icon + aria-label 替代 text label.
-         单币种矛盾 (showSubmit=false) 状态: 仅左圆形 X (关闭按钮), 跟弹窗右上 X 同义. -->
-    <footer class="modal-foot">
+         单币种矛盾 (showSubmit=false) 状态: 仅左圆形 X (关闭按钮), 跟弹窗右上 X 同义.
+         v0.3.35 #5 (UAT 0725-3 #11 — PO 字面 "样式要与 添加已结算记录的弹窗一致"): 取消 + 保存改 inline pill button
+         跟 AddSettlementSheet .cta-row + .btn-primary 同款 (原 .fab 圆形按钮已成 legacy visual 单族). -->
+    <footer class="sheet-foot">
       <button
         type="button"
-        class="fab fab--cancel"
+        class="btn-cancel-sheet"
         on:click={close}
         disabled={busy}
-        aria-label={showSubmit ? '取消' : '关闭'}
         data-testid="currency-add-cancel"
-      >
-        <XIcon size={22} strokeWidth={2.5} />
-      </button>
+      >取消</button>
       {#if showSubmit}
         <button
           type="button"
-          class="fab fab--submit"
+          class="btn-primary"
           on:click={handleSubmit}
           disabled={!canSubmit}
           aria-label={submitLabel}
           data-testid="currency-add-submit"
         >
-          <Check size={22} strokeWidth={2.5} />
+          {submitLabel}
         </button>
       {/if}
     </footer>
@@ -612,47 +611,55 @@
      *   把 invite backdrop 改到 blur(24px) saturate(200%) + bg 0.45, 跟这里脱节.
      *   修法: invite 改回跟这里完全一致 (bg 0.30 / blur 16px saturate 180% / z 999).
      *   两个组件 backdrop token 同源, 未来若改 backdrop blur 强度, 两个 .modal-backdrop
-     *   rule 需同步更新 (或抽到 app.css .modal-backdrop-full 全局类). */
+     *   rule 需同步更新 (或抽到 app.css .modal-backdrop-full 全局类).
+     * v0.3.35 #5 (UAT 0725-3 #11, PO 字面 "样式要与 添加已结算记录的弹窗一致"): 形态从 centered modal
+     *   改 bottom sheet 跟 AddSettlementSheet 同款, 整 backdrop + sheet 视觉跟 AddSettlementSheet
+     *   .backdrop + .sheet 一致. — 但 backdrop blur 强度维持 v0.3.29 (16/0.30) (PO 视为全屏 darkener,
+     *   比 AddSettlementSheet (4/0.40) 更暗一档, 视觉上还是 modal 形态). */
     background: rgba(0, 0, 0, 0.30);
-    backdrop-filter: blur(16px) saturate(180%);
-    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
     z-index: 999;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: var(--space-4);
-    animation: backdropFadeIn 200ms ease-out;
+    animation: backdropFadeIn 160ms ease;
   }
 
-  .modal {
-    width: 100%;
-    max-width: 320px;
-    max-height: calc(100dvh - 32px);
+  .sheet {
+    /* v0.3.35 #5 (UAT 0725-3 #11): bottom sheet 形态 (跟 AddSettlementSheet .sheet 同款) -
+       圆角只在顶部 24px, 底部贴屏, max-width 480px, slide-up animation.
+       AddSettlementSheet 用 slideUp 280ms cubic-bezier(0.32, 0.72, 0, 1) (decisive ease). */
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    margin: 0 auto;
+    max-width: 480px;
+    max-height: 92vh;
     overflow-y: auto;
-    /* v0.3.27 (UAT 0723-2 #9): 跟 InviteLinkButton .invite-modal 同款玻璃风:
-     *   圆角 18px + 白底 0.92 + saturate 200% blur(20px) + border 1px rgba(255,255,255,0.6).
-     *   之前 ring + halo (v0.3.21 #106 加的 3 层 indigo 轮廓) 去掉, 跟 invite modal 简洁. */
-    border-radius: 18px;
-    padding: 24px;
+    overscroll-behavior: contain;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: saturate(220%) blur(28px);
+    -webkit-backdrop-filter: saturate(220%) blur(28px);
+    border-top-left-radius: 24px;
+    border-top-right-radius: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    border-bottom: 0;
+    padding: 8px 16px 0;
+    box-shadow:
+      0 -8px 32px rgba(15, 23, 42, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.85);
+    z-index: 1000;
+    animation: slideUp 280ms cubic-bezier(0.32, 0.72, 0, 1);
     display: flex;
     flex-direction: column;
-    gap: 20px;
-    background: rgba(255, 255, 255, 0.92);
-    backdrop-filter: saturate(200%) blur(20px);
-    -webkit-backdrop-filter: saturate(200%) blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.6);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.6),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.04),
-      0 12px 36px rgba(0, 0, 0, 0.18),
-      0 0 0 1px rgba(99, 102, 241, 0.10);
-    animation: slideUp 200ms cubic-bezier(0.16, 1, 0.3, 1);
+    gap: 12px;
   }
+  /* v0.3.35 #5: 兼容 Safari iOS < 18 (无 backdrop-filter), fallback bg 加深一档, 跟 modal centered
+     fallback 同样的逻辑. */
   @supports not (backdrop-filter: blur(1px)) {
-    .modal {
+    .sheet {
       background: rgba(255, 255, 255, 0.96);
     }
-    .modal-backdrop {
+    .sheet-backdrop {
       background: rgba(0, 0, 0, 0.48);
     }
   }
