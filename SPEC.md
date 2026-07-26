@@ -6770,3 +6770,49 @@ c. 展示所有的 已结算记录。增加结算记录时,任一成员可给任
    - 排除范围: 抽 modal 到独立组件 — 复用 inline 保持低复杂度, 不引入新 component 文件.
    - 排除范围: 二次确认加在 swipe step (drag finish) — PO 字面 "删除账单时要二次确认" 是在点删除 button 时 modal, 不是 swipe 中.
    - 排除范围: 改 Toast.svelte — modal 跟 toast 正交不冲突.
+
+### v0.3.35 #4 — UAT 0725-3 #8 humanizeApiError 改本地化错误反馈 (Master 自修, PO 字面 "目前账单编辑和创建时,一直会提示 提交失败. a. 解决这个问题. b. 报错提交失败不解决任何问题, 要准确告诉用户具体哪里有问题")
+
+**Commit**: `TBD` (sandbox 本地, fix + §11 sync 同一 batch 反 #162)
+
+#### Changes (1 file)
+
+1. **改** `frontend/src/lib/components/BillForm.svelte` (~+30 行, 在 humanizeApiError function 之前加 2 const map, function 内部 ~3 行改)
+
+   - 加 `BILL_FIELD_NAME_ZH` map: BE Pydantic 字段名 (loc 末段) → 中文字段名映射
+     * description → 说明
+     * amount → 金额
+     * occurred_at → 时间
+     * currency → 币种
+     * payer_id / payer_member_id → 付款人
+     * participants → 参与者
+     * exclusive_amount → 个人消费金额
+     * member_id → 成员
+     * is_exclusive → 是否个人消费
+   - 加 `BILL_ERROR_CODE_ZH` map: BE 业务错误码 → 中文
+     * currency_mismatch → 账单币种不在账本币种中
+     * rate_missing → 币种之间缺少汇率记录
+     * session_locked → 账本已锁定无法修改
+     * permission_denied → 当前用户无权操作
+     * bill_not_found → 账单不存在
+   - humanizeApiError 函数逻辑改 4 处:
+     * `!err` fallback '提交失败' → '保存失败' (前端 save 操作, 不用 submit 字眼, 治 PO 反馈 "一直会提示 提交失败")
+     * `Array.isArray(err.detail)` 分支: loc 末段查 `BILL_FIELD_NAME_ZH` 表, 未命中 fallback 原始字段名; 生成的 `${fieldZh}: ${msg}` 不变 (Pydantic 英文 msg 保留, 治 "要准确告诉用户具体哪里")
+     * `err.detail` object 分支: `err.detail.error` 查 `BILL_ERROR_CODE_ZH` 表, 未命中时 `'提交失败' === rawCode` fallback '保存失败', 其他 rawCode 保留
+     * 末尾 `err.message ?? '提交失败'` → `'保存失败'`, 同时 '提交失败' 字面 → '保存失败'
+
+   **PO 字面完整覆盖**: a. "提交失败" 字面消除 (fallback + 字面都替成 "保存失败") + b. "准确告诉" 字段名 + 错误码都中文化.
+
+#### Verification
+
+- Plan: 跑 Playwright iPhone 13 验证 error toast 显示新文本 (跟 #9085 + Batch 1/2/3 #6/#10/#9 同样 fallback, codeserver chromium 没 hydrate 障碍).
+- source grep verify 改动 live: `BILL_FIELD_NAME_ZH` + `BILL_ERROR_CODE_ZH` const map + 改写后 humanizeApiError 函数体.
+- svelte-check 0 error / 23 warnings baseline 同, 0 new error.
+
+#### 反模式 / 排除范围
+- 仅改 humanizeApiError 函数 + 加 2 const map. 不改 BE / API / UI 元素.
+- 排除范围: 改 toast 系统 — toast.error 显示的就是 humanizeApiError 返回的字符串, 反向追溯同样字符 (单点 fix, 不引入 toast 改).
+- 排除范围: 通用错误框架 / 全局 i18n 库 — 当前只 humanizeApiError 函数级别足够, 不引入未拍技术方案 (反 #127).
+- 排除范围: BE 加 i18n 错误消息字段 — PO 未要求 BE 改, 只前端反馈.
+- 排除范围: dev mode 显示 Pydantic 原始路径 — 当前 toast 已经显示 `说明: Value error, ...` 形式, Pydantic 路径可读 (PO 看懂).
+- 排除范围: 翻译 BE 层 '提交失败' 字面 — curl -X POST 才会出现, 不是 toast 反馈场景; 实际前端不会命中 (因为前端代码从不发 '提交失败' 字面到 err.detail.error).
