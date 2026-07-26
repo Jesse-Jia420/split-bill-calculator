@@ -134,6 +134,9 @@
 
   let submitting = false;
   let descriptionPristine = true;
+  // v0.3.35 #1 — UAT 0725-3 #6 (PO msg #9088 batch): description 空提交红框视觉标记.
+  //   跟 toast.error 同色 (rose→red rgba(244,63,94,...)), 让用户一眼知道哪个字段要填.
+  let descriptionError = false;
 
   // v0.2.1 T02: last-bill participants prefetched on mount.
   // v0.3.20 #93 (PO msg 00:04 #7450): smartDateChips state removed (UI deleted).
@@ -501,6 +504,16 @@
 
   async function handleSubmit(e: Event) {
     e.preventDefault();
+    // v0.3.35 #1 — UAT 0725-3 #6 (PO msg #9088 batch): description 客户端必填校验.
+    //   之前仅靠 BE (Pydantic min_length=1) 422 报错 → humanizeApiError 翻译成
+    //   "description: field required" 等. PO 字面 "b. 报错提交失败不解决任何问题,
+    //   要准确告诉用户具体哪里有问题" → FE 先拦, 给精确字段 + 红框视觉.
+    if (description.trim() === '') {
+      descriptionError = true;
+      toast.error('请填写账单说明');
+      return;
+    }
+    descriptionError = false;
     const p = buildPayload();
     if (amount == null || !Number.isFinite(amount) || amount <= 0) {
       toast.error('请填写金额(大于 0)');
@@ -604,7 +617,7 @@
   </div>
 
   <div>
-    <label class="label" for="desc">说明(必填)</label>
+    <label class="label" for="desc">说明</label>
     <input
       id="desc"
       type="text"
@@ -612,7 +625,11 @@
       placeholder="例: 晚餐"
       maxlength="500"
       disabled={!canEditDescription}
-      on:input={() => (descriptionPristine = false)}
+      class:input-error={descriptionError}
+      on:input={() => {
+        descriptionPristine = false;
+        if (description.trim() !== '') descriptionError = false;
+      }}
     />
 
   </div>
@@ -1168,6 +1185,19 @@
   }
   .occurredAt-row input[type="datetime-local"]#occurredAt {
     display: block;
+  }
+
+  /* v0.3.35 #1 — UAT 0725-3 #6 (PO msg #9088 batch): description 空提交红框玻璃.
+   * 跟 toast.error 视觉同源 (rose→red rgba(244,63,94,...)).
+   * inset highlight 保留白边, box-shadow 红色 3px ring + 24px halo 让红框玻璃在 form 内不刺眼. */
+  input.input-error {
+    border-color: rgba(244, 63, 94, 0.55) !important;
+    background: linear-gradient(135deg, rgba(254, 226, 226, 0.32) 0%, rgba(254, 202, 202, 0.22) 100%) !important;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.5),
+      inset 0 -1px 0 rgba(244, 63, 94, 0.12),
+      0 0 0 3px rgba(244, 63, 94, 0.18),
+      0 0 24px rgba(244, 63, 94, 0.20) !important;
   }
 
 </style>
