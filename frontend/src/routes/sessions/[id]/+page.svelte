@@ -722,14 +722,6 @@
             ctaLabel={copyingInvite ? '已复制' : '复制邀请链接'}
             onCtaClick={copyInviteLink}
           />
-        {:else if session.members.length === 1 && isOwner}
-          <div class="solo-cta-a">
-            <div class="solo-cta-icon-a" aria-hidden="true">+</div>
-            <div class="solo-cta-text-a">
-              <strong>你是 owner</strong> · 邀请朋友加入,开始分摊第一笔账单吧
-            </div>
-            <span class="solo-cta-arrow-a" aria-hidden="true">›</span>
-          </div>
         {:else}
           <ul class="members-list-a">
             {#each session.members as m, i (m.id)}
@@ -1525,43 +1517,6 @@
 
   /* v0.3.23 #138 (UAT bug #13): 删 .member-remove-a 整套 CSS — 按钮已删 (template 注释),
      orphan rules. 未来 BE 支持 removeMember 后重新启用按钮时, 可从 git history 还原. */
-
-  /* Mockup A fix #7: 1-member 紧凑 CTA banner (只有 owner 一人) */
-  .solo-cta-a {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px;
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.06) 0%, rgba(59, 130, 246, 0.04) 100%);
-    border-radius: 12px;
-    border: 1px dashed rgba(99, 102, 241, 0.20);
-  }
-  .solo-cta-icon-a {
-    flex-shrink: 0;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, rgba(129, 140, 248, 0.88) 0%, rgba(99, 102, 241, 0.88) 100%);
-    color: #fff;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 16px;
-    font-weight: 600;
-  }
-  .solo-cta-text-a {
-    flex: 1;
-    font-size: 12px;
-    color: var(--gray-700, #404040);
-    line-height: 1.4;
-  }
-  .solo-cta-text-a strong {
-    color: var(--gray-900, #171717);
-  }
-  .solo-cta-arrow-a {
-    color: var(--accent-700, #1d4ed8);
-    font-size: 16px;
-  }
 
   /* v0.2.1 UI rev: 折叠态 header 内嵌 avatar 预览 (max 8 + overflow) */
   /* v0.3.19 #83 (PO #7300): 18px, -6px overlap (不再用 -8px, 18px 间距 -6 视觉刚好). */
