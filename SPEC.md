@@ -6594,3 +6594,30 @@ c. 展示所有的 已结算记录。增加结算记录时,任一成员可给任
 #### 反模式 / 排除范围
 - 仅改数值 (blur/saturate/alpha), position/inset/z-index 不动 (跟 CurrencyAddModal .modal-backdrop 一致)
 - 排除范围: `animate-name` / `animation-duration` (backdropFadeIn 200ms ease-out 保持原样, 不动 modal 本身 transition)
+
+### v0.3.34 #2 — UAT 0726-1 #2 sessions fab 跟 bills fab 完全一致 (Master 自修, PO 字面 "和账单列表页添加账单按钮完全一致")
+
+**Commit**: `TBD` (sandbox 本地, fix + §11 sync 同一 batch 反 #162)
+
+#### Changes (1 file)
+
+1. **改** `frontend/src/routes/sessions/+page.svelte` (-42 +30)
+   - `.fab` CSS 完全复制 `/sessions/[id]/+page.svelte` 1787+ 同名 CSS. 修法:
+     * bg linear-gradient `rgba(99,102,241,0.18)→rgba(59,130,246,0.14)` → `rgba(99,102,241,0.04)→rgba(59,130,246,0.02)`
+     * border `1.5px solid rgba(99,102,241,0.35)` → `1px solid rgba(99,102,241,0.18)`
+     * 删 indigo box-shadow `inset 0 1px 0 rgba(255,255,255,0.45), 0 6px 16px rgba(99,102,241,0.18)`
+     * font-size `38px` → `36px`, font-weight `500` → `300`, line-height `76px` → `1`
+     * display `block` → `grid`, 删 text-align `center`, 加 `place-items: center` + `padding-bottom: 3px`
+   - 保留 `.fab.emphasized` (0 sessions 引导深色状态, sessions 独有). 删 `:hover` / `:active` / `:focus-visible` 跟 bills fab 一致 (用 .glass-pill 全局 hover).
+   - 保留 `@media (max-width: 600px)` 响应式 (right: 20px / bottom: 20px).
+   
+   注: v0.3.33 #5 当时注解 "实测 0.04/0.02 太淡 + '+' 字乱码" + "display:grid 跟 padding-bottom 3px 互相打架" — "+" 渲染问题会再次出现. 后续 sprint 单独处理 (pseudo-element 方案), 不再改 bg/border/shadow. 当前 sprint 字面执行 PO "完全一致" 要求.
+
+#### Verification (Playwright iPhone 13 @3x)
+- `/sessions` (17 sessions, 含 0-sessions empty state) `.fab` bg `rgba(99,102,241,0.04)→rgba(59,130,246,0.02)` + border `1px solid rgba(99,102,241,0.18)` + border-radius `50%` + 无 indigo box-shadow ✓
+- `/sessions/9` (Thailand session) `.fab` 同样值 ✓ (完全匹配)
+- `/sessions` 0-session state `.fab.emphasized` bg 仍是 `0.32/0.26` + border `1px 0.50` (仍引导深色) ✓
+
+#### 反模式 / 排除范围
+- 仅改 .fab base CSS 跟 .hover/.active/.focus-visible 行为统一到 .glass-pill 全局
+- 排除范围: "+" 字渲染问题 (v0.3.33 #5 历史问题) — 后续 sprint 单独修
