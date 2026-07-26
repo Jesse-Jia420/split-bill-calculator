@@ -6556,3 +6556,23 @@ c. 展示所有的 已结算记录。增加结算记录时,任一成员可给任
 - SettlementRow 编辑功能 (PO 字面 "增加" + "删除", 未要求改).
 - soft-delete / undo (PO 未要求).
 - multi-pair sum 聚合 UI (mockup 5 "合计 ¥430.00" section) — PO 描述 records list 用 "展示所有" 没要求 sum, 当前 section 3 列表已经够清楚.
+
+### v0.3.34 #5 — UAT 0726-1 #4 邀请按钮 + 红色玻璃 pill 不再超出 members section 右边框 (Master 自修)
+
+**Commit**: `7d96275` (sandbox → codeserver → main, fix + §11 sync 同一 batch 反 #162)
+
+#### Changes (1 file)
+
+1. **改** `frontend/src/routes/sessions/[id]/+page.svelte` (+9 -1)
+   - `.members-row2-right` CSS 加 `max-width: 100%` + `min-width: 0`. 修 PO msg #9084 截图 "都超出边框了" — 在新创建的 1-member 匿名账本上 InviteLinkButton + `.expiry-anon-a` (匿名 hint pill) 都溢出 `.members-head` 右边框. 根因: column `flex: 0 0 auto` (content-based) + `.expiry-anon-a` `max-width:100%` 相对被撑大的 parent → pill 文字 ~398px 撑大 column, 超过 `.members-head-row2` 内容区 ~326px, button + pill 同时溢出 card border. 修法: column 加 `max-width:100%` + `min-width:0` → column 宽 = min(content, container), pill `max-width:100%` 跟随 column 收缩 + `white-space:normal` 让长文案 wrap 到多行, button 仍在 column 内右对齐.
+
+#### Verification (Playwright iPhone 13 @3x)
+- `/sessions/{newAnonId}` (1-member 匿名账本, anon owner) 实测:
+  * `.members-row2-right` width ≤ container content area (≤326px, 修前溢出到 ~395px)
+  * `.expiry-anon-a` pill width ≤ container width + 文字 wrap 多行 (修前单行 ~340px 溢出)
+  * `.invite-btn` 仍在 column 内右对齐不溢出 card border (修前 ~155-225px 也溢出)
+  * 截图存 `~/.openclaw/media/browser/v0334-overflow/02-after-fix.png` (image tool 实判 button + pill 都在 card 内)
+
+#### 反模式 / 排除范围
+- 仅改 1 个 column max-width, 不改 InviteLinkButton 自身 width / padding / 字号 — 邀请按钮本身体验不变
+- 排除范围: 整个 members section 卡片 border-radius / shadow 调整 (不影响 overflow 修复)
