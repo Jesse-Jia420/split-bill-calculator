@@ -581,16 +581,24 @@ button.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
  * - box-shadow indigo-500 rgba(99,102,241, 0.35↔0.55) 跟项目主色 token --accent-500 同源.
  * - z-index / pointer-events 不动, 动画期间不影响 button 可点击性 (a11y).
  * ============================================================ */
+/* v0.3.34 #4 — UAT 0725-2 #2 dramatic breathing (PO msg "新建账本后, 邀请链接并没有高亮呼吸").
+   原动画 (16→24px / alpha 0.35→0.55 / scale 1.0→1.02 / 1.5s) 太 subtle — v0.3.31 commit 9e400a9 verify 18/18 pass
+   但 PO 真机测试不通过 (rest state 16px glow 已亮, 1.5% scale + 8px 变化看不出 pulse 节奏).
+   修法: 大幅增强 rest→peak 对比 + 缩短周期, 让呼吸有节奏感不是静态亮.
+   - rest (0%, 100%): 32px indigo 0.65 (亮但跟 peak 拉开对比)
+   - peak (50%):   64px indigo 0.85 (glow 翻倍, 比 rest 强 1.25x alpha + 5% scale 鼓动)
+   - duration:    1.5s → 1.0s (快 33%, pulse 节奏更明显)
+   注: transform scale 是视觉放大不影响 button click box (layout box 不变), a11y OK. */
 @keyframes invite-breath {
   0%, 100% {
-    box-shadow: 0 0 16px rgba(99, 102, 241, 0.35);
+    box-shadow: 0 0 32px rgba(99, 102, 241, 0.65);
     transform: scale(1);
   }
   50% {
-    box-shadow: 0 0 24px rgba(99, 102, 241, 0.55);
-    transform: scale(1.02);
+    box-shadow: 0 0 64px rgba(99, 102, 241, 0.85);
+    transform: scale(1.05);
   }
 }
 .invite-btn-breathing {
-  animation: invite-breath 1.5s ease-in-out infinite;
+  animation: invite-breath 1.0s ease-in-out infinite;
 }

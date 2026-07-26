@@ -6621,3 +6621,24 @@ c. 展示所有的 已结算记录。增加结算记录时,任一成员可给任
 #### 反模式 / 排除范围
 - 仅改 .fab base CSS 跟 .hover/.active/.focus-visible 行为统一到 .glass-pill 全局
 - 排除范围: "+" 字渲染问题 (v0.3.33 #5 历史问题) — 后续 sprint 单独修
+
+### v0.3.34 #3 — UAT 0726-1 #3 删除 1-member solo-cta 块 (Master 自修, PO 字面 "没说过要有这个东西")
+
+**Commit**: `TBD` (sandbox 本地, fix + §11 sync 同一 batch 反 #162)
+
+#### Changes (1 file)
+
+1. **改** `frontend/src/routes/sessions/[id]/+page.svelte` (-45 +0)
+   - 删 `{:else if session.members.length === 1 && isOwner}` 整块 (line 722-732 HTML, 11 行) — 含 `.solo-cta-a` / `.solo-cta-icon-a` / `.solo-cta-text-a` / `.solo-cta-arrow-a` 4 个嵌套 div + "你是 owner · 邀请朋友加入, 开始分摊第一笔账单吧 ›" 文案.
+   - CSS cleanup: 删 `.solo-cta-a` (line 1530) / `.solo-cta-icon-a` (line 1539) / `.solo-cta-text-a` (line 1552) / `.solo-cta-text-a strong` (line 1558) / `.solo-cta-arrow-a` (line 1561) 5 个 orphan CSS 规则 + 注释 "Mockup A fix #7: 1-member 紧凑 CTA banner".
+   - 1-member case 直接走 else 分支的 `.members-list-a` 单 row 渲染 (跟 v0.3.25 #14 1-member CTA 删法一致).
+
+#### Verification (Playwright iPhone 13 @3x)
+- `/sessions/6` (1 member, owner=Jesse): 无 `.solo-cta-a` DOM 节点 + body text 无 "邀请朋友加入" / "开始分摊第一笔账单吧" + 走 `.members-list-a` else 分支 ✓ (Verify 验证留待 PO 真机打开新创建的 1-member 账本)
+- `/sessions/9` (5 members): 无变化, 5 row members list 正常渲染 ✓
+- svelte-check baseline (2 errors / 19-23 warnings) 不变, 0 new error ✓
+
+#### 反模式 / 排除范围
+- 仅删冗余 CTA + orphan CSS, 跟 v0.3.25 #14 1-member 紧凑 CTA banner 删法 (成员 length 0 走 EmptyState / length >=2 走 members-list-a / length === 1 取消独 CTA) 完全一致
+- 排除范围: 1-member 引导 (空态由 wizard 入口 + Owner 标识 + InviteLinkButton 3 项共同承担, 已有覆盖)
+- 排除范围: 套餐 announcement / "⼤请伙伴" / 错服的引导重生 (不是 UAT 0726-1 #3 范围)
