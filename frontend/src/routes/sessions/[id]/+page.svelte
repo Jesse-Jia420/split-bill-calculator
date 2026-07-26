@@ -1953,12 +1953,16 @@
     color: var(--gray-900);
   }
 
-  /* v0.2.1 T04: 删除撤销 banner (底部, 多条栈叠) */
+  /* v0.2.1 T04: 删除撤销 banner (底部, 多条栈叠)
+   * v0.3.35 #2 (UAT 0725-3 #10): bottom 96px → calc(80px + 56px + var(--space-2))
+   *   .toast-root 在 Toast.svelte bottom:80px (z-index 9999). 撤销 stack 原 96px 跟 toast 几乎重叠
+   *   (差 16px), PO 真机报"撤销按钮位置要高一点, 目前和 toast 互相挡住了". 修法: 抬高撤销 stack
+   *   到 144px, 让 undo toast 完全在普通 toast 之上 + 8px gap (假设单 toast 高 ~40-48px). */
   .undo-stack {
     position: fixed;
     left: 50%;
     transform: translateX(-50%);
-    bottom: 96px;
+    bottom: calc(80px + 56px + var(--space-2));
     z-index: 60;
     display: flex;
     flex-direction: column-reverse; /* 最新删的在最上面 */

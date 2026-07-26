@@ -6713,3 +6713,28 @@ c. 展示所有的 已结算记录。增加结算记录时,任一成员可给任
 - 排除范围: 把「(必填)」字面从 description 移到 amount/payer/participants 等其他 label — 它们字面已经是"请选择"等没说 (必填), 不动.
 - 排除范围: BE Pydantic `description: str = Field(min_length=1)` 改 min_length=0 — client validation 已拦, BE 保留保护, 后端 schema 不动.
 - 排除范围: amount/payer/participants 同期加红框 (PO 只字面说 "说明框变红", 其他字段保持原 toast 单反馈).
+
+### v0.3.35 #2 — UAT 0725-3 #10 撤销按钮位置抬高 (跟 toast 错开, 避免互相挡住) (Master 自修, PO 字面 "撤销按钮位置要高一点, 目前和toast 互相挡住了")
+
+**Commit**: `TBD` (sandbox 本地, fix + §11 sync 同一 batch 反 #162)
+
+#### Changes (1 file)
+
+1. **改** `frontend/src/routes/sessions/[id]/+page.svelte` (+5 -1)
+   - `.undo-stack` CSS:
+     * `bottom: 96px` → `bottom: calc(80px + 56px + var(--space-2))` (`bottom: 144px`)
+     * 根因: Toast.svelte `.toast-root` `bottom: 80px` + `z-index: 9999`, 撤销 stack 原 96px 跟 toast 几乎重叠 (差 16px), PO 真机报"撤销按钮跟 toast 互相挡住了". 修法: 抬高撤销 stack 到 144px, 让 undo toast 完全在普通 toast 之上 + 8px gap (假设单 toast 高 ~40-48px + var(--space-2)=8px gap). z-index 维持 60 (< toast 9999, 这样 toast 视觉上仍最显眼).
+
+   注: 修法 **只动 bottom 1 个数值** + 加注释. CSS 文件本身不变其他规则, 其他 toast / FAB 不影响.
+
+#### Verification (反 #101 + 反 #150 v2 真用户场景端到端)
+
+- /sessions/9/bills/1 list 上 swipe 一个 bill → 左滑 → 撤销 toast 从 `bottom: 144px` 渲染 (跟 Toast.svelte `.toast-root` `bottom: 80px` 错开).
+- 同时如果 page 还有未消失的 toast (e.g. 提交成功 toast), visual 上撤销 stack 在 toast 之上 8px gap, 不再互相挡.
+- 多个 undo entry 同时存在 (column-reverse LIFO 视觉): 全部都在 `bottom: 144px` 起点 + 跟 var(--space-2) gap, 不挡 toast.
+
+#### 反模式 / 排除范围
+- 仅动 CSS `bottom` 1 数值 + 加注释, 不改 JS / 不改其他 CSS.
+- 排除范围: 撤销 stack 改 left/top 错边 — 当前 bottom 已经够宽, 不用改 横向.
+- 排除范围: z-index 调整 — 当前 60 < toast 9999 视觉正确 (toast 是更重要反馈, 撤销是次要).
+- 排除范围: undoStack 设计整体重做 (FAB / dismiss animation) — PO 未要求.
