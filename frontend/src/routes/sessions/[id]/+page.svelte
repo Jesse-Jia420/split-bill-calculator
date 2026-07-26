@@ -1143,13 +1143,21 @@
     /* v0.3.31 #2 (UAT 0725-2 #2): 加 display: flex + flex-direction: column + align-items: flex-end
        让 InviteLinkButton + .expiry-anon-a (匿名 hint pill) 纵向堆叠 + 跟原 invite-btn 一样右对齐.
        原 layout 是块状, pill 加进来后默认占满整行 + 左对齐 → 不符 .members-row2-right 右对齐.
-       margin-left: auto 让整个 right 区域靠 section 右边. */
+       margin-left: auto 让整个 right 区域靠 section 右边.
+
+       v0.3.34 #5 (UAT 0726-1 #4): PO 反馈 "邀请按钮 + 红色玻璃 pill 都超出 members section 右边框".
+       根因: column flex 0 0 auto (content-based) + .expiry-anon-a max-width:100% 是相对被撑大的 parent
+       → pill 文字 ~398px 撑大 column, 超过 .members-head-row2 内容区 ~326px, button + pill 同时溢出 card border.
+       修法: column 加 max-width:100% + min-width:0 → column 宽 = min(content, container), pill max-width:100%
+       跟随 column 收缩 + white-space:normal 让长文案 wrap 到多行, button 仍在 column 内右对齐. */
     display: flex;
     flex-direction: column;
     align-items: flex-end;
     gap: var(--space-2);
     flex: 0 0 auto;
     margin-left: auto;
+    max-width: 100%;
+    min-width: 0;
   }
   /* v0.3.20 #94 Fix 6 (PO msg 02:13 #7455): "查看 N 人" 放分割线之下.
      之前 chevron + "查看 N 人" 直接挨在 row2 (avatar + invite) 下面, 没视觉分隔,
