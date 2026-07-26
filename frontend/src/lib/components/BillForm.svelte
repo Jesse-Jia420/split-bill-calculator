@@ -486,20 +486,62 @@
   //   Anything else falls through to `err.message` (which for
   //   ApiError is "422 http_422" — visible, but not great) or
   //   '提交失败'. Returning `string` keeps the call-site tidy.
+  /**
+   * v0.3.35 #4 — UAT 0725-3 #8 (PO msg #9088 batch): humanizeApiError 改本地化错误反馈.
+   * PO 字面 "a. 解决这个问题. b. 报错提交失败不解决任何问题, 要准确告诉用户具体哪里有问题."
+   * 修法:
+   *   1. Pydantic 字段名 (err.detail[*].loc 末段) → 中文字段名 (description → "说明" 等).
+   *      PO 看 toast 时能直接看到 "说明: Value error, ..." 不用脑补 Pydantic 字段路径.
+   *   2. 业务错误码 (err.detail.error) → 中文 (currency_mismatch → "账单币种不在账本币种中" 等).
+   *      PO 看 toast 时知道具体业务问题, 不用猜英文码含义.
+   *   3. 默认 fallback '提交失败' → '保存失败' (前端 createBill/updateBill 是 save 操作, 不是 submit).
+   *      治 PO 字面 "一直会提示 提交失败" — 这是 a. 部分.
+   *   4. err.message 字面 '提交失败' → '保存失败'.
+   */
+  /** v0.3.35 #4: BE Pydantic 字段名 (loc 末段) → 中文字段名映射. 未命中 fallback 原始字段名 (用户能看到 Pydantic 路径). */
+  const BILL_FIELD_NAME_ZH: Record<string, string> = {
+    description: '说明',
+    amount: '金额',
+    occurred_at: '时间',
+    currency: '币种',
+    payer_id: '付款人',
+    payer_member_id: '付款人',
+    participants: '参与者',
+    exclusive_amount: '个人消费金额',
+    member_id: '成员',
+    is_exclusive: '是否个人消费',
+  };
+  /** v0.3.35 #4: BE 业务错误码 (err.detail.error) → 中文映射. 未知名 fallback '保存失败'. */
+  const BILL_ERROR_CODE_ZH: Record<string, string> = {
+    currency_mismatch: '账单币种不在账本币种中',
+    rate_missing: '币种之间缺少汇率记录',
+    session_locked: '账本已锁定无法修改',
+    permission_denied: '当前用户无权操作',
+    bill_not_found: '账单不存在',
+  };
   function humanizeApiError(err: any): string {
-    if (!err) return '提交失败';
+    if (!err) return '保存失败';
     if (Array.isArray(err.detail) && err.detail.length > 0) {
       const first = err.detail[0];
       const loc = Array.isArray(first?.loc) ? first.loc.slice(1) : [];
-      const field = loc.length ? loc.join('.') + ': ' : '';
+      // loc 末段字段名 (Pydantic 格式: e.g. ["body","amount"] → "amount")
+      const rawField = loc.length ? loc[loc.length - 1] : '';
+      const fieldZh = rawField ? (BILL_FIELD_NAME_ZH[rawField] ?? rawField) : '';
+      const field = fieldZh ? fieldZh + ': ' : '';
+      // Pydantic 英文 msg 保留 (用户能看懂 Pydantic 描述), 关键是字段名中文化.
       return field + (first?.msg || '字段错误');
     }
     if (err.detail && typeof err.detail === 'object' && !Array.isArray(err.detail)) {
-      const code = err.detail.error || '提交失败';
+      const rawCode = err.detail.error || '提交失败';
+      // 已知错误码 → 中文; 未知名 fallback '保存失败' (不显示 '提交失败' 字面, 跟前 save() 流程对得上)
+      const codeZh = BILL_ERROR_CODE_ZH[rawCode]
+        ?? (rawCode === '提交失败' ? '保存失败' : rawCode);
       const hint = err.detail.hint;
-      return hint ? `${code} (${hint})` : code;
+      return hint ? `${codeZh} (${hint})` : codeZh;
     }
-    return err?.message ?? '提交失败';
+    // err.message 字面 '提交失败' → '保存失败', 其他保持
+    const msg = err?.message ?? '保存失败';
+    return msg === '提交失败' ? '保存失败' : msg;
   }
 
   async function handleSubmit(e: Event) {

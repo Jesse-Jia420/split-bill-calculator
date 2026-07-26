@@ -6816,3 +6816,24 @@ c. 展示所有的 已结算记录。增加结算记录时,任一成员可给任
 - 排除范围: BE 加 i18n 错误消息字段 — PO 未要求 BE 改, 只前端反馈.
 - 排除范围: dev mode 显示 Pydantic 原始路径 — 当前 toast 已经显示 `说明: Value error, ...` 形式, Pydantic 路径可读 (PO 看懂).
 - 排除范围: 翻译 BE 层 '提交失败' 字面 — curl -X POST 才会出现, 不是 toast 反馈场景; 实际前端不会命中 (因为前端代码从不发 '提交失败' 字面到 err.detail.error).
+
+### v0.3.35 #4 catch-up (Master 自查, 跟之前 #4 同步补漏 — 9b92c67 commit 漏 BillForm.svelte file 因 git add 数组漏掉, 现在补)
+
+**Commit**: `TBD` (sandbox 本地, SPEC.md 已在 9b92c67, 现在 catch-up 补 BillForm.svelte same batch 反 #162)
+
+#### Changes (1 file)
+
+1. **add `frontend/src/lib/components/BillForm.svelte`** (跟 9b92c67 commit message describe 一样 +52 lines)
+   - `let BILL_FIELD_NAME_ZH` + `let BILL_ERROR_CODE_ZH` const maps
+   - `function humanizeApiError` 重写 4 处 (跟 SPEC.md v0.3.35 #4 §11 sync 内容一致 — 字段名 + 错误码中文化 + "提交失败"→"保存失败")
+
+#### 根因 (Master catch-up 反思)
+
+上轮 git commit bash 用 `'frontend/src/lib/components/BillForm.svelte' SPEC.md` 实际是 OK shell quoting 但 codeserver `git commit -m` 前 `git add` 命 Bash got split — Bash 看到 `frontend/src/lib/components/BillForm.svelte SPEC.md` 作为 2 个 paths 但 shell 把 2 paths 串成 `BillForm.svelteSPEC.md` (因为字符串拼接无空格). 结果 git add 只有效 SPEC.md, BillForm.svelte 实际没 staged.
+
+修法: 这轮 catch-up commit 把 BillForm.svelte 单独 `git add` 后 commit. 后续 batch bash 用 semantic 命名 path 单个, 避免 multi-path concat bug.
+
+#### 反模式 / 排除范围
+- 仅 catch-up 没改 SPEC.md (已 in 9b92c67).
+- 排除范围: amend 9b92c67 — single-branch 铁律下 amend + force-with-lease 风险大, 用独立 catch-up commit 更稳.
+- 排除范围: 全 retry 9b92c67 自写入 — 没意义, commit message 已 publish.
