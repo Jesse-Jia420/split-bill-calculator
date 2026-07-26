@@ -408,6 +408,33 @@
    * 注意: BillForm 在描述录入后, 后端 POST 返回新 id; 旧 id 永久丢失。
    * 这是可接受的 trade-off — 5s 撤销窗口足够短, 用户的「确认」还在短期记忆里。
    */
+  /**
+   * v0.3.35 #3 — UAT 0725-3 #9 (PO msg #9088 batch): 删除账单二次确认 modal.
+   * PO 字面 "删除账单时要二次确认". 之前 handleDeleteBill 立即乐观删除 + 弹 undo toast
+   * (5s 可撤销); 现在加二次确认 modal — 用户 swipe 出来删除按钮 → 点 → 弹 confirm modal
+   * → 「取消」关闭无任何变化 / 「确认删除」才进 handleDeleteBill 乐观删除流.
+   * 模式跟 SessionCard v0.3.25 #16 confirm-modal (template line 540-620 + CSS line 985-1075) 同款 token.
+   */
+  let pendingDeleteBillId: number | null = $state(null);
+  let pendingDeleteBillLabel: string = $state('');
+  function requestDeleteBill(billId: number) {
+    const bill = bills.find((b) => b.id === billId);
+    if (!bill) return;
+    pendingDeleteBillId = billId;
+    pendingDeleteBillLabel = bill.description ?? '(无说明)';
+  }
+  function cancelDeleteBill() {
+    pendingDeleteBillId = null;
+    pendingDeleteBillLabel = '';
+  }
+  function confirmDeleteBill() {
+    if (pendingDeleteBillId === null) return;
+    const id = pendingDeleteBillId;
+    pendingDeleteBillId = null;
+    pendingDeleteBillLabel = '';
+    void handleDeleteBill(id);
+  }
+
   async function handleDeleteBill(billId: number) {
     const idx = bills.findIndex((b) => b.id === billId);
     if (idx < 0) return;
@@ -909,7 +936,7 @@
           sessionId={session.id}
           memberIdToName={memberIdToName}
           currentUserMemberId={currentMemberId}
-          onDelete={handleDeleteBill}
+          onDelete={requestDeleteBill}
           loading={loading}
           primaryCurrency={session.primary_currency}
           currencies={session.currencies}
@@ -935,6 +962,53 @@
             >{entry.restoring ? '恢复中…' : entry.deleting ? '删除中…' : '撤销'}</button>
           </div>
         {/each}
+      </div>
+    {/if}
+
+    <!-- v0.3.35 #3 — UAT 0725-3 #9 (PO msg #9088 batch): 二次确认 modal.
+         PO 字面 "删除账单时要二次确认". Pattern 跟 SessionCard v0.3.25 #16 confirm-modal 复用.
+         复用 .modal-backdrop / .modal-box / .btn-cancel / .btn-danger (CSS 在 v0.3.35 #3 block end of <style>).
+         z-index 1000 (Toast.svelte .toast-root 9999 下, 普通 modal 999 上). -->
+    {#if pendingDeleteBillId !== null}
+      <div
+        class="modal-backdrop"
+        on:click={cancelDeleteBill}
+        role="presentation"
+      >
+        <div
+          class="modal-box"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-bill-modal-title"
+          on:click|stopPropagation
+        >
+          <div class="modal-icon" aria-hidden="true">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+            </svg>
+          </div>
+          <h2 id="delete-bill-modal-title" class="modal-title">删除账单</h2>
+          <p class="modal-desc">
+            确定删除账单 <strong>「{pendingDeleteBillLabel}」</strong> 吗？
+          </p>
+          <p class="modal-desc modal-desc-secondary">
+            此操作可在 5 秒内通过撤销按钮恢复
+          </p>
+          <div class="modal-actions">
+            <button
+              type="button"
+              class="btn-cancel"
+              on:click={cancelDeleteBill}
+            >取消</button>
+            <button
+              type="button"
+              class="btn-danger"
+              on:click={confirmDeleteBill}
+            >确认删除</button>
+          </div>
+        </div>
       </div>
     {/if}
 
@@ -2027,5 +2101,134 @@
 
   .small {
     font-size: var(--font-size-sm);
+  }
+
+  /* v0.3.35 #3 — UAT 0725-3 #9 (PO msg #9088 batch): 二次确认 modal CSS.
+   * 复用 SessionCard v0.3.25 #16 confirm-modal token (template line 540-620 + CSS line 985-1075).
+   * z-index 1000 (Toast.svelte .toast-root 9999 下, 普通 modal 999 上). */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.10);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    animation: fade-in 160ms ease;
+  }
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  .modal-box {
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: saturate(2) blur(20px);
+    -webkit-backdrop-filter: saturate(2) blur(20px);
+    border: 1.5px solid rgba(255, 255, 255, 0.78);
+    border-radius: 18px;
+    padding: 24px;
+    max-width: 340px;
+    width: 100%;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.88),
+      0 8px 32px rgba(15, 23, 42, 0.16);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    animation: pop-in 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      transform: scale(0.94) translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+  .modal-icon {
+    width: 56px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(
+      135deg,
+      rgba(239, 68, 68, 0.18) 0%,
+      rgba(220, 38, 38, 0.10) 100%
+    );
+    border: 1.5px solid rgba(239, 68, 68, 0.32);
+    border-radius: 50%;
+    color: rgba(220, 38, 38, 0.95);
+    margin-bottom: 14px;
+  }
+  .modal-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--gray-900, #0f172a);
+    margin: 0 0 10px 0;
+    line-height: 1.3;
+  }
+  .modal-desc {
+    font-size: 14px;
+    color: var(--gray-700, #334155);
+    margin: 0 0 6px 0;
+    line-height: 1.5;
+  }
+  .modal-desc strong {
+    color: var(--gray-900, #0f172a);
+    font-weight: 600;
+  }
+  .modal-desc-secondary {
+    font-size: 13px;
+    color: var(--gray-500, #64748b);
+    margin-bottom: 18px;
+  }
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+  }
+  .btn-cancel {
+    flex: 1;
+    appearance: none;
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(15, 23, 42, 0.10);
+    border-radius: 999px;
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--gray-700, #334155);
+    cursor: pointer;
+    transition: background 150ms ease;
+    min-height: 40px;
+  }
+  .btn-cancel:hover {
+    background: rgba(255, 255, 255, 0.85);
+  }
+  .btn-danger {
+    flex: 1;
+    appearance: none;
+    background: linear-gradient(135deg, rgba(244, 63, 94, 0.92) 0%, rgba(220, 38, 38, 0.85) 100%);
+    border: 1.5px solid rgba(255, 255, 255, 0.4);
+    border-radius: 999px;
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    cursor: pointer;
+    transition: transform 100ms ease, filter 150ms ease;
+    min-height: 40px;
+  }
+  .btn-danger:hover {
+    filter: brightness(1.05);
+  }
+  .btn-danger:active {
+    transform: scale(0.97);
   }
 </style>
