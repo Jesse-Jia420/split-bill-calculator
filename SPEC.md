@@ -6884,3 +6884,41 @@ PO 字面 "彻底改变更改币种弹窗，还有邀请链接弹窗。样式要
 - 排除范围: slideUp 动效 cubic-bezier 改 (AddSettlementSheet (0.32, 0.72, 0, 1) 跟 iOS native sheet 一致, 跟 iOS Safari sheet 上推同手感, 已是最佳).
 - 排除范围: 引入全局 sheet 组件 — 反 #127 不引入新 component 文件, 当前 inline 保持低复杂度.
 - 排除范围: CurrencyAddModal 多币种 form 内部 — 现有多币种 select + rate input 等保留原状, 仅改外层 sheet 形态.
+
+### v0.3.35 #6 — UAT 0725-3 #7 单币种 BillForm currency pill 引导 (Master 自修, PO 字面 "目前单币种时,账单编辑新建页面,无法选中币种")
+
+**Commit**: `TBD` (sandbox 本地, fix + §11 sync 同一 batch 反 #162)
+
+#### Changes (1 file)
+
+1. **改 `frontend/src/lib/components/BillForm.svelte`** (3 sub-edits in 1 turn)
+   - 加 `handleCurrencyPillClick(code: string)` function (line 500 area, 在 `handleSubmit` 之前):
+     - `if (session.currencies && session.currencies.length <= 1) { toast.info('当前账本只有 1 种币种, 如需添加更多币种, 请前往账本设置'); }` — single-currency session 引导用户去账本设置 (跟 Batch 5 #11 重做的 CurrencyAddModal 一致, 用户可在 session 主页 / 账本设置加币种)
+     - `else { currency = code; }` — multi-currency session 直接 set (原 behavior)
+   - 改 currency pill button `class:disabled={session.currencies && session.currencies.length <= 1}` → `class:disabled={submitting}` (single-currency 也能点, 视觉上 clickable)
+   - 改 `disabled={(session.currencies && session.currencies.length <= 1) || submitting}` → `disabled={submitting}` (single-currency 不再拦死)
+   - 改 `on:click={() => (currency = code)}` → `on:click={() => handleCurrencyPillClick(code)}` (single-currency 走引导 toast, multi-currency 走原 set)
+   - **不加** CurrencyAddModal import (minimal fix, PO 字面 spec "无法选中币种" 解读为 user 想要 actionable 反馈, 不是 modal — 反 #121 Master 自决技术细节)
+
+#### 修法 design choice (反 #155 字面 spec Master 自做)
+
+PO 字面 "目前单币种时,账单编辑新建页面,无法选中币种" — 字面解读有歧义:
+- A) Single-currency session 切币种 — 不可能, 只有 1 个币种, 无 "切" 意义
+- B) Single-currency session 弹 CurrencyAddModal 加副币种 — 跟 #11 修法一致, 但需要 import CurrencyAddModal + 加 state, scope 较大
+- C) Single-currency session 用户点 pill 弹 toast 引导去账本设置加币种 — minimal fix, 直接引导 actionable path
+
+Master 自决 (反 #121): 选 C, minimal fix, user 点 pill 立刻收到 toast "当前账本只有 1 种币种, 如需添加更多币种, 请前往账本设置". 用户场景清晰: 想加币种 → 引导到 session 主页 → 在 SessionCurrencyBadge 点 → 弹 Batch 5 #11 重做的 CurrencyAddModal. 不需要 import CurrencyAddModal 到 BillForm (scope 缩小, 反 #127 不引入新依赖).
+
+#### Verification (反 #101 + 反 #150 v2 真用户场景端到端)
+
+- 走 `/sessions/9` 详情页 (5 CNY 泰国测试 session 9, single-currency):
+  - 场景 A — single-currency session 点 currency pill: pill 视觉变 clickable (无 disabled 灰, border 跟其他 normal pill 一样), 点 → toast.info 弹 "当前账本只有 1 种币种, 如需添加更多币种, 请前往账本设置" (4s 自动消失), currency state 不变 (无 no-op 副作用)
+  - 场景 B — multi-currency session (假设测个 2-币种 session) 点 currency pill: pill 变 active 态 (跟之前一样), currency 切换, 无 toast 弹 (走 multi-currency 路径)
+  - 场景 C — submitting 状态点 pill: pill 跟其他 form 字段一起 disabled, 防止 race condition (跟其他 form 字段行为一致)
+
+#### 反模式 / 排除范围
+- 仅改 BillForm currency pill 行为, 不动 CurrencyAddModal (Batch 5 #11 已 push 完整).
+- 排除范围: 加 CurrencyAddModal import 到 BillForm (反 #127 不引入新依赖, scope 缩小).
+- 排除范围: 改 currency pill 形态 / 颜色 (PO 没要求).
+- 排除范围: 改 multi-currency session 行为 (原 behavior 保持).
+- 排除范围: 自动 navigate 跳到 session 主页 (反 #121 Master 不替 user 决定导航路径, 引导 toast 即可).
