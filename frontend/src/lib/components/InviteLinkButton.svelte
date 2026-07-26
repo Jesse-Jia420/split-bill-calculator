@@ -257,12 +257,19 @@
      + blur(16px) saturate(180%) + z-index 999. 同步更新 fallback bg 0.48→0.30
      跟 bg 主值一致 (Safari iOS < 18). 两个弹窗现在视觉完全统一 (跨组件但
      token 同源, 跟 v0.3.27 #9 commit 80abeda 原始统一设计一致). */
+  /* v0.3.34 #1 (UAT 0725-1 #2, PO 字面 "同汇率设置一样"): 升级 invite 弹窗 backdrop 强度.
+     之前 v0.3.29 (a14820c) 改回跟 CurrencyAddModal 同款 (blur 16px / saturate 180% / bg 0.30),
+     但 PO 真机验证测试不通过. 实际 CurrencyAddModal 跟 invite backdrop 不一致:
+     - CurrencyAddModal: blur(24px) saturate(200%) bg rgba(0,0,0,0.45)
+     - invite (旧): blur(16px) saturate(180%) bg rgba(0,0,0,0.30)
+     修法: invite 升级到 CurrencyAddModal 同款 token — blur(24px) saturate(200%) bg rgba(0,0,0,0.45).
+     两个弹窗现在真的一致 (跨组件 token 完全同源, 含 z-index 999, position fixed, inset 0). */
   .invite-modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.30);
-    backdrop-filter: blur(16px) saturate(180%);
-    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(24px) saturate(200%);
+    -webkit-backdrop-filter: blur(24px) saturate(200%);
     /* z-index 999: 跟 CurrencyAddModal .modal-backdrop 一致 (Toast 9999 之下,
        普通 modal 999 之上, 跟 InviteLinkButton modal 同一层, 互不覆盖). */
     z-index: 999;
