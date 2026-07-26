@@ -544,6 +544,22 @@
     return msg === '提交失败' ? '保存失败' : msg;
   }
 
+  /**
+   * v0.3.35 #6 — UAT 0725-3 #7 (PO msg #9088 batch): 单币种 session 用户点击 currency pill 引导.
+   * PO 字面 "目前单币种时,账单编辑新建页面,无法选中币种". 修法: 单币种 session 时 pill
+   * 改成可点击 + 弹 toast 提示用户当前账本只有 1 种币种, 如需添加更多币种请去账本设置
+   * (跟 Batch 5 #11 重做的 CurrencyAddModal 一致, 用户可在 session 主页 / 账本设置加币种).
+   * 跟 multi-currency session 直接 set currency = code 行为一致 (反 #121 Master 自决技术细节).
+   */
+  function handleCurrencyPillClick(code: string) {
+    if (session.currencies && session.currencies.length <= 1) {
+      // v0.3.35 #6 — single-currency session 引导
+      toast.info('当前账本只有 1 种币种, 如需添加更多币种, 请前往账本设置');
+    } else {
+      currency = code;
+    }
+  }
+
   async function handleSubmit(e: Event) {
     e.preventDefault();
     // v0.3.35 #1 — UAT 0725-3 #6 (PO msg #9088 batch): description 客户端必填校验.
@@ -647,11 +663,11 @@
             type="button"
             class="currency-pill"
             class:active={currency === code}
-            class:disabled={session.currencies && session.currencies.length <= 1}
+            class:disabled={submitting}
             role="radio"
             aria-checked={currency === code}
-            disabled={(session.currencies && session.currencies.length <= 1) || submitting}
-            on:click={() => (currency = code)}
+            disabled={submitting}
+            on:click={() => handleCurrencyPillClick(code)}
           >{code}</button>
         {/each}
       </div>
