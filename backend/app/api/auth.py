@@ -33,7 +33,7 @@ import os
 import re
 import secrets
 from datetime import datetime, timedelta, timezone
-from typing import Annotated
+from typing import Annotated, Optional
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
@@ -90,6 +90,10 @@ DEV_BYPASS_EMAILS: set[str] = {
 
 class SendCodeRequest(BaseModel):
     email: str = Field(..., min_length=3, max_length=320)
+    # v0.3.35 #7 — UAT 0725-3 #12: optional expected_email (FE join 跳过来时传 raw email,
+    # BE 端 validate email == expected_email (大小写不敏感), 不一致 raise 400 email_mismatch.
+    # 反 #150 v2 defense in depth — FE pre-check 已挡, BE 端再挡一次防 race condition / direct API call.
+    expected_email: Optional[str] = Field(default=None, max_length=320)
 
 
 class SendCodeResponse(BaseModel):
@@ -139,6 +143,19 @@ async def send_verification_code(
     500: SMTP / DB failure
     """
     email = payload.email.strip()
+
+    # v0.3.35 #7 — UAT 0725-3 #12: validate email matches expected_email (大小写不敏感)
+    if (
+        payload.expected_email is not None
+        and email.lower() != payload.expected_email.lower()
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "email_mismatch",
+                "hint": "邮箱与该昵称绑定的邮箱不一致",
+            },
+        )
 
     if not _EMAIL_RE.match(email) or len(email) > 320:
         raise HTTPException(
