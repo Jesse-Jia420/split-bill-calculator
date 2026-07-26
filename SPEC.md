@@ -6576,3 +6576,21 @@ c. 展示所有的 已结算记录。增加结算记录时,任一成员可给任
 #### 反模式 / 排除范围
 - 仅改 1 个 column max-width, 不改 InviteLinkButton 自身 width / padding / 字号 — 邀请按钮本身体验不变
 - 排除范围: 整个 members section 卡片 border-radius / shadow 调整 (不影响 overflow 修复)
+
+### v0.3.34 #1 — UAT 0725-1 #2 邀请弹窗 backdrop 升级 (Master 自修, PO 字面 "同汇率设置一样")
+
+**Commit**: `992e15d` (sandbox 本地, 待 push main, fix + §11 sync 同一 batch 反 #162)
+
+#### Changes (1 file)
+
+1. **改** `frontend/src/lib/components/InviteLinkButton.svelte` (+10 -3)
+   - `.invite-modal-backdrop` CSS: `backdrop-filter: blur(16px) saturate(180%)` → `blur(24px) saturate(200%)` + `background: rgba(0, 0, 0, 0.30)` → `rgba(0, 0, 0, 0.45)`. `-webkit-backdrop-filter` 同步. PO 字面 "邀请弹窗背景要全屏模糊, 同汇率设置一样" — 实际 CurrencyAddModal 是 `blur(24px) saturate(200%)` + `bg rgba(0,0,0,0.45)`, 但之前 v0.3.29 (a14820c) 改回跟 CurrencyAddModal 同款结果反而跟它不一致. 之前 v0.3.28 #8 re-fix (672ded8) 承诺升级到 24px/200%/0.45 但实际没真改源码. 修法: invite 升到 CurrencyAddModal 同款 token (blur 24px saturate 200% bg 0.45 + z-index 999 + position fixed + inset 0) 两个弹窗现在跨组件 token 完全同源.
+
+#### Verification (Playwright iPhone 13 @3x)
+- `/sessions/9` → click invite 按钮 → computed style: `backdrop-filter=blur(24px) saturate(2)` + `bg=rgba(0,0,0,0.45)` + `position=fixed` + `inset=0px 0px 0px 0px` + `z-index=999` ✓
+- `width ≈ vw (390)` + `height ≈ vh (664)` ✓ (全屏 blur)
+- `/api/sessions` CurrencyAddModal modal 触发 — vs invite modal 同款 blur + bg (跨 modal 一致)
+
+#### 反模式 / 排除范围
+- 仅改数值 (blur/saturate/alpha), position/inset/z-index 不动 (跟 CurrencyAddModal .modal-backdrop 一致)
+- 排除范围: `animate-name` / `animation-duration` (backdropFadeIn 200ms ease-out 保持原样, 不动 modal 本身 transition)
