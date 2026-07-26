@@ -6642,3 +6642,32 @@ c. 展示所有的 已结算记录。增加结算记录时,任一成员可给任
 - 仅删冗余 CTA + orphan CSS, 跟 v0.3.25 #14 1-member 紧凑 CTA banner 删法 (成员 length 0 走 EmptyState / length >=2 走 members-list-a / length === 1 取消独 CTA) 完全一致
 - 排除范围: 1-member 引导 (空态由 wizard 入口 + Owner 标识 + InviteLinkButton 3 项共同承担, 已有覆盖)
 - 排除范围: 套餐 announcement / "⼤请伙伴" / 错服的引导重生 (不是 UAT 0726-1 #3 范围)
+
+### v0.3.34 #4 — UAT 0725-2 #2 dramatic breathing 化 (Master 自修, PO msg "邀请链接并没有高亮呼吸")
+
+**Commit**: `TBD` (sandbox 本地, fix + §11 sync 同一 batch 反 #162)
+
+#### Changes (1 file)
+
+1. **改** `frontend/src/app.css` (+13 -3)
+   - `@keyframes invite-breath`:
+     * box-shadow `0 0 16px rgba(99,102,241,0.35)` → `0 0 32px rgba(99,102,241,0.65)` (rest state 静态亮)
+     * box-shadow `0 0 24px rgba(99,102,241,0.55)` → `0 0 64px rgba(99,102,241,0.85)` (peak glow 翻倍, alpha +31%)
+     * transform `scale(1.02)` → `scale(1.05)` (5% scale, 按钮 visual 鼓动)
+   - `.invite-btn-breathing` animation `1.5s` → `1.0s` (cycle 周期 33% 加快, pulse 节奏更明显)
+
+   注: transform scale 仅视觉放大, **不影响 button click box** (layout box 不变, 只有 render 放大), a11y keyboard + pointer-events 完全 OK.
+
+#### Verification (Playwright iPhone 13 @3x)
+- 在新创建的 1-member 匿名账本, 首次进入时 (clear cookies + sessionStorage, POST `/api/sessions` 创建 anon, member_nicknames=['AnonTest'] → POST `/api/sessions/{id}/join-claim` 拿 secret → 写 localStorage `sbc.actingAs.{id}` → navigate `/sessions/{id}` 等 3s):
+  * `.invite-btn-breathing` class 应用 ✓
+  * computed animation-name `invite-breath` + duration `1.0s` + iteration-count `infinite` + timing `ease-in-out` ✓
+  * box-shadow 0%/100% (32px / 0.65) ↔ 50% (64px / 0.85) 周期可见（image tool 实判）
+  * sessionStorage `sbc-visited-{id}` 阻止二次访问触发 ✓
+- reload 后不触发 ✓ (跟 v0.3.31 一致, sessionStorage marker 生效)
+- 已认领账本 (session 9) isAnonOwner=false 不触发 ✓
+
+#### 反模式 / 排除范围
+- 仅改 5 数值 (box-shadow x2 / alpha x2 / scale / duration). 不动 transform-origin / pointer-events / z-index / focus 状态
+- 排除范围: prefers-reduced-motion 适配 — 等 PO 反馈后再加
+- 排除范围: 呼吸 audio / haptic feedback — 未在 UAT spec 中要求
