@@ -75,14 +75,16 @@
      因为 Svelte scoped CSS 不能跨组件).
      v0.3.27-#17 (PO 0723-3 续): FAB bg 条件化 — 有 sessions 浅色 (默认, v0.3.17 原值),
      0 sessions 深色 (.emphasized 状态). 取消箭头改走颜色引导路径. */
-  /* v0.3.33 — UAT 0725-3 #5 (PO msg 21:00 后 batch):
-     FAB bg 之前 alpha 0.04/0.02 + font-weight 300 太淡, "+" 几乎看不见.
-     还原 v0.3.27 #10 原意 (玻璃 + 显著 "+" icon).
-     - bg alpha 0.04/0.02 → 0.18/0.14 (跟 .emphasized 同色, 跟全站 glass 同族)
-     - border 1px 0.18 → 1.5px 0.35 (玻璃边缘补偿)
-     - font-weight 300 → 500 ("+" 不再发虚)
-     - text-align center (而不是 display:grid 跟 padding-bottom 3px 互相打架)
-     - 加 glass shadow (inset highlight + outer lift) 跟全站 .glass-pill 同族 */
+  /* v0.3.34 #2 — UAT 0726-1 #2 (PO 字面 "和账单列表页添加账单按钮完全一致"):
+     sessions/+page.svelte .fab CSS 完全复制 /sessions/[id]/+page.svelte 1787+ 同名 CSS.
+     v0.3.33 #5 (批次 02345b3) 改 sessions fab bg 深 (0.18/0.14) + border 1.5px 0.35 + 加 indigo shadow
+     + font-weight 500 + line-height 76px — 跟 bills fab 完全不一致. PO 字面要 "完全一致".
+
+     注: v0.3.33 #5 当时注解 "实测 0.04/0.02 太淡 + '+' 字乱码". 这个 "+" 渲染问题会再次出现.
+     后续 (sprint 之后) 如 PO 反馈 "+" 渲染, 用 pseudo-element ::before 渲染 indigo bg + ::after 渲染 "+"
+     单独处理, 不再改 bg/border/shadow. 当前 sprint 仅字面执行 PO 完全一致要求.
+
+     保留: .fab.emphasized (0 sessions 引导深色状态, 仅 sessions 页需要, bills 页不需要). */
   .fab {
     position: fixed;
     right: 28px;
@@ -90,50 +92,30 @@
     width: 80px;
     height: 80px;
     border-radius: 50%;
-    background: linear-gradient(
-      135deg,
-      rgba(99, 102, 241, 0.18) 0%,
-      rgba(59, 130, 246, 0.14) 100%
-    );
-    border: 1.5px solid rgba(99, 102, 241, 0.35);
-    font-size: 38px;
-    font-weight: 500;
-    line-height: 76px;       /* 80 - 2*2 border, 视觉居中 "+" */
-    text-align: center;
+    background: linear-gradient(135deg, rgba(99,102,241,0.04) 0%, rgba(59,130,246,0.02) 100%);
+    border: 1px solid rgba(99,102,241,0.18);
+    font-size: 36px;
+    font-weight: 300;
+    line-height: 1;
     z-index: 50;
     cursor: pointer;
-    display: block;
+    display: grid;
+    place-items: center;
     padding: 0;
+    padding-bottom: 3px;
     text-decoration: none;
-    color: var(--accent-700, #4338ca);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.45),
-      0 6px 16px rgba(99, 102, 241, 0.18);
     transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease, color 150ms ease;
   }
-  .fab:hover {
-    transform: translateY(-2px);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.55),
-      0 8px 20px rgba(99, 102, 241, 0.24);
-    text-decoration: none;
-  }
+  /* .fab:hover / .fab:active / .fab:focus-visible 跟 bills fab 一致 — 由 .glass-pill 全局 hover 提供. */
   /* v0.3.27-#17 (PO 0723-3 续): 0 sessions 状态 — FAB 颜色更深以引导创建.
-     0 sessions 状态 bg alpha 0.18/0.14 → 0.32/0.26 (比默认更深一档, 但保持玻璃语言). */
+     保持 v0.3.27 设计: bg alpha 0.32/0.26 + border 1px 0.50 (跟 v0.3.27 #17 原始值, 跟 .fab 默认浅色差一档). */
   .fab.emphasized {
     background: linear-gradient(
       135deg,
       rgba(99, 102, 241, 0.32) 0%,
       rgba(59, 130, 246, 0.26) 100%
     );
-    border: 1.5px solid rgba(99, 102, 241, 0.50);
-  }
-  .fab:active {
-    transform: scale(0.96);
-  }
-  .fab:focus-visible {
-    outline: 2px solid #fff;
-    outline-offset: 2px;
+    border: 1px solid rgba(99, 102, 241, 0.50);
   }
   @media (max-width: 600px) {
     .fab {
