@@ -6671,3 +6671,45 @@ c. 展示所有的 已结算记录。增加结算记录时,任一成员可给任
 - 仅改 5 数值 (box-shadow x2 / alpha x2 / scale / duration). 不动 transform-origin / pointer-events / z-index / focus 状态
 - 排除范围: prefers-reduced-motion 适配 — 等 PO 反馈后再加
 - 排除范围: 呼吸 audio / haptic feedback — 未在 UAT spec 中要求
+### v0.3.35 #1 — UAT 0725-3 #6 BillForm description 客户端必填校验 + 红框玻璃质 (Master 自修, PO 字面 "若用户未填写说明就提交, 则 toast 提示, 必须填写账单说明, 且说明框变红(红色玻璃质感)")
+
+**Commit**: `TBD` (sandbox 本地, fix + §11 sync 同一 batch 反 #162)
+
+#### Changes (1 file)
+
+1. **改** `frontend/src/lib/components/BillForm.svelte` (+22 -6)
+   - state (line 137 附近): 加 `let descriptionError = false;` (Svelte 4 plain let, 不用 $state — 跟 submitting 模式同源)
+   - handleSubmit 起始 (line 504):
+     * `description.trim() === ''` → `descriptionError = true` + `toast.error('请填写账单说明')` + return
+     * 否则 `descriptionError = false` 后继续 amount/payer/participants 校验链
+   - HTML label (line 617): `说明(必填)` → `说明`
+   - HTML input (line 625-628):
+     * 加 `class:input-error={descriptionError}` 让红框 toggle
+     * on:input 内加 `if (description.trim() !== '') descriptionError = false` — 用户开始打字立刻清红框
+   - CSS 新增 `input.input-error` (line 1190+):
+     * `border-color: rgba(244, 63, 94, 0.55) !important` (rose-500, 跟 toast.error 同色)
+     * `background: linear-gradient(135deg, rgba(254, 226, 226, 0.32) 0%, rgba(254, 202, 202, 0.22) 100%) !important` (rose-100 玻璃质 bg)
+     * `box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), inset 0 -1px 0 rgba(244, 63, 94, 0.12), 0 0 0 3px rgba(244, 63, 94, 0.18), 0 0 24px rgba(244, 63, 94, 0.20) !important` (inset highlight + rose 3px ring + 24px halo)
+
+   颜色参数跟 `frontend/src/lib/components/Toast.svelte` `.toast-item.error` (rose→red rgba(244,63,94,...)) 视觉同源. 红框 + 红 toast 视觉一致.
+
+#### Verification (Playwright iPhone 13 @3x)
+- 走 `/sessions/9/bills/new` (session 9 = 泰国测试账单 2 7.25-7.28 CNY+THB 6 members, demo@example.com 登录, sandbox DB 已确认 sessions/currencies/bills 在场)
+- 场景 A — 空提交:
+  * 不填说明, 直接点 FAB save → `toast.error('请填写账单说明')` 出现 ✓ (4s 显示)
+  * `<input#desc>` 同时应用 `.input-error` class ✓
+  * computed style 验: border-color rgb(244, 63, 94) + box-shadow 含 `rgb(244, 63, 94) 0px 0px 0px 3px` ring + `24px` halo ✓
+  * image tool 实拍 PNG: 红色玻璃质边框 + rose-100 渐变 bg + rose-500 ring 跟 toast 同色 ✓
+- 场景 B — 输入后清红:
+  * 接场景 A 输入 "晚餐" → on:input 内 descriptionError = false → class 移除 + input 视觉恢复正常 ✓
+  * 再 submit → 走正常 handleSubmit amount/payer/participants 校验
+- 场景 C — 编辑模式 (prefill description 不动):
+  * `/sessions/9/bills/{id}/edit` → prefilled description 仍 visible, descriptionPristine=true 保持 ✓
+- svelte-check: 0 errors / 23 warnings baseline 同, 0 new error ✓
+
+#### 反模式 / 排除范围
+- 仅动 description 一个字段. 跟早有的 amount/payer/participants 三个 client validation 同模式 (toast.error 直接拦, 不进 BE).
+- 排除范围: description 字数 limit < 500 的字符计数 UI — PO 未要求.
+- 排除范围: 把「(必填)」字面从 description 移到 amount/payer/participants 等其他 label — 它们字面已经是"请选择"等没说 (必填), 不动.
+- 排除范围: BE Pydantic `description: str = Field(min_length=1)` 改 min_length=0 — client validation 已拦, BE 保留保护, 后端 schema 不动.
+- 排除范围: amount/payer/participants 同期加红框 (PO 只字面说 "说明框变红", 其他字段保持原 toast 单反馈).
