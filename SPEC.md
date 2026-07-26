@@ -6738,3 +6738,35 @@ c. 展示所有的 已结算记录。增加结算记录时,任一成员可给任
 - 排除范围: 撤销 stack 改 left/top 错边 — 当前 bottom 已经够宽, 不用改 横向.
 - 排除范围: z-index 调整 — 当前 60 < toast 9999 视觉正确 (toast 是更重要反馈, 撤销是次要).
 - 排除范围: undoStack 设计整体重做 (FAB / dismiss animation) — PO 未要求.
+
+### v0.3.35 #3 — UAT 0725-3 #9 删除账单二次确认 (Master 自修, PO 字面 "删除账单时要二次确认")
+
+**Commit**: `TBD` (sandbox 本地, fix + §11 sync 同一 batch 反 #162)
+
+#### Changes (1 file)
+
+1. **改** `frontend/src/routes/sessions/[id]/+page.svelte` (+204 -1)
+   - state (line 418-419): 加 `let pendingDeleteBillId: number | null = $state(null);` + `let pendingDeleteBillLabel: string = $state('');`
+   - helpers (line 420-435): `requestDeleteBill(billId)` 找到 bill → set pending + label / `cancelDeleteBill()` 清 pending / `confirmDeleteBill()` 清 pending + 调 `handleDeleteBill(id)`
+   - BillListGrouped onDelete change (line 939): `onDelete={handleDeleteBill}` → `onDelete={requestDeleteBill}` (拦截后弹 modal, 用户确认后真删)
+   - modal template (line 968-995 before FAB anchor): 复用 SessionCard v0.3.25 #16 confirm-modal 风格
+     * `.modal-backdrop` 全屏 dim (z-index 1000, Toast 9999 下, 普通 modal 999 上)
+     * `.modal-box` (320px wide) 圆角 18px 玻璃 + `.modal-icon` 红 trash svg + `.modal-title` "删除账单" + `.modal-desc` 显示 `「{pendingDeleteBillLabel}」` + `.modal-desc-secondary` "5 秒内可撤销"
+     * `.modal-actions` row: 「取消」+「确认删除」2 pill buttons
+   - CSS (line ~2031 end of `<style>`): `.modal-backdrop` + `.modal-box` + `@keyframes fade-in` (160ms ease) + `pop-in` (200ms cubic-bezier overshoot) + `.modal-icon` (rose-tinted circle) + `.modal-title` (17px / weight 700) + `.modal-desc` (14px gray-700 / strong gray-900 weight 600) + `.modal-desc-secondary` (13px gray-500) + `.modal-actions` (flex gap 10px) + `.btn-cancel` (半透明白玻璃, flex:1) + `.btn-danger` (rose→red linear-gradient, flex:1)
+
+   完整复用 SessionCard v0.3.25 #16 confirm-modal CSS (template line 540-620 + CSS line 985-1075) — `.modal-backdrop` / `.modal-box` / `.modal-icon` / `.modal-title` / `.modal-desc` / `.modal-desc-secondary` / `.modal-actions` / `.btn-cancel` / `.btn-danger` + `@keyframes fade-in` + `@keyframes pop-in` 全套 token 同源, 零设计 token 自创, 跟全站 glass style 一致.
+
+#### Verification (反 #101 + 反 #150 v2 真用户场景端到端)
+
+   走 `/sessions/9` 详情页 (5 CNY 泰国测试 session 9):
+   - 场景 A — swipe bill + tap 删除 → modal 弹 (不真删): 用户 swipe 右滑 bill → `.bill-swipe-action-right` 红删除按钮 → tap → modal 弹出, bill.description 显示在 `.modal-desc` 「X」, `pendingDeleteBillId` 不为 null. bills 数组不变 (modal 没确认前不调 handleDeleteBill).
+   - 场景 B — 取消 modal: 点「取消」→ modal 关, pendingDeleteBillId = null. bills 数组不变. undo toast 没弹.
+   - 场景 C — 确认 modal: 点「确认删除」→ pendingDeleteBillId = null + 调 handleDeleteBill(id), 触发乐观删除 + 5s undo toast (跟之前 v0.2.1 T04 一样).
+   - 场景 D — 直接点 backdrop 关: 点 backdrop (`on:click={cancelDeleteBill}`) → 跟点「取消」同效果.
+
+#### 反模式 / 排除范围
+   - 仅在 FE 加 modal + state + handlers + CSS. 不改 JS 流程 (handleDeleteBill 已做乐观 + undo), 不改 BE API.
+   - 排除范围: 抽 modal 到独立组件 — 复用 inline 保持低复杂度, 不引入新 component 文件.
+   - 排除范围: 二次确认加在 swipe step (drag finish) — PO 字面 "删除账单时要二次确认" 是在点删除 button 时 modal, 不是 swipe 中.
+   - 排除范围: 改 Toast.svelte — modal 跟 toast 正交不冲突.
