@@ -604,7 +604,6 @@
       {/if}
     </footer>
   </div>
-</div>
 
 <style>
   .sheet-backdrop {
