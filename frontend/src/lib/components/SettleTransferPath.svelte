@@ -106,7 +106,10 @@
 
     <h3>建议转账</h3>
     {#if data.transfers.length === 0}
-      <p class="muted settled-emoji">所有人都已结清 🎉</p>
+      <!-- v0.3.36 #14 (UAT 0727-1): 跟建议转账区域的 .transfer-card 同款玻璃风 -->
+      <div class="transfer-card transfer-card-empty">
+        <p class="settled-emoji">所有人都已结清 🎉</p>
+      </div>
     {:else}
       <ul class="transfers-list" style="list-style: none; padding: 0; margin: 0;">
         {#each data.transfers as t, i (i)}
@@ -254,6 +257,18 @@
   @supports not (backdrop-filter: blur(1px)) {
     /* v0.3.18 #48: fallback 0.92 → 0.55 (跟新 base 同比例降级, 仍提供 fallback opaque 可读性) */
     .transfer-card { background: rgba(255, 255, 255, 0.55); }
+  }
+  /* v0.3.36 #14 (UAT 0727-1): 空状态卡片 — 跟 .transfer-card 同款玻璃, 文本居中.
+     继承 .transfer-card 的 padding / border-radius / backdrop-filter / box-shadow / border,
+     override: justify-content: center (横向居中单元素) + text-align: center. */
+  .transfer-card-empty {
+    justify-content: center;
+    text-align: center;
+  }
+  .transfer-card-empty .settled-emoji {
+    margin: 0;
+    font-weight: 500;
+    color: var(--gray-700);
   }
   /* `.transfer-li` items are spaced by gap on .transfers-list — no extra
      per-card margin needed. */
