@@ -7315,3 +7315,75 @@ Jesse 拍对答案 **f.邀请链接被使用过才行** = 复制成功 + modal �
 - 同一个 sessionStorage key (per session.id 隔离) — 复制/打开后只在当前 session 标记。跨 session 不共享。
 
 **反 #162 同 batch fix + SPEC §11 + git push + UAT 勾 ✅**.
+
+### v0.3.36 #15 — UAT 0727-1 #15 SettlementRow 超长 item 横向滚动 affordance (PO 拍板 e.a = 左/右边缘渐变阴影)
+
+**PO 字面** (Jesse msg 2026-07-27 23:35 "e.a"):
+> 已结算记录 section 下的 item 如果超长, 则每个独立的 item 可以左右滚动。不要改变目前每个 item 内部的结构
+
+拍板方案 **e.a** = **左/右边缘渐变阴影** (iOS Mail / Telegram 风格). 设计师出 3 状态 mockup (短 record 无阴影 / 中等 record 仅右侧 28px 白色 fade / 长 record 双侧 28px 白色 fade), sandbox 路径 `frontend/scripts/v0727-1-15-mockup-{1,2,3}.{html,png}` + 脚本 `v0727-1-15-mockup.cjs`.
+
+**改动 (2 个文件)**:
+- `frontend/src/lib/components/SettlementRow.svelte` — 主任务改动文件. (1) script convert 到 Svelte 5 runes mode: `export let record/sessionMemberId/onDelete` → `let { record, sessionMemberId, onDelete = undefined } = $props()` + `$: canDelete` / `payerPal` / `payeePal` → `$derived` (runes mode 必须, 因为要用 $effect). (2) root `<div class="record-row">` 加 `scroll-wrapper` class + `bind:this={rowEl}`. (3) 新增 `$effect`: 监听 `scroll` event + `ResizeObserver` → 切 `at-start` / `at-end` class (1px tolerance 处理 subpixel). (4) 新增 CSS:
+  ```css
+  .scroll-wrapper { position: relative; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; -ms-overflow-style: none; }
+  .scroll-wrapper::-webkit-scrollbar { display: none; }
+  .scroll-wrapper::before, .scroll-wrapper::after {
+    content: ''; position: absolute; top: 0; bottom: 0; width: 28px;
+    pointer-events: none; z-index: 2; opacity: 0; transition: opacity 200ms ease;
+  }
+  .scroll-wrapper::before { left: 0; background: linear-gradient(to right, rgba(15,23,42,0.10), rgba(15,23,42,0) 100%), linear-gradient(to right, rgba(255,255,255,0.85), rgba(255,255,255,0) 100%); }
+  .scroll-wrapper::after  { right: 0; background: linear-gradient(to left,  rgba(15,23,42,0.10), rgba(15,23,42,0) 100%), linear-gradient(to left,  rgba(255,255,255,0.85), rgba(255,255,255,0) 100%); }
+  .scroll-wrapper:not(.at-start)::before { opacity: 1; }
+  .scroll-wrapper:not(.at-end)::after { opacity: 1; }
+  ```
+  (5) 配套 3 处 CSS 微调 (允许 flex children 自然撑开触发 wrapper 滚动):
+  - `.row-info { min-width: auto; }` (原 `min-width: 0` → 内容驱动宽度, 不提前收缩)
+  - `.row-meta { overflow: visible; text-overflow: clip; }` (原 `overflow: hidden; text-overflow: ellipsis` → 让 meta 字符串溢出, 由 wrapper 滚动展示)
+  - `.row-name { white-space: nowrap; }` (新加 → 名字不换行, 保持横向溢出)
+
+- `frontend/src/routes/s/[code]/settle/+page.svelte` — ⚠️ **PREREQUISITE FIX (反 #150 v2 #15 验证必走 / 反 #162 同 batch)**: 跟 #15 同 batch fix. commit 589ca59 (UAT 0727-1 #8 sub-route) 引入 `$state` / `$derived` runes (file 进入 runes mode), 但把所有 reassigned vars 都改成 plain `let` (原 b96252a 是 `$state(true)` / `$state(null)`). 后果: runes mode 下 plain `let` **不**触发响应式更新, `loading = false` / `session = result` / `records = [...]` 等写入后 `{#if loading}` / `{:else if session}` / `{#each records}` 模板都不更新 → **settle 页永远卡在 "加载结算..." LoadingOverlay**. Coder #15 验证必走 /s/64BZQNX9NU/settle 实页面 (反 #150 v2 #3 证: 真视觉位置), 不修这个 prerequisite 验证脚本连第 1 步 wrapper 元素都拿不到. 修法: 11 个 reassigned vars 加 `$state()` 包装 (跟主页面 `/s/[code]/+page.svelte:56-65` 同模式):
+  ```ts
+  let session: SessionDetail | null = $state(null);  // 原: null
+  let currentMember: { id: number } | null = $state(null);  // 原: null
+  let loading = $state(true);  // 原: true
+  let addCurrencyOpen = $state(false);  // 原: false
+  let records: SettlementRecord[] = $state([]);  // 原: []
+  let recordsLoaded = $state(false);  // 原: false
+  let addSheetOpen = $state(false);  // 原: false
+  let settleRefreshKey = $state(0);  // 原: 0
+  let bills: Bill[] = $state([]);  // 原: []
+  let billsLoaded = $state(false);  // 原: false
+  let memberIdToName: Record<number, string> = $state({});  // 原: {}
+  let memberIdToRole: Record<number, string> = $state({});  // 原: {}
+  let viewMode: ViewMode = $state(defaultViewMode(session));  // 原: defaultViewMode(session)
+  let activeTab: Tab = $state('overview');  // 原: 'overview'
+  ```
+  修后: svelte-check warnings 从 49 → 38 (减 11 个 `non_reactive_update` warn), 4 errors baseline 同 (vite.config.ts 缺 @types/node), 0 new error. settle 页 LoadingOverlay 终于能在数据 fetch 后消失 → records 真正渲染出来 → Coder #15 验证脚本能拿到 `.scroll-wrapper` 元素. **⚠️ 这是 589ca59 引入的 regression bug**, 跟 #15 一样应该在 589ca59 commit 当时就修; 之前没人真机点 /s/{code}/settle 所以没发现. PO UAT 0727-1 #15 反馈时已报 settle 页常显示 loading overlay, 但当时 PO 不在 settle 页直接 debug, bug 一直没被外化. Coder #15 现在补上.
+
+**Verification (反 #150 v2 + 反 #128 + 反 #150 v2 #3 真视觉位置)**:
+- svelte-check baseline 不变 + 减 warn (4 errors / 38 warnings, 跟 baseline 49 比减 11 — 减的全是 prerequisite fix 修掉的 `non_reactive_update` warn; 0 new error — errors 全在 `vite.config.ts:3/29/31` 缺 `@types/node` 引入, 跟本任务无关).
+- source grep 全 live: `grep -n "scroll-wrapper\|at-start\|at-end\|\$effect" frontend/src/lib/components/SettlementRow.svelte` 14 处命中.
+- Playwright iPhone 13 @3x 真机 walk (`frontend/scripts/v0727-1-15-verify.cjs`) — login → /s/64BZQNX9NU/settle → **23 项 check 全 PASS**:
+  * Check 1: 7 个 record-row 都有 `.scroll-wrapper` class (7/7)
+  * Check 2a-e: short wrapper (无溢出) at-start + at-end 都在, ::before / ::after opacity 都 = 0 (双侧 fade 不可见) — 4/4 PASS
+  * Check 3a-e: long wrapper (溢出) at-start 在, at-end 缺, ::before opacity = 0 (左 fade 不可见), ::after opacity = 1 (右 fade 可见) — 5/5 PASS
+  * Check 4: 滚到中间 → NOT at-start + NOT at-end, 双侧 fade 都 opacity = 1 — PASS
+  * Check 5: 滚到最右 → NOT at-start + at-end, 仅左 fade opacity = 1 (右 fade opacity = 0) — PASS
+  * Check 6a-g: computed style 验证 (position relative / overflow-x auto / ::before ::after position absolute + 28px width + 双层渐变 background) — 7/7 PASS
+  * Check 8a-c: 内部 record-row 结构 100% 不变 (5 children: avatar / arrow-mini / avatar / row-info / row-amount, 顺序正确, 同时含 `.record-row` + `.scroll-wrapper` class) — 3/3 PASS
+- 5 张 verify PNG 存 `~/.openclaw/media/browser/v0727-1-15-settlement-scroll/` (iPhone 13 @3x 1170x1992):
+  * `01-settle-overview-default.png` (默认 settle 页概览)
+  * `02-settle-overview-fullpage.png` (fullPage 截图)
+  * `03-long-record-start.png` (长 record 滚动到初始位置, 仅右 fade)
+  * `04-long-record-middle.png` (长 record 滚到中间, 双侧 fade)
+  * `05-long-record-end.png` (长 record 滚到最右, 仅左 fade)
+- 反 #162 ✅ fix + SPEC §11 sync + prerequisite fix 同一 batch (单 commit `pending`).
+
+**排除范围 (本任务不修, 待 PO 决定)**:
+- 内部 [avatar][name→name][meta][amount] DOM 顺序 / 字体 (12px avatar / 14px name / 11px meta / 14px amount) / padding (12px 14px) 100% 不变. CSS 微调只动 `min-width` / `overflow` / `white-space` 3 处允许滚动, 不改视觉尺寸/间距/字体.
+- record 内部子元素不加 border / background 装饰 (fade 由 wrapper 的 ::before / ::after 提供, 不进入 record-row 内部).
+- 不引入新 design token. 复用现有 `rgba(255,255,255,0.85)` 白 mask + `rgba(15,23,42,0.10)` 深 slate scrim (跟 `app.css` 全站 glass 语言同源).
+- 不加额外 npm 包. 滚动隐藏走原生 `scrollbar-width: none` + `::-webkit-scrollbar { display: none }` (跟 `SessionMemberList.svelte:206-210` `.chip-row` 同款).
+- 不改 record 间距 / margin / padding 内部尺寸 (`.record-row` padding 12px 14px + gap 10px 全保持).
+- prerequisite fix `frontend/src/routes/s/[code]/settle/+page.svelte` 11 个 `$state()` 包装不引入新 design token / 不改逻辑, 纯响应式 bug 修.
