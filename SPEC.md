@@ -7028,3 +7028,23 @@ PO msg 2026-07-27 12:19 部署后 Master 自查发现:
 **Bug C (对齐精度)**: BE `version.py` 用 `--short=8` 返 8 字符 hash (e.g. `ee72c0d2`), FE vite plugin 用 bare `--short` 返 7 字符 (e.g. `ee72c0d`). 同 commit 但视觉不对齐. 修法: FE plugin 也用 `--short=8`, 跟 BE 一致.
 
 **教训 (写进 MEMORY 反 #159)**: 改 vite.config.ts 后, 不要靠 HMR, 必须 kill 旧 PID 重起新进程 (setid + nohup + disown). 这次 vite 自动检测 config 变化重起了 (vite.config.ts watcher 工作), 但 BE 不会自动重起 — 必须手动 pkill + 新启, 否则 in-memory `VERSION` 常量还是旧 git HEAD.
+
+### v0.3.36 follow-up #2 — 4 行 component event listener 还原 (PO msg 2026-07-27 13:36 "a" = 选修复方案 a)
+
+承接上一轮 (3356ad5) 末尾 ⚠️ 已知 regression. PO 选 (a) 方案：把 sed 误改的 component event listener 还原 `on:event=`. Svelte 5 backbone compat 仍支持 `on:event=` syntax on components that use createEventDispatcher (译: 监听子组件通过 dispatch('confirm') / dispatch('close') 派发的 CustomEvent).
+
+**改动 4 行**:
+- `frontend/src/lib/components/BillForm.svelte:631` — `<AmountCalculatorInput ... onconfirm={(e) => ...}>` → `<AmountCalculatorInput ... on:confirm={(e) => ...}>` (影响 BillForm 走 confirm 流程: 金额计算器点确认 → 同步 amount + amountExpression 到 parent)
+- `frontend/src/routes/sessions/[id]/+page.svelte:1042` — `<CurrencyAddModal ... onclose={() => (addCurrencyOpen = false)}>` → `on:close=...>` (影响详情页右上角 × / 弹窗外点 / backdrop 点 / "知道了" 按钮关弹窗)
+- `frontend/src/routes/sessions/[id]/settle/+page.svelte:385` — 同上 pattern, `CurrencyAddModal` 关弹窗
+- `frontend/src/routes/sessions/[id]/settle/+page.svelte:407` — `<AddSettlementSheet onclose={() => (addSheetOpen = false)}>` → `on:close=...>` (影响 settle 页 已结算记录 + / 调整 transfer sheet 关弹窗)
+
+**没动的 (之前 sed 改对了, HTML element events)**:
+- BillForm.svelte:687 `on:input={() => {` on `<input id="desc">` (HTML) → 保留 `oninput={() => {` 正确
+- BillForm.svelte:775 `on:blur={() => handlePillBlur(m.id)}` on `<input class="pill-input">` (HTML) → 保留 `onblur={...}` 正确
+- `<svelte:window onkeydown={...}>` (5 处) → 保留 `onkeydown={...}` 正确 (svelte:window 是 builtin element, Svelte 5 接受 oneventname)
+- `<form onsubmit={handleSubmit}>` → 保留 (HTML element event)
+
+**机制解释**: Svelte 5 attribute 形态 (`on{event}={handler}`) 在 component 上等同于 callback prop (跟子组件声明 `let onClose` 类似). Svelte 4 组件用 `createEventDispatcher` 派发 CustomEvent, parent 必须用 `on:event={handler}` attribute 才能 intercept. 反向不工作: `on{event}={handler}` attribute on component 不会 catch dispatch. **修法候选 (b)**: migrate child 组件到 callback props (deprecate createEventDispatcher). 但 Jesse 选 (a), 更小更快, 不动 child files.
+
+**预期效果**: Master 跟 PO 现在可以正常走 BillForm submit / CurrencyAddModal close / AddSettlementSheet close 流程 (之前会 silent break). Version badge (v0.3.36 主功能) 不受影响.
