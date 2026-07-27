@@ -27,6 +27,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { X as XIcon } from 'lucide-svelte';
+  import { portal } from '$lib/actions/portal';
   import { toast } from '$stores/toast';
   import { createSettlementRecord, type SettlementRecord } from '$api/settlements';
   import { ApiError } from '$api/client';
@@ -164,6 +165,10 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
+<!-- v0.3.27 (PO msg 9234 真机截图质问, 跟 InviteLinkButton / CurrencyAddModal 同根因): wrap 整个
+     modal markup 在 `<div use:portal>` host 里, portal action 物理 appendChild 到 document.body,
+     跳出 ancestor 任何 backdrop-filter 的 CSS containing block trap. -->
+<div use:portal data-testid="add-settlement-sheet-host">
 <!-- Backdrop (跟 mockup 2 / 3 一致: rgba(15,23,42,0.40) + blur(4px)) -->
 <div
   class="backdrop"
@@ -341,6 +346,7 @@
   </div>
 
   <div class="home-indicator" aria-hidden="true"></div>
+</div>
 </div>
 
 <style>
