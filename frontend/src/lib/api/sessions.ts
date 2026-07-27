@@ -108,7 +108,15 @@ export const listSessions = () =>
 
 export const getSession = (id: number) => {
   const url = '/sessions/' + id;
-  return apiFetch<SessionDetail>(url);
+  // v0.3.36 (UAT 0727-1 #8): /sessions/[id] 瘦壳要给 anon 成员也能 resolve, 必须
+  // 发 X-Nickname-Secret header (否则 401 → apiFetch 重定向到 /auth/login,
+  // URL hash 化反而进不去). sync mirror getSessionByCode 的 anonHeaders 模式.
+  const headers: Record<string, string> = {};
+  if (typeof window !== "undefined") {
+    const secret = localStorage.getItem("sbc.actingAs." + id);
+    if (secret) headers["X-Nickname-Secret"] = secret;
+  }
+  return apiFetch<SessionDetail>(url, { headers });
 };
 
 /** v0.3 (PRD §3.10): session detail with acting-as member ID.
