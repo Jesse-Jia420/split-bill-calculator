@@ -373,7 +373,10 @@
     transition: background-color 120ms ease;
     -webkit-tap-highlight-color: transparent;
     position: relative;
-    z-index: 180;
+    /* v0.3.36 #13 (UAT 0727-1): 删 z-index: 180.
+       之前 z-index: 180 高过 NavBar (z-index: 100), 滚动时 amount-row 盖住 page header.
+       现在 z-index 缺省 auto → amount-row 在 main 正常 flow, NavBar 自然在上.
+       keypad 打开时 .sheet (position: fixed z-index 150) 自带 stacking context, 仍能正常显示. */
   }
   .amount-row:focus-visible {
     outline: 2px solid var(--accent-500, #3b82f6);

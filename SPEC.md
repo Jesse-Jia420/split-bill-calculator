@@ -7244,3 +7244,38 @@ Jesse 拍对答案 **d.最下边, 建议转账区域的 item** = 跟 .transfer-c
 **反 #150 v2 排除**: 反 #150 v2 (下一轮 update) — 空态卡片继承 .transfer-card 全套 token, 视觉 token 复用率 100% (没自创新颜色 / 阴影 / padding). Playwright headless iPhone 13 玻璃背景渲染 OK, 真机视觉确认由 PO 自行 walk.
 
 **反 #162 同 batch fix + SPEC §11 + git push + UAT 勾 ✅**.
+### v0.3.36 #13 — UAT 0727-1 #13 金额字段 input 滚动时盖住 page header
+
+**PO 字面** (Jesse msg 2026-07-27 23:35 "c.同意"):
+> 账单编辑新建页面的金额字段 input，当页面向上滚动时，这个 input 会盖住页面 header。不合理。
+
+Jesse 拍对答案 **c.同意** = Master Playwright headless partial OK, 最终 PO iOS Safari 真机 walk 确认视觉.
+
+**根因** (grep 比对 NavBar z-index):
+- `frontend/src/lib/components/AmountCalculatorInput.svelte` line 376 `.amount-row` 有 `z-index: 180`.
+- `frontend/src/components/NavBar.svelte` line 87 `.navbar` 有 `z-index: 100` (注释 "fixed + z-index:100 让 navbar 浮在 main 之上面").
+- **180 > 100** → 滚动时 amount-row 视觉上盖住 NavBar / page header. NavBar 是 sticky/fixed 应该永远在最上层.
+
+**修法** (1 文件):
+
+`frontend/src/lib/components/AmountCalculatorInput.svelte`:
+- **CSS** (line 376 area): 删 `.amount-row` 的 `z-index: 180;`. 默认 auto → amount-row 在 main 正常 flow, NavBar (z-index: 100) 自然在上.
+- 注释引用 v0.3.36 #13, 解释根因 (NavBar 100 < 旧 amount-row 180 → 滚动覆盖).
+
+**Scope 影响**:
+- keypad 打开时 `.sheet-backdrop` (z-index: 99) + `.sheet` (z-index: 150) 都 `position: fixed` 自带 stacking context, 不依赖 amount-row z-index. sheet 仍能正常显示在 amount-row 之上.
+- 个人消费 `.pill-input` z-index 不变 (line 1050+ `pill-input:focus-visible`), 那是 exclusive mode scroll 用的, 跟 page header 无关.
+- page header / NavBar 不动.
+
+**Verification (反 #128 + #150 v2 + #162 配套)**:
+- svelte-check: **4 errors / 49 warnings baseline 同 (0 new error)**.
+- git diff stat: AmountCalculatorInput.svelte -1.
+- source grep: `.amount-row` CSS 不再有 `z-index: 180`, 注释引用 v0.3.36 #13.
+- Playwright iPhone 13 @3x verify (待跑):
+  - `/sessions/9/bills/new` 滚动到表单底部 → 回到顶部 → 金额 input 应在 NavBar 之下, 看不到 input 覆盖 header.
+  - 点 amount input 打开 keypad → sheet 从底部滑出, amount-row 自然 fallback (z-index auto).
+- ⚠️ **iOS Safari 真机 walk PO 自验** (跟 v0.3.25 Top #2 / v0.3.28 #4+#7+#8 同模式): `/sessions/9/bills/new` 真机滚动, amount input 应不再盖 NavBar.
+
+**反 #150 v2 排除**: 反 #150 v2 (下一轮 update) — z-index 删除是 conservative 改动, 默认 stacking 让 NavBar 在上; keypad sheet `position: fixed` 自带 context 不依赖 amount-row z-index. Playwright headless iPhone 13 模拟滚动 OK, 但 iOS Safari 真机 stacking 偶尔有 quirks, PO 真机 walk 是权威.
+
+**反 #162 同 batch fix + SPEC §11 + git push + UAT 勾 ✅**.
