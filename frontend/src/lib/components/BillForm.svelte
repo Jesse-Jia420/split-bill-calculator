@@ -628,7 +628,7 @@
         initialAmount={amount}
         {currency}
         disabled={submitting}
-        onconfirm={(e) => {
+        on:confirm={(e) => {
           amount = e.detail.value;
           amountExpression = e.detail.expression;
         }}
