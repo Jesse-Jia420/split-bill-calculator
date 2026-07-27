@@ -134,7 +134,7 @@
   }
 </script>
 
-<svelte:window on:keydown={handleKeydown} />
+<svelte:window onkeydown={handleKeydown} />
 
 <div class="invite-row">
   <!-- PO 反馈修 6 项目 1: 点击立即复制 + 显示确认反馈。 -->

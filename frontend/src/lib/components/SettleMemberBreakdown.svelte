@@ -513,7 +513,7 @@
               tabindex="0"
               aria-expanded={paidExpanded}
               onclick={() => (paidExpanded = !paidExpanded)}
-              on:keydown={(e: KeyboardEvent) => {
+              onkeydown={(e: KeyboardEvent) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
                   paidExpanded = !paidExpanded;
@@ -618,7 +618,7 @@
               tabindex="0"
               aria-expanded={consumedExpanded}
               onclick={() => (consumedExpanded = !consumedExpanded)}
-              on:keydown={(e: KeyboardEvent) => {
+              onkeydown={(e: KeyboardEvent) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
                   consumedExpanded = !consumedExpanded;

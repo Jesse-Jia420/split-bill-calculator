@@ -1039,7 +1039,7 @@
       has_bills={bills.length > 0}
       exchange_rates={session.exchange_rates ?? []}
       onAdded={() => window.location.reload()}
-      on:close={() => (addCurrencyOpen = false)}
+      onclose={() => (addCurrencyOpen = false)}
     />
   {/if}
 </section>

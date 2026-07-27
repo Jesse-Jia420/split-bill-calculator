@@ -421,11 +421,11 @@
 <div
   class="session-swipe-wrap"
   data-testid="swipe-trigger"
-  on:touchstart={onTouchStart}
-  on:touchmove={onTouchMove}
-  on:touchend={onTouchEnd}
-  on:touchcancel={onTouchCancel}
-  on:mousedown={onMouseDown}
+  ontouchstart={onTouchStart}
+  ontouchmove={onTouchMove}
+  ontouchend={onTouchEnd}
+  ontouchcancel={onTouchCancel}
+  onmousedown={onMouseDown}
   onclick={onWrapClick}
   role="group"
   aria-label="账本: {session.name}"
@@ -543,7 +543,7 @@
   <div
     class="modal-backdrop"
     onclick={handleBackdropClick}
-    on:keydown={handleKeydown}
+    onkeydown={handleKeydown}
     role="presentation"
   >
     <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->

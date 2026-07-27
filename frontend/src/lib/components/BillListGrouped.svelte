@@ -620,7 +620,7 @@
     <ul class="day-list" style="list-style: none; padding: 0; margin: 0;">
       {#each groups as g, gi (g.date)}
         <li class="day-group" in:fly={{ y: 8, duration: 220, delay: Math.min(gi * 40, 240) }}>
-          <details open={isOpen(g.date)} on:toggle={(e) => onGroupToggle(g.date, e)}>
+          <details open={isOpen(g.date)} ontoggle={(e) => onGroupToggle(g.date, e)}>
             <!-- v0.3.18 #68 (PO #6899 ★★★ A): 固定 3 行布局 —
                  单币/双币 group 高度 100% 一致, 滚动节奏齐.
                  Row 1 = [+ toggle] [日期] ... [总笔数 badge]
@@ -800,11 +800,11 @@
                         class:swiping={!!$isDraggingStore[b.id]}
                         role="group"
                         aria-label="账单: {b.description || '(无说明)'}"
-                        on:touchstart={(e) => onTouchStart(b.id, e)}
-                        on:touchmove={(e) => onTouchMove(b.id, e)}
-                        on:touchend={(e) => onTouchEnd(b.id, e)}
-                        on:touchcancel={(e) => onTouchCancel(b.id, e)}
-                        on:mousedown={(e) => onMouseDown(b.id, e)}
+                        ontouchstart={(e) => onTouchStart(b.id, e)}
+                        ontouchmove={(e) => onTouchMove(b.id, e)}
+                        ontouchend={(e) => onTouchEnd(b.id, e)}
+                        ontouchcancel={(e) => onTouchCancel(b.id, e)}
+                        onmousedown={(e) => onMouseDown(b.id, e)}
                         onclick={onRowTap}
                       >
                         <div class="bill-row1">

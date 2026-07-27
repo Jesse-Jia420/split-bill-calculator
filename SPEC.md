@@ -7016,3 +7016,15 @@ PO 字面 "用户填写邮箱, 点击发送验证码时, 需要先和后端校�
 - **生产环境禁用** — 当前所有环境都显示. 如果 PO 想 prod 不显示 (e.g. "给用户看太技术"), 加 `if (import.meta.env.PROD) return null` 一行, 但等 PO 拍.
 - **多 branch support** — 现在显示 commit hash 不显示 branch. v0.3.32 #1 反 #190 强制 single-branch 铁律下我们永远在 main, branch 字段冗余. 不加.
 - **iOS Safari 字号自适应** — 现在 10.5px 在 iPhone 13 @3x = ~21 物理像素, 足够读. 如果 PO 真机觉得太小, 改 11.5px 或 12px.
+
+### v0.3.36 follow-up — 自查发现 3 个 bug 修复 (跟 v0.3.36 同 sprint, 单独 commit)
+
+PO msg 2026-07-27 12:19 部署后 Master 自查发现:
+
+**Bug A (v0.3.36 漏写 import)**: `+layout.svelte:87:4 ReferenceError: VersionBadge is not defined` — 我加了 `<VersionBadge />` 到模板但忘了在 `<script>` 块加 `import VersionBadge from '$components/VersionBadge.svelte'`. 修法: 加 import 行. (我自己写漏, 不是 Jesse 报告.)
+
+**Bug B (8b04942 fix 漏项, v0.3.36 暴露)**: 多个 .svelte 文件还有 `on:` Svelte 4 事件 syntax 残留. 8b04942 只迁移了 `onclick|stopPropagation` (3 处), 但 `on:touchstart|move|end|cancel` / `on:mousedown` / `on:keydown` / `<svelte:window on:keydown>` / `<form on:submit>` / 组件 event 监听 (`on:confirm` / `on:input` / `on:close`) 都没动. Svelte 5 strict mode 检测混用 → 所有 SSR 模块加载时 parse error. Codeserver vite log 显示: `SessionCard.svelte:424:2 Mixing old (on:touchstart) and new syntaxes for event handling is not allowed`. 修法: sed 全局迁移 `\bon:([a-zA-Z]+)([=|>])` → `\1\2` 即 18 处全部 `on:eventname` → `oneventname`. 包括 5 个 `<svelte:window on:keydown>` (Svelte builtin 元素, Svelte 5 也接受 `oneventname` 写法).
+
+**Bug C (对齐精度)**: BE `version.py` 用 `--short=8` 返 8 字符 hash (e.g. `ee72c0d2`), FE vite plugin 用 bare `--short` 返 7 字符 (e.g. `ee72c0d`). 同 commit 但视觉不对齐. 修法: FE plugin 也用 `--short=8`, 跟 BE 一致.
+
+**教训 (写进 MEMORY 反 #159)**: 改 vite.config.ts 后, 不要靠 HMR, 必须 kill 旧 PID 重起新进程 (setid + nohup + disown). 这次 vite 自动检测 config 变化重起了 (vite.config.ts watcher 工作), 但 BE 不会自动重起 — 必须手动 pkill + 新启, 否则 in-memory `VERSION` 常量还是旧 git HEAD.

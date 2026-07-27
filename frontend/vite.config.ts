@@ -15,7 +15,7 @@ function gitVersionPlugin() {
     name: "git-version",
     config() {
       try {
-        const hash = execSync("git rev-parse --short HEAD", {
+        const hash = execSync("git rev-parse --short=8 HEAD", {
           stdio: ["pipe", "pipe", "pipe"],
         })
           .toString()
