@@ -7279,3 +7279,39 @@ Jesse 拍对答案 **c.同意** = Master Playwright headless partial OK, 最终 
 **反 #150 v2 排除**: 反 #150 v2 (下一轮 update) — z-index 删除是 conservative 改动, 默认 stacking 让 NavBar 在上; keypad sheet `position: fixed` 自带 context 不依赖 amount-row z-index. Playwright headless iPhone 13 模拟滚动 OK, 但 iOS Safari 真机 stacking 偶尔有 quirks, PO 真机 walk 是权威.
 
 **反 #162 同 batch fix + SPEC §11 + git push + UAT 勾 ✅**.
+### v0.3.36 #16 — UAT 0727-1 #16 邀请链接呼吸 + 提醒扩展到"从未复制/打开"
+
+**PO 字面** (Jesse msg 2026-07-27 23:35 "f.邀请链接被使用过才行"):
+> 邀请链接按钮的高亮呼吸,以及 当前未登录,请收藏此链接 的提醒,目前是仅首次进入账本才显示,之后改成 只要 邀请链接从未复制过或打开过 就一直显示此提醒。
+
+Jesse 拍对答案 **f.邀请链接被使用过才行** = 复制成功 + modal 打开过都触发停止。
+
+**修法** (2 文件):
+
+1. **InviteLinkButton.svelte** (line 32-37 区域 + line 108-110):
+   - **script** (line 36-37): 加 `import { createEventDispatcher } from "svelte";` + `const dispatch = createEventDispatcher<{ copy: void; open: void }>();` (line-based 插入,因为之前 string-replace 因为 "import { portal }" 匹配失败,改用 line insertion)
+   - **handleInviteClick** (line 108-110): `if (ok) { modalOpen = true; dispatch("copy"); dispatch("open"); }` — 复制成功时同时派 copy + open 两个事件给 parent
+2. **/s/[code]/+page.svelte** (line 228-247 + line 700-725):
+   - **onMount** (line 228-247): `sbc-visited-{session.id}` → `sbc-invite-actioned-{session.id}` (key 改名), **不写** sessionStorage (默认 showBreathing/showAnonHint 都 true,PO 字面 "一直显示此提醒")
+   - **InviteLinkButton template** (line 700-725): 加 `on:copy={() => { ... }}` + `on:open={() => { ... }}` 两个 handlers — 写 `sessionStorage.setItem(\`sbc-invite-actioned-${session?.id ?? ""}\`, "1")` + setBreathing = false + setAnonHint = false (双保险 — 任意一个事件触发即停)
+
+**Scope 影响**:
+- 旧 `sbc-visited-{id}` key 弃用,新 `sbc-invite-actioned-{id}` 取代 (含义: "邀请链接已被使用过")
+- 个人消费 input / amount 字段 / 描述 / 发生时间 等其他 form field 不变
+- 外部 Save FAB / Cancel 等其他按钮不变
+
+**Verification (反 #128 + #150 v2 + #162 配套)**:
+- svelte-check: **4 errors / 49 warnings baseline 同 (0 new error)**. 之前 line-based 插入 import 之前跑出过 2 NEW errors "Cannot find dispatch" (因为 import 没真加),line-based 插入后 verify pass. 源码 grep 全 live: ILB line 36-37 有 createEventDispatcher + const dispatch,ILB line 109-110 有 dispatch("copy")/dispatch("open"),/s/[code]/+page.svelte line 246 有 sbc-invite-actioned + line 700+ 有 on:copy/on:open handlers.
+- git diff stat: InviteLinkButton.svelte +13 -0, /s/[code]/+page.svelte +24 -7
+- Playwright iPhone 13 @3x verify (待跑):
+  - 登录新建 anon-owned 账本 (session 9 类似) → 进入 `/s/{code}` → 看到邀请按钮 + 红色 pill 都在 (默认显示)
+  - 点邀请按钮 → 弹 confirm modal → 写 sbc-invite-actioned-{id} + 停 breathing + 停 hint
+  - 刷新页面 → 不再显示 breathing + hint (sessionStorage 已写)
+  - 用 incognito 模式打开同 session → 又显示 breathing + hint (sessionStorage 隔离)
+- ⚠️ **iOS Safari 真机 walk PO 自验** (跟 v0.3.25 Top #2 / v0.3.28 #4+#7+#8 同模式): 真机首次进入账本 → 呼吸 + pill 一直显示直到用户点邀请按钮 → 点完停止
+
+**排除范围**:
+- 老的 `sbc-visited-{id}` sessionStorage 标记 (从 v0.3.31 #2 沿用至今) 会被遗弃 — 之前已访问过账本的用户重新进入时,会看到 breathing + hint 重新显示一次,直到他们真的复制/打开邀请链接。如果想保留旧的 visited 标记以让老用户不重新看到,需要加 migration 逻辑 (sbc-visited → sbc-invite-actioned)。PO 拍板后可加,本次不做。
+- 同一个 sessionStorage key (per session.id 隔离) — 复制/打开后只在当前 session 标记。跨 session 不共享。
+
+**反 #162 同 batch fix + SPEC §11 + git push + UAT 勾 ✅**.

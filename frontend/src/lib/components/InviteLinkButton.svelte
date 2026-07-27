@@ -33,6 +33,13 @@
   import { X as XIcon } from 'lucide-svelte';
   import { toast } from '$stores/toast';
   import { portal } from '$lib/actions/portal';
+  // v0.3.36 #16 (UAT 0727-1): add createEventDispatcher for copy/open events
+  //   Jesse msg 2026-07-27 23:35 "f.邀请链接被使用过才行"
+  import { createEventDispatcher } from 'svelte';
+
+  /** v0.3.36 #16: dispatch 'copy' on successful clipboard write, 'open' on modal opens.
+   *   Parent /s/[code]/+page.svelte listens and writes sessionStorage to stop breathing + hint. */
+  const dispatch = createEventDispatcher<{ copy: void; open: void }>();
 
   export let sessionId: number;
   /** v0.3.1: unguessable public code from sessions.session_code. */
@@ -105,6 +112,9 @@
     if (ok) {
       // v0.3.24 #14: 成功 → 弹 confirm modal 而非 toast (PO UAT 字面要求)
       modalOpen = true;
+      // v0.3.36 #16 (UAT 0727-1): dispatch copy + open events for parent
+      dispatch('copy');
+      dispatch('open');
     } else {
       // 失败仍走 toast.error 兜底 (复制失败用户需要看到, 修以重试)
       toast.error('复制失败,请手动选中链接');

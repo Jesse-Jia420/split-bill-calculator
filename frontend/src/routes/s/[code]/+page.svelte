@@ -237,12 +237,15 @@
     // 注: members 在 load() 后已就绪, 此时 session.members[0].user_id 反映 owner 是否匿名.
     if (browser) {
       const isAnonOwner = !session?.members?.[0]?.user_id;
-      const visitedKey = `sbc-visited-${session?.id ?? ''}`;
-      const sessionVisited = sessionStorage.getItem(visitedKey);
-      if (isAnonOwner && !sessionVisited) {
+      // v0.3.36 #16 (UAT 0727-1): sbc-visited -> sbc-invite-actioned, onMount read only
+      //   Jesse msg 2026-07-27 23:35 'f.邀请链接被使用过才行'.
+      //   默认 showBreathing/showAnonHint 都 true (PO 字面 '一直显示此提醒'),
+      //   不立即写 sessionStorage — 只有 InviteLinkButton 真的派 copy/open 事件才写.
+      const actionedKey = `sbc-invite-actioned-${session?.id ?? ''}`;
+      const sessionActioned = sessionStorage.getItem(actionedKey);
+      if (isAnonOwner && !sessionActioned) {
         showBreathing = true;
         showAnonHint = true;
-        sessionStorage.setItem(visitedKey, '1');
       }
     }
   });
@@ -706,6 +709,22 @@
               sessionCode={session?.session_code ?? ""}
               {isOwner}
               breathing={showBreathing}
+              on:copy={() => {
+                // v0.3.36 #16 (UAT 0727-1): copy 成功 -> 写 sbc-invite-actioned + 停 breathing
+                if (browser) {
+                  sessionStorage.setItem(`sbc-invite-actioned-${session?.id ?? ''}`, '1');
+                }
+                showBreathing = false;
+                showAnonHint = false;
+              }}
+              on:open={() => {
+                // v0.3.36 #16 (UAT 0727-1): modal 打开 -> 同上 stop 路径
+                if (browser) {
+                  sessionStorage.setItem(`sbc-invite-actioned-${session?.id ?? ''}`, '1');
+                }
+                showBreathing = false;
+                showAnonHint = false;
+              }}
             />
             <!-- v0.3.31 #2 (UAT 0725-2 #2, PO 字面 "下方的提示改为"当前未登录,请收藏此链接,这是您回到此账本的唯一密钥！"):
                  仅匿名 owner + 首次进入账单页时渲染, 替代原 amber pill "邀请朋友加入,开始分摊第一笔账单吧".
