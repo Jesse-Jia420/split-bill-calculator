@@ -596,9 +596,22 @@
       submitting = false;
     }
   }
+  /**
+   * v0.3.36 #11 (UAT 0727-1): Enter 键在 .pill-input 不应触发表单提交, 仅 blur input.
+   * Jesse msg 2026-07-27 23:35 "a. b" — 所有 .pill-input 都应用 (每 member 的个人消费 input).
+   * 用 form-level event delegation, 不用逐 input 加 handler (per-loop 多次重复).
+   */
+  function handleFormKeyDown(e: KeyboardEvent) {
+    const target = e.target as HTMLElement | null;
+    if (e.key === "Enter" && target?.classList?.contains("pill-input")) {
+      e.preventDefault();
+      (target as HTMLInputElement).blur();
+    }
+  }
+
 </script>
 
-<form class="stack" id="bill-form" onsubmit={handleSubmit}>
+<form class="stack" id="bill-form" onsubmit={handleSubmit} onkeydown={handleFormKeyDown}>
   <!-- v0.3.15 (PO #4807 + Designer 报告): form-level error 改走 Toast 系统,
        不再渲染 inline 错误块. form 仍保留 padding-bottom: 96px 让最后
        一行 member 不被左右下角 FAB 遮挡 (5-member session 测过). -->

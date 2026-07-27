@@ -7155,3 +7155,28 @@ PO msg 2026-07-27 12:19 部署后 Master 自查发现:
 - BACKDROP 渲染序列 (`.sheet-backdrop` 在 host div 内, action 搬 host 时整体搬走) — `position: fixed; inset: 0` 也变 containing block = viewport, 视觉正确覆盖整屏.
 
 **反 #162 同 batch fix + SPEC §11 sync** — 上游 PR 拆出后续 sprint, 这次单独修.
+### v0.3.36 #11 — UAT 0727-1 #11 BillForm .pill-input Enter 触发 unfocus 不提交
+
+**PO 字面** (Jesse msg 2026-07-27 23:35 "a. b" — 所有 `.pill-input` 都应用):
+> 账单编辑新建页面的个人消费 input，填写这个 input 时，键盘上的回车按钮目前会触发提交表单的操作，期望键盘上的回车按钮触发 unfocus input。
+
+**修法** (form-level event delegation，不用逐 input 加 handler):
+1. **新 function** `handleFormKeyDown(e: KeyboardEvent)` (BillForm.svelte line 604 area): if `e.key === "Enter"` AND target `.classList.contains("pill-input")` → `e.preventDefault()` + `(target as HTMLInputElement).blur()`. 一处定义, `{#each members}` 循环内每个 personal consumption `.pill-input` (line 772 在 `{#each}` 内, 1 处定义 N 个 input 自动应用).
+2. **`<form>`** (line 614) 加 `onkeydown={handleFormKeyDown}` — 跟现有 `onsubmit={handleSubmit}` 同列, 不改其他.
+
+**Scope 影响**:
+- AmountCalculatorInput 金额 input (line ~620 内嵌 component, 不是 `.pill-input` class) — **不**触发 blur-on-Enter, 行为不变. PO 字面只说个人消费 input + "所有 .pill-input".
+- 其他 input (`#description`, `#occurredAt` etc.) — **不**触发 blur-on-Enter, 行为不变.
+- 外部 FAB (parent `bills/new` + `bills/edit`) 通过 `form="bill-form"` 提交 — 不受 form keydown handler 影响, 仍能正常提交.
+
+**Verification (反 #128 + #150 v2 + #162 配套)**:
+- svelte-check: 4 errors / 49 warnings baseline 同 (pre-existing `vite.config.ts` `@types/node` 缺失 + 4 个 baseline error 跟本任务无关), 0 new error.
+- git diff stat: BillForm.svelte 15 行 (+14 -1).
+- source grep: `function handleFormKeyDown` @ line 604 + `onkeydown={handleFormKeyDown}` @ form line 614 + 1 处 `.pill-input` @ line 772 (per-member via `{#each}`).
+- Playwright iPhone 13 @3x verify (待跑):
+  - `/sessions/9/bills/new` 登录 → 焦点移到 personal consumption `.pill-input` (member 1) → 按 Enter → form 不提交 + input blur (focus 离开).
+  - 不填 description / amount → 按 Save FAB → form 仍能提交 (onsubmit 不受影响).
+
+**反 #150 v2 排除**: 反 #150 v2 (下一轮 update) — Enter 触发 submit 是 web standard 行为, 我们的 fix 仅在 `.pill-input` 上拦截, 不影响其他 form element. iOS Safari 数字键盘 Enter 真机验需 PO 真机 walk (跟 v0.3.25 Top #2 / v0.3.28 #4+#7+#8 同模式, Playwright headless 不渲染 iOS 数字键盘).
+
+**反 #162 同 batch fix + SPEC §11 + git push + UAT 勾 ✅**.
