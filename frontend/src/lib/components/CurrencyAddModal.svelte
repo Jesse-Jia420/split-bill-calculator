@@ -576,20 +576,10 @@
       {/if}
     </div>
 
-    <!-- v0.3.19 #85 v3 PO #7731 (#5): 取消 + 保存 改圆形按钮 (跟账单保存 consistency).
-         左圆形 X 按钮 = 取消 / 右圆形 ✓ 按钮 = 保存(submit). 视觉一致: 圆形 44×44 +
-         glass material + Lucide X / Check icon + aria-label 替代 text label.
-         单币种矛盾 (showSubmit=false) 状态: 仅左圆形 X (关闭按钮), 跟弹窗右上 X 同义.
-         v0.3.35 #5 (UAT 0725-3 #11 — PO 字面 "样式要与 添加已结算记录的弹窗一致"): 取消 + 保存改 inline pill button
-         跟 AddSettlementSheet .cta-row + .btn-primary 同款 (原 .fab 圆形按钮已成 legacy visual 单族). -->
-    <footer class="sheet-foot">
-      <button
-        type="button"
-        class="btn-cancel-sheet"
-        onclick={close}
-        disabled={busy}
-        data-testid="currency-add-cancel"
-      >取消</button>
+    <!-- v0.3.27 (PO UAT 0727-1 #10): 删除页面左下角的"取消"按钮 (顶部 sheet-close × 已经等同关闭).
+         v0.3.27 (PO UAT 0727-1 #4): 弹窗内的排版跟 AddSettlementSheet 完全一致 — 单 .btn-primary
+         占满 .cta-row, 无 sheet-foot 双按钮; sheet-foot CSS 删 .btn-cancel-sheet 整段. -->
+    <div class="cta-row">
       {#if showSubmit}
         <button
           type="button"
@@ -601,8 +591,22 @@
         >
           {submitLabel}
         </button>
+      {:else}
+        <!-- single + has_bills 矛盾状态: 单「关闭」按钮 (跟顶部 sheet-close × 同义, 但放 footer 视觉更稳定) -->
+        <button
+          type="button"
+          class="btn-primary btn-primary--ghost"
+          onclick={close}
+          disabled={busy}
+          data-testid="currency-add-close"
+        >
+          关闭
+        </button>
       {/if}
-    </footer>
+    </div>
+
+    <!-- v0.3.27 (PO UAT 0727-1 #4): 排版跟 AddSettlementSheet 一致 — iOS home indicator, 让 sheet 视觉收尾对称. -->
+    <div class="home-indicator" aria-hidden="true"></div>
   </div>
 
 <style>
@@ -887,93 +891,69 @@
     line-height: 1.4;
   }
 
-  /* v0.3.19 #85 v3 PO #7731 (#5): 圆形 FAB button (跟账单保存 consistency).
-   *   圆形 44×44 + glass material (跟全站 .fab .glass-pill 同源 token) +
-   *   accent indigo 边框 + 紫蓝阴影. cancel 用 gray 主色 (secondary),
-   *   submit 用 indigo→blue gradient (primary).
-   *   v0.3.21 #106 (PO msg 17:21): 改 #3 — 取消按钮移到右下挨着保存 (flex-end + gap),
-   *   原 space-between 让 cancel 在左下角改成右下角并列, 视觉重心更聚拢. */
-  /* v0.3.27 (UAT 0723-2 #9): modal-foot padding 清, 跟 .modal padding 24px 统一管理 */
-  .modal-foot {
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    gap: var(--space-3);
+  /* v0.3.27 (PO UAT 0727-1 #4 + #10): sheet-foot 改为单一 btn-primary 占满 .cta-row,
+     跟 AddSettlementSheet 同款. 删 legacy .modal-foot + .fab / .fab--cancel / .fab--submit
+     整块 (圆形 FAB 系统已被 inline pill button 取代). PO UAT 0727-1 #10 字面 "删除页面
+     左下角的'取消'按钮, 因为在页面右上角已经有了" — 顶部 .sheet-close × button = 关闭. */
+  .cta-row {
+    padding: 4px 0 12px;
   }
-  .fab {
-    display: grid;
-    place-items: center;
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    appearance: none;
+  .btn-primary {
+    width: 100%;
+    height: 50px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.95) 0%, rgba(168, 85, 247, 0.95) 100%);
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+    border: 0;
     cursor: pointer;
-    font-family: inherit;
-    transition:
-      background 150ms ease,
-      transform 100ms ease,
-      box-shadow 150ms ease,
-      opacity 150ms ease;
-  }
-  .fab:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-    pointer-events: none;
-  }
-  /* cancel FAB (左) — gray/white 玻璃 (secondary action). */
-  .fab--cancel {
-    background: rgba(255, 255, 255, 0.45);
-    border: 1px solid rgba(148, 163, 184, 0.30);
-    color: var(--gray-600, #475569);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.6),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.03),
-      0 2px 8px rgba(148, 163, 184, 0.18);
+      0 4px 12px rgba(99, 102, 241, 0.30),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    letter-spacing: 0.01em;
   }
-  .fab--cancel:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.65);
-    border-color: rgba(148, 163, 184, 0.45);
-    transform: scale(1.03);
+  .btn-primary:hover:not(:disabled) {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 1) 0%, rgba(59, 130, 246, 1) 100%);
   }
-  .fab--cancel:active:not(:disabled) {
-    transform: scale(0.95);
+  .btn-primary:active:not(:disabled) {
+    transform: scale(0.97);
   }
-  .fab--cancel:focus-visible {
-    outline: 2px solid var(--gray-400);
+  .btn-primary:focus-visible {
+    outline: 2px solid var(--accent-500, #6366f1);
     outline-offset: 2px;
   }
-  /* submit FAB (右) — indigo→blue gradient 玻璃 (primary action). */
-  .fab--submit {
-    background: linear-gradient(
-      135deg,
-      rgba(99, 102, 241, 0.95) 0%,
-      rgba(59, 130, 246, 0.95) 100%
-    );
-    border: 1px solid rgba(99, 102, 241, 0.40);
+  .btn-primary:disabled {
+    background: rgba(15, 23, 42, 0.10);
+    color: rgba(15, 23, 42, 0.40);
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+  /* v0.3.27 (PO UAT 0727-1 #4 矛盾状态 跟 AddSettlementSheet '知道了' 同族):
+     single + has_bills 矛盾状态显示的'关闭'按钮 = 灰底玻璃 (跟普通 btn-primary 同形但
+     视觉弱化), 让用户明白这是说明性 modal, 不是改动状态. */
+  .btn-primary--ghost {
+    background: linear-gradient(135deg, rgba(148, 163, 184, 0.92) 0%, rgba(148, 163, 184, 0.85) 100%);
     color: #fff;
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.4),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.05),
-      0 4px 12px rgba(99, 102, 241, 0.32);
+      0 4px 12px rgba(148, 163, 184, 0.22),
+      inset 0 1px 0 rgba(255, 255, 255, 0.30);
   }
-  .fab--submit:hover:not(:disabled) {
-    background: linear-gradient(
-      135deg,
-      rgba(99, 102, 241, 1) 0%,
-      rgba(59, 130, 246, 1) 100%
-    );
-    transform: scale(1.03);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.5),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.05),
-      0 6px 16px rgba(99, 102, 241, 0.40);
+
+  /* v0.3.27 (PO UAT 0727-1 #4): 排版跟 AddSettlementSheet 一致 — iOS home indicator 收尾. */
+  .home-indicator {
+    height: 30px;
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    padding-bottom: 8px;
   }
-  .fab--submit:active:not(:disabled) {
-    transform: scale(0.95);
-  }
-  .fab--submit:focus-visible {
-    outline: 2px solid var(--accent-500);
-    outline-offset: 2px;
+  .home-indicator::after {
+    content: '';
+    width: 134px;
+    height: 5px;
+    background: rgba(0, 0, 0, 0.85);
+    border-radius: 100px;
   }
 
   /* v0.3.19 #85 PO #7731 (#2): 去掉 fadeIn (backdrop 透明无 opacity 变化). */
