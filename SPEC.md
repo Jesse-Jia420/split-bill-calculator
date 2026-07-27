@@ -7214,3 +7214,33 @@ Jesse 拍对答案 **c 完全同款** = amount <= 0 + 空都触发，玫瑰红�
 **反 #150 v2 排除**: 反 #150 v2 (下一轮 update) — amount validation 客户端先拦, BE Pydantic `Field(gt=0)` 422 路径仍然走 humanizeApiError (v0.3.35 #4). 客户端红框跟 BE 422 翻译**双重防御**: FE 拦 99% 用户场景, BE 兜底 direct API call. iOS Safari amount keypad 真机验需 PO 真机 walk (跟 v0.3.25 Top #2 / v0.3.28 #4+#7+#8 同模式).
 
 **反 #162 同 batch fix + SPEC §11 + git push + UAT 勾 ✅**.
+### v0.3.36 #14 — UAT 0727-1 #14 "所有人都已结清" 文字样式（跟建议转账区域 item 一致）
+
+**PO 字面** (Jesse msg 2026-07-27 23:35 "d.最下边，建议转账区域的 item"):
+> 结算页面，如果所有人都已结清，目前会提示"所有人都已结清"的文字，需要将这个文字修改样式，样式同建议转账 item 的样式一致。
+
+Jesse 拍对答案 **d.最下边, 建议转账区域的 item** = 跟 .transfer-card 同款玻璃风。
+
+**修法** (1 文件):
+
+`frontend/src/lib/components/SettleTransferPath.svelte`:
+- **template** (line 108-111): 原 `<p class="muted settled-emoji">所有人都已结清 🎉</p>` 改成 `<div class="transfer-card transfer-card-empty"><p class="settled-emoji">所有人都已结清 🎉</p></div>`. 继承 .transfer-card 全套玻璃 token (padding / border-radius / backdrop-filter / box-shadow / border), override justify-content: center + text-align: center 让单元素水平居中.
+- **CSS** (line 261+): 加 `.transfer-card-empty { justify-content: center; text-align: center; }` + `.transfer-card-empty .settled-emoji { margin: 0; font-weight: 500; color: var(--gray-700); }` (gray-700 比原 .muted gray-500 重一档, 跟 transfer-card 内 .transfer-name 字重 400 区分).
+
+**Scope 影响**:
+- "建议转账"标题 (`<h3>建议转账</h3>`) 位置不变 — 仍 section heading.
+- `<ul class="transfers-list">` 多 transfer card 路径不变.
+- 仅空态 (`data.transfers.length === 0`) 触发本卡片样式.
+
+**Verification (反 #128 + #150 v2 + #162 配套)**:
+- svelte-check: **4 errors / 49 warnings baseline 同 (0 new error)**. 之前 #12 fix_12.py sys.exit(1) 没保存 BillForm state + handleSubmit (已用 fix_12_v3.py 补回), #14 没有这类问题.
+- git diff stat: SettleTransferPath.svelte +12 -1.
+- source grep: `transfer-card-empty` 全 live (line 110 template + line 264 / 268 CSS), 注释引用 v0.3.36 #14.
+- Playwright iPhone 13 @3x verify (待跑):
+  - `/sessions/9/settle` (session 9 泰国测试, 41 bills, primary=CNY): 转账列表空 → 显示空态卡片 (玻璃风 + 居中 + "所有人都已结清 🎉").
+  - 转账列表非空 → 卡片列表不变, 空态不显示.
+  - 单币种 (session 6 / session 13): 转账列表空 → 同上空态卡片.
+
+**反 #150 v2 排除**: 反 #150 v2 (下一轮 update) — 空态卡片继承 .transfer-card 全套 token, 视觉 token 复用率 100% (没自创新颜色 / 阴影 / padding). Playwright headless iPhone 13 玻璃背景渲染 OK, 真机视觉确认由 PO 自行 walk.
+
+**反 #162 同 batch fix + SPEC §11 + git push + UAT 勾 ✅**.
