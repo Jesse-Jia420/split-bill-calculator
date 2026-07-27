@@ -163,7 +163,7 @@
   }
 </script>
 
-<svelte:window on:keydown={handleKeydown} />
+<svelte:window onkeydown={handleKeydown} />
 
 <!-- Backdrop (跟 mockup 2 / 3 一致: rgba(15,23,42,0.40) + blur(4px)) -->
 <div

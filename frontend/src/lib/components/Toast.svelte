@@ -24,7 +24,7 @@
   }
 </script>
 
-<svelte:window on:keydown={onKey} />
+<svelte:window onkeydown={onKey} />
 
 <div class="toast-root" aria-live="polite" aria-atomic="true">
   {#each $toast as t (t.id)}

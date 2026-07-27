@@ -248,7 +248,7 @@
     aria-hidden={showKeypad ? 'true' : undefined}
     data-testid="amount-calc-row"
     onclick={openKeypad}
-    on:keydown={(e) => {
+    onkeydown={(e) => {
       if (disabled) return;
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();

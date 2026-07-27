@@ -598,7 +598,7 @@
   }
 </script>
 
-<form class="stack" id="bill-form" on:submit={handleSubmit}>
+<form class="stack" id="bill-form" onsubmit={handleSubmit}>
   <!-- v0.3.15 (PO #4807 + Designer 报告): form-level error 改走 Toast 系统,
        不再渲染 inline 错误块. form 仍保留 padding-bottom: 96px 让最后
        一行 member 不被左右下角 FAB 遮挡 (5-member session 测过). -->
@@ -628,7 +628,7 @@
         initialAmount={amount}
         {currency}
         disabled={submitting}
-        on:confirm={(e) => {
+        onconfirm={(e) => {
           amount = e.detail.value;
           amountExpression = e.detail.expression;
         }}
@@ -684,7 +684,7 @@
       maxlength="500"
       disabled={!canEditDescription}
       class:input-error={descriptionError}
-      on:input={() => {
+      oninput={() => {
         descriptionPristine = false;
         if (description.trim() !== '') descriptionError = false;
       }}
@@ -772,7 +772,7 @@
                   class="pill-input"
                   bind:value={st.amount}
                   bind:this={inputRefs[m.id]}
-                  on:blur={() => handlePillBlur(m.id)}
+                  onblur={() => handlePillBlur(m.id)}
                   placeholder="0.00"
                   aria-label={`${m.display_name} 的个人消费金额`}
                   data-testid={`ppts-amount-${m.id}`}

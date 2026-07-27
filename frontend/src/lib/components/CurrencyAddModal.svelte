@@ -378,7 +378,7 @@
   $: showSubmit = !(mode === 'single' && has_bills);
 </script>
 
-<svelte:window on:keydown={handleKeydown} />
+<svelte:window onkeydown={handleKeydown} />
 
 <div
   class="sheet-backdrop"
