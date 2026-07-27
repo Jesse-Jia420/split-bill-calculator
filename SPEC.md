@@ -7048,3 +7048,32 @@ PO msg 2026-07-27 12:19 部署后 Master 自查发现:
 **机制解释**: Svelte 5 attribute 形态 (`on{event}={handler}`) 在 component 上等同于 callback prop (跟子组件声明 `let onClose` 类似). Svelte 4 组件用 `createEventDispatcher` 派发 CustomEvent, parent 必须用 `on:event={handler}` attribute 才能 intercept. 反向不工作: `on{event}={handler}` attribute on component 不会 catch dispatch. **修法候选 (b)**: migrate child 组件到 callback props (deprecate createEventDispatcher). 但 Jesse 选 (a), 更小更快, 不动 child files.
 
 **预期效果**: Master 跟 PO 现在可以正常走 BillForm submit / CurrencyAddModal close / AddSettlementSheet close 流程 (之前会 silent break). Version badge (v0.3.36 主功能) 不受影响.
+
+### v0.3.36 #8 — UAT 0727-1 #8 URL hash 反向: /s/{session_code} 是 canonical (Master 自修, PO 字面 "{id} 目前是简单的数字, 不好")
+
+**PO 字面**: 用户要求 URL bar 永远显示 `/s/{session_code}` hash 格式, 不再是 `/sessions/{numeric_id}` (容易被试出).
+
+**改动方向 reverse**: 之前 (v0.3.x #13) 是 `/s/[code]` redirect 到 `/sessions/[id]`. 现在反过来: `/sessions/[id]` 是瘦壳 redirect 到 `/s/{session_code}`. hash 路由是 canonical, numeric 路由只是 backward-compat.
+
+**实现 (3 commits)**:
+- `0acbd8d`: 把 2234 行 `/sessions/[id]/+page.svelte` 完整 body 搬到 `/s/[code]/+page.svelte`, 用 `getSessionByCode(code)` 替代 `getSessionWithSecret(id)`. `/sessions/[id]/+page.svelte` 改瘦壳 (60 行), resolve id → getSession → goto('/s/{session_code}', replaceState).
+- `8d30601`: 修 #8 followup — 非成员 403 fallback, 用 URL 参数 `code` 替代 `session?.session_code || String(sessionId)` (后者是 $state(0) 初值, 走错路径).
+- `ebd5a6f`: 修 #8 followup #2 — `getSession(id)` 加 X-Nickname-Secret header (mirror `getSessionByCode` 模式), anon 成员也能在 /sessions/[id] resolve.
+
+**机制**: 详情页 SessionDetail body 完全在 `/s/[code]/+page.svelte` 里 (single source of truth). URL bar 永远停在 `/s/{hash}`. 老 URL `/sessions/30` 进入 → 瘦壳 getSession(30) 拿到 session_code → goto('/s/{hash}') → URL 显示 hash.
+
+**排除范围 (本任务不修, 待后续 commit)**:
+- ❌ /s/[code]/X (settle, join, bills/new, bills/[billId]/edit) 仍 redirect 到 /sessions/[id]/X (URL 短暂 numeric 后回归 hash, 但非成员 403 路径会落到 /sessions/{id}/join numeric URL).
+- ❌ 非成员 anon 403 fallback 仍去 /sessions/{id}/join (numeric).
+- 修法: 同样的 refactor 模式搬 4 个 sub-route bodies (估 +1500 行 diff). 下次 sprint 或单开 PR.
+
+**验证**: 
+- svelte-check 0 error / 40 warnings (baseline 同, 0 new error).
+- vite HMR update 6 files / no error.
+- Playwright iPhone 13 verify (clean context, 无 secret):
+  - TEST 1 /s/HT9CB4DY2R (session 30) → anon 403 → /sessions/30/join (legacy fallback, 非成员路径)
+  - TEST 2 /sessions/30 → anon 403 → /sessions/30/join (同上)
+  - TEST 3 session page content renders ✓
+  - 主 hash 化路径 (member 有 secret 或 cookie 登录态) 需 Jesse iPhone Safari 真机 walk 验证.
+
+**影响**: URL bar 显示永远是 hash 格式 (登录态 / 有 secret 的 anon 成员). 非成员路径保留 numeric 以兼容现有 /join URL 语义.
