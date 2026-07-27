@@ -25,7 +25,7 @@
   - amount > 0 强制, <= 0 时 disable submit.
 -->
 <script lang="ts">
-  import { createEventDispatcher, onMount } from 'svelte';
+  import { onMount } from 'svelte';
   import { X as XIcon } from 'lucide-svelte';
   import { toast } from '$stores/toast';
   import { createSettlementRecord, type SettlementRecord } from '$api/settlements';
@@ -44,8 +44,7 @@
   export let currentMemberId: number | null = null;
   /** 提交成功回调. */
   export let onAdded: ((record: SettlementRecord) => void) | undefined = undefined;
-
-  const dispatch = createEventDispatcher<{ close: void }>();
+  export let onclose: (() => void) | undefined = undefined;
 
   // ---- 表单 state ----
   let payerId: number | null = null;
@@ -116,7 +115,7 @@
 
   function close() {
     if (busy) return;
-    dispatch('close');
+    onclose?.();
   }
 
   function handleKeydown(e: KeyboardEvent) {
@@ -150,7 +149,7 @@
       });
       toast.success(`已添加 ${nameOf(record.payer_id)} → ${nameOf(record.payee_id)} ${record.amount} ${record.currency}`);
       onAdded?.(record);
-      dispatch('close');
+      onclose?.();
     } catch (e: any) {
       const code = e?.code ?? e?.detail?.error ?? 'unknown';
       const msg = e?.detail?.error ?? e?.message ?? '添加失败';
@@ -404,13 +403,13 @@
     letter-spacing: -0.01em;
   }
   .sheet-close {
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     border-radius: 50%;
-    background: rgba(15, 23, 42, 0.06);
+    background: rgba(15, 23, 42, 0.10);
     color: #525252;
     border: 0;
     cursor: pointer;
