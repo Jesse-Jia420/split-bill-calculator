@@ -30,6 +30,7 @@
   - 文案 pill (.expiry-anon-a 红色 pill) 在 page-level 渲染, InviteLinkButton 不参与
 -->
 <script lang="ts">
+  import { X as XIcon } from 'lucide-svelte';
   import { toast } from '$stores/toast';
 
   export let sessionId: number;
@@ -164,28 +165,31 @@
     class="invite-sheet-backdrop"
     role="presentation"
     onclick={handleBackdropClick}
+  ></div>
+  <div
+    class="invite-sheet"
+    role="dialog"
+    aria-modal="true"
+    aria-label="账本链接已复制"
+    data-testid="invite-confirm-modal"
   >
-    <div
-      class="invite-sheet"
-      role="dialog"
-      aria-modal="true"
-      aria-label="账本链接已复制"
-      data-testid="invite-confirm-modal"
-    >
+    <div class="sheet-handle" aria-hidden="true"></div>
+    <div class="sheet-head">
+      <span class="sheet-title">账本链接</span>
+      <button class="sheet-close" type="button" aria-label="关闭" onclick={closeModal}>
+        <XIcon size={16} strokeWidth={2.4} />
+      </button>
+    </div>
+    <div class="sheet-body">
       <p class="invite-modal-msg" data-testid="invite-confirm-msg">
         已复制此账本链接,请妥善保管!<br />
         可用于 <strong class="emphasize">回到此账本</strong> 或 <strong class="emphasize">邀请他人</strong>。
       </p>
-      <div class="invite-modal-foot">
-        <button
-          type="button"
-          class="invite-modal-btn"
-          onclick={closeModal}
-          data-testid="invite-confirm-btn"
-        >
-          知道了
-        </button>
-      </div>
+    </div>
+    <div class="sheet-foot">
+      <button type="button" class="btn-primary" onclick={closeModal} data-testid="invite-confirm-btn">
+        知道了
+      </button>
     </div>
   </div>
 {/if}
@@ -336,43 +340,74 @@
     font-weight: var(--font-weight-semibold, 600);
     color: var(--gray-900, #111827);
   }
-  .invite-modal-foot {
-    display: flex;
-    justify-content: center;
+  .sheet-handle {
+    width: 36px;
+    height: 4px;
+    background: rgba(15, 23, 42, 0.18);
+    border-radius: 100px;
+    margin: 0 auto 12px;
   }
-  /* "知道了" 主按钮 — 跟 CurrencyAddModal .fab--submit (indigo→blue gradient) 同源 token */
-  .invite-modal-btn {
-    appearance: none;
+  .sheet-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 4px 12px;
+  }
+  .sheet-title {
+    font-size: 17px;
+    font-weight: 600;
+    color: #171717;
+    letter-spacing: -0.01em;
+  }
+  .sheet-close {
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(15, 23, 42, 0.10);
+    color: #525252;
+    border: 0;
     cursor: pointer;
-    font-family: inherit;
-    font-size: 15px;
-    font-weight: var(--font-weight-semibold, 600);
+    transition: background 150ms ease;
+  }
+  .sheet-close:hover { background: rgba(15, 23, 42, 0.12); }
+  .sheet-body {
+    padding: 4px 4px 0;
+  }
+  .sheet-foot {
+    display: flex;
+    padding: 12px 4px 0;
+  }
+  .btn-primary {
+    width: 100%;
+    height: 50px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.95) 0%, rgba(168, 85, 247, 0.95) 100%);
     color: #fff;
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.95) 0%, rgba(59, 130, 246, 0.95) 100%);
-    border: 1px solid rgba(99, 102, 241, 0.40);
-    border-radius: 12px;
-    padding: 10px 36px;
-    min-width: 100px;
+    font-size: 16px;
+    font-weight: 600;
+    border: 0;
+    cursor: pointer;
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.4),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.05),
-      0 4px 12px rgba(99, 102, 241, 0.28);
+      0 4px 12px rgba(99, 102, 241, 0.30),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25);
     transition:
       background 150ms ease,
-      transform 100ms ease,
-      box-shadow 150ms ease;
+      transform 100ms ease;
   }
-  .invite-modal-btn:hover {
+  .btn-primary:hover {
     background: linear-gradient(135deg, rgba(99, 102, 241, 1) 0%, rgba(59, 130, 246, 1) 100%);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.5),
       inset 0 -1px 0 rgba(0, 0, 0, 0.05),
       0 6px 16px rgba(99, 102, 241, 0.36);
   }
-  .invite-modal-btn:active {
+  .btn-primary:active {
     transform: scale(0.97);
   }
-  .invite-modal-btn:focus-visible {
+  .btn-primary:focus-visible {
     outline: 2px solid var(--accent-500, #6366f1);
     outline-offset: 2px;
   }

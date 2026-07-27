@@ -383,21 +383,26 @@
 <div
   class="sheet-backdrop"
   role="presentation"
+  onclick={close}
+></div>
+<div
+  class="sheet"
+  role="dialog"
+  aria-modal="true"
+  aria-label={modalTitle}
+  data-sbc="currency-add-modal"
+  data-mode={mode}
+  data-has-bills={has_bills ? 'true' : 'false'}
 >
-  <div
-    class="sheet"
-    role="dialog"
-    aria-modal="true"
-    aria-label={modalTitle}
-    data-sbc="currency-add-modal"
-    data-mode={mode}
-    data-has-bills={has_bills ? 'true' : 'false'}
-  >
-    <header class="sheet-head">
-      <h3 class="sheet-title">{modalTitle}</h3>
-    </header>
+  <div class="sheet-handle" aria-hidden="true"></div>
+  <header class="sheet-head">
+    <h3 class="sheet-title">{modalTitle}</h3>
+    <button class="sheet-close" type="button" aria-label="关闭" onclick={close}>
+      <XIcon size={16} strokeWidth={2.4} />
+    </button>
+  </header>
 
-    <div class="sheet-body">
+  <div class="sheet-body">
       {#if mode === 'single' && !has_bills}
         <!-- ===== single + !has_bills: 添加副币种 (add flow) ===== -->
         <section class="field">
@@ -602,24 +607,13 @@
 </div>
 
 <style>
-  .modal-backdrop {
+  .sheet-backdrop {
     position: fixed;
     inset: 0;
-    /* v0.3.27 (UAT 0723-2 #9): 跟 InviteLinkButton .invite-modal-backdrop 完全一致
-     *   — 之前 v0.3.19 #85 刪掉的全屏模糊遮罩加回来, 跟邀请 modal 同风格.
-     * v0.3.29 (UAT 0725-1 #2, PO msg 12:43): PO 重申 "同汇率设置一样". v0.3.28 #8 re-fix
-     *   把 invite backdrop 改到 blur(24px) saturate(200%) + bg 0.45, 跟这里脱节.
-     *   修法: invite 改回跟这里完全一致 (bg 0.30 / blur 16px saturate 180% / z 999).
-     *   两个组件 backdrop token 同源, 未来若改 backdrop blur 强度, 两个 .modal-backdrop
-     *   rule 需同步更新 (或抽到 app.css .modal-backdrop-full 全局类).
-     * v0.3.35 #5 (UAT 0725-3 #11, PO 字面 "样式要与 添加已结算记录的弹窗一致"): 形态从 centered modal
-     *   改 bottom sheet 跟 AddSettlementSheet 同款, 整 backdrop + sheet 视觉跟 AddSettlementSheet
-     *   .backdrop + .sheet 一致. — 但 backdrop blur 强度维持 v0.3.29 (16/0.30) (PO 视为全屏 darkener,
-     *   比 AddSettlementSheet (4/0.40) 更暗一档, 视觉上还是 modal 形态). */
-    background: rgba(0, 0, 0, 0.30);
+    background: rgba(15, 23, 42, 0.40);
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
-    z-index: 999;
+    z-index: 50;
     animation: backdropFadeIn 160ms ease;
   }
 
@@ -660,8 +654,48 @@
       background: rgba(255, 255, 255, 0.96);
     }
     .sheet-backdrop {
-      background: rgba(0, 0, 0, 0.48);
+      background: rgba(15, 23, 42, 0.55);
     }
+  }
+
+  .sheet-handle {
+    width: 36px;
+    height: 4px;
+    background: rgba(15, 23, 42, 0.18);
+    border-radius: 100px;
+    margin: 0 auto 12px;
+  }
+  .sheet-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 4px 12px;
+  }
+  .sheet-title {
+    font-size: 17px;
+    font-weight: 600;
+    color: #171717;
+    letter-spacing: -0.01em;
+  }
+  .sheet-close {
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(15, 23, 42, 0.10);
+    color: #525252;
+    border: 0;
+    cursor: pointer;
+    transition: background 150ms ease;
+  }
+  .sheet-close:hover { background: rgba(15, 23, 42, 0.12); }
+  .sheet-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
   }
 
   /* v0.3.27 (UAT 0723-2 #9): .modal padding 24px 统一管理, .modal-head/.modal-body/.modal-foot
