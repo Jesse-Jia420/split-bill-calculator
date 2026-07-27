@@ -1,8 +1,41 @@
 import { sveltekit } from "@sveltejs/kit/vite";
 import { defineConfig } from "vite";
+import { execSync } from "node:child_process";
+
+/**
+ * v0.3.36 (PO msg 2026-07-27 12:19 你在页面 header 上添加前后端版本号。
+ * 我们以此对齐): 在 vite config 加载时读 git rev-parse --short HEAD,
+ * 设到 `import.meta.env.VITE_APP_VERSION`. v0.3.36 #1 VersionBadge 显示 FE hash
+ * 用这个 env var (Vite 自动把 VITE_* 暴露给客户端 import.meta.env.VITE_*).
+ *
+ * 工作 tree 有未提交改动时附加 '-dirty', git 不可读时 fallback 'unknown'.
+ */
+function gitVersionPlugin() {
+  return {
+    name: "git-version",
+    config() {
+      try {
+        const hash = execSync("git rev-parse --short HEAD", {
+          stdio: ["pipe", "pipe", "pipe"],
+        })
+          .toString()
+          .trim();
+        let dirty = "";
+        try {
+          execSync("git diff --quiet HEAD", { stdio: "pipe" });
+        } catch {
+          dirty = "-dirty";
+        }
+        process.env.VITE_APP_VERSION = `${hash}${dirty}`;
+      } catch {
+        if (!process.env.VITE_APP_VERSION) process.env.VITE_APP_VERSION = "unknown";
+      }
+    },
+  };
+}
 
 export default defineConfig({
-  plugins: [sveltekit()],
+  plugins: [gitVersionPlugin(), sveltekit()],
   server: {
     port: 8448,
     strictPort: true,
