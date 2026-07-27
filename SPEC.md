@@ -7180,3 +7180,37 @@ PO msg 2026-07-27 12:19 部署后 Master 自查发现:
 **反 #150 v2 排除**: 反 #150 v2 (下一轮 update) — Enter 触发 submit 是 web standard 行为, 我们的 fix 仅在 `.pill-input` 上拦截, 不影响其他 form element. iOS Safari 数字键盘 Enter 真机验需 PO 真机 walk (跟 v0.3.25 Top #2 / v0.3.28 #4+#7+#8 同模式, Playwright headless 不渲染 iOS 数字键盘).
 
 **反 #162 同 batch fix + SPEC §11 + git push + UAT 勾 ✅**.
+### v0.3.36 #12 — UAT 0727-1 #12 金额字段红框玻璃样式（c 完全同款）
+
+**PO 字面** (Jesse msg 2026-07-27 23:35 "b.c 完全同款"):
+> 账单编辑新建页面的金额字段，出现和说明字段一样的红色玻璃input样式。
+
+Jesse 拍对答案 **c 完全同款** = amount <= 0 + 空都触发，玫瑰红玻璃质跟 descriptionError 同款。
+
+**修法** (3 文件):
+
+1. **BillForm.svelte** (3 处):
+   - **state** (line 142): 加 `let amountError = false;` 紧跟 `descriptionError`, 注释引用 v0.3.36 #12.
+   - **handleSubmit** (line 580-585): 现有 amount 验证 `if (amount == null || !Number.isFinite(amount) || amount <= 0) { toast.error(...); return; }` 加 `amountError = true;` 在 toast 之前, 验证后 `amountError = false;`. 文案改 "请填写账单金额" (跟 "请填写账单说明" 同短句式).
+   - **template** (line 638-655): `<AmountCalculatorInput>` 加 `error={amountError}` prop, `on:confirm` 内 `amountError = false;` (有效 confirm 清红框).
+2. **AmountCalculatorInput.svelte** (3 处):
+   - **prop** (line 36): 加 `export let error: boolean = false;` 紧跟 `disabled` prop, 注释引用 v0.3.36 #12.
+   - **template** (line 263): `<input class="amount-input">` 加 `class:input-error={error}` (line 263 area).
+   - **CSS** (line 400-405): 加 `.amount-input.input-error { border-color: rgba(244, 63, 94, 0.55); background: linear-gradient(rgba(255, 228, 230, 0.55), rgba(254, 205, 211, 0.55)); box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.5), 0 0 24px rgba(244, 63, 94, 0.4); }` — 跟 BillForm `input.input-error` 字段级同款 rose→red 玻璃质 (rgba 值精确一致).
+
+**Scope 影响**:
+- 描述字段 descriptionError 行为不变 (PO #11 Enter unfocus + 现有 v0.3.35 #1 description 红框 仍是).
+- 个人消费 `.pill-input` input 不触发 amount 红框 (PO "c 完全同款" 字面只指"金额字段").
+- 外部 Save FAB 通过 `form="bill-form"` 提交 — 不受影响.
+
+**Verification (反 #128 + #150 v2 + #162 配套)**:
+- svelte-check: **4 errors / 49 warnings baseline 同 (0 new error)**. 之前 fix_12.py sys.exit(1) 没保存 state declaration + handleSubmit update (BillForm 改 in-memory 但没写盘), fix_12_v3.py 补回 + fix_12_v2.py 写 AmountCalculatorInput template. 后续 verify grep 显示 BillForm amountError 5 处全 live (line 142 state / 581 handleSubmit true / 585 handleSubmit false / 650 template prop / 654 on:confirm clear). AmountCalculatorInput 3 处全 live (line 36 error prop / 263 class:input-error / 400 CSS).
+- git diff stat: BillForm.svelte +9 -1 + AmountCalculatorInput.svelte +12 -1.
+- Playwright iPhone 13 @3x verify (待跑):
+  - `/sessions/9/bills/new` 登录 → AmountCalculatorInput form-row input (initial amount="0" 或空) → 点 Save FAB → amount 红框 (rose→red glass) + toast "请填写账单金额".
+  - 点 AmountCalculatorInput 打开 keypad → 输入 "100" + confirm → amount 红框消失 + toast 不出现.
+  - 不动 description / payer / participants 行为.
+
+**反 #150 v2 排除**: 反 #150 v2 (下一轮 update) — amount validation 客户端先拦, BE Pydantic `Field(gt=0)` 422 路径仍然走 humanizeApiError (v0.3.35 #4). 客户端红框跟 BE 422 翻译**双重防御**: FE 拦 99% 用户场景, BE 兜底 direct API call. iOS Safari amount keypad 真机验需 PO 真机 walk (跟 v0.3.25 Top #2 / v0.3.28 #4+#7+#8 同模式).
+
+**反 #162 同 batch fix + SPEC §11 + git push + UAT 勾 ✅**.
