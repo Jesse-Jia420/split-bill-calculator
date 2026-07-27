@@ -208,6 +208,8 @@
       const params = new URLSearchParams({
         as: String(slot.id),
         nickname: slot.display_name,
+        // v0.3.35 #7 — UAT 0725-3 #12: 传 raw email 给 login page pre-check + BE 端 validate
+        email: email,
         emailMasked: maskEmail(email),
       });
       await goto(`/sessions/${sessionId}/login?${params.toString()}`);

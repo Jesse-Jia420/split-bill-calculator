@@ -247,7 +247,7 @@
     aria-label="金额, 点击打开计算器"
     aria-hidden={showKeypad ? 'true' : undefined}
     data-testid="amount-calc-row"
-    on:click={openKeypad}
+    onclick={openKeypad}
     on:keydown={(e) => {
       if (disabled) return;
       if (e.key === 'Enter' || e.key === ' ') {
@@ -272,7 +272,7 @@
     <div
       class="sheet-backdrop"
       data-testid="amount-calc-backdrop"
-      on:click={closeKeypad}
+      onclick={closeKeypad}
       aria-hidden="true"
     ></div>
     <div class="sheet" role="dialog" aria-label="计算器键盘" aria-modal="true">
@@ -302,7 +302,7 @@
           class="confirm-btn"
           class:disabled={!showConfirm}
           class:hidden={!_internalValue.includes('=')}
-          on:click={pressConfirm}
+          onclick={pressConfirm}
           disabled={disabled || !showConfirm}
           aria-label="确认金额, 填入表单"
           data-testid="amount-calc-confirm"
@@ -313,35 +313,35 @@
         </button>
       </div>
       <div class="keypad" aria-label="计算器键盘">
-        <button type="button" class="key num" on:click={() => pressChar('1')} disabled={disabled} aria-label="1">1</button>
-        <button type="button" class="key num" on:click={() => pressChar('2')} disabled={disabled} aria-label="2">2</button>
-        <button type="button" class="key num" on:click={() => pressChar('3')} disabled={disabled} aria-label="3">3</button>
-        <button type="button" class="key op" on:click={() => pressChar('+')} disabled={disabled} aria-label="加">+</button>
+        <button type="button" class="key num" onclick={() => pressChar('1')} disabled={disabled} aria-label="1">1</button>
+        <button type="button" class="key num" onclick={() => pressChar('2')} disabled={disabled} aria-label="2">2</button>
+        <button type="button" class="key num" onclick={() => pressChar('3')} disabled={disabled} aria-label="3">3</button>
+        <button type="button" class="key op" onclick={() => pressChar('+')} disabled={disabled} aria-label="加">+</button>
 
-        <button type="button" class="key num" on:click={() => pressChar('4')} disabled={disabled} aria-label="4">4</button>
-        <button type="button" class="key num" on:click={() => pressChar('5')} disabled={disabled} aria-label="5">5</button>
-        <button type="button" class="key num" on:click={() => pressChar('6')} disabled={disabled} aria-label="6">6</button>
-        <button type="button" class="key op" on:click={() => pressChar('-')} disabled={disabled} aria-label="减">&minus;</button>
+        <button type="button" class="key num" onclick={() => pressChar('4')} disabled={disabled} aria-label="4">4</button>
+        <button type="button" class="key num" onclick={() => pressChar('5')} disabled={disabled} aria-label="5">5</button>
+        <button type="button" class="key num" onclick={() => pressChar('6')} disabled={disabled} aria-label="6">6</button>
+        <button type="button" class="key op" onclick={() => pressChar('-')} disabled={disabled} aria-label="减">&minus;</button>
 
-        <button type="button" class="key num" on:click={() => pressChar('7')} disabled={disabled} aria-label="7">7</button>
-        <button type="button" class="key num" on:click={() => pressChar('8')} disabled={disabled} aria-label="8">8</button>
-        <button type="button" class="key num" on:click={() => pressChar('9')} disabled={disabled} aria-label="9">9</button>
-        <button type="button" class="key op" on:click={() => pressChar('*')} disabled={disabled} aria-label="乘">×</button>
+        <button type="button" class="key num" onclick={() => pressChar('7')} disabled={disabled} aria-label="7">7</button>
+        <button type="button" class="key num" onclick={() => pressChar('8')} disabled={disabled} aria-label="8">8</button>
+        <button type="button" class="key num" onclick={() => pressChar('9')} disabled={disabled} aria-label="9">9</button>
+        <button type="button" class="key op" onclick={() => pressChar('*')} disabled={disabled} aria-label="乘">×</button>
 
-        <button type="button" class="key ctrl" on:click={pressClear} disabled={disabled} aria-label="清空">C</button>
-        <button type="button" class="key num" on:click={() => pressChar('0')} disabled={disabled} aria-label="0">0</button>
-        <button type="button" class="key num" on:click={() => pressChar('.')} disabled={disabled} aria-label="小数点">.</button>
-        <button type="button" class="key op" on:click={() => pressChar('/')} disabled={disabled} aria-label="除">÷</button>
+        <button type="button" class="key ctrl" onclick={pressClear} disabled={disabled} aria-label="清空">C</button>
+        <button type="button" class="key num" onclick={() => pressChar('0')} disabled={disabled} aria-label="0">0</button>
+        <button type="button" class="key num" onclick={() => pressChar('.')} disabled={disabled} aria-label="小数点">.</button>
+        <button type="button" class="key op" onclick={() => pressChar('/')} disabled={disabled} aria-label="除">÷</button>
 
         <button
           type="button"
           class="key eq"
-          on:click={pressEquals}
+          onclick={pressEquals}
           disabled={disabled}
           aria-label="等于, 计算结果并加括号"
           data-testid="amount-calc-eq"
         >=</button>
-        <button type="button" class="key ctrl bs" on:click={pressBackspace} disabled={disabled} aria-label="退格">⌫</button>
+        <button type="button" class="key ctrl bs" onclick={pressBackspace} disabled={disabled} aria-label="退格">⌫</button>
       </div>
     </div>
   {/if}

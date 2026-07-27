@@ -756,7 +756,7 @@
                           aria-label={canEdit
                             ? `删除账单 (圆形按钮): ${b.description || '(无说明)'}`
                             : `账单由他人创建, 不可删除: ${b.description || '(无说明)'}`}
-                          on:click={(e) => onSwipeDelete(b.id, e)}
+                          onclick={(e) => onSwipeDelete(b.id, e)}
                         >
                           <!-- v0.3.17 #18 hotfix (PO msg 06:18): 圆形 icon-only 按钮。
                                size 14→22: 圆形按钮直径 56px, icon 14 在圆里偏小不协调,
@@ -784,7 +784,7 @@
                         aria-label={canEdit
                           ? `编辑账单 (圆形按钮): ${b.description || '(无说明)'}`
                           : `账单由他人创建, 不可编辑: ${b.description || '(无说明)'}`}
-                        on:click={(e) => onSwipeEdit(b.id, e)}
+                        onclick={(e) => onSwipeEdit(b.id, e)}
                       >
                           <Pencil size={22} strokeWidth={2} aria-hidden="true" />
                       </button>
@@ -805,7 +805,7 @@
                         on:touchend={(e) => onTouchEnd(b.id, e)}
                         on:touchcancel={(e) => onTouchCancel(b.id, e)}
                         on:mousedown={(e) => onMouseDown(b.id, e)}
-                        on:click={onRowTap}
+                        onclick={onRowTap}
                       >
                         <div class="bill-row1">
                           <CategoryIcon description={b.description ?? ''} size={18} />

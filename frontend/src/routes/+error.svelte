@@ -53,7 +53,7 @@
     {#if status === 401}
       <p class="muted">正在跳转到登录…</p>
     {:else}
-      <button type="button" class="primary" on:click={goHome}>返回首页</button>
+      <button type="button" class="primary" onclick={goHome}>返回首页</button>
     {/if}
   </div>
 </section>

@@ -48,7 +48,7 @@
     placeholder="例: 今天晚餐 380 块, Alice 垫的, 我和 Bob 一起吃, Carol 没来"
   ></textarea>
   <div class="row" style="margin-top: var(--space-2);">
-    <button on:click={handleParse} disabled={busy}>
+    <button onclick={handleParse} disabled={busy}>
       {busy ? '解析中…' : 'AI 解析'}
     </button>
     <span class="hint">结果只填表单,不直接保存</span>

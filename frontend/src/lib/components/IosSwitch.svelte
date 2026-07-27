@@ -97,7 +97,7 @@
       class:locked={opt.disabled}
       aria-checked={value === opt.value}
       disabled={opt.disabled}
-      on:click={() => select(opt.value)}
+      onclick={() => select(opt.value)}
     >
       {opt.label}
     </button>

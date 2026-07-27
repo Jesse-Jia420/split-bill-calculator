@@ -218,14 +218,14 @@
     </div>
 
     {#if step === 'send'}
-      <button class="btn btn-primary" on:click={handleSend} disabled={busy}>
+      <button class="btn btn-primary" onclick={handleSend} disabled={busy}>
         {busy ? '发送中…' : '发送验证码'}
       </button>
       <div class="or-divider">
         <span>或</span>
       </div>
       <p class="anon-hint">不想登录？</p>
-      <button class="glass-pill anon-start" on:click={handleAnonStart}>
+      <button class="glass-pill anon-start" onclick={handleAnonStart}>
         直接开始使用
       </button>
     {:else}
@@ -243,10 +243,10 @@
         />
       </div>
       <div class="row" style="gap: var(--space-2);">
-        <button class="btn btn-primary" on:click={handleVerify} disabled={busy}>
+        <button class="btn btn-primary" onclick={handleVerify} disabled={busy}>
           {busy ? '验证中…' : '验证并登录'}
         </button>
-        <button class="btn glass-pill" on:click={() => { step = 'send'; code = ''; }} disabled={busy}>
+        <button class="btn glass-pill" onclick={() => { step = 'send'; code = ''; }} disabled={busy}>
           重新发送
         </button>
       </div>

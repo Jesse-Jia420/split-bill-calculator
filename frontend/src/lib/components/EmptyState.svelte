@@ -43,7 +43,7 @@
     {#if ctaHref}
       <a href={ctaHref} class="cta">{ctaLabel}</a>
     {:else if onCtaClick}
-      <button type="button" class="cta" on:click={onCtaClick}>{ctaLabel}</button>
+      <button type="button" class="cta" onclick={onCtaClick}>{ctaLabel}</button>
     {/if}
   {/if}
 </div>

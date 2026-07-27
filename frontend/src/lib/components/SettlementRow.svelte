@@ -102,7 +102,7 @@
       type="button"
       aria-label="删除记录"
       title="删除"
-      on:click={() => onDelete?.(record.id)}
+      onclick={() => onDelete?.(record.id)}
     >✕</button>
   {/if}
 </div>

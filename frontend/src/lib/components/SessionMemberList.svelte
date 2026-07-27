@@ -115,7 +115,7 @@
               type="button"
               class="chip clickable"
               class:selected={selected_user_id === m.user_id}
-              on:click={() => handleChipClick(m.user_id)}
+              onclick={() => handleChipClick(m.user_id)}
             >
               <span class="avatar" aria-hidden="true" style={avatarGradient(i)}>
                 {initial(m.display_name)}

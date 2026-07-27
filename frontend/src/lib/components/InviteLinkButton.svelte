@@ -143,7 +143,7 @@
     class="glass-pill invite-btn"
     class:copied
     class:invite-btn-breathing={breathing}
-    on:click={(e) => { e.stopPropagation(); handleInviteClick(); }}
+    onclick={(e) => { e.stopPropagation(); handleInviteClick(); }}
     title="复制邀请链接"
     aria-label="复制邀请链接"
     data-testid="invite-btn"
@@ -163,7 +163,7 @@
   <div
     class="invite-sheet-backdrop"
     role="presentation"
-    on:click={handleBackdropClick}
+    onclick={handleBackdropClick}
   >
     <div
       class="invite-sheet"
@@ -180,7 +180,7 @@
         <button
           type="button"
           class="invite-modal-btn"
-          on:click={closeModal}
+          onclick={closeModal}
           data-testid="invite-confirm-btn"
         >
           知道了
