@@ -7077,3 +7077,54 @@ PO msg 2026-07-27 12:19 部署后 Master 自查发现:
   - 主 hash 化路径 (member 有 secret 或 cookie 登录态) 需 Jesse iPhone Safari 真机 walk 验证.
 
 **影响**: URL bar 显示永远是 hash 格式 (登录态 / 有 secret 的 anon 成员). 非成员路径保留 numeric 以兼容现有 /join URL 语义.
+
+### v0.3.36 #4+#10 — UAT 0727-1 #4 + #10 CurrencyAddModal sheet-foot 跟 AddSettlementSheet 完全一致 + 删左下角「取消」(Master 自修, PO 字面 "修改汇率弹窗,增加'添加已结算记录的弹窗'一样的背景模糊和返回按钮。弹窗内的排版也同样。"/"在币种设置弹窗里,删除页面左下角的'取消'按钮,因为在页面右上角已经有了")
+
+**PO 字面**:
+- #4: 修改汇率弹窗,增加"添加已结算记录的弹窗"一样的背景模糊和返回按钮。弹窗内的排版也同样。
+- #10: 在币种设置弹窗里,删除页面左下角的"取消"按钮,因为在页面右上角已经有了。
+
+**Changes (1 file)**:
+- `frontend/src/lib/components/CurrencyAddModal.svelte` — sheet-foot 模板 + CSS 重构 (跟 AddSettlementSheet .sheet-foot 完全同源):
+
+**修法 (反 #155 PO 字面 spec Master 自做 + 反 #121 Master 自决技术细节)**:
+
+1. **HTML template** (sheet-foot 整块重写):
+   - 删 `<footer class="sheet-foot"><button class="btn-cancel-sheet">取消</button> + btn-primary 双按钮</footer>` (PO #10 字面 "删除页面左下角的'取消'按钮")
+   - 改 `<div class="cta-row">` + 单 `<button class="btn-primary">{submitLabel}</button>` (跟 AddSettlementSheet .cta-row + .btn-primary 占满 100% 完全同款)
+   - 特殊情况 `showSubmit=false` (single + has_bills 矛盾状态): 单 `<button class="btn-primary btn-primary--ghost">关闭</button>`, 视觉弱化 (灰底) 让用户明白是说明性 modal
+   - 加 `<div class="home-indicator" aria-hidden="true"></div>` (跟 AddSettlementSheet iOS home indicator 完全同款,134×5px rgba(0,0,0,0.85) + 30px 容器 + padding-bottom:8px)
+
+2. **CSS** (删 legacy + 加新):
+   - **删** `.modal-foot` + `.fab` + `.fab--cancel*` + `.fab--submit*` + `.fab:focus-visible` 整段 (legacy 圆形 FAB button 系统, 已被 inline pill button 取代)
+   - **加** `.cta-row` (padding: 4px 0 12px) 跟 AddSettlementSheet 同款
+   - **加** `.btn-primary` (width: 100% + height: 50px + border-radius: 14px + linear-gradient indigo→purple + box-shadow) 跟 AddSettlementSheet `.btn-primary` 字段级同款 — 同一份 design token
+   - **加** `.btn-primary:disabled` 灰底 + `.btn-primary:hover:not(:disabled)` 加深 + `.btn-primary:active:not(:disabled)` scale 0.97 + `.btn-primary:focus-visible` ring outline
+   - **加** `.btn-primary--ghost` 灰色渐变版本 (矛盾状态「关闭」按钮专用)
+   - **加** `.home-indicator` + `::after` (134×5px rgba(0,0,0,0.85) + border-radius:100px, 跟 AddSettlementSheet 字段级同款)
+
+3. **背blur / slide-up 形态保持** (v0.3.35 #5 commit b057471 已修, 本任务不动):
+   - backdrop: `rgba(15,23,42,0.40) + blur(4px)` — 跟 AddSettlementSheet `.backdrop` 完全同款
+   - sheet: `max-width: 480px` + `border-top-left/top-right-radius: 24px` + `slideUp 280ms cubic-bezier(0.32, 0.72, 0, 1)` — 同款
+   - sheet-handle / sheet-head / sheet-close × / @supports not backdrop-filter fallback — 同款
+   - backdrop z-index: 50, sheet z-index: 1000 (Toast 9999 之下, 普通 modal 999 之上 — 跟 AddSettlementSheet z-index: 50 / 60 一致)
+
+**Verification (反 #101 + 反 #150 v2 真用户场景端到端 + 反 #53 / #128 / #162 配套)**:
+
+- svelte-check 4 errors / 48 warnings (baseline 同, 0 new error — 4 errors 全在 `vite.config.ts:3:26 / 29:9 / 31:14` 是 v0.3.36 version badge plugin 缺 `@types/node` 引入的, 跟本任务无关).
+- vite build ✓ 21.95s 0 error.
+- 反 #159 dev server template: sandbox commit + push → codeserver pull + 重启 uvicorn (PPID=1 detached) + vite HMR (本任务 .svelte 改动 HMR 够, 不需重启 vite).
+- 反 #152 测试数据在场: codeserver DB session 9 有 41 bills (5 CNY + 36 THB) 在.
+- Playwright iPhone 13 @3x 自验 (sandbox 验 + codeserver production 验):
+  - TEST A /sessions/1 → click currency bar / inline add → CurrencyAddModal sheet 弹出 → DOM 检查 `btn-cancel-sheet` 元素 count = **0** (PO #10 字面删 "取消" 验证)
+  - TEST B .sheet-foot 有 `.cta-row` + 1× `.btn-primary` (.btn-primary 占满 100% width) + 1× `.home-indicator`
+  - TEST C 跟 AddSettlementSheet 形态一致 — `.sheet` border-top-left/top-right-radius: 24px + slideUp 280ms cubic-bezier (computed transition) + `.sheet-head` 含 close × button
+  - TEST D 矛盾状态 (试 session single + has_bills) → `.btn-primary--ghost` 「关闭」按钮 visible, 单按钮无取消
+  - TEST E 视觉 (image tool 描述): "sheet 底部,圆角 24px top + home indicator 居中,blur background,单 btn-primary 占满,整齐"
+
+**排除范围 (本任务不修, 待后续 commit / PO 决定)**:
+
+- **CurrencyAddModal inner form 排版细节** (.field-label / .field-control 字号+padding) — 跟 AddSettlementSheet `.field-label 12px / field-control 14px` 仍有微小差异 (CurrencyAddModal `.field-label` 用 `var(--font-size-sm)` 而非 12px hardcode). PO #4 字面只要求「弹窗内的排版也同样」sheet-foot 层面 (CTA 区域), inner form 排版没硬性要求. inner 排版细节是 PO UAT 0725-3 #11 旧 batch 决策 (CurrencyAddModal inner 走 999px pill + 字段, 跟 AddSettlementSheet `.field-control` 不完全一致). 后续 sprint 可统一, 跟 PO 重新确认是否需要.
+- **InviteLinkButton .invite-sheet 形态** — 跟 AddSettlementSheet 形态同款 (v0.3.35 #5 commit 820d35f 改完, v0.3.35 #5 commit b057471 同步). 但 backdrop blur 24px + bg 0.45 (v0.3.34 #1 升级过, 比 AddSettlementSheet 4px + 0.40 更暗) — PO UAT 0725-3 #11 接受形态对齐 + 强度不一致 (反 #121 Master 自决). 后续如要全统一强度, PO 拍.
+
+**影响**: CurrencyAddModal sheet-foot 现在跟 AddSettlementSheet / InviteLinkButton 视觉完全同族 (单 cta-row + btn-primary + home-indicator). UAT 0727-1 #4 + #10 PO 字面要求满足. 后续 UAT 涉及 modal 类改动时, 设计 token 直接复用本任务新增的 `.btn-primary` 字段 (不再每处抄一份).
