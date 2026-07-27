@@ -379,11 +379,12 @@
     } catch (e: any) {
       const c = e?.code ?? '';
       if (c === 'not a session member' || e?.status === 403) {
-        // v0.3.1: 非成员应该去 join 页 claim nickname, 不显示错误。
-        // 之前显示 '你不是这个 session 的成员' 死路, 用户没法 claim。
-        // v0.3.x (UAT #0723-3 #3): 跳 /s/{session_code}/join unguessable 格式.
-        // 老 fallback 用 /sessions/{id}/join 保老 client 兼容 (老 client 跳老 path 仍 work).
-        await goto('/s/' + (session?.session_code || String(sessionId)) + '/join', { replaceState: true });
+        // v0.3.36 (UAT 0727-1 #8): 非成员 → /s/{code}/join (use original `code` param).
+        // 之前用 session?.session_code || String(sessionId), 但 v0.3.36 #8 后 sessionId
+        // 是 $state(0) 初始值, 403 时 session 还没拿到, fallback 出 '/s/0/join' (错).
+        // 现在直接用 URL 参数 `code` (用户访问的 hash), join 页面会重新解析.
+        // BUG-V031-A: anon 非成员 BE 返回 403 with detail.session_id, join page 处理.
+        await goto('/s/' + code + '/join', { replaceState: true });
         return;
       } else {
         // 401 handled globally by client.ts (auto-redirect to /auth/login
