@@ -52,6 +52,7 @@
   import { Lock, X as XIcon, Check } from 'lucide-svelte';
   import { toast } from '$stores/toast';
   import { ApiError } from '$api/client';
+  import { portal } from '$lib/actions/portal';
   import { addSessionCurrency, deleteSessionCurrency, type SessionDetail } from '$api/sessions';
   import type { SessionExchangeRate } from '$api/sessions';
 
@@ -380,6 +381,14 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
+<!-- v0.3.27 #4+#10 (PO msg 9234 真机截图质问): 跟 #3 (InviteLinkButton) 共享根因 — ancestor
+     `.members-head-row2` / `.currency-section` 有 `backdrop-filter: blur(20px) saturate(180%)`,
+     按 CSS Containing Block spec (`transform/filter/backdrop-filter/perspective/contain/will-change`
+     都成为后代的 containing block), 让 `position: fixed; bottom: 0` 退化到 anchor 相对 ancestor
+     底部, 视觉居中. wrap 整个 modal markup 在 `<div use:portal>` host 里, portal action
+     物理 appendChild 到 document.body, containing block 变 viewport, `bottom: 0` 才真贴
+     viewport 底部. -->
+<div use:portal data-testid="currency-add-modal-host">
 <div
   class="sheet-backdrop"
   role="presentation"
@@ -608,6 +617,7 @@
     <!-- v0.3.27 (PO UAT 0727-1 #4): 排版跟 AddSettlementSheet 一致 — iOS home indicator, 让 sheet 视觉收尾对称. -->
     <div class="home-indicator" aria-hidden="true"></div>
   </div>
+</div>
 
 <style>
   .sheet-backdrop {

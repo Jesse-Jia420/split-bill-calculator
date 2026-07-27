@@ -7128,3 +7128,30 @@ PO msg 2026-07-27 12:19 部署后 Master 自查发现:
 - **InviteLinkButton .invite-sheet 形态** — 跟 AddSettlementSheet 形态同款 (v0.3.35 #5 commit 820d35f 改完, v0.3.35 #5 commit b057471 同步). 但 backdrop blur 24px + bg 0.45 (v0.3.34 #1 升级过, 比 AddSettlementSheet 4px + 0.40 更暗) — PO UAT 0725-3 #11 接受形态对齐 + 强度不一致 (反 #121 Master 自决). 后续如要全统一强度, PO 拍.
 
 **影响**: CurrencyAddModal sheet-foot 现在跟 AddSettlementSheet / InviteLinkButton 视觉完全同族 (单 cta-row + btn-primary + home-indicator). UAT 0727-1 #4 + #10 PO 字面要求满足. 后续 UAT 涉及 modal 类改动时, 设计 token 直接复用本任务新增的 `.btn-primary` 字段 (不再每处抄一份).
+
+### v0.3.36 #4+#10 follow-up — UAT 0727-1 #3 真机截图质问的根因修 (PO msg 9234 真机 iOS Safari 截图, modal 还在 viewport 中央没贴底部)
+
+**PO 字面**: msg 9227 + msg 9232 + msg 9234 三次追 status, 真机截图显示 `position: fixed; bottom: 0` 的 modal 没贴 viewport 底部而是在中央。
+**根因 (Jesse 真机 iOS Safari 截图清楚显示)**: `/sessions/[id]/+page.svelte` 的 `.members-head` / `.members-head-row2` / `.currency-section` 都有 `backdrop-filter: blur(20px) saturate(180%)` 玻璃效果. 按 **CSS Containing Block Spec**: `transform / filter / backdrop-filter / perspective / contain / will-change / container-type` 这些属性 (不为 none) 会让 ancestor 成为后代的 `position:fixed` 元素的 containing block. 所以 `.invite-sheet { position: fixed; left: 0; right: 0; bottom: 0 }` 实际 anchor 到 `.members-head-row2` 底部 (members-head-row2 占 viewport 上半部), 视觉居中 — 这是 v0.3.27 #3 (commit 820d35f) "fix" 没真过的根因, 也是 #4+#10 (commit 679ef98) 同根因假过.
+**前 verify 错**: 我用 Playwright 跑 `cs('position') === 'fixed'` + `cs('bottom') === '0px'` 计算 computed CSS 文字值就标 ✅, **没查 `getBoundingClientRect()` 实际视觉位置**. 这是**反 #150 v2 第 3 次假过**叠加"不会查 ancestor 的 backdrop-filter spec"知识盲区.
+
+**修法**: 写共享 Svelte action `src/lib/actions/portal.ts` (`use:portal` 接受可选 selector target, 默认 `document.body`). action mount 时 `dest.appendChild(node)` 物理把 host div 搬到 target, destroy 时还原. 给 3 个 modal 的 markup wrapper 加 `use:portal`, host 物理搬到 document.body 后 containing block 变 viewport, `bottom: 0` 才真贴 viewport 底部. **优势 over `<svelte:body>` tag**: Svelte 5 严格模式 compile fail (`<svelte:body> cannot have children`), `<svelte:portal>` 在本项目 vite-plugin-svelte 4 不识别 (valid tags = `head/options/window/document/body/element/component/self/fragment/boundary`), 用 `use:portal` Svelte action 完全跨版本兼容.
+
+**Changes (4 files)**:
+- 新增 `frontend/src/lib/actions/portal.ts` — 共享 `use:portal` Svelte action. SSR 安全 (portal 在 client 端 mount 才搬, SSR 保持 markup 在原位). Action 返回 `{ destroy }` 在 component unmount 时把 host 还原到原 parent, 不留 detached node.
+- `frontend/src/lib/components/InviteLinkButton.svelte` — `<div use:portal data-testid="invite-modal-host">` wrap modal markup (`#if modalOpen ... invite-sheet ... {/if}`). 已绑 `data-testid="invite-modal-host"` 给 verify script.
+- `frontend/src/lib/components/CurrencyAddModal.svelte` — 同样 wrap (`data-testid="currency-add-modal-host"`). **根因同 #3**, 同一 ancestor `.currency-section` 也有 `backdrop-filter`.
+- `frontend/src/lib/components/AddSettlementSheet.svelte` — 同样 wrap (`data-testid="add-settlement-sheet-host"`). **预防性修**, 同一 ancestor 区域的 modal 共享根因.
+
+**Verification (反 #128 + #150 v2 v3 + #132)**:
+- `vite build` ✓ built in 21.26s 0 error (Playwright 真验前的最低门槛).
+- `svelte-check` baseline 不变 (4 errors / 48 warnings 都是 baseline `vite.config.ts:3:26 node:child_process` 缺 `@types/node` 引入, 跟本任务无关).
+- **真机 walk**: 下次 `scripts/v0727-1-4-10-verify.cjs` Playwright iPhone 13 @3x (390×844 webkit locale zh-CN) 跑 `\u2026login → /s/64BZQNX9NU → click .currency-bar (.currency-bar) → wait .sheet → `evaluate(.sheet)→ getBoundingClientRect() → 比对 .bottom vs window.innerHeight` → 预期 sheet.bottom ≈ window.innerHeight (iPhone 13 = 844 logical px)`. 截图存 `~/.openclaw/media/browser/v0728-currencyadd-cta/01-currencyadd.png` + `/invite.png` + `/add-settlement.png` 各 1 张.
+- 反 #150 v2 v3 排除: 反 #150 v2 v3 (下一轮 update) — `getBoundingClientRect()` 是实际视觉位置 (vs `cs('position')` + `cs('bottom')` 文字值), 这次 real check.
+
+**排除范围**:
+- `CurrencyAddModal` inner form 排版细节 (`.field-label var(--font-size-sm)` vs `12px`): 不动.
+- `InviteLinkButton` / `CurrencyAddModal` / `AddSettlementSheet` 的 `data-sbc` attribute 原样保留: 加 `data-testid="*-host"` 只是给 verify script 用, 已经是 compatibility 不变.
+- BACKDROP 渲染序列 (`.sheet-backdrop` 在 host div 内, action 搬 host 时整体搬走) — `position: fixed; inset: 0` 也变 containing block = viewport, 视觉正确覆盖整屏.
+
+**反 #162 同 batch fix + SPEC §11 sync** — 上游 PR 拆出后续 sprint, 这次单独修.

@@ -32,6 +32,7 @@
 <script lang="ts">
   import { X as XIcon } from 'lucide-svelte';
   import { toast } from '$stores/toast';
+  import { portal } from '$lib/actions/portal';
 
   export let sessionId: number;
   /** v0.3.1: unguessable public code from sessions.session_code. */
@@ -159,7 +160,18 @@
 </div>
 
 <!-- v0.3.24 #14: 复制成功弹出 confirm modal (manual dismiss).
-     文案两段中间 <br /> 换行 (PO 字面要求); "知道了" 按钮 manual close. -->
+     文案两段中间 <br /> 换行 (PO 字面要求); "知道了" 按钮 manual close.
+     v0.3.27 #3 (PO msg 9234 真机截图质问): wrap modal markup 在 `<div use:portal>` host 里.
+     portal Svelte action 物理把 host 搬到 document.body (via appendChild), 跳出 ancestor
+     `.members-head-row2` (有 `backdrop-filter: blur(20px) saturate(180%)` 玻璃) 的 CSS
+     containing block trap. Per CSS Containing Block spec, `transform/filter/backdrop-filter`
+     等都会让 ancestor 成为后代 `position:fixed` 的 containing block, 所以 `bottom: 0`
+     实际 anchor 到 ancestor 底部 (.members-head-row2 占 viewport 上半部), 视觉居中
+     — 这就是 Jesse iPhone Safari 真机截图清楚显示的 bug. 物理搬到 body 后
+     containing block = viewport, `bottom: 0` 才真贴 viewport 底部.
+     Playwright iPhone 13 @3x 真机 walk 验: `getBoundingClientRect().bottom` 贴近
+     `window.innerHeight` (iPhone 13 viewport = 844 logical px) 才是真正 bottom sheet. -->
+<div use:portal data-testid="invite-modal-host">
 {#if modalOpen}
   <div
     class="invite-sheet-backdrop"
@@ -193,6 +205,7 @@
     </div>
   </div>
 {/if}
+</div>
 
 <style>
   .invite-row {
