@@ -408,7 +408,7 @@
             aria-selected={m.member_id === selectedMemberId}
             aria-controls="member-panel-{m.member_id}"
             bind:this={chipRefs[m.member_id]}
-            on:click={() => selectMember(m.member_id)}
+            onclick={() => selectMember(m.member_id)}
             in:fly={{ y: 6, duration: 220, delay: Math.min(i * 30, 240) }}
           >
             <div class="chip-avatar" aria-hidden="true" style="background: {avatarGradient(i)}">{avatarLetter(m.display_name)}</div>
@@ -512,7 +512,7 @@
               role="button"
               tabindex="0"
               aria-expanded={paidExpanded}
-              on:click={() => (paidExpanded = !paidExpanded)}
+              onclick={() => (paidExpanded = !paidExpanded)}
               on:keydown={(e: KeyboardEvent) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
@@ -544,7 +544,7 @@
                     type="button"
                     class="bills-section-search-clear"
                     aria-label="清除搜索"
-                    on:click={() => (paidSearchQuery = '')}
+                    onclick={() => (paidSearchQuery = '')}
                   ><X size={12} /></button>
                 {/if}
               </div>
@@ -617,7 +617,7 @@
               role="button"
               tabindex="0"
               aria-expanded={consumedExpanded}
-              on:click={() => (consumedExpanded = !consumedExpanded)}
+              onclick={() => (consumedExpanded = !consumedExpanded)}
               on:keydown={(e: KeyboardEvent) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
@@ -648,7 +648,7 @@
                     type="button"
                     class="bills-section-search-clear"
                     aria-label="清除搜索"
-                    on:click={() => (consumedSearchQuery = '')}
+                    onclick={() => (consumedSearchQuery = '')}
                   ><X size={12} /></button>
                 {/if}
               </div>

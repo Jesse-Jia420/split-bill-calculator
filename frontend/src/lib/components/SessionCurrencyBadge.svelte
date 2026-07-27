@@ -98,7 +98,7 @@
       <button
         type="button"
         class="currency-pill-row currency-pill-row--single currency-pill-row--clickable"
-        on:click={handleAddCurrencyClick}
+        onclick={handleAddCurrencyClick}
         aria-label="添加副币种"
         data-sbc="currency-pill-add-secondary"
         data-primary={primary_currency}
@@ -138,7 +138,7 @@
       <button
         type="button"
         class="currency-bar currency-bar--clickable"
-        on:click={handleAddCurrencyClick}
+        onclick={handleAddCurrencyClick}
         aria-label="修改币种设置"
         data-sbc="currency-bar-edit"
         data-primary={primary_currency}

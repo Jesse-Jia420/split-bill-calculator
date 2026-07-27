@@ -972,7 +972,7 @@
     {#if pendingDeleteBillId !== null}
       <div
         class="modal-backdrop"
-        on:click={cancelDeleteBill}
+        onclick={cancelDeleteBill}
         role="presentation"
       >
         <div
@@ -980,7 +980,7 @@
           role="dialog"
           aria-modal="true"
           aria-labelledby="delete-bill-modal-title"
-          on:click|stopPropagation
+          onclick|stopPropagation
         >
           <div class="modal-icon" aria-hidden="true">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1000,12 +1000,12 @@
             <button
               type="button"
               class="btn-cancel"
-              on:click={cancelDeleteBill}
+              onclick={cancelDeleteBill}
             >取消</button>
             <button
               type="button"
               class="btn-danger"
-              on:click={confirmDeleteBill}
+              onclick={confirmDeleteBill}
             >确认删除</button>
           </div>
         </div>

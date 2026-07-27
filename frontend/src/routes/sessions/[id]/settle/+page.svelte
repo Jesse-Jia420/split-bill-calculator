@@ -299,7 +299,7 @@
               class="add-btn"
               type="button"
               aria-label="添加已结算记录"
-              on:click={openAddSheet}
+              onclick={openAddSheet}
               data-sbc="settle-add-record-btn"
             >
               <Plus size={16} strokeWidth={2.4} />

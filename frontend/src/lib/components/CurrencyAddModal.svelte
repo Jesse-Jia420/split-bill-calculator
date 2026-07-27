@@ -581,7 +581,7 @@
       <button
         type="button"
         class="btn-cancel-sheet"
-        on:click={close}
+        onclick={close}
         disabled={busy}
         data-testid="currency-add-cancel"
       >取消</button>
@@ -589,7 +589,7 @@
         <button
           type="button"
           class="btn-primary"
-          on:click={handleSubmit}
+          onclick={handleSubmit}
           disabled={!canSubmit}
           aria-label={submitLabel}
           data-testid="currency-add-submit"

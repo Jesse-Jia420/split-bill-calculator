@@ -667,7 +667,7 @@
             role="radio"
             aria-checked={currency === code}
             disabled={submitting}
-            on:click={() => handleCurrencyPillClick(code)}
+            onclick={() => handleCurrencyPillClick(code)}
           >{code}</button>
         {/each}
       </div>
@@ -711,7 +711,7 @@
         <button
           type="button"
           class="link-btn"
-          on:click={toggleAllParticipants}
+          onclick={toggleAllParticipants}
           data-testid="ppts-toggle-all"
           aria-label={allIncluded ? '清空全部参与者' : '全选全部参与者'}
         >{allIncluded ? '清空' : '全选'}</button>
@@ -729,7 +729,7 @@
             <button
               type="button"
               class="ppt-main"
-              on:click={() => toggleParticipant(m.id)}
+              onclick={() => toggleParticipant(m.id)}
               data-testid={`ppts-row-${m.id}`}
               aria-pressed={st?.included ?? false}
             >
@@ -762,7 +762,7 @@
                 <button
                   type="button"
                   class="pill-currency"
-                  on:click={() => exitExclusiveMode(m.id)}
+                  onclick={() => exitExclusiveMode(m.id)}
                   aria-label={`退出 ${m.display_name} 的个人消费`}
                 >{currencySymbol(currency)}</button>
                 <input
@@ -784,7 +784,7 @@
               <button
                 type="button"
                 class="excl-pill excl-pill-shared"
-                on:click={() => enterExclusiveMode(m.id)}
+                onclick={() => enterExclusiveMode(m.id)}
                 aria-label={`为 ${m.display_name} 设置个人消费`}
                 data-testid={`ppts-chip-${m.id}`}
                 data-state="shared"

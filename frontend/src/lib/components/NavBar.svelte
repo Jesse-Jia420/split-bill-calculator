@@ -53,7 +53,7 @@
         {#if page.url.pathname !== '/sessions/new'}
           <a href="/sessions" class="btn-sm links-item">我的账本</a>
         {/if}
-        <button class="ghost btn-sm" on:click={handleLogout}>注销登录</button>
+        <button class="ghost btn-sm" onclick={handleLogout}>注销登录</button>
       {:else if inSession() && !isJoinPage()}
         <a
           href={`/auth/login?returnTo=${encodeURIComponent(page.url.pathname + page.url.search)}`}

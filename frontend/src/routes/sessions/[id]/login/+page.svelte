@@ -47,6 +47,9 @@
   let memberId = $derived(page.url.searchParams.get('as') || '');
   let nickname = $derived(page.url.searchParams.get('nickname') || '');
   let emailMasked = $derived(page.url.searchParams.get('emailMasked') || '');
+  // v0.3.35 #7 — UAT 0725-3 #12: join page 选带邮箱 nickname 后跳过来时 query param `email` 传 raw email,
+  // FE pre-check (handleSend function) 防 PO 字面 "邮箱与要登录的用户邮箱不一致则无法发送验证码".
+  let expectedEmail = $derived(page.url.searchParams.get('email') || '');
   let sessionId = $derived(Number(page.params.id) || 0);
   let sessionName = $state('');  // 副副标题 "清迈" — 从 preview 拿
 
@@ -73,6 +76,13 @@
     const trimmed = email.trim();
     if (!trimmed || !trimmed.includes('@')) {
       toast.error('请输入有效邮箱', 4000);
+      return;
+    }
+    // v0.3.35 #7 — UAT 0725-3 #12: FE pre-check expectedEmail match (大小写不敏感).
+    // join page 选 nickname 后跳过来时 query param `email` = 该 nickname 绑定的 raw email,
+    // 用户必须输入一致才发验证码请求 (BE 端也会 validate, defense in depth).
+    if (expectedEmail && trimmed.toLowerCase() !== expectedEmail.toLowerCase()) {
+      toast.error('邮箱与该昵称绑定的邮箱不一致, 请重新选择昵称', 4000);
       return;
     }
     busy = true;

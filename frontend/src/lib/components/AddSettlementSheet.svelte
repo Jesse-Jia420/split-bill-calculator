@@ -169,7 +169,7 @@
 <div
   class="backdrop"
   role="presentation"
-  on:click={close}
+  onclick={close}
   data-sbc="settlement-sheet-backdrop"
 ></div>
 
@@ -188,7 +188,7 @@
       class="sheet-close"
       type="button"
       aria-label="关闭"
-      on:click={close}
+      onclick={close}
     >
       <XIcon size={16} strokeWidth={2.4} />
     </button>
@@ -334,7 +334,7 @@
       class="btn-primary"
       type="button"
       disabled={!canSubmit}
-      on:click={handleSubmit}
+      onclick={handleSubmit}
       data-sbc="sheet-submit-btn"
     >
       {busy ? '提交中…' : '确认添加'}

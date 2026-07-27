@@ -407,7 +407,7 @@
   }
 </script>
 
-<svelte:window on:click={onWindowClick} />
+<svelte:window onclick={onWindowClick} />
 
 <!-- v0.3.x (UAT #0723-3 #3): unguessable 10-char session_code (代替 /sessions/{id}).
      老 URL /sessions/{id} 仍工作 (UI 不再生成, 但用户书签/外部分享进仍
@@ -426,7 +426,7 @@
   on:touchend={onTouchEnd}
   on:touchcancel={onTouchCancel}
   on:mousedown={onMouseDown}
-  on:click={onWrapClick}
+  onclick={onWrapClick}
   role="group"
   aria-label="账本: {session.name}"
 >
@@ -444,7 +444,7 @@
       tabindex={rightProgress >= 1 ? 0 : -1}
       aria-hidden={rightProgress <= 0}
       aria-label="删除账本: {session.name}"
-      on:click|stopPropagation={onSwipeDelete}
+      onclick|stopPropagation={onSwipeDelete}
     >
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <polyline points="3 6 5 6 21 6"/>
@@ -542,7 +542,7 @@
   <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
   <div
     class="modal-backdrop"
-    on:click={handleBackdropClick}
+    onclick={handleBackdropClick}
     on:keydown={handleKeydown}
     role="presentation"
   >
@@ -552,7 +552,7 @@
       role="dialog"
       aria-modal="true"
       aria-labelledby="delete-modal-title"
-      on:click|stopPropagation
+      onclick|stopPropagation
     >
       <div class="modal-icon" aria-hidden="true">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -572,13 +572,13 @@
         <button
           type="button"
           class="btn-cancel"
-          on:click={cancelDelete}
+          onclick={cancelDelete}
           disabled={deleting}
         >取消</button>
         <button
           type="button"
           class="btn-danger"
-          on:click={confirmDelete}
+          onclick={confirmDelete}
           disabled={deleting}
         >{deleting ? "删除中…" : "确认删除"}</button>
       </div>
