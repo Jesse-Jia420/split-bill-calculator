@@ -85,27 +85,35 @@
   import { ArrowLeft, Plus } from 'lucide-svelte';
   import { toast } from '$stores/toast';
 
-  let session: SessionDetail | null = null;
-  let currentMember: { id: number } | null = null;
-  let loading = true;
+  // v0.3.36 follow-up #15 (sbc #15 verify prerequisite) — UAT 0727-1 #8 sub-route 修:
+  // 589ca59 引入 $state/$derived runes, 但所有 reassigned vars 都用 plain `let`
+  // 跟 +page.svelte (主页面) 的 $state() 模式不一致, 在 runes mode 下 plain `let`
+  // 不触发响应式更新. 结果 loading=false / records=[] / bills=[] 等写入后 {#if} / {#each}
+  // 模板不更新 → settle 页永远卡在 "加载结算..." LoadingOverlay.
+  // 修法: 把所有 reassigned vars 加 $state() (跟 /s/[code]/+page.svelte 主页面一致).
+  // 注意: memberIdToName / memberIdToRole 之前是 plain object, 改 $state 后用对象 identity 引用赋值,
+  // 模板里仍正常 read.
+  let session: SessionDetail | null = $state(null);
+  let currentMember: { id: number } | null = $state(null);
+  let loading = $state(true);
   // v0.3.18 #53: open/close state for the CurrencyAddModal (triggered by
   // SessionCurrencyBadge single-pill + icon when owner).
-  let addCurrencyOpen = false;
+  let addCurrencyOpen = $state(false);
   // v0.3.32 -- UAT 0725-2 #1: settlement_records state + sheet open.
   // records: 全部已结算记录, 按 created_at DESC (跟 mockup 5 record-list 同源).
   // addSheetOpen: 控制 AddSettlementSheet 显示.
-  let records: SettlementRecord[] = [];
-  let recordsLoaded = false;
-  let addSheetOpen = false;
+  let records: SettlementRecord[] = $state([]);
+  let recordsLoaded = $state(false);
+  let addSheetOpen = $state(false);
   // v0.3.32: 强制 SettleTransferPath reload -- 提交 / 删除 record 后,
   // BE 的 settle API 会调整 transfer cards, child 的 onMount 已经跑过了,
   // 需要手动触发 refetch (SettleTransferPath 没有 on:recordsChanged 事件,
   // 简单做法: 用 key prop 强制 unmount/remount).
-  let settleRefreshKey = 0;
+  let settleRefreshKey = $state(0);
   // v0.3.19 #85 (PO #7308): 本地加载 bills 决定 has_bills, 传给 CurrencyAddModal
   // 决定锁哪些字段. settle 页通常都 >0 bills, 但仍准确加载避免 empty session 误判.
-  let bills: Bill[] = [];
-  let billsLoaded = false;
+  let bills: Bill[] = $state([]);
+  let billsLoaded = $state(false);
 
   // v0.3.36 — UAT 0727-1 #8 sub-route: /s/{session_code}/settle 用 code 替代 id.
   // sessionId 一开始 = 0; 首次 onMount 通过 getSessionByCode(code) 拿到 session 后回填.
@@ -114,8 +122,8 @@
   let code = $derived(page.params.code ?? '');
   let sessionId = $state(0);
 
-  let memberIdToName: Record<number, string> = {};
-  let memberIdToRole: Record<number, string> = {};
+  let memberIdToName: Record<number, string> = $state({});
+  let memberIdToRole: Record<number, string> = $state({});
 
   // v0.2.2 (T11): settle view mode. 'primary' = all in primary
   // currency (default); 'split' = source currency per bill, primary
@@ -139,7 +147,7 @@
   function defaultViewMode(s: SessionDetail | null): ViewMode {
     return s && s.currencies.length < 2 ? 'split' : 'primary';
   }
-  let viewMode: ViewMode = defaultViewMode(session);
+  let viewMode: ViewMode = $state(defaultViewMode(session));
 
   // v0.3.33 — UAT 0725-3 #4 (PO 14:59 batch):
   //   删 section 3 「最新应结算」整块 (template + reactive + helpers + type),
@@ -176,7 +184,7 @@
   }
 
   type Tab = 'overview' | 'personal';
-  let activeTab: Tab = 'overview';
+  let activeTab: Tab = $state('overview');
 
   onMount(async () => {
     if (page.url.hash === '#personal') {
