@@ -444,7 +444,7 @@
       tabindex={rightProgress >= 1 ? 0 : -1}
       aria-hidden={rightProgress <= 0}
       aria-label="删除账本: {session.name}"
-      onclick|stopPropagation={onSwipeDelete}
+      onclick={(e) => { e.stopPropagation(); onSwipeDelete(e); }}
     >
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <polyline points="3 6 5 6 21 6"/>
@@ -552,7 +552,7 @@
       role="dialog"
       aria-modal="true"
       aria-labelledby="delete-modal-title"
-      onclick|stopPropagation
+      onclick={(e) => e.stopPropagation()}
     >
       <div class="modal-icon" aria-hidden="true">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
