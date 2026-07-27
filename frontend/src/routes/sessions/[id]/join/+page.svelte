@@ -278,16 +278,16 @@
   {:else}
     {#if invite}
       <p class="muted">
-        来自 <strong>{invite.inviter_display_name}</strong> 的账本:
+        来自 <strong>{invite.inviter_display_name}</strong>
         <strong>{invite.session_name}</strong>
       </p>
     {:else if session}
       <p class="muted">
-        账本: <strong>{session.name}</strong>
+        <strong>{session.name}</strong>
       </p>
     {:else if preview}
       <p class="muted">
-        账本: <strong>{preview.name}</strong>
+        <strong>{preview.name}</strong>
       </p>
     {/if}
 
