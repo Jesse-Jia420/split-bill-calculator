@@ -137,6 +137,9 @@
   // v0.3.35 #1 — UAT 0725-3 #6 (PO msg #9088 batch): description 空提交红框视觉标记.
   //   跟 toast.error 同色 (rose→red rgba(244,63,94,...)), 让用户一眼知道哪个字段要填.
   let descriptionError = false;
+  // v0.3.36 #12 — UAT 0727-1 #12 (Jesse msg 2026-07-27 23:35 "b.c 完全同款"):
+  //   amount 字段空 / <=0 触发红框, 跟 descriptionError 同款 rose→red glass.
+  let amountError = false;
 
   // v0.2.1 T02: last-bill participants prefetched on mount.
   // v0.3.20 #93 (PO msg 00:04 #7450): smartDateChips state removed (UI deleted).
@@ -573,10 +576,13 @@
     }
     descriptionError = false;
     const p = buildPayload();
+    // v0.3.36 #12 — UAT 0727-1 #12 (c 完全同款): amount validation 触发红框玻璃.
     if (amount == null || !Number.isFinite(amount) || amount <= 0) {
-      toast.error('请填写金额(大于 0)');
+      amountError = true;
+      toast.error('请填写账单金额');
       return;
     }
+    amountError = false;
     if (!p.payer_member_id) {
       toast.error('请选择付款人');
       return;
@@ -641,9 +647,11 @@
         initialAmount={amount}
         {currency}
         disabled={submitting}
+        error={amountError}
         on:confirm={(e) => {
           amount = e.detail.value;
           amountExpression = e.detail.expression;
+          amountError = false;
         }}
       />
     </div>

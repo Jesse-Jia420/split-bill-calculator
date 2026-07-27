@@ -32,6 +32,8 @@
   export let initialAmount: number | null = null;
   export let currency: string = '';
   export let disabled: boolean = false;
+  // v0.3.36 #12 — UAT 0727-1 #12 (c 完全同款): parent 传红框状态
+  export let error: boolean = false;
 
   const dispatch = createEventDispatcher<{
     change: string;
@@ -258,6 +260,7 @@
   >
     <input
       class="amount-input"
+      class:input-error={error}
       type="text"
       inputmode="none"
       readonly
@@ -392,6 +395,12 @@
     min-height: var(--touch-target, 44px);
     -webkit-user-select: none;
     user-select: none;
+  }
+  /* v0.3.36 #12 — UAT 0727-1 #12 (c 完全同款, 跟 BillForm descriptionError 同款 rose→red glass) */
+  .amount-input.input-error {
+    border-color: rgba(244, 63, 94, 0.55);
+    background: linear-gradient(rgba(255, 228, 230, 0.55), rgba(254, 205, 211, 0.55));
+    box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.5), 0 0 24px rgba(244, 63, 94, 0.4);
   }
 
   .sheet-backdrop {
