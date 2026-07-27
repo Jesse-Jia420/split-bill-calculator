@@ -1227,9 +1227,10 @@
   input[type="datetime-local"]#occurredAt {
     min-width: 0;
     width: 100%;
+    max-width: 260px; /* v0.3.37 #2: constrength to ~widget+padding, 不再全宽撑长 */
     padding-block: 8px;
-    padding-inline: 12px 16px; /* v0.3.28 UAT 0724-2 #5: 从 32px 减到 16px, 减小日历 icon 右侧空白. 保留 16px 防 picker indicator 截断. */
-    font-size: 15px;
+    padding-inline: 10px; /* v0.3.37 #2: symmetric 10px, 原 12px 16px → 10px 省 8px */
+    font-size: 14px; /* v0.3.37 #2: 降 1px 跟其余 input 一致 */
     letter-spacing: -0.01em;
   }
 
