@@ -44,8 +44,14 @@ export const createSettlementRecord = (
 export const listSettlementRecords = (
   sessionId: number
 ): Promise<SettlementRecord[]> => {
+  const h: Record<string, string> = {};
+  if (typeof window !== "undefined") {
+    const secret = localStorage.getItem("sbc.actingAs." + sessionId);
+    if (secret) h["X-Nickname-Secret"] = secret;
+  }
   return apiFetch<SettlementRecord[]>(
-    `/sessions/${sessionId}/settlement_records`
+    `/sessions/${sessionId}/settlement_records`,
+    { headers: h }
   );
 };
 

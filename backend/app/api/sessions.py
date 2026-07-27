@@ -2230,7 +2230,7 @@ async def create_settlement_record(
     response_model=list[SettlementRecordOut],
 )
 async def list_settlement_records(
-    sm: Annotated[SessionMember, Depends(get_session_member)],
+    sm: Annotated[SessionMember, Depends(get_session_member_or_secret)],
     db: Annotated[Session, Depends(get_db)],
     session_id: int = Path(..., description="sessions.id"),
 ) -> list[dict]:
