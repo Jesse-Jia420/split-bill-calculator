@@ -6992,3 +6992,27 @@ PO 字面 "用户填写邮箱, 点击发送验证码时, 需要先和后端校�
 - 排除范围: 改 sendCode API signature (email → email + expectedEmail) — 用 Pydantic optional field (default=None), backward compat 保留, 旧 FE 客户端不带 expectedEmail 仍能调用 (None 时跳过 validate).
 - 排除范围: 大小写 strict 校验 — PO 没说, 实际应用都小写化, 用 toLowerCase() 比较.
 - 排除范围: 改 login page UI 布局 — 仅加 expectedEmail state + handleSend 加 pre-check, 不动 visual.
+
+### v0.3.36 — 页面 header 添加 FE+BE 版本号 (Master 自做, PO msg 2026-07-27 12:19 "你在页面 header 上添加前后端版本号。我们以此对齐")
+
+代码改动 3 处:
+- `frontend/vite.config.ts` — 加 `gitVersionPlugin()`: vite config 加载时跑 `git rev-parse --short HEAD` + dirty 检查, 设到 `process.env.VITE_APP_VERSION`. Vite 自动把 `VITE_*` env 暴露给客户端 `import.meta.env.VITE_*`.
+- `frontend/src/lib/components/VersionBadge.svelte` — 新增. 玻璃 pill 形态, fixed 定位 top:6px right:8px z-index 200, 渲染 `FE <hash>` + `BE <hash>` (BE 通过 `getBackendVersion()` 调 `/api/version` 一次并缓存). title 完整版本 (含 hash 跟 dirty 标识). 颜色 rgba(30,30,60,0.62), hover 升到 0.88.
+- `frontend/src/api/version.ts` — 新增. `getBackendVersion()` memoized Promise. 失败 fallback `'unreachable'` 而不是 throw, 保证 badge 即使 BE 宕了也能渲染 (用于调试: 我们看 FE 还活着, BE 起没起).
+- `frontend/src/routes/+layout.svelte` — 加 `<VersionBadge />` 在 `<Toast />` 之后, 全局挂载.
+
+**FE 端机制**: vite plugin 启动时跑 `git rev-parse --short HEAD` + `git diff --quiet HEAD` 检查 dirty, 失败 fallback `'unknown'`. 一切自动, 不需 `npm run version` 手动跑.
+
+**BE 端机制**: 现有 `backend/app/api/version.py` 已经在 import time 跑 `git rev-parse --short=8 HEAD` + dirty 检查, 设到模块常量 `VERSION` (原来就这样). `/version` 路由返 `{"backend": VERSION}`. **问题**: 这次改动, BE 进程不重启的话 `VERSION` 还是模块 import 时的旧值. 所以 codeserver pull 完之后必须 `pkill uvicorn` 重新起.
+
+**对齐工作流**: Master 跟 PO 真机测 / 验 bug / 看 production 截图时, 都能从 page header 顶部右上角看到当前两个 commit hash. PO 真机截屏 + 报告 bug 时一起贴 hash, Master 立刻能 `git log <hash>` 看自己改了什么.
+
+**前端 + Playwright verify**: 由于根因是 vite plugin + 浏览器 fetch, 验证要点 = (1) HTML response 里有 `class="version-badge"` 跟 `data-testid="version-badge"`, (2) `<span class="v fe">FE <hash></span>` 跟 `<span class="v be">BE <hash></span>` 都填充正确 hash, (3) `import.meta.env.VITE_APP_VERSION` 跟 `git rev-parse --short HEAD` 字面一致.
+
+### v0.3.36 排除范围 (本任务不修, 待 PO 决定)
+- **打包后 production 显示** — 现在 vite plugin 在 config time 跑, prod build (vite build) 也跑, 没问题. 但如果走 adapter-static 或者其他 build path, hash 也对 (因为 `git rev-parse` 在 build 时跑). 等真部署 prod 时再确认.
+- **加 click-to-copy 按钮** — 现在 badge user-select: text, 用户可以手动选 + 复制. 加 copy 按钮要 1 个 button + click handler, 等真有人反馈说需要一键复制再说.
+- **历史 hash 列表** — 现在只显示当前 HEAD. 历史版本 (e.g. "previous: 8b04942") 不显示, 也不存档. 等需要支持 rollback alignment 再加.
+- **生产环境禁用** — 当前所有环境都显示. 如果 PO 想 prod 不显示 (e.g. "给用户看太技术"), 加 `if (import.meta.env.PROD) return null` 一行, 但等 PO 拍.
+- **多 branch support** — 现在显示 commit hash 不显示 branch. v0.3.32 #1 反 #190 强制 single-branch 铁律下我们永远在 main, branch 字段冗余. 不加.
+- **iOS Safari 字号自适应** — 现在 10.5px 在 iPhone 13 @3x = ~21 物理像素, 足够读. 如果 PO 真机觉得太小, 改 11.5px 或 12px.
