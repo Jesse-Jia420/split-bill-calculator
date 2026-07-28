@@ -329,24 +329,26 @@
     content: '';
     position: absolute;
     top: 0; bottom: 0;
-    width: 28px;
+    width: 16px;
     pointer-events: none;
     z-index: 2;
-    /* v0.3.0728-2 #17: opacity 0 → 1 (always visible, 不依赖 .at-start/.at-end class). */
-    opacity: 1;
+    /* v0.3.0728-2 #17 re-fix: 减小阴影效果 (PO 字面 "需要减小阴影效果"). width 28px → 16px
+       (-43% 视觉宽度), alpha 0.10 → 0.05 (-50%) + 0.85 → 0.60 (-29%), opacity 1 → 0.85.
+       阴影现在是 subtle edge indicator 而非 dominant visual. */
+    opacity: 0.85;
     transition: opacity 200ms ease;
   }
   .scroll-wrapper::before {
     left: 0;
     background:
-      linear-gradient(to right, rgba(15, 23, 42, 0.10) 0%, rgba(15, 23, 42, 0) 100%),
-      linear-gradient(to right, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0) 100%);
+      linear-gradient(to right, rgba(15, 23, 42, 0.05) 0%, rgba(15, 23, 42, 0) 100%),
+      linear-gradient(to right, rgba(255, 255, 255, 0.60) 0%, rgba(255, 255, 255, 0) 100%);
   }
   .scroll-wrapper::after {
     right: 0;
     background:
-      linear-gradient(to left, rgba(15, 23, 42, 0.10) 0%, rgba(15, 23, 42, 0) 100%),
-      linear-gradient(to left, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0) 100%);
+      linear-gradient(to left, rgba(15, 23, 42, 0.05) 0%, rgba(15, 23, 42, 0) 100%),
+      linear-gradient(to left, rgba(255, 255, 255, 0.60) 0%, rgba(255, 255, 255, 0) 100%);
   }
   /* v0.3.0728-2 #17: 删 :not(.at-start) / :not(.at-end) 规则 — fade 现在 always visible. */
 
