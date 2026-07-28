@@ -171,17 +171,35 @@
    *  +layout.svelte 在 v0.3.17 #30 已经把 body overflow:hidden + main overflow-y:auto
    *  (iOS app-shell pattern), 所以页面滚动发生在 <main> 元素. 弹窗 mount 时把 main
    *  overflow 也设 hidden, disable 滚轮 + 触屏 swipe. unmount 时恢复.
+   *  overscroll-behavior: contain 防止 modal 边缘 rubber-band 触到 body 滚动.
+   *
+   *  v0.3.36 #3 — UAT 0728-1 #3 (PO 字面 "弹窗锁背景滚动, 跟 v0.3.17 #30 iOS app-shell 同模式"):
+   *  同步锁 document.body.style.overflow = 'hidden' (v0.3.17 #30 已经在 app.css 设了
+   *  body { overflow: hidden }, 但 inline style 显式设一层让锁定信号更明确, 同时确保即便
+   *  app.css 未来去掉 body overflow:hidden, 这个 modal 仍能锁住 background). 关时还原 ''.
+   *  修法: 加 document.body inline style + document.documentElement inline style 锁.
    *  overscroll-behavior: contain 防止 modal 边缘 rubber-band 触到 body 滚动. */
   onMount(() => {
     const mainEl = document.querySelector('main');
-    if (!mainEl) return;
-    const origOverflow = mainEl.style.overflow;
-    const origOverscroll = mainEl.style.overscrollBehavior;
-    mainEl.style.overflow = 'hidden';
-    mainEl.style.overscrollBehavior = 'contain';
+    const origMainOverflow = mainEl?.style.overflow ?? '';
+    const origMainOverscroll = mainEl?.style.overscrollBehavior ?? '';
+    const origBodyOverflow = document.body.style.overflow;
+    const origHtmlOverflow = document.documentElement.style.overflow;
+    // v0.3.36 #3: 锁 document.body + document.documentElement + main 三层滚动 context.
+    // 任务字面 "打开 sheet 时 document.body.style.overflow = 'hidden', 关时还原 ''".
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    if (mainEl) {
+      mainEl.style.overflow = 'hidden';
+      mainEl.style.overscrollBehavior = 'contain';
+    }
     return () => {
-      mainEl.style.overflow = origOverflow;
-      mainEl.style.overscrollBehavior = origOverscroll;
+      document.body.style.overflow = origBodyOverflow;
+      document.documentElement.style.overflow = origHtmlOverflow;
+      if (mainEl) {
+        mainEl.style.overflow = origMainOverflow;
+        mainEl.style.overscrollBehavior = origMainOverscroll;
+      }
     };
   });
 
