@@ -156,6 +156,12 @@
         const claimData = (await claimRes.json()) as { session_member_id: number; nickname_secret: string | null };
         if (claimData.nickname_secret && typeof window !== "undefined") {
           localStorage.setItem(LS_PREFIX + sid, claimData.nickname_secret);
+          // v0.3.0728-2 #3 followup: 同时写 code-keyed entry 避免 getSessionByCode 循环拿错 secret.
+          // 根因: 浏览器有 N 个 anon 账本 secret 时, 循环把所有 secret 塞同一个 X-Nickname-Secret
+          // header (互相覆盖), BE 拿到错的 secret 返 403.
+          if (sessionCode) {
+            localStorage.setItem(LS_PREFIX + sessionCode, claimData.nickname_secret);
+          }
         }
       }
       await goto("/s/" + (sessionCode || String(sid)), { replaceState: true });
