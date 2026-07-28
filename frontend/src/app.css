@@ -606,12 +606,15 @@ button.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
    (PO 字面 "v3-1" 拍定值, 跟 mockup v3-1 / v3-2 / v3-3 比较后 PO 选 v3-1). */
 @keyframes invite-breath {
   0%, 100% {
-    box-shadow: 0 0 24px rgba(99, 102, 241, 0.55);   /* v0.3.0728-2 #7 改: 32→24 (缩) + v0.3.37 #16 改色: 象牙白 → indigo 主色 token (跟 accent-500 同源, 跟边框 5 色首位 indigo 呼应) */
+    /* v0.3.0728-2 #8 — UAT 0728-2 #8 拍定: 去掉紫色光晕, 保留 scale 1↔1.05 + 5 色边框流光 (v0.3.37 #16 独立). 
+       修法: box-shadow 0→alpha (无 glow, 只保留 border-flow 5 色 conic 流转). 
+       box-shadow 仍写 0 0 0 transparent 是为了兼容 Safari 老版本 (无 box-shadow 不出 transition). */
+    box-shadow: 0 0 0 rgba(99, 102, 241, 0);          /* v0.3.0728-2 #8 改: alpha 0.55→0, 去紫色光晕 */
     transform: scale(1);
   }
   50% {
-    box-shadow: 0 0 32px rgba(168, 85, 247, 0.75);   /* v0.3.0728-2 #7 改: 64→32 (缩 50%, 防外溢 button 边界) + v0.3.37 #16 改色: 象牙白峰值 → purple 峰值 (跟 conic 第 2 色 purple 呼应) */
-    transform: scale(1.03);                            /* v0.3.0728-2 #7 改: 1.05→1.03 (缩 40%, 防外溢 button 边界) */
+    box-shadow: 0 0 0 rgba(168, 85, 247, 0);          /* v0.3.0728-2 #8 改: alpha 0.75→0, 去紫色光晕 */
+    transform: scale(1.05);                             /* v0.3.0728-2 #8 恢复: 1.03→1.05 (#7 缩完, 现在 #8 把光晕去掉, scale 可以放开). 边框流光不依赖 scale. */
   }
 }
 /* v0.3.37 #16: 5 色 conic-gradient 边框流光 (PO 拍 v3-1 = RECOMMENDED) */
