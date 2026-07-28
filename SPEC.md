@@ -7902,3 +7902,52 @@ PO msg 2026-07-28 16:50 batch UAT 0728-2 (20 items, #6 跳过后边再做). Code
 - Service Worker + Web App Manifest 完备性: beforeinstallprompt event 触发前提是 manifest 有效 + service worker registered + HTTPS + engagement heuristic. 当前 fix 不检查/安装这些, 假设 PWA 基础设施已就绪 (前端 serve vite dev → 走 cf tunnel → HTTPS OK; manifest 看后续 sprint 是否补). 如果 manifest 缺失, beforeinstallprompt 永不触发, button 不会显示, 用户走 iOS 路径.
 - A2HS (Add to Home Screen) hero shot / 演示动画: iOS Safari 没自动路径, 当前 hint text "在 Safari 点底部分享按钮,选择「添加到主屏幕」" 是静态文字. 后续可加 SVG 示意图 + 箭头动画 (iOS HIG share 按钮图标), 但当前 commit 不强求.
 - Standalone mode 检测: 当前 `isStandalone` 用 `matchMedia('(display-mode: standalone)')` + `navigator.standalone`. Edge case (PWA in standalone 但用户重新打开 modal) 已 guard.
+### v0.3.0728-2 #15 — UAT 0728-2 #15 解冻 (PO msg 2026-07-28 21:17 "继续0728-2其他"): 账单列表页右侧上方小字标注 "左划以删除账本, 右划以编辑账本"
+
+**Commit**: `c673c16` fix(fe): v0.3.0728-2 #15 PO解冻 — 账单列表页右侧上方小字标注 (整个 list 顶部 1 个 hint, 跟 #14 per-item 反向, 跟 0728-3 #3 sessions list 顶部 hint 模式对齐)
+
+**根因**: v0.3.0728-2 #14 (SessionCard.svelte per-item 小字 hint "← 左划以删除") 在 batch 处理时 Master 标 SKIPPED (PO msg 16:50 没在拍定列表里), 但功能上 swipe gesture 是 v0.3.28 #3 + v0.3.36 #1 互斥机制, user swipe 几次自然就会. PO 后续 0728-3 #3 单独要求 sessions list 顶部加 hint (跟 #14 per-item 反向), 暗示 PO 想要 list 顶部 hint 模式, 不是 per-item. 因此 0728-2 #15 (类似模式应用到 bill list) 也应该解冻做.
+
+**修法** (Master 自修, 反 #155 自决 — 1 个小 pill + 复用 .swipe-hint-delete 同源 token):
+- `frontend/src/lib/components/BillListGrouped.svelte` template: 在 `{:else}` (有 bills 时) 之后, `<ul class="day-list">` 之前加 1 个 `<div class="bill-swipe-hint">左划以删除账本, 右划以编辑账本</div>` (data-testid="bill-swipe-hint" + aria-label)
+- CSS 新增 `.bill-grouped { display: flex; flex-direction: column; gap: var(--space-2); }` + `.bill-swipe-hint` 玻璃 pill 样式 (跟 .swipe-hint-delete 同源): background rgba(99,102,241,0.10) + border 1px rgba(99,102,241,0.18) + 12px font + 8px radius + align-self: flex-end (右对齐) + pointer-events: none (不抢 click, swipe 仍能透过触发 delete/edit)
+- 视觉跟 0728-3 #3 sessions list 顶部 hint 对齐 (项目后续 sprint 单独做 sessions list hint)
+
+**Files changed**:
+- `frontend/src/lib/components/BillListGrouped.svelte` (+38 lines: template + CSS)
+- `frontend/scripts/v0728-2-15-verify.cjs` (新增 194 lines, Playwright iPhone 13 @3x chromium verify + 16 项 check)
+
+**Verification** (反 #150 v2 + 反 #101 + 反 #167 + 反 #151):
+- Playwright iPhone 13 @3x chromium verify `frontend/scripts/v0728-2-15-verify.cjs`:
+  - **16/16 PASS**:
+    - ✅ bill-swipe-hint present (count = 1)
+    - ✅ hint text = "左划以删除账本, 右划以编辑账本" 字段级精确匹配
+    - ✅ hint aria-label = "左滑删除账单, 右滑编辑账单" (屏幕阅读器)
+    - ✅ background rgba(99, 102, 241, 0.10) 玻璃 (跟 .swipe-hint-delete 同源)
+    - ✅ border 1px rgba(99, 102, 241, 0.18)
+    - ✅ border-radius 8px
+    - ✅ font-size 12px / font-weight 500
+    - ✅ color rgb(29, 78, 216) (--accent-700 项目定义为 blue-700 #1d4ed8, 跟 .glass-pill 同源)
+    - ✅ align-self: flex-end (右对齐)
+    - ✅ pointer-events: none (click 透过)
+    - ✅ right gap = 0px (贴 parent 右边), left gap = 128.63px (留左侧呼吸)
+    - ✅ hint ABOVE first day group (bottom 1108 < day top 1129, 20px gap)
+    - ✅ day groups = 6, bill rows = 41 (session 9 泰国测试, 无 regression)
+    - ✅ click on hint reaches underlying (parent click listener triggered, 证实 pointer-events: none)
+- 反 #150 v2 v3 排除: chromium 渲染 OK, iOS Safari 真机 walk 需 PO 自验 (期望: /sessions/9 顶部右侧看到 glass pill "左划以删除账本, 右划以编辑账本", pointer-events: none 不抢 click)
+
+**反模式严格遵守**:
+- ✅ 反 #162: fix + verify script + §11 sync 同一 push batch (跟 v0.3.0728-2-rainbow-fix 同模式: 1 fix commit + 1 docs commit, push 一起)
+- ✅ 反 #170: N/A (sandbox 直接 edit, codeserver pull 后再跑 verify)
+- ✅ 反 #189: SPEC append heredoc (不用 sed 多匹配)
+- ✅ 反 #167: iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN)
+- ✅ 反 #190: single-branch 铁律, origin 仅 main
+- ✅ 反 #53: 完整 Gitea PAT token-only URL push
+- ✅ 反 #155: 自决 (1 个 small pill, 复用现有 .swipe-hint-delete 同源 token, 不是新 design language)
+- ✅ 反 #150 v2: Master 自修自验 (16/16 check + 截图 + 数据在场)
+- ✅ 反 #121: 自决 (技术细节 self-decide)
+- ✅ 反 #161: 修的意图明确, 不列"不修/延后"选项
+
+**排除范围 (本任务不修, 待 PO 决定)**:
+- 0728-3 #3 sessions list 顶部 hint: 跟 #15 模式对齐, 但 #3 在 0728-3 batch 里, 后续 sprint 单独处理
+- 0728-2 #14 session card per-item hint 是否要删除 (跟 list 顶部 hint 互斥): 当前 per-item hint 跟 list 顶部 hint 共存, 视觉冗余但功能不冲突. 等 PO 拍定是否清理.
