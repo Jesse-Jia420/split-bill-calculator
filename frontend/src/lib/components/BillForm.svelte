@@ -89,6 +89,15 @@
   let amountExpression: string = '';
   let payerMemberId: number | null = null;
   let description = '';
+  // v0.3.0728-2 #9 — UAT 0728-2 #9 BillForm 8 个预设选项 (PO msg 16:50).
+  // PO 拍: 快捷预设选项 — 合作记账软件性质 (三餐 / 交通 / 购物 / 住宿 / 门票).
+  // 点击 chip → 替换 description input 内容. 玻璃风 + 全站 .glass-pill 同族.
+  const DESCRIPTION_PRESETS = ['早餐', '午餐', '晚餐', '交通', '门票', '购物', '房租', '水电'] as const;
+  function applyPreset(preset: string) {
+    description = preset;
+    descriptionPristine = false;
+    descriptionError = false;
+  }
   // v0.3.20 #93 (PO msg 00:04 #7450, Fix 4): occurred_at default = current time in session primary currency TZ.
   // User can still manually edit the time (datetime-local input not locked).
   let occurredAt: string = getDefaultOccurredAt(session.primary_currency);
@@ -687,7 +696,23 @@
   </div>
 
   <div>
-    <label class="label" for="desc">说明</label>
+    <!-- v0.3.0728-2 #9 — UAT 0728-2 #9 BillForm 8 个预设选项 (PO msg 16:50).
+         PO 拍: 新建账单的说明部分增加快捷预设选项, 点击可快速将选项中的内容替换至说明 input 中.
+         选项 (8 个, 合作记账软件性质): 早餐 / 午餐 / 晚餐 / 交通 / 门票 / 购物 / 房租 / 水电.
+         玻璃风 + 全站 .glass-pill 同族. chip horizontal scroll if overflow (iOS Safari overflow-x: auto).
+         click chip → description = preset + descriptionPristine = false + descriptionError = false. -->
+      <div class="preset-row" data-testid="desc-preset-row">
+        {#each DESCRIPTION_PRESETS as preset (preset)}
+          <button
+            type="button"
+            class="preset-chip"
+            onclick={() => applyPreset(preset)}
+            disabled={!canEditDescription}
+            data-testid="desc-preset-{preset}"
+          >{preset}</button>
+        {/each}
+      </div>
+      <label class="label" for="desc">说明</label>
     <input
       id="desc"
       type="text"
@@ -1280,6 +1305,51 @@
       inset 0 -1px 0 rgba(244, 63, 94, 0.12),
       0 0 0 3px rgba(244, 63, 94, 0.18),
       0 0 24px rgba(244, 63, 94, 0.20) !important;
+  }
+
+  /* v0.3.0728-2 #9 — UAT 0728-2 #9 BillForm 预设 chip row.
+     8 个玻璃 pill chip (跟全站 .glass-pill 同族): rgba(15,23,42,0.04) bg + 1px rgba(15,23,42,0.06) border
+     + saturate(180%) blur(4px) + 12px 12px padding + 12.5px font + 999px radius (pill).
+     horizontal overflow-x: auto (iOS Safari 默认支持, 隐藏 scrollbar).
+     click chip → description = preset. */
+  .preset-row {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 6px;
+    margin: 0 0 8px;
+    padding: 0 0 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .preset-row::-webkit-scrollbar { display: none; }
+  .preset-chip {
+    flex: 0 0 auto;
+    padding: 5px 11px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.04);
+    border: 1px solid rgba(15, 23, 42, 0.06);
+    color: var(--gray-700, #334155);
+    font-size: 12.5px;
+    font-weight: 500;
+    line-height: 1.4;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 150ms ease, border-color 150ms ease, transform 100ms ease;
+    backdrop-filter: blur(4px) saturate(180%);
+    -webkit-backdrop-filter: blur(4px) saturate(180%);
+  }
+  .preset-chip:hover {
+    background: rgba(15, 23, 42, 0.08);
+    border-color: rgba(15, 23, 42, 0.10);
+  }
+  .preset-chip:active {
+    transform: scale(0.97);
+  }
+  .preset-chip:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
   }
 
 </style>
