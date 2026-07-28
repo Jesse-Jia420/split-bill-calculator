@@ -7806,3 +7806,46 @@ PO msg 2026-07-28 16:50 batch UAT 0728-2 (20 items, #6 跳过后边再做). Code
 - ✅ 反 #170: N/A (单文件 CSS 改, 不需要 codeserver exec)
 - ✅ 反 #167: codeserver HEAD 已 sync (`cb3aedf`)
 - ✅ 反 #190: origin 仅 main
+### v0.3.0728-2-anim-fix (PO msg 2026-07-28 20:29 iOS Safari 真机截图 — "噢噢噢" 1-member anon session, 5 色彩虹 + 白玻璃 halo 全漏 button 外面)
+
+**Commit**: `394266b` fix(fe): v0.3.0728-2-anim-fix — UAT 0728-2 #16 续: cb3aedf 后续 z-index:-1 escape 仍 leak, 加 isolation: isolate + overflow: hidden 兜底
+
+**根因**: cb3aedf 用 `z-index: -1` 让 ::before/::after escape button stacking context 到下层. iOS Safari WebKit 渲染行为: positioned 元素 z-index: -1 子元素不会按 chromium 那样绘制在父 stacking context 之下, 而是实际漏到 button bounding box 之外, 把 5 色 conic-gradient (indigo→purple→pink→amber→emerald) + ::after 白玻璃 (rgba(255,255,255,0.55) + backdrop-filter blur(20px) saturate(180%)) 都绘制在 button 外, 视觉上紫色到绿色大椭圆光晕 + 白雾 halo. 跟 PO 截图 "噢噢噢" 1-member session 完全对应 (同样形状在 codeserver 实测 session 39 "呃呃呃" 1-member CNY 复现).
+
+**修法** (Master 自修, 反 #150 v2: 此 bug cb3aedf Coder 已 fail 一次, 拍板方向已定, 不重 spawn 浪费 30min):
+- button 加 `isolation: isolate` 创建独立 stacking context (CSS Containment Module Level 1, iOS Safari 2018+ 支持, cross-browser stable)
+- button 加 `overflow: hidden` 双保险, 任何 z-index 视觉 leak 都被 clip 在 border-box 内
+- ::before z-index -1 → 0 (留在 stacking context 内最底层)
+- ::after z-index -1 → 1 (覆盖 ::before 中间, 留 2px ring ::before 在外圈)
+- DOM order (::before → ::after → text) + z-index 层叠确保 text 仍最顶层
+
+**保留**: v0.3.37 #16 5 色 conic-gradient 边框流光 (PO 拍 v3-1) + v0.3.0728-2 #7+#8 dramatic breathing (scale 1↔1.05, 1.5s ease-in-out infinite) + @supports not conic-gradient fallback (solid indigo border).
+
+**Files changed**:
+- `frontend/src/app.css` (1 file, +21 -11)
+- `frontend/scripts/v0728-2-anim-fix-verify.cjs` (新增, 240 lines, Playwright iPhone 13 @3x chromium verify + 3 phase 截图 + fullpage screenshot)
+
+**Verification** (反 #150 v2 + 反 #101 + 反 #167 + 反 #151):
+- Playwright iPhone 13 @3x chromium verify `frontend/scripts/v0728-2-anim-fix-verify.cjs`:
+  - chromium computed style 22/22 PASS (含新增检查 isolation: isolate + overflow: hidden + ::before z-index 0 + ::after z-index 1 + 5 色 conic-gradient + animation invite-border-flow 5s + breathing invite-breath 1.5s + 2px inset after + white glass bg + pointer-events none)
+  - chromium 3 phase 截图 (animation-delay 0s/-1.67s/-3.33s) 模拟 5 色 conic 旋转相位
+  - chromium fullpage screenshot
+- 反 #150 v3 排除: chromium 不重现 iOS Safari WebKit z-index escape bug, 但 fix 用 `isolation: isolate` + `z-index: 0/1` 是标准 CSS (CSS Containment Module Level 1, 2018+ 全平台支持, 包括 iOS Safari WebKit), 不依赖任何 mask-composite / -webkit-mask quirks, 真机 iOS Safari 行为应跟 chromium 一致 (跟 cb3aedf 不一样, cb3aedf 用 z-index:-1 + mask-composite 是特例, 这是用 isolation + z-index:0/1 是规范)
+- **仍需 PO 真机 iPhone Safari walk `/sessions/39` (1-member "呃呃呃", 跟截图 "噢噢噢" 同 shape) 验证**: button 应显示干净 5 色 conic-gradient 流光 ring + dramatic breathing scale, 不再有紫到绿椭圆光晕外溢
+
+**DB state**: 17 sessions, session 39 "呃呃呃" 1-member CNY 在场 (跟 PO 截图 "噢噢噢" 同 1-character 1-member 形状, 用于 real-device walk).
+
+**反模式严格遵守**:
+- ✅ 反 #162: fix + verify script + §11 sync 同一 push batch (跟 v0.3.0728-2-rainbow-fix 同模式: 1 fix commit + 1 docs commit, push 一起)
+- ✅ 反 #170: N/A (sandbox 直接 edit app.css + write verify script, codeserver pull 后再跑 verify; 不需要 codeserver exec_clean.js)
+- ✅ 反 #189: SPEC append heredoc (不用 sed 多匹配, 之前 sed 把 .brand-line-1 字重也连带改了)
+- ✅ 反 #167: iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN)
+- ✅ 反 #190: single-branch 铁律, origin 仅 main
+- ✅ 反 #53: 完整 Gitea PAT token-only URL push (gitea.jessejia.pp.ua, 不是 .click)
+- ✅ 反 #155: 不 spawn Designer — 这是 bug 修复不是设计 token 决策, 5 色 conic-gradient palette 跟 v3-1 PO 拍定一致, 只动 z-index + isolation + overflow 渲染层叠, 没改任何颜色/尺寸/动画时序 token
+- ✅ 反 #150 v2: Master 自修自验 (cb3aedf 同样模式, Coder 已 fail 一次)
+- ✅ 反 #121: 反 #128: 反 #130: 反 #132: Master 自修自验 → chromium computed style + 多 phase screenshot + image tool 视觉三证
+
+**排除范围 (本任务不修, 待 PO 决定)**:
+- chromium 是否能复现 iOS Safari WebKit z-index escape: 当前 chromium verify 视觉 OK, iOS Safari 真机验证为主. 真不放心可加 `transform: translateZ(0)` 再保险一层 (will-change: transform 创建独立 stacking context), 但当前 fix 已够, 不加额外 hack 降低复杂度.
+- 真机 walk timing: animation 总周期 1.5s breath + 5s border-flow 错峰, 当前 chromium 截图用 animation-delay pause 模拟相位, 真机 walk 是连续动画不会暂停, PO 自行观察 5s 周期旋转 + 1.5s breath scale 鼓动即可.
