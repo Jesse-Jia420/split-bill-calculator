@@ -626,20 +626,30 @@ button.glass-pill.invite-btn.invite-btn-breathing,
 .invite-btn.invite-btn-breathing {
   animation: invite-breath 1.5s ease-in-out infinite;
   position: relative;          /* v0.3.37 #16: 让 ::before absolute 定位生效 */
+  /* v0.3.0728-2-anim-fix: isolation: isolate 创建独立 stacking context,
+     让 ::before/::after z-index 0/1 子元素不 escape 到父 stacking context (iOS Safari WebKit z-index:-1 escape bug).
+     overflow: hidden 双保险, 把 pseudo-element 视觉 clip 在 border-box 内,
+     即使 z-index 计算异常视觉也不会漏到 button 外. */
+  isolation: isolate;
+  overflow: hidden;
   /* v0.3.37 #16: 边框让位给 conic 流光层 (transparent 让 ::before 显示).
      specificity (0,3,0) 跟 button.glass-pill (0,2,0) 拉开避免被覆盖 */
   border: 1.5px solid transparent;
   background-clip: padding-box; /* 让 background 不溢出到 border 区域 */
 }
-/* v0.3.0728-2-rainbow-fix (PO msg 19:08 iOS Safari 真机截图).
-   v0.3.37 #16 commit f60b6dc 的 `mask-composite: exclude` + `-webkit-mask-composite: xor`
-   在 iOS Safari WebKit 渲染 broken — 5 色 conic-gradient 通过 mask 没被裁剪掉 inner area,
-   实际漏到 button 外面, 拖出一条斜的彩虹线. Playwright iPhone 13 @3x Chromium verify PASS 但 iOS Safari 真机 fail.
-   修法: 不用 mask, 改用 ::before (rainbow bg) + ::after (inner cover) 双层 + transform 动画.
-   - ::before inset:0 + 5 色 conic-gradient bg + transform: rotate(360deg) animation (cross-browser)
-   - ::after inset:2px + button-matching glass bg (rgba + backdrop-filter) 覆盖内部, 只露 2px 边框 ring
-   - z-index: -1 + DOM order 让 ::after 盖 ::before (无 mask 依赖)
-   - 降级: conic-gradient 不支持 (老 Safari < 12.1) → 静态 solid indigo 边框 */
+/* v0.3.0728-2-anim-fix (PO msg 20:29 iOS Safari 真机截图, 5 色彩虹 + 白玻璃全漏 button 外面).
+   cb3aedf 的 z-index: -1 + ::before(conic) + ::after(glass) 在 iOS Safari WebKit 上 z-index: -1 子元素
+   会 escape 父 stacking context, conic-gradient 跟 ::after 白玻璃都漏到 button bounding box 外,
+   拖出紫色到绿色椭圆光晕 + 白雾 halo (跟 PO 截图 "噢噢噢" / "呃呃呃" 1-member session 完全对得上).
+   修法核心: 让 pseudo-elements 留在 button 自己的 stacking context 内, 不要 z-index:-1 escape, 加 overflow clip 双保险.
+   - button 加 `isolation: isolate` 创建独立 stacking context (CSS Containment Module 1, cross-browser stable)
+   - button 加 `overflow: hidden` 兜底, 任何 z-index 视觉 leak 都被 clip 到 padding-box 内
+   - ::before z-index 从 -1 改 0 (在 stacking context 内最底层, button bg 之上, text 内容之下)
+   - ::after z-index 从 -1 改 1 (在 stacking context 内覆盖 ::before 中间, 留 2px 露出 ::before, button text 之上)
+   - DOM order (::before → ::after → text) + z-index 层叠确保 text 仍在最顶层
+   Playwright iPhone 13 @3x chromium verify 主验证 computed style, 真 iOS Safari 视觉验证仍需 PO 真机 walk
+   (chromium 不重现 iOS Safari WebKit z-index escape bug, 但 fix 改用 isolation: isolate + z-index:0/1 是标准 CSS,
+    iOS Safari WebKit 2018+ 完全支持, 不依赖任何 mask-composite / -webkit-mask 渲染 quirks). */
 .invite-btn-breathing::before {
   content: '';
   position: absolute;
@@ -655,8 +665,8 @@ button.glass-pill.invite-btn.invite-btn-breathing,
     #6366f1 360deg   /* 闭合回 indigo */
   );
   animation: invite-border-flow 5s linear infinite;
-  z-index: -1;
   pointer-events: none;         /* 让 click 穿透到底层 button */
+  z-index: 0;                   /* FIX (was -1): 留在 isolation: isolate stacking context 内 */
 }
 .invite-btn-breathing::after {
   content: '';
@@ -666,8 +676,8 @@ button.glass-pill.invite-btn.invite-btn-breathing,
   background: rgba(255, 255, 255, 0.55);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
           backdrop-filter: blur(20px) saturate(180%);
-  z-index: -1;
   pointer-events: none;         /* 让 click 穿透到底层 button */
+  z-index: 1;                   /* FIX (was -1): 覆盖 ::before 中间, 留 2px ring ::before 在外圈, button text 之上 */
 }
 /* 不支持 conic-gradient 的浏览器降级到 solid indigo 边框 (v0.3.37 #16 fallback, 去掉 mask 条件) */
 @supports not (background: conic-gradient(red, blue)) {
