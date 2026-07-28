@@ -38,16 +38,20 @@ const iPhone13 = devices['iPhone 13'];
   await page.goto(`${BASE}/sessions/9/settle`, { waitUntil: 'networkidle', timeout: 30000 });
   await page.waitForTimeout(2000);
 
-  // 3. Switch to 个人视图 (view=split) so paid + consumed sections both render
-  //    页面默认可能是 概览/主币种汇总, 没有 paid/consumed split sections.
-  //    用 Playwright-friendly getByRole selector.
-  console.log('[v0728-3-6] Step 3: switch to 个人视图');
-  try {
-    await page.getByRole('button', { name: '个人视图' }).click({ timeout: 3000 });
-  } catch {
-    console.log('  个人视图 button not found (可能默认就是个人视图), 继续');
+  // 3. Switch to 个人视图 tab (settle +page.svelte line 188 activeTab default 'overview')
+  //    概览 tab 渲染 SettleTransferPath (没有 paid/consumed split sections).
+  //    需点 IosSwitch 的 "个人视图" tab 切到 personal view (SettleMemberBreakdown) 才渲染 .bills-section-search.
+  console.log('[v0728-3-6] Step 3: switch to 个人视图 tab');
+  // IosSwitch 用 button role, text "个人视图". 用 page.getByText 抓 tab label click.
+  // 用 .first() 避免匹配到 概览选项里也含"个人" sub-text.
+  const personalTab = page.getByText('个人视图', { exact: true }).first();
+  if (await personalTab.count() > 0) {
+    await personalTab.click({ timeout: 5000 });
+    await page.waitForTimeout(800);
+    console.log('  clicked 个人视图 tab');
+  } else {
+    console.log('  个人视图 tab not found (可能默认就是 personal view), 继续');
   }
-  await page.waitForTimeout(800);
 
   // 4. Locate both .bills-section-search boxes (paid + consumed)
   console.log('[v0728-3-6] Step 4: locate both .bills-section-search boxes');
