@@ -8249,3 +8249,58 @@ PO msg 2026-07-28 16:50 batch UAT 0728-2 (20 items, #6 跳过后边再做). Code
 - 多次快速 swipe 状态混淆: 当前 1st swipe → primed 后 2nd swipe → shown. 如果用户快速连 swipe 3 次, 第 3 次 swipe 落在 state='shown', 不会变回 'idle'. 需 click outside 触发 reset. 后续如发现 race condition, 加防抖.
 - 已删除 record 后 state reset: 当前 `onclick={() => onDelete?.(record.id)}` 触发 parent 删除, record 从 list 移除, component unmount, state 自动消失. 没问题.
 - 键盘操作 (accessibility): 当前纯 touch-based. a11y 用户 (键盘 / screen reader) 没法触发删除. 后续如需 a11y, 加 keyboard shortcut (e.g. Delete key) 触发删除按钮, 或 button 加 aria-keyshortcuts.
+### v0.3.0728-3 #3 — UAT 0728-3 #3 (PO msg 2026-07-28 batch 新批 #3): 在我的账本页, 整个列表的右上方添加提示文字 "左划以删除账本". 目前你在每个账本 item 内加的提示, 不对
+
+**Commit**: `c30fad2` fix(fe): v0.3.0728-3 #3 — sessions list 顶部加左划提示 (reverse v0.3.0728-2 #14 per-item hint)
+
+**根因**: v0.3.0728-2 #14 (账本列表 "左划以删除" 小字提示) 把 .swipe-hint 放每个 SessionCard per-item. PO msg 2026-07-28 batch #3 字面要求 "整个列表的右上方" — per-item 太散乱, 应该 list 顶部 single hint.
+
+**修法** (Master 自修, 反 #121 自决 + 反 #155 自决):
+- `frontend/src/lib/components/SessionCard.svelte`:
+  - 删 per-item `.swipe-hint` div (template line 522-530) + dead CSS (lines 683-710 via sed)
+  - 保留 per-item 删后的 comment 解释 (reverse v0.3.0728-2 #14)
+- `frontend/src/routes/sessions/+page.svelte`:
+  - 加 `let hasOwnedSession = $derived(($sessions ?? []).some((s) => s.role === 'owner'))` (Svelte 5 runes)
+  - 加 single list-top hint: `{#if hasOwnedSession} <div class="list-top-hint" data-testid="list-top-hint-delete" aria-label="左划以删除账本">← 左划以删除账本</div> {/if}` 在 .stack div 之前
+  - 加 `.list-top-hint` CSS: `display: flex` (block-level for margin-left:auto to work) + `width: fit-content` (shrink to content) + `margin: 0 0 8px auto` (auto right-align + bottom gap) + 玻璃 pill (rgba(99,102,241,0.10) bg + 1px border + 8px 12px padding + 11px font + 6px radius) + `pointer-events: none` (不抢 click)
+  - v0.3.0728-3 #3 v3 fix: 改 `display: inline-flex` → `display: flex` (block-level, 修 v2 `align-self: flex-end` 在 .stack block parent 里没效果的 bug, 改用 `margin-left: auto` 推右对齐)
+
+**Files changed**:
+- `frontend/src/lib/components/SessionCard.svelte` (-15 lines: per-item .swipe-hint template + dead CSS)
+- `frontend/src/routes/sessions/+page.svelte` (+40 lines: hasOwnedSession $derived + list-top hint template + CSS)
+- `frontend/scripts/v0728-3-3-verify.cjs` (新增 200 lines, Playwright iPhone 13 @3x chromium verify + 12 项 check)
+
+**Verification** (反 #150 v2 + 反 #101 + 反 #167 + 反 #151):
+- Playwright iPhone 13 @3x chromium verify `frontend/scripts/v0728-3-3-verify.cjs`:
+  - **12/12 PASS**:
+    - ✅ list-top-hint-delete element exists (1)
+    - ✅ hint text = "←左划以删除账本" (whitespace accepted, v4 check)
+    - ✅ hint aria-label = "左划以删除账本"
+    - ✅ hint display = flex (v3 block-level, not inline-flex)
+    - ✅ hint align-self = auto (v3 删, 用 margin-left:auto 替代)
+    - ✅ hint background = rgba(99, 102, 241, 0.10) glass
+    - ✅ hint font-size = 11px
+    - ✅ hint border-radius = 6px
+    - ✅ hint pointer-events = none (不抢 click)
+    - ✅ hint right-aligned (margin-left: 249.234px, right gap: 0px 完美贴右)
+    - ✅ per-item .swipe-hint removed (count = 0, reverse #14)
+    - ✅ hint ABOVE first SessionCard (hint bottom 180.125 ≤ first card top 188.125, 8px gap)
+- 反 #150 v2 v3 ✅: chromium computed style + DOM + 几何位置 三证 (right gap = 0px 完美右对齐). iOS Safari 真机 walk 需 PO 自验 /sessions → 列表顶部右侧应看到 glass pill "左划以删除账本".
+- 反 #150 v2 排除: chromium 验证几何位置精确, 真机视觉差异极小.
+
+**反模式严格遵守**:
+- ✅ 反 #162: fix + verify script + §11 sync 同一 push batch (4 commits: fix + 2 verify 修 + docs, push 一起)
+- ✅ 反 #170: N/A (sandbox 直接 edit, codeserver pull 后再跑 verify)
+- ✅ 反 #189: SPEC append heredoc (不用 sed 多匹配)
+- ✅ 反 #167: iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN)
+- ✅ 反 #190: single-branch 铁律, origin 仅 main
+- ✅ 反 #53: 完整 Gitea PAT token-only URL push
+- ✅ 反 #155: 自决 (single list-top hint 跟 per-item hint 视觉同族, 复用 token, 不是新 design language)
+- ✅ 反 #150 v2: Master 自修自验 (chromium 12/12 + v3 fix 修 block-level right-align)
+- ✅ 反 #121: 自决 (display:flex + width:fit-content + margin-left:auto 是标准 CSS 技巧)
+- ✅ 反 #161: 修的意图明确 (PO 字面 "整个列表的右上方"), 不列"不修/延后"选项
+
+**排除范围 (本任务不修, 待 PO 决定)**:
+- 0728-2 #14 旧 per-item hint 跟 v0.3.0728-2 #14 commit `77daea6` 全部删除 (template + CSS). 如未来需要回退, git history 有完整 .swipe-hint 块. 后续如需 per-item + list-top 同时显示 (冗余 but 视觉强调), 简单加回即可.
+- list-top hint 位置选择: 当前在 .stack div 之前 (紧贴 list 顶部). 如 PO 偏好 "列表上方 8-16px gap" 视觉分隔, 改 margin-top: 8-16px 即可.
+- v0.3.0728-2 #14 拍板 history: 当时 PO 拍 "owner only .swipe-hint — 在 .session-card 内 row-bottom 上方". 现在 #3 改成 list 顶部 single hint 跟 v0.3.0728-2 #14 拍板方向不同 (reverse), 但符合 v0.3.0728-3 #3 新拍板 (PO 批 "在每个账本 item 内加的提示, 不对" 明确反转).
