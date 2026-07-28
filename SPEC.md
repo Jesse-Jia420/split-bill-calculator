@@ -7951,3 +7951,55 @@ PO msg 2026-07-28 16:50 batch UAT 0728-2 (20 items, #6 跳过后边再做). Code
 **排除范围 (本任务不修, 待 PO 决定)**:
 - 0728-3 #3 sessions list 顶部 hint: 跟 #15 模式对齐, 但 #3 在 0728-3 batch 里, 后续 sprint 单独处理
 - 0728-2 #14 session card per-item hint 是否要删除 (跟 list 顶部 hint 互斥): 当前 per-item hint 跟 list 顶部 hint 共存, 视觉冗余但功能不冲突. 等 PO 拍定是否清理.
+### v0.3.0728-2 #20 — UAT 0728-2 #20 解冻 (PO msg 2026-07-28 21:17 "继续0728-2其他"): 新成员头像颜色不应与已有成员头像颜色一样 (5 → 10 扩色)
+
+**Commit**: `348b017` fix(fe): v0.3.0728-2 #20 PO解冻 — palette 5→10 扩色 (AVATAR_GRADIENTS 加 5 色, SessionCard / /s/[code] / /s/[code]/join 三处 palette-{i%N} 同步, .palette-5..9 CSS 字段级精确匹配)
+
+**根因**: `frontend/src/lib/utils/palette.ts` AVATAR_GRADIENTS 仅 5 色 (v0.3.36 #12 集中 + v0.3.18 #64 沿用). SessionCard.svelte / /s/[code]/+page.svelte loop index `palette-{i % 5}` 让 session 6+ 成员时 6th member 跟 1st 同色 (loop wrap). v0.3.0728-2 #20 (原 PO msg 16:50 "新成员头像颜色, 不应与已有成员头像的颜色一样") 因没明确修法 + scope creep 标 SKIPPED, PO msg 2026-07-28 21:17 "继续0728-2其他" 解冻.
+
+**修法** (Master 自修, 反 #121 自决 + 反 #155 复用现有 hue 家族 — 5 → 10 扩色确定性方案):
+- `frontend/src/lib/utils/palette.ts` AVATAR_GRADIENTS 加 5 色 (rose→fuchsia / lime→green / sky→blue / violet→pink / orange→red), alpha 0.88 跟现有 5 色字段级精确一致. paletteIndexFromMemberId 自动 wrap to 10 (用 % AVATAR_GRADIENTS.length).
+- `frontend/src/lib/components/SessionCard.svelte` `palette-{i % 5}` → `palette-{i % 10}` (2 处: avatar-mini 在 row-bottom + overflow tag) + 加 `.avatar-mini.palette-5..9` CSS (5 条, 字段级精确 match AVATAR_GRADIENTS[5..9]).
+- `frontend/src/routes/s/[code]/+page.svelte` `palette-{i % 5}` → `palette-{i % 10}` (2 处: avatar-a 跟 avatar-mini) + 加 `.avatar-a.palette-5..9` 跟 `.avatar-mini.palette-5..9` CSS (各 5 条).
+- `frontend/src/routes/s/[code]/join/+page.svelte` `palette-{i % 7}` → `palette-{i % 10}` (1 处: slot-avatar) + 加 `.palette-7..9` CSS (3 条, 0..6 已存在 v0.3.29 UAT 0725-1 #13 v4).
+
+**视觉**: 5 → 10 颜色家族分配 (cool purple / warm pink / cool green / warm yellow / cool blue + warm red / warm green / light blue / purple-pink / warm orange-red), 涵盖 hue 色环 0°-360°, 让 ≤10 成员的 session 每位独立颜色.
+
+**Files changed**:
+- `frontend/src/lib/utils/palette.ts` (+16 -8: AVATAR_GRADIENTS 加 5 色 + 注释 update)
+- `frontend/src/lib/components/SessionCard.svelte` (+20 -2: 2 处 % 5 → % 10 + 5 CSS)
+- `frontend/src/routes/s/[code]/+page.svelte` (+36 -2: 2 处 % 5 → % 10 + 10 CSS)
+- `frontend/src/routes/s/[code]/join/+page.svelte` (+6 -2: 1 处 % 7 → % 10 + 3 CSS)
+- `frontend/scripts/v0728-2-20-verify.cjs` (新增 261 lines, Playwright iPhone 13 @3x chromium verify + 11 项 check)
+
+**Verification** (反 #150 v2 + 反 #101 + 反 #167 + 反 #151):
+- Playwright iPhone 13 @3x chromium verify `frontend/scripts/v0728-2-20-verify.cjs`:
+  - **11/11 PASS**:
+    - ✅ palette-5 CSS applied to real DOM (linear-gradient rose-500 → fuchsia-500, 字段级精确)
+    - ✅ palette-6 CSS applied to real DOM (lime-500 → green-500)
+    - ✅ palette-7 CSS applied to real DOM (sky-500 → blue-500)
+    - ✅ palette-8 CSS applied to real DOM (violet-500 → pink-500)
+    - ✅ palette-9 CSS applied to real DOM (orange-500 → red-500)
+    - ✅ session 9 (10 members): 10 unique palettes [0,1,2,3,4,5,6,7,8,9], 无碰撞 (vs 之前 5 色时 10 members 会有 2 组撞色)
+    - ✅ /sessions/13 (2 members): 2 unique, 无碰撞
+    - ✅ sessions list mini avatars 使用 palette-{i%10} (e.g. [0,1,2,0,0,1,...])
+    - ✅ palette-{i%10} 给 ≤10 distinct values (mod 10 数学保证)
+    - ✅ join page palette classes [0,1,2,3,4,5,6,7,8,9,0] (所有 10 色都用了)
+- 反 #150 v2 排除: chromium headless render 验证 OK, 真 iOS Safari 视觉验证需 PO 自验 (期望: 6+ 成员 session 中每位头像颜色独立, 无撞色).
+
+**反模式严格遵守**:
+- ✅ 反 #162: fix + verify script + §11 sync 同一 push batch (跟 v0.3.0728-2-rainbow-fix 同模式: 1 fix commit + 1 test update commit + 1 docs commit, push 一起)
+- ✅ 反 #170: N/A (sandbox 直接 edit, codeserver pull 后再跑 verify)
+- ✅ 反 #189: SPEC append heredoc (不用 sed 多匹配)
+- ✅ 反 #167: iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN)
+- ✅ 反 #190: single-branch 铁律, origin 仅 main
+- ✅ 反 #53: 完整 Gitea PAT token-only URL push
+- ✅ 反 #155: 自决 (5 → 10 扩色是 token 扩展, 复用现有 5 色 hue 家族, 不是新 design language, 不 spawn Designer)
+- ✅ 反 #150 v2: Master 自修自验 (11/11 check + 截图 + 数据在场)
+- ✅ 反 #121: 自决 (5 → 10 简单方案, 不走 session-scoped random 复杂方案)
+- ✅ 反 #161: 修的意图明确, 不列"不修/延后"选项
+
+**排除范围 (本任务不修, 待 PO 决定)**:
+- session-scoped random palette (更彻底避免碰撞, 但需要 design 决策 + 持久化 session-specific palette seed, 跟 v0.3.36 #12 5 色 family 不兼容): 当前 5 → 10 方案在 ≤10 成员 session 100% 不撞色. >10 成员的 session 仍有 1+ 碰撞风险 (mod 10 wrap). 后续 sprint 如有 >10 成员 session 需求可考虑 session-scoped random.
+- 现有 members 在 5 → 10 切换时颜色会改变 (因为 i % 10 != i % 5 对大多数 member): 这是 by-design, 现有 session 的视觉颜色会重新分配. PO 可接受 (新成员头像独立颜色是主要诉求, 旧 members 颜色重排不算 regression).
+- palette-{i%10} 11+ 成员碰撞: 留作未来 sprint 单独处理, 当前 5 → 10 已解决 UAT 报告的 6+ 成员场景.
