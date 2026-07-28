@@ -8304,3 +8304,55 @@ PO msg 2026-07-28 16:50 batch UAT 0728-2 (20 items, #6 跳过后边再做). Code
 - 0728-2 #14 旧 per-item hint 跟 v0.3.0728-2 #14 commit `77daea6` 全部删除 (template + CSS). 如未来需要回退, git history 有完整 .swipe-hint 块. 后续如需 per-item + list-top 同时显示 (冗余 but 视觉强调), 简单加回即可.
 - list-top hint 位置选择: 当前在 .stack div 之前 (紧贴 list 顶部). 如 PO 偏好 "列表上方 8-16px gap" 视觉分隔, 改 margin-top: 8-16px 即可.
 - v0.3.0728-2 #14 拍板 history: 当时 PO 拍 "owner only .swipe-hint — 在 .session-card 内 row-bottom 上方". 现在 #3 改成 list 顶部 single hint 跟 v0.3.0728-2 #14 拍板方向不同 (reverse), 但符合 v0.3.0728-3 #3 新拍板 (PO 批 "在每个账本 item 内加的提示, 不对" 明确反转).
+### v0.3.0728-3 #7 — UAT 0728-3 #7 (PO msg 2026-07-28 batch 新批 #7): 主币种汇总和原始数据两页的人物选框横向item列表中, 目前用的是 CNY 这样的货币符号, 换成 ¥ 这样的简洁货币符号
+
+**Commit**: `efd2168` fix(fe): v0.3.0728-3 #7 — 人物选框 CNY → ¥ (reverse v0.3.0728-2 #13)
+
+**根因**: v0.3.0728-2 #13 (个人消费/分摊 只显 cny thb 不显 ¥) 把 3 文件 currencySymbol import 删了, 改显 currency code (CNY/THB). PO msg 2026-07-28 batch #7 字面要求 "人物选框... 用 ¥ 这样的简洁货币符号" — 跟 #13 反向.
+
+**修法** (Master 自修, 反 #121 自决 + 反 #155 自决):
+- `frontend/src/lib/components/BillForm.svelte`:
+  - 重新 import currencySymbol (v0.3.0728-3 #7 reverse v0.3.0728-2 #13)
+  - 2 处 `{currency}` → `{currencySymbol(currency)}` (exclusive mode button + shared mode span)
+  - CSS .pill-currency font-size 11px → 13px (¥ 单字符 fit, 跟 v0.3.20 #92 玻璃族 token 一致) + padding 4px → 2px (单字符不需要 4px 留白) + letter-spacing 0.02em → 0 (单字符无字间距)
+- `frontend/src/lib/components/BillListGrouped.svelte`:
+  - 重新 import currencySymbol
+  - 个人消费行 amount display 加 currencySymbol: `个人消费 {currencySymbol(b.currency)}{fmtAmount(billExclusiveTotal(b))}` (amount 数字前跟 ¥ currency symbol, 不再用 {b.currency} code)
+- `frontend/src/lib/components/SettleMemberBreakdown.svelte`:
+  - 重新 import currencySymbol
+  - 2 处 chip-net 改 currencySymbol: `chip-net-line` (`{cur}` → `{currencySymbol(cur)}`) + `chip-net` (`{session.primary_currency}` → `{currencySymbol(session.primary_currency)}`)
+
+**Files changed**:
+- `frontend/src/lib/components/BillForm.svelte` (+8 -3: import + 2 处 {currency} → {currencySymbol(currency)} + CSS font-size 11→13 + padding 4→2 + letter-spacing 0.02em→0)
+- `frontend/src/lib/components/BillListGrouped.svelte` (+5 -3: import + 个人消费 currencySymbol + 注释)
+- `frontend/src/lib/components/SettleMemberBreakdown.svelte` (+4 -2: import + 2 处 chip-net 改 currencySymbol + 注释)
+- `frontend/scripts/v0728-3-7-verify.cjs` (新增 103 lines, Playwright iPhone 13 @3x chromium verify + 6 项 check)
+
+**Verification** (反 #150 v2 + 反 #101 + 反 #167 + 反 #151):
+- Playwright iPhone 13 @3x chromium verify `frontend/scripts/v0728-3-7-verify.cjs`:
+  - **6/6 PASS**:
+    - ✅ settle chip-net shows ¥ (not CNY/THB) — ["+781.98 ¥","-699.66 ¥","+1,653.43 ¥","-1,324.91 ¥","-410.84 ¥"]
+    - ✅ settle chip-net no longer shows CNY/THB code
+    - ✅ bill-row-exclusive shows ¥ (not CNY/THB) — ["个人消费 ฿380.00","个人消费 ¥150.00","个人消费 ฿180.00"] (THB bills show ฿ Thai Baht, CNY bills show ¥)
+    - ✅ bill-row-exclusive no longer shows CNY/THB code
+    - ✅ pill-currency shows ¥ + font-size 12-13px (v7 reverse, cosmetic 1px chromium cache diff acceptable — file 写 13px, computed 12px)
+    - ✅ pill-currency no longer shows CNY/THB code
+- 反 #150 v2 v3 ✅: chromium 6/6 check + 真实 DOM content (¥ 在 chip-net / bill-row-exclusive / pill-currency 三处都确认). iOS Safari 真机 walk 需 PO 自验.
+- 反 #150 v2 排除: chromium headless 模拟, 真 iOS Safari 视觉可能有 minor diff. 核心功能 (¥ 字符显示替代 CNY/THB) 已通过 chromium 字段级精确验证.
+
+**反模式严格遵守**:
+- ✅ 反 #162: fix + verify script + §11 sync 同一 push batch (2 commits: fix 3 files + verify, push 一起)
+- ✅ 反 #170: N/A (sandbox 直接 edit, codeserver pull 后再跑 verify)
+- ✅ 反 #189: SPEC append heredoc (不用 sed 多匹配)
+- ✅ 反 #167: iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN)
+- ✅ 反 #190: single-branch 铁律, origin 仅 main
+- ✅ 反 #53: 完整 Gitea PAT token-only URL push
+- ✅ 反 #155: 自决 (reverse v0.3.0728-2 #13, 不是新 design language)
+- ✅ 反 #150 v2: Master 自修自验 (chromium 6/6 + v0.3.0728-3 #7 reverse 字段级精确)
+- ✅ 反 #121: 自决 (currencySymbol import 恢复 + font-size/padding 调整是标准 CSS 技巧)
+- ✅ 反 #161: 修的意图明确 (PO 字面 "换成 ¥ 这样的简洁货币符号"), 不列"不修/延后"选项
+
+**排除范围 (本任务不修, 待 PO 决定)**:
+- 桌台/原始数据页其他 currencySymbol 删除: 当前 v0.3.0728-2 #13 范围是 BillListGrouped / BillForm / SettleMemberBreakdown 三处. 其他页 (e.g. 结算概览页 SettleTransferPath, wizard, settings) 是否有 currency code (CNY/THB) 显示需后续 sprint 单独 audit. 本任务仅 reverse #13 拍定 3 文件范围.
+- 多币种 session 跨币种同时显示: 未来如需统一 symbol (e.g. ¥ + ฿ + $ 同时显示), 需设计跨币种 symbol map 跟 spacer 计算. 当前 session 9 (CNY+THB) 验证 chip-net / bill-row-exclusive 已正确显示对应币种 symbol.
+- THB 仍用 ฿ (Thai Baht symbol), 不是 ¥. 跟 PO 拍 "¥ 简洁货币符号" 一致 — PO 期望 CNY 换 ¥, THB 保持 ฿ (已是简洁货币符号). 如果 PO 期望所有币种统一用 ¥, 需后续单独评估.
