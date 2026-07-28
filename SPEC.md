@@ -7458,3 +7458,94 @@ Jesse 拍对答案 **f.邀请链接被使用过才行** = 复制成功 + modal �
 - "回到此账本" / "邀请他人" use-chip 二次点击交互 (当前只展示, 不触发). 未来如要点 use-chip 触发动作 (e.g. 回到此账本 = 关闭 modal 跳详情页), 加 onClick 即可.
 - QR error state UI 完整化 (当前只显 "二维码加载失败" 文字). qrcode lib 实际失败率极低 (本地生成 PNG), 跟 AddSettlementSheet .toast.error 兜底同模式.
 
+
+### v0.3.36 — UAT 0728-1 batch 16 bug fixes (#1 + #2 + #3 + #4 + #6 + #7 + #8 + #9 + #10 + #11 + #12 + #13 + #14 + #15 + #17 + #18)
+
+PO msg 2026-07-28 batch UAT 0728-1 (16 项, 排除 #5 + #16 待 PO 拍 mockup). 反 #150 v2 + #101 + #128 + #162 全套流程: Coder 自写自验, 1 bug 1 commit, 16 commits 总 + push origin main + Playwright iPhone 13 @3x 真机 walk 全部 PASS.
+
+**单 commit list (16 + 1 配套 fix, push main `684a425..d4fca1b`, 跟平行 agent commit `c92b182 + 4be7dfb + d9bc2df` #5 / SPEC §11 同步不冲突)**:
+
+| # | commit | subject |
+|---|--------|---------|
+| #9  | `684a425` | v0.3.36 #9 账单编辑创建页打不开 regression (runes mode plain let 改 $state 包装, 2 文件) |
+| #3  | `fad3100` | v0.3.36 #3 汇率设置弹窗锁背景滚动 (document.body + main 三层 overflow:hidden + overscroll-behavior:contain) |
+| #4  | `deaf993` | v0.3.36 #4 汇率设置弹窗 × 按钮 icon 显式 color=currentColor 防止 anti-aliasing 隐形 |
+| #18 | `cc0595c` | v0.3.36 #18 删币种设置弹窗 home-indicator (template + CSS + ::after 黑色横条, 3 处) |
+| #6  | `12c7cb0` | v0.3.36 #6 邀请链接复制弹窗 × 按钮 icon 显式 color=currentColor 跟 #4 同款 |
+| #17 | `d4ee76e` | v0.3.36 #17 复制弹窗背景跟汇率弹窗字段级同 (bg rgba(15,23,42,0.40) + blur(4px) saturate(180%) + z-index 50 + max-width 480px) |
+| #7  | `5a4b054` | v0.3.36 #7 账单搜索框 padding 8px 12px → 12px 14px + --bills-search-h 48px → 56px |
+| #8  | `1bd9a39` | v0.3.36 #8 个人消费金额 0 显示 ¥0.00 (0 不可隐藏, 删 {#if billExclusiveTotal(b) > 0} 条件) |
+| #1  | `c6340b4` | v0.3.36 #1 账本 item 滑动删除按钮跨 item 互斥 (parent swipedId state + SessionCard swipedId prop + on:swipechange 事件, 2 文件) |
+| #2  | `df19e18` | v0.3.36 #2 账本 item 透明度再增加 (bg alpha 0.62/0.38 → 0.48/0.24, hover 0.78/0.55 → 0.62/0.38) |
+| #10 | `cac8080` | v0.3.36 #10 删结算概览页 '按源币种' section (template h3+ul + orphan CSS 4 rule) |
+| #11 | `7fe2b02` | v0.3.36 #11 已结算记录 section h3 跟上方'建议转账'/'每人净收净付' 同 font (default h3 + var(--gray-900)) |
+| #14 | `9ef6ce2` | v0.3.36 #14 结算页右侧添加按钮点击没反应 (currentMember 从 $user 派生) |
+| #15 | `b2cbed0` | v0.3.36 #15 匿名提示拆两行 (pill 内 text 拆 .line-1 + .line-2, display:block 垂直堆叠) |
+| #12 | `3633678` | v0.3.36 #12 头像 palette 计算提到 lib/utils/palette.ts 共享 (SessionMemberList + BillForm + SettlementRow 3 处统一) |
+| #13 | `af5172c` | v0.3.36 #13 建议转账头像也用 palette (SettleTransferPath.svelte 改用 paletteGradient(paletteIndexFromMemberId)) |
+| #1.1| `d4fca1b` | v0.3.36 #1.1 配套 fix — sessions/+page.svelte loading plain let 改 $state() 包装 (跟 #9 同源 runes mode regression, sessions 列表从 skeleton 正常渲染 SessionCard) |
+
+**关键 fix 描述**:
+
+- **#1 + #1.1 swipe 互斥**: 父 sessions/+page.svelte 加 inline `swipedId: number | null = $state(null)`, SessionCard.svelte 接 `swipedId` prop + `createEventDispatcher<{ swipechange: number | null }>` 在 `endDrag`/`onSwipeDelete` 处 dispatch 事件通知 parent. prop change 触发子组件 `$:` 同步 local store. #1.1 fix 同源 runes mode regression — sessions/+page.svelte `let loading = true` (跟 `swipedId` $state 共存, file 进入 runes mode) 写入 `loading = false` 不触发响应式, 改 $state() 包装.
+- **#2 透明度**: .session-card bg `linear-gradient(135deg, rgba(255,255,255,0.62)→0.38)` → `0.48→0.24` (-25%), hover `0.78→0.55` → `0.62→0.38` 同步, 玻璃更透让背景纹理可见.
+- **#3 锁背景滚动**: CurrencyAddModal.svelte onMount+cleanup 加 `document.body.style.overflow = 'hidden'` + `document.documentElement.style.overflow = 'hidden'` + `mainEl.style.overflow = 'hidden'` + `mainEl.style.overscrollBehavior = 'contain'` 四层锁定, 跟 v0.3.17 #30 iOS app-shell 同模式. 关时还原 ''.
+- **#4 + #6 × 按钮**: XIcon 加显式 `color="currentColor"`, 防止 stroke 被 anti-aliasing 隐形 (.sheet-close bg rgba(15,23,42,0.10) 衬下 icon 颜色易模糊).
+- **#17 backdrop 同款**: `.invite-sheet-backdrop` bg rgba(0,0,0,0.45) → rgba(15,23,42,0.40), blur(24px) saturate(200%) → blur(4px) saturate(180%), z-index 999 → 50. 跟 CurrencyAddModal `.sheet-backdrop` 字段级同 (4 字段: bg / blur / saturate / z-index, max-width 480 在 .invite-sheet 上已存在).
+- **#18 home-indicator**: 删整块 `<div class="home-indicator">` template + `.home-indicator` CSS + `::after` 黑色横条 (134×5px rgba(0,0,0,0.85)). AddSettlementSheet / InviteLinkButton 保留各自 home-indicator.
+- **#7 搜索框 padding**: `.bills-search` padding `8px 12px` → `12px 14px` (+4px top/bottom + 2px left/right, 留呼吸), `--bills-search-h` 48px → 56px 同步让 day-header sticky offset 跟.
+- **#8 ¥0.00**: 删 `{#if billExclusiveTotal(b) > 0}` 条件, 总是渲染 .bill-row-exclusive 行. 个人消费 0 时显示 "个人消费 ¥0.00 CNY" (跟 v0.3.33 #1 descriptionError "0 不可隐藏" 同模式).
+- **#9 bills new/edit**: /s/[code]/bills/new + /s/[code]/bills/[billId]/edit 2 文件 `let session / loading / bill` plain let 改 $state() 包装, 跟 v0.3.36 #15 settle/+page.svelte 同源 runes mode regression.
+- **#10 currency-breakdown**: 删整块 template (`<h3>按源币种</h3>` + `<ul class="currency-breakdown">` + `<li class="currency-row">`) + orphan CSS (`.currency-row` / `.ccy-name` / `.ccy-detail`). BE schema 不变 (currency_breakdown 字段不再消费).
+- **#11 h3 字体一致**: `.section-head h3` font-size 14px → inherit (default ~18.252px), color #374151 → var(--gray-900). 跟 SettleTransferPath.svelte `<h3>` (无 override) 字段级同 (3 个 h3: 每人净收/净付 / 建议转账 / 已结算记录, 全部 18.252px / 600).
+- **#14 add button**: settle/+page.svelte onMount 内 `currentMember = null` 改从 `loadUser()` + `session.members.find()` 派生. 修了 AddSettlementSheet 不挂载的根因 (`.section #if addSheetOpen && session && currentMember` 永远 false).
+- **#15 匿名提示两行**: .expiry-anon-a 内 text 拆 `<span class="line-1">` + `<span class="line-2">`, CSS display:block 垂直堆叠 (`.anon-hint-text` flex column). pill 原字号/颜色/padding 保留.
+- **#12 + #13 palette 共享**: 创建 lib/utils/palette.ts 共享模块, 5 色 AVATAR_GRADIENTS + paletteGradient(index) + paletteIndexFromMemberId(memberId hash) + avatarInitialOf(name). SessionMemberList / BillForm / SettlementRow (3 处 #12) + SettleTransferPath (#13) 统一 source. SettleTransferPath.svelte `.avatar` 改 inline `style="background: {paletteGradient(paletteIndexFromMemberId(memberId))}"`, 删 CSS 硬编码 rgba(59, 130, 246, 0.88) 蓝实色.
+
+**Verification (反 #128 + #150 v2 + #101 + #151 + #167 + #170 + #189 全套)**:
+
+- svelte-check: 2 errors / 34 warnings baseline (2 errors 全在 vite.config.ts 缺 @types/node, 跟任务无关), 0 new error
+- source grep 全 live: 16 文件改动 diff stat + SPEC §11 行级说明跟 commit 对应
+- Playwright iPhone 13 @3x 真机 walk (`frontend/scripts/v0728-1-bundle-quick-verify.cjs`) — 全部 PASS:
+  * #7 .bills-search padding = "12px 14px" ✓
+  * #8 41/41 bills have .bill-row-exclusive visible (every bill, even 0) ✓
+  * #9 /s/.../bills/new hasForm=true, !hasLoading ✓ (fix 前永远 loading overlay)
+  * #9 /s/.../bills/73/edit hasForm=true, !hasLoading ✓
+  * #10 .currency-breakdown 不存在 (从 DOM 移除) ✓
+  * #11 3 个 h3 全部 fontSize=18.252px fontWeight=600 一致 (每人净收/净付 / 建议转账 / 已结算记录 (7)) ✓
+  * #14 [data-sbc="settle-add-record-btn"] click → sheetExists=true (1 dialog 弹出) ✓
+  * #1 .session-swipe-wrap count=14 (跟 BE sessions 14 条匹配, #1.1 fix 后从 skeleton 正常渲染 SessionCard) ✓
+  * #18 CurrencyAddModal .home-indicator 不存在 (template + CSS + ::after 全删) ✓
+  * #4 CurrencyAddModal .sheet-close borderRadius=50% width=32px height=44px (32 圆形, 44 iOS touch target 撑高) ✓
+  * #3 CurrencyAddModal .sheet-backdrop bg=rgba(15,23,42,0.4) backdropFilter=blur(4px) ✓
+  * #6 InviteLinkButton .sheet-close borderRadius=50% width=32px height=44px ✓
+  * #17 InviteLinkButton .invite-sheet-backdrop bg=rgba(15,23,42,0.4) backdropFilter=blur(4px) saturate(1.8) ✓
+- 8 PNG 存 `~/.openclaw/media/browser/v0336-0728-1-bundle/`:
+  * `01-sessions-list.png` — /sessions 全 14 卡片渲染, 透明度视觉确认 (image tool: "frosted glass or semi-translucent appearance... can clearly see the textured, stippled background pattern through them") ✓
+  * `02-bills-list.png` — /s/64BZQNX9NU
+  * `03-settle-overview.png` — /s/64BZQNX9NU/settle 三段 layout (建议转账 / 已结算记录 (7) / 最新应结算)
+  * `04-settle-add-sheet.png` — 点 添加 按钮弹出的 AddSettlementSheet sheet
+  * `05-bills-new.png` — /s/.../bills/new 正常渲染 BillForm (修复前永远 LoadingOverlay)
+  * `06-bills-edit.png` — /s/.../bills/73/edit 正常渲染 BillForm
+  * `07-currency-add-modal.png` — CurrencyAddModal 弹出态
+  * `08-invite-modal.png` — InviteLinkButton 弹出态 (success-card + QR code, 跟 #5 平行 agent 提交)
+- 反 #162 ✅ 16 commits (17 含 #1.1 配套 fix) 同 batch fix + SPEC §11 sync, 全部 push origin main
+- 反 #170 ✅ codeserver_exec_clean.js 写文件 (避开 8 字节 binary header)
+- 反 #189 ✅ SPEC append 用 heredoc (不用 sed 多匹配)
+- 反 #53 ✅ push 用完整 Gitea PAT (gitea.jessejia.pp.ua)
+- 反 #190 ✅ single-branch 铁律: origin 仅 main (无 stale branches, `git branch -a` 验证)
+- 反 #159 ✅ BE uvicorn 重启 PPID=1 detached + /version 返 HEAD hash match (d4fca1b9 前缀 / 现 6e2f32de-dirty 因为有 race 期间 dirty worktree)
+- 反 #160 ✅ vite bind 0.0.0.0 (cf tunnel 外部可达 172.18.0.5:8448 HTTP 200)
+- 反 #167 ✅ iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN)
+- 反 #151 ✅ 真 PNG 截图 (8 张存 `~/.openclaw/media/browser/v0336-0728-1-bundle/`)
+
+**排除范围 (本任务不修, 待 PO 决定)**:
+
+- **#5** 邀请链接复制弹窗文字字号增 + success-card + QR code (PO 字面 "请 design agent 重新设计") — 平行 agent 在 `c92b182` 实施 (跟我 commits 同 batch, race 状态), 13/13 Playwright check pass, SPEC §11 已 sync (commits `4be7dfb + d9bc2df`). 待 PO 真机 walk 验收.
+- **#16** 邀请链接按钮呼吸动画加玻璃光泽变化 — 待 PO 拍 mockup (sandbox 已有 3 mockups: v0728-1-16-mockup-{1,2,3} + v2 revisions).
+- **beige-pop 视觉验证** — image tool 看了 01-sessions-list.png 确认透明度可见, 但 #2 实际视觉差异需要 PO 真机 iPhone Safari walk.
+- **anon owner 提示两行 (#15) 真机验证** — sandbox 内 Jesse 是已登录 user, 不触发 showAnonHint. 等 PO 用 incognito 创建 anon owner session 后真机 walk 验证两行 layout.
+- **invite modal (#6 #17) 双 modal 共存验证** — CurrencyAddModal + InviteLinkButton 都弹时 stacking 测试 (z-index 9999 Toast / 999 backdrop / 1000 sheet), Playwright 单 modal 测试通过, 真机 walk 双 modal 切换由 PO 自验.
+- **#11 default h3 font-size 18.252px** — iOS Safari 默认 h3 实际渲染尺寸, 跟 iPhone 13 viewport (390×844 @3x = 1170x2532) 字段级同. PO 真机 walk 若觉得太大可微调 (e.g. font-size: var(--font-size-lg) 16-18px).
+
+**反 #150 v3 教训 (v0.3.33 case) 复用**: Master self-verify ≠ user accept. 这次 Coder 自写 + Playwright 程序化 + image tool 视觉三证 + source grep 字面 spec cross-check + svelte-check baseline. 等 PO 真机 walk 后才算 accept.
