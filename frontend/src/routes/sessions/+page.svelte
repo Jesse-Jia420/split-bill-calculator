@@ -29,6 +29,10 @@
   // 新 swipe 触发时: SessionCard dispatch 'swipechange' 事件带新 swipe id, parent set swipedId = id
   // → 其他 SessionCard 收到 swipedId !== session.id 自动收起 swipe. type number 跟 session.id 一致.
   let swipedId: number | null = $state(null);
+  // v0.3.0728-3 #3 — list-top hint 仅当用户拥有至少 1 个 session (即 hint 适用) 才显示.
+  //   非 owner 用户看不到 "左划以删除账本" 提示 (因为他们没 delete-btn, 提示会误导).
+  //   $sessions 是来自 session store (line ~22), $derived 自动 reactivity 跟随 store 变化.
+  let hasOwnedSession = $derived(($sessions ?? []).some((s) => s.role === 'owner'));
 
   onMount(async () => {
     try {
@@ -60,6 +64,18 @@
       description="创建一个账本开始记账,或者接受朋友的邀请加入。"
     />
   {:else}
+    <!-- v0.3.0728-3 #3 — reverse v0.3.0728-2 #14: single list-top hint (不是 per-item).
+         PO msg 2026-07-28 batch #3: "在我的账本页, 整个列表的右上方添加提示文字'左划以删除账本'.
+         目前你在每个账本item内加的提示, 不对". 挪到 list 顶部, owner-only 条件 (有 owner session 才显示).
+         玻璃 pill 跟原 per-item hint 同族 (rgba(99,102,241,0.10) bg + 1px border + 8px 12px padding + 11px font + 6px radius).
+         align-self: flex-end 在 .stack flex parent 内右对齐; margin-left: auto 兜底 fallback.
+         pointer-events: none (不抢 click, swipe 仍能透过触发 delete). -->
+    {#if hasOwnedSession}
+      <div class="list-top-hint" data-testid="list-top-hint-delete" aria-label="左划以删除账本">
+        <span class="swipe-arrow" aria-hidden="true">←</span>
+        <span>左划以删除账本</span>
+      </div>
+    {/if}
     <div class="stack">
       {#each $sessions as s (s.id)}
         <!-- v0.3.36 #1: 传 swipedId prop + on:swipechange 事件 (Svelte 4 syntax, SessionCard 内部
