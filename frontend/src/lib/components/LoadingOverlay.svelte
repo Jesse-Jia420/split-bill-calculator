@@ -85,11 +85,16 @@
     flex-shrink: 0;
   }
   /* 顶部 active glow — 8×8 紫球, 跟 .glass-ring 一起旋转
-   * 让"加载感"比纯圆环强 (iOS 默认 spinner 没这个 active dot) */
+   * 让"加载感"比纯圆环强 (iOS 默认 spinner 没这个 active dot)
+   * v0.3.0728-2 #1 — UAT 0728-2 #1 (PO msg 16:50) 加载动画层级修复:
+   *   原 top: -1px 球在 .glass-ring 外环边缘, ::after 内环玻璃又盖在球上, 球被遮。
+   *   修法: top: 0 (球在环上缘, 不出环) + z-index: 3 (永远在 ::after 内环玻璃 z-index: 1 之上).
+   *   同时 ball box-shadow 加 indigo-700 (var(--accent-700)) 跟 .glass-ring inset highlight 同色系,
+   *   视觉上是环上镶嵌一颗发光紫球, 不会被内玻璃挡. */
   .glass-ring::before {
     content: "";
     position: absolute;
-    top: -1px;
+    top: 0;
     left: 50%;
     transform: translateX(-50%);
     width: 8px;
@@ -104,8 +109,10 @@
     box-shadow:
       0 0 8px rgba(99, 102, 241, 0.6),   /* 近距发光 */
       0 0 16px rgba(99, 102, 241, 0.4);  /* 远距光晕 */
+    z-index: 3;  /* 永远在 ::after inner glass (z-index 1) 之上 */
   }
-  /* 内层玻璃质感 — 子元素承载 backdrop-filter (圆环本身 transparent) */
+  /* 内层玻璃质感 — 子元素承载 backdrop-filter (圆环本身 transparent)
+   * v0.3.0728-2 #1: z-index: 1 让 .glass-ring::before ball (z-index: 3) 永远在 inner glass 之上. */
   .glass-ring::after {
     content: "";
     position: absolute;
@@ -118,6 +125,7 @@
     );
     backdrop-filter: blur(4px) saturate(220%);
     -webkit-backdrop-filter: blur(4px) saturate(220%);
+    z-index: 1;
   }
   @keyframes ringRotate {
     0% { transform: rotate(0deg); }
