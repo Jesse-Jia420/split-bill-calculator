@@ -603,52 +603,39 @@ button.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
    实现: `.invite-btn` ::before 伪元素 + conic-gradient + mask 切到只剩边框 1.5px 宽 (中间透明),
    实际看到的只有边框那一圈在流光, 内部仍透明玻璃. animation: invite-border-flow 5s linear infinite.
    @supports 检测: 不支持 conic-gradient 的浏览器 (-webkit-mask-composite xor) → 边框降级到 solid indigo
-   (PO 字面 "v3-1" 拍定值, 跟 mockup v3-1 / v3-2 / v3-3 比较后 PO 选 v3-1).
-
-   v0.3.0728-2-anim-fix-2 — UAT 0728-2 #16 续修-3 (PO msg 2026-07-28 20:29 iOS Safari 实机截图,
-   cb3aedf3 state, 1-member anon owner, 5 色彩虹 + 白玻璃 halo 全漏 button 外面).
-   多次 fix 路径 (v0.3.37 #16 conic + mask → v0.3.0728-2-rainbow-fix cb3aedf ::before/::after 双层
-   → v0.3.0728-2-anim-fix 394266b isolation+overflow) 都无法在 iOS Safari 真机彻底解决
-   'rainbow pill 太大 + 跟 expiry pill 视觉冲突' 问题. iOS Safari WebKit 对 conic-gradient + ::before/::after
-   + z-index + isolation 的组合渲染不稳定, 多次 fix 后仍 leak 或视觉太抢眼.
-
-   这次最终 fix 决策 (PO msg 2026-07-28 20:52 累积 frustration 后的根本性 revert):
-   - 删 5 色 conic-gradient border flow (v0.3.37 #16 + v0.3.0728-2-rainbow-fix + anim-fix 整套 revert)
-   - 删 ::before conic-gradient + animation
-   - 删 ::after glass overlay (一起删)
-   - 删 isolation: isolate (不再需要, 无 pseudo-element escape 风险)
-   - 删 overflow: hidden (无 pseudo-element 溢出风险)
-   - border: 1.5px solid transparent → border: 1.5px solid rgba(99, 102, 241, 0.4) (plain indigo border, 视觉轻量)
-   - scale 1.05 → 1.02 (subtle breathing, 几乎看不出, 但仍然有"活"的感觉)
-   - 删除 @keyframes invite-border-flow (不再需要)
-   - 删除 @supports not (background: conic-gradient(...)) 降级 (不再需要)
-
-   视觉效果: button 退回到最早期 v0.3.16 #1 plain pill 形态 — 仅 subtle scale breathing + 1.5px
-   indigo border. 完全不跟 expiry pill 抢视觉, 但仍然 highlight (first-time anon owner 仍有视觉信号).
-   iOS Safari WebKit 渲染稳定性 100% (无任何 conic/mask/pseudo-element 渲染 quirk).
-
-   反 #121 自决 (PO 累积 frustration 后): 多次 fix 路径无效 → 根本性 revert, 不再走 conic-gradient 路线.
-   反 #150 v3: 不用 Coder sub-agent (设计路线已 dead-end, 直接 revert CSS 即可).
-   反 #155: 不是 design task, revert CSS 自决即可. */
+   (PO 字面 "v3-1" 拍定值, 跟 mockup v3-1 / v3-2 / v3-3 比较后 PO 选 v3-1). */
 @keyframes invite-breath {
   0%, 100% {
+    /* v0.3.0728-2 #8 — UAT 0728-2 #8 拍定: 去掉紫色光晕, 保留 scale 1↔1.05 + 5 色边框流光 (v0.3.37 #16 独立). 
+       修法: box-shadow 0→alpha (无 glow, 只保留 border-flow 5 色 conic 流转). 
+       box-shadow 仍写 0 0 0 transparent 是为了兼容 Safari 老版本 (无 box-shadow 不出 transition). */
+    box-shadow: 0 0 0 rgba(99, 102, 241, 0);          /* v0.3.0728-2 #8 改: alpha 0.55→0, 去紫色光晕 */
     transform: scale(1);
-    border-color: rgba(99, 102, 241, 0.35);
   }
   50% {
-    transform: scale(1.02); /* v0.3.0728-2-anim-fix-2: 1.05→1.02, 更 subtle */
-    border-color: rgba(99, 102, 241, 0.65);
+    box-shadow: 0 0 0 rgba(168, 85, 247, 0);          /* v0.3.0728-2 #8 改: alpha 0.75→0, 去紫色光晕 */
+    transform: scale(1.05);                             /* v0.3.0728-2 #8 恢复: 1.03→1.05 (#7 缩完, 现在 #8 把光晕去掉, scale 可以放开). 边框流光不依赖 scale. */
   }
 }
-/* v0.3.0728-2-anim-fix-2: 删 @keyframes invite-border-flow (不需要 border 旋转, 整个 conic 流光路线都 revert 掉) */
+/* v0.3.37 #16: 5 色 conic-gradient 边框流光 (PO 拍 v3-1 = RECOMMENDED) */
+@keyframes invite-border-flow {
+  to { transform: rotate(360deg); }
+}
 
 button.glass-pill.invite-btn.invite-btn-breathing,
 .invite-btn.invite-btn-breathing {
   animation: invite-breath 1.5s ease-in-out infinite;
-  /* v0.3.0728-2-anim-fix-2: 删 isolation + overflow + transparent border + background-clip
-     (无 conic pseudo-element 后这些 hack 都不需要). 改用 plain indigo border 让 button 有视觉信号. */
-  border: 1.5px solid rgba(99, 102, 241, 0.35); /* v0.3.0728-2-anim-fix-2: transparent → indigo 0.35, 平 breathing 循环 0.35↔0.65 */
-  transition: border-color 1.5s ease-in-out; /* 跟 breathing 节奏同步, border 颜色 1.5s 缓变 */
+  position: relative;          /* v0.3.37 #16: 让 ::before absolute 定位生效 */
+  /* v0.3.0728-2-anim-fix: isolation: isolate 创建独立 stacking context,
+     让 ::before/::after z-index 0/1 子元素不 escape 到父 stacking context (iOS Safari WebKit z-index:-1 escape bug).
+     overflow: hidden 双保险, 把 pseudo-element 视觉 clip 在 border-box 内,
+     即使 z-index 计算异常视觉也不会漏到 button 外. */
+  isolation: isolate;
+  overflow: hidden;
+  /* v0.3.37 #16: 边框让位给 conic 流光层 (transparent 让 ::before 显示).
+     specificity (0,3,0) 跟 button.glass-pill (0,2,0) 拉开避免被覆盖 */
+  border: 1.5px solid transparent;
+  background-clip: padding-box; /* 让 background 不溢出到 border 区域 */
 }
 /* v0.3.0728-2-anim-fix (PO msg 20:29 iOS Safari 真机截图, 5 色彩虹 + 白玻璃全漏 button 外面).
    cb3aedf 的 z-index: -1 + ::before(conic) + ::after(glass) 在 iOS Safari WebKit 上 z-index: -1 子元素
@@ -664,12 +651,43 @@ button.glass-pill.invite-btn.invite-btn-breathing,
    (chromium 不重现 iOS Safari WebKit z-index escape bug, 但 fix 改用 isolation: isolate + z-index:0/1 是标准 CSS,
     iOS Safari WebKit 2018+ 完全支持, 不依赖任何 mask-composite / -webkit-mask 渲染 quirks). */
 .invite-btn-breathing::before {
-  /* v0.3.0728-2-anim-fix-2: 删 ::before conic-gradient + animation 整块.
-     多次 fix (rainbow-fix + anim-fix) 仍无法在 iOS Safari 真机彻底解决 rainbow leak 问题.
-     这次最终 revert 到 plain border, 不再需要 ::before pseudo-element. */
-  display: none;
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: conic-gradient(
+    from 0deg,
+    #6366f1 0deg,    /* indigo-500 */
+    #a855f7 72deg,   /* purple-500 */
+    #ec4899 144deg,  /* pink-500 */
+    #f59e0b 216deg,  /* amber-500 */
+    #10b981 288deg,  /* emerald-500 */
+    #6366f1 360deg   /* 闭合回 indigo */
+  );
+  animation: invite-border-flow 5s linear infinite;
+  pointer-events: none;         /* 让 click 穿透到底层 button */
+  z-index: 0;                   /* FIX (was -1): 留在 isolation: isolate stacking context 内 */
 }
 .invite-btn-breathing::after {
-  /* v0.3.0728-2-anim-fix-2: 删 ::after glass overlay 整块 (跟 ::before 一起 revert). */
-  display: none;
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border-radius: inherit;
+  background: rgba(255, 255, 255, 0.55);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+          backdrop-filter: blur(20px) saturate(180%);
+  pointer-events: none;         /* 让 click 穿透到底层 button */
+  z-index: 1;                   /* FIX (was -1): 覆盖 ::before 中间, 留 2px ring ::before 在外圈, button text 之上 */
+}
+/* 不支持 conic-gradient 的浏览器降级到 solid indigo 边框 (v0.3.37 #16 fallback, 去掉 mask 条件) */
+@supports not (background: conic-gradient(red, blue)) {
+  .invite-btn-breathing {
+    border-color: rgba(99, 102, 241, 0.65);
+  }
+  .invite-btn-breathing::before {
+    display: none;
+  }
+  .invite-btn-breathing::after {
+    display: none;
+  }
 }
