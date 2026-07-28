@@ -752,6 +752,15 @@
     display: inline-flex;
     align-items: center;
     white-space: nowrap;
+    /* v0.3.0728-2-anim-fix-followup: text 提到 ::after (z-index:1) 之上,
+       否则白玻璃 (rgba 0.92) 盖住「账本链接/邀请」文字. */
+    position: relative;
+    z-index: 2;
+  }
+  .btn-label {
+    /* 保险: label 也独立 z-index, 即便 content 被未来 ::before/::after 改造影响 */
+    position: relative;
+    z-index: 3;
   }
   @media (max-width: 380px) {
     .invite-btn {
