@@ -540,7 +540,7 @@
              1) 保存账本二维码 — anchor download QR.png (reuse downloadQrPng)
              2) 分享账本二维码 — navigator.share + QR file (handleShareQr)
              3) 分享账本链接 — navigator.share URL (handlePwaAction, 跟之前一样)
-           3 个 button 等宽 gap 8px (玻璃风 + 全站 .glass-pill 同族).
+           3 个 button 等宽 gap 8px (玻璃风 + 全站 .glass-pill 同族). -->
       {#if !isStandalone}
         <div class="pwa-row" data-testid="invite-pwa-row">
           <div class="pwa-hint">
