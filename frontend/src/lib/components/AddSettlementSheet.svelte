@@ -147,6 +147,10 @@
     const deltaY = t.clientY - dragStartY;
     dragDeltaY = deltaY;
     if (deltaY >= 0) {
+      // v0.3.0728-2 #21 re-fix: preventDefault 阻止 iOS Safari pan-y 浏览器默认 pan,
+      // 让 JS drag-down dismiss 完全接管 touchmove. 否则浏览器开始 pan (虽然 sheet 已 bottom:0
+      // 无 overflow 视觉不动) 但 touchend 可能提前 fire 导致 dragDeltaY < threshold 不关.
+      e.preventDefault();
       sheetEl.style.transform = `translateY(${deltaY}px)`;
       sheetEl.style.transition = 'none';
     } else {
@@ -438,8 +442,10 @@
     max-height: 92vh;
     overflow-y: auto;
     overscroll-behavior: contain;
-    /* v0.3.0728-2 #21: touch-action: pan-y 让浏览器知道此元素可垂直 pan (避免 passive listener 警告 + scroll lock conflict) */
-    touch-action: pan-y;
+    /* v0.3.0728-2 #21 re-fix: touch-action: none 让 JS 完全接管 touchmove (避免 iOS Safari
+       pan-y 浏览器默认 pan 抢 touchend → dragDeltaY 跟手指不一致 → 关不掉).
+       form 字段短 (max-height:92vh 内 fit) 不需要内部 scroll, 改 none 安全. */
+    touch-action: none;
     will-change: transform;
   }
   /* v0.3.0728-2 #21: drag 时 inline style 控制 transform, 这里只保证动画期间 overflow 不被 clip */
@@ -667,18 +673,14 @@
     cursor: not-allowed;
   }
 
+  /* v0.3.0728-2 #21 re-fix: 删 .home-indicator::after 黑色 bar (PO 字面 "下边的黑色bar是什么鬼, 谁说需要这个的").
+     iOS-style home indicator 是系统 UI, app 内不应该画一个假的.
+     保留 .home-indicator div 作为 spacing placeholder (height 30px), 删 ::after black bar. */
   .home-indicator {
     height: 30px;
     display: flex;
     justify-content: center;
     align-items: flex-end;
     padding-bottom: 8px;
-  }
-  .home-indicator::after {
-    content: '';
-    width: 134px;
-    height: 5px;
-    background: rgba(0, 0, 0, 0.85);
-    border-radius: 100px;
   }
 </style>
