@@ -1980,7 +1980,7 @@
     /* v0.3.0728-2 #11 — --bills-search-h 56px → 44px (-12px 跟 .bills-search padding 12px→8px
        同步减, 3 字符高). BillListGrouped day-header sticky top 偏移跟着 -12px.
        注: v0.3.36 #7 是 48→56, v0.3.29 是 60→54, 现在 v0.3.0728-2 #11 是 56→44 (3 字符高). */
-    --bills-search-h: 44px;
+    --bills-search-h: 48px;
     padding-bottom: 96px;
   }
 
@@ -2033,8 +2033,8 @@
          现状 12px padding + 14px font-size + 1.4 line-height = 12*2 + 14*1.4 = 43.6 + 2 border = 45.6,
          实际包含 padding+input+border 总高度 ~56px (5 字符高, 太胖). 拍定 8px 14px padding + 36px min-height
          + 1.4 line-height. --bills-search-h 同步 56 → 44 (-12px, 跟 gap 8 → 12 调整一致). */
-    padding: 8px 14px;
-    min-height: 36px;
+    padding: 12px 14px;
+    min-height: 40px;
     line-height: 1.4;
     display: flex;
     align-items: center;
