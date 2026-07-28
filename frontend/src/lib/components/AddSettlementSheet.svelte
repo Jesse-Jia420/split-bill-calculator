@@ -26,7 +26,7 @@
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { X as XIcon } from 'lucide-svelte';
+  // v0.3.0728-2 #21 #1: XIcon import 删 (× button 整个块已删, 避免 unused import 警告)
   import { portal } from '$lib/actions/portal';
   import { toast } from '$stores/toast';
   import { createSettlementRecord, type SettlementRecord } from '$api/settlements';
@@ -119,6 +119,60 @@
     onclose?.();
   }
 
+  /** v0.3.0728-2 #21 — UAT 0728-2 #21 (PO msg 16:50) 拖动下滑关闭 (跟 v0.3.37 #5 InviteLinkButton 同款):
+   *  - touchstart: record dragStartY + sheetHeight.
+   *  - touchmove (deltaY >= 0): sheet `transform: translateY(deltaY)px` 跟手下滑.
+   *  - touchmove (deltaY < 0): rubber band `translateY(deltaY/3)px + scale(1 + max(deltaY, -100)/4000)` 轻微反馈.
+   *  - touchend (deltaY > sheetHeight * 0.3): close() (跟手下滑超阈值 → dismiss).
+   *  - touchend (deltaY < 阈值): 回弹 (transition: transform 280ms cubic-bezier(0.32, 0.72, 0, 1)). */
+  let sheetEl: HTMLDivElement | null = null;
+  let dragStartY = 0;
+  let dragging = false;
+  let dragDeltaY = 0;
+  let sheetHeight = 0;
+
+  function handleTouchStart(e: TouchEvent) {
+    if (!sheetEl) return;
+    const t = e.touches[0];
+    if (!t) return;
+    dragStartY = t.clientY;
+    dragging = true;
+    sheetHeight = sheetEl.getBoundingClientRect().height;
+  }
+
+  function handleTouchMove(e: TouchEvent) {
+    if (!dragging || !sheetEl) return;
+    const t = e.touches[0];
+    if (!t) return;
+    const deltaY = t.clientY - dragStartY;
+    dragDeltaY = deltaY;
+    if (deltaY >= 0) {
+      sheetEl.style.transform = `translateY(${deltaY}px)`;
+      sheetEl.style.transition = 'none';
+    } else {
+      const rubberY = deltaY / 3;
+      const scale = 1 + Math.max(deltaY, -100) / 4000;
+      sheetEl.style.transform = `translateY(${rubberY}px) scale(${scale})`;
+      sheetEl.style.transition = 'none';
+    }
+  }
+
+  function handleTouchEnd() {
+    if (!dragging || !sheetEl) return;
+    const threshold = sheetHeight * 0.3;
+    if (dragDeltaY > threshold) {
+      close();
+    } else {
+      sheetEl.style.transform = '';
+      sheetEl.style.transition = 'transform 280ms cubic-bezier(0.32, 0.72, 0, 1)';
+      setTimeout(() => {
+        if (sheetEl) sheetEl.style.transition = '';
+      }, 300);
+    }
+    dragging = false;
+    dragDeltaY = 0;
+  }
+
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape' && !busy) close();
   }
@@ -178,24 +232,24 @@
 ></div>
 
 <!-- Bottom sheet -->
+<!-- v0.3.0728-2 #21: 删右上 × button (PO 字面 "删除添加已结算记录弹窗右上方的关闭按钮") + 加 drag-down dismiss (跟 v0.3.37 #5 InviteLinkButton 同款). -->
 <div
   class="sheet"
+  class:dragging
   role="dialog"
   aria-modal="true"
   aria-label="添加已结算记录"
   data-sbc="settlement-sheet"
+  bind:this={sheetEl}
+  ontouchstart={handleTouchStart}
+  ontouchmove={handleTouchMove}
+  ontouchend={handleTouchEnd}
+  ontouchcancel={handleTouchEnd}
 >
   <div class="sheet-handle" aria-hidden="true"></div>
   <div class="sheet-head">
     <span class="sheet-title">添加已结算记录</span>
-    <button
-      class="sheet-close"
-      type="button"
-      aria-label="关闭"
-      onclick={close}
-    >
-      <XIcon size={16} strokeWidth={2.4} />
-    </button>
+    <!-- v0.3.0728-2 #21 #1: 删 × button (跟 v0.3.37 #5 #1 InviteLinkButton 同款, sheet-head 仅保留居中 title) -->
   </div>
 
   <div class="form">
@@ -384,6 +438,13 @@
     max-height: 92vh;
     overflow-y: auto;
     overscroll-behavior: contain;
+    /* v0.3.0728-2 #21: touch-action: pan-y 让浏览器知道此元素可垂直 pan (避免 passive listener 警告 + scroll lock conflict) */
+    touch-action: pan-y;
+    will-change: transform;
+  }
+  /* v0.3.0728-2 #21: drag 时 inline style 控制 transform, 这里只保证动画期间 overflow 不被 clip */
+  .sheet.dragging {
+    transition: none !important;
   }
   @keyframes slideUp {
     from { transform: translateY(100%); }
@@ -399,7 +460,8 @@
   .sheet-head {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    /* v0.3.0728-2 #21 #1: 删 × button 后 title 居中 (不补 dummy spacer, 视觉对齐靠 text-align center) */
+    justify-content: center;
     padding: 0 4px 12px;
   }
   .sheet-title {
@@ -408,19 +470,7 @@
     color: #171717;
     letter-spacing: -0.01em;
   }
-  .sheet-close {
-    width: 32px;
-    height: 32px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    background: rgba(15, 23, 42, 0.10);
-    color: #525252;
-    border: 0;
-    cursor: pointer;
-  }
-  .sheet-close:hover { background: rgba(15, 23, 42, 0.12); }
+  /* v0.3.0728-2 #21 #1: 删 .sheet-close 整个块 (跟 v0.3.37 #5 #1 InviteLinkButton 同款, sheet-head 仅保留居中 title) */
 
   /* === Form === */
   .form { padding-bottom: 8px; }
