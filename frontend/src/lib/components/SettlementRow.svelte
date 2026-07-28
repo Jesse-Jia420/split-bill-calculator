@@ -40,6 +40,11 @@
   import type { SettlementRecord } from '$api/settlements';
   import { formatMoney } from '$lib/utils/format';
   import { currencySymbol } from '$lib/utils/currency';
+  // v0.3.36 #12 — UAT 0728-1 #12 (PO 字面 "已结算记录头像样式应跟成员 section 一致"):
+  // 改用共享 lib/utils/palette.ts (跟 SessionMemberList + BillForm + SettleTransferPath 4 处统一 source).
+  // 之前 inline PALETTE 5 色 + paletteIndex memberId hash + initialOf 跟 SessionMemberList inline copy 不一致风险.
+  // 现在用 paletteGradient + paletteIndexFromMemberId + avatarInitialOf 3 函数.
+  import { paletteGradient, paletteIndexFromMemberId, avatarInitialOf } from '$lib/utils/palette';
 
   // v0.3.36 #15: convert to Svelte 5 runes mode ($props + $derived + $effect).
   // 项目其他组件大多用 Svelte 4 syntax (export let + $:), 但 $effect 仅在 runes mode 下可用,
@@ -50,30 +55,12 @@
     onDelete?: ((recordId: number) => void | Promise<void>) | undefined;
   } = $props();
 
-  // 5-color palette (跟 SessionMemberList 一致, 保持视觉同源)
-  const PALETTE: ReadonlyArray<string> = [
-    'linear-gradient(135deg, rgba(99, 102, 241, 0.88) 0%, rgba(168, 85, 247, 0.88) 100%)', // indigo
-    'linear-gradient(135deg, rgba(236, 72, 153, 0.88) 0%, rgba(244, 63, 94, 0.88) 100%)', // pink
-    'linear-gradient(135deg, rgba(16, 185, 129, 0.88) 0%, rgba(20, 184, 166, 0.88) 100%)', // emerald
-    'linear-gradient(135deg, rgba(245, 158, 11, 0.88) 0%, rgba(234, 179, 8, 0.88) 100%)', // amber
-    'linear-gradient(135deg, rgba(59, 130, 246, 0.88) 0%, rgba(6, 182, 212, 0.88) 100%)', // blue
-  ];
-
-  // 简单 hash: payer_id 稳定映射到 0..4 索引.
-  // 不要求 cryptographically unique -- 只用于跨 session 跨 render 给同 member 稳定颜色.
+  // v0.3.36 #12: 共享 lib/utils/palette.ts — 上面 import 完毕, 这里只留 wrapper 让 template 不动.
   function paletteIndex(memberId: number): number {
-    const s = String(memberId);
-    let h = 0;
-    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-    return Math.abs(h) % PALETTE.length;
+    return paletteIndexFromMemberId(memberId);
   }
-
   function initialOf(name: string): string {
-    const trimmed = (name ?? '').trim();
-    if (!trimmed) return '?';
-    const code = trimmed.codePointAt(0) ?? 0;
-    if (code > 127) return trimmed.slice(0, 1);
-    return trimmed.slice(0, 2).toUpperCase();
+    return avatarInitialOf(name);
   }
 
   function fmtAmount(amountStr: string, currency: string): string {
@@ -92,8 +79,9 @@
   }
 
   let canDelete = $derived(record.created_by === sessionMemberId);
-  let payerPal = $derived(PALETTE[paletteIndex(record.payer_id)]);
-  let payeePal = $derived(PALETTE[paletteIndex(record.payee_id)]);
+  // v0.3.36 #12: 改用 paletteGradient (跟 SessionMemberList 字段级同).
+  let payerPal = $derived(paletteGradient(paletteIndex(record.payer_id)));
+  let payeePal = $derived(paletteGradient(paletteIndex(record.payee_id)));
 
   // v0.3.36 #15 — UAT 0727-1 #15 scroll handler.
   // bind:this 在 mount 后 populate rowEl, $effect 跑一次 (after mount), 此时 rowEl 已就绪.
