@@ -136,6 +136,15 @@
   let dragAxis: 'h' | 'v' | null = null;
   let lastDragEndTime = 0;
 
+  // v0.3.0728-2 #16 — UAT 0728-2 #16 账本列表删除按钮 swipe 跟手延迟修复 (PO msg 16:50).
+  // 原 moveDrag 每帧 dragOffsetStore.update() 触发 Svelte 重渲, 写入 --swipe-progress CSS var,
+  // 走 reactive cycle → template 重渲染 → browser paint. 这个过程在低端 iPhone Safari 上会有 ~50-100ms 跟手延迟.
+  // 修法: 拿到 delete-btn DOM ref, moveDrag 直接写 element.style.--swipe-progress (CSS var inline),
+  // 绕过 Svelte reactivity (不 update store, 仅 mutate style attr). endDrag 才走 store,
+  // 那一帧只有一次 reactive update, 不影响拖动体验.
+  let wrapEl: HTMLDivElement | null = null;
+  let deleteBtnEl: HTMLButtonElement | null = null;
+
   // v0.3.28 UAT 0724-1 #3: 跟 BillListGrouped 同步, ACTION_WIDTH = 56 (Apple HIG
   // ≥ 44pt, 56 跟 row 高度协调). 但 SessionCard 删账按钮 #2 修复时是 28×28 真圆
   // (always-visible 设计意图), 现在 supersede 为 swipe-style 56×56. min-height: 0
@@ -194,6 +203,13 @@
     let next = (get(swipeOffsetStore)[id] ?? 0) + (clientX - dragStartX);
     if (next > 300) next = 300;
     if (next < -300) next = -300;
+    // v0.3.0728-2 #16: 拖动期间直接写 deleteBtnEl.style.--swipe-progress, 不走 store 重渲.
+    // 仅左滑 (-0) 才有 visible delete-btn (右滑 0, 不显). rightProgress = rubberBandProgress(-next) when next < 0.
+    if (deleteBtnEl) {
+      const rightProgress = next < 0 ? rubberBandProgress(-next) : 0;
+      // 直接写入 inline style. CSS var --swipe-progress 已被 .delete-btn width/opacity 使用.
+      deleteBtnEl.style.setProperty('--swipe-progress', String(rightProgress));
+    }
     dragOffsetStore.update((o) => ({ ...o, [id]: next }));
   }
 
@@ -446,6 +462,7 @@
 <div
   class="session-swipe-wrap"
   data-testid="swipe-trigger"
+  bind:this={wrapEl}
   ontouchstart={onTouchStart}
   ontouchmove={onTouchMove}
   ontouchend={onTouchEnd}
@@ -465,6 +482,7 @@
       type="button"
       class="delete-btn"
       data-testid="swipe-action-delete"
+      bind:this={deleteBtnEl}
       style="--swipe-progress: {rightProgress}"
       tabindex={rightProgress >= 1 ? 0 : -1}
       aria-hidden={rightProgress <= 0}
