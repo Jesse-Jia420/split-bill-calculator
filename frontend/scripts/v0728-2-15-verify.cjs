@@ -167,7 +167,7 @@ const iPhone13 = devices['iPhone 13'];
     { name: 'hint border-radius = 8px', pass: hintStyles?.borderRadius === '8px' },
     { name: 'hint font-size 12px (small)', pass: hintStyles?.fontSize === '12px' },
     { name: 'hint font-weight 500', pass: hintStyles?.fontWeight === '500' },
-    { name: 'hint color = accent-700 indigo', pass: (hintStyles?.color || '').includes('67, 56, 202') || hintStyles?.color === 'rgb(67, 56, 202)' },
+    { name: 'hint color = accent-700 (project-defined blue-700 #1d4ed8)', pass: hintStyles?.color === 'rgb(29, 78, 216)' },
     { name: 'hint align-self = flex-end (right-aligned)', pass: hintStyles?.alignSelf === 'flex-end' },
     { name: 'hint pointer-events = none (click passes through)', pass: hintStyles?.pointerEvents === 'none' },
     { name: 'hint right-aligned within parent (right gap < 20)', pass: alignment?.isRightAligned === true },
