@@ -524,11 +524,15 @@
     gap: 8px;
     padding: 0 4px 8px;
   }
+  /* v0.3.36 #11 — UAT 0728-1 #11 (PO 字面 "已结算记录 section 标题应和上方的'建议转账'/'每人净收净付'标题字体字号相同"):
+     .section-head h3 跟 SettleTransferPath.svelte 内 <h3> 同 font-size / font-weight / color.
+     原 14px / 600 / #374151 改为 default h3 (app.css 全局: font-weight 600, color var(--gray-900), line-height tight,
+     font-size inherit = browser default ~18.75px). 跟 SettleTransferPath.svelte 内 <h3> 字段级同 (无额外 override).
+     v0.3.32 #1 baseline: SettleTransferPath.svelte h3 也无 font-size override — 跟 default h3 一致.
+     所以这里去掉 font-size + color 跟 #374151 override, 只保留 font-weight 600 跟 margin 0. */
   .section-head h3 {
-    font-size: 14px;
     font-weight: 600;
-    color: #374151;
-    letter-spacing: 0.01em;
+    color: var(--gray-900);
     margin: 0;
   }
   .section-head .badge-n {
