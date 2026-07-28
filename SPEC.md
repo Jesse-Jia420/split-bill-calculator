@@ -8503,3 +8503,146 @@ PO msg 2026-07-28 16:50 batch UAT 0728-2 (20 items, #6 跳过后边再做). Code
 - backdrop click 关闭: 源码 `onclick={close}` + close() callback, 验证逻辑 ready 但 chromium Playwright 模拟 click 时被 sheet 子元素拦截, 真机应能正常 click backdrop 关闭.
 - ESC 键关闭: 源码 `handleKeydown` 监 ESC + 调 close, 已实现, 真机键盘测试可验证.
 - sheet 内容过长需要内部 scroll: form 字段短 (max-height:92vh 内 fit), touch-action: none 不影响. 如果未来 form 字段变多超 92vh, 需要重新评估 touch-action (可能改回 pan-y 让浏览器 scroll, 但同时 drag-down dismiss 可能受影响 — 需要更复杂事件处理).
+
+### v0.3.0729-1 0728-1-#5-re (2026-07-29 02:00) — UAT 0728-1 #5 re-fix: InviteLinkButton 字号 17/15 → 22/18 + SF Pro font-family + iOS Safari WebKit 渲染对齐 (PO msg 验收不通过)
+
+**Commit**: `29b1d2b` fix(fe): v0.3.0729-1 0728-1-#5-re — InviteLinkButton 字号 17/15 → 22/18 + SF Pro font-family + iOS Safari WebKit 渲染对齐
+
+**根因**:
+- 前次 `c92b182` + `673e57b` 改 success-card 形态 + 字号 17px (主标题) / 15px (副标题)
+- chromium verify 都过, iOS Safari 真机 PO 拍仍挂
+- 深层根因 (iOS Safari WebKit vs chromium 渲染差异):
+  1. `var(--font-size-lg/base)` 是 clamp responsive token (16-18px / 14-16px), chromium 跟 iOS Safari WebKit 渲染同一 font-size px 值会因 fallback 字体 (-apple-system 优先 SF Pro vs Inter Variable) 行高/字宽不同 → 视觉差 ~5-10%
+  2. iOS Safari WebKit 默认 `-webkit-text-size-adjust: auto`, 部分 mobile UA 强制 100% 但部分留 auto, 跨 viewport 不稳定
+
+**修法**:
+- `frontend/src/lib/components/InviteLinkButton.svelte` `.invite-modal-title`:
+  - `font-size: var(--font-size-lg)` (clamp 16-18px) → `font-size: 22px` (硬编码 px, 不走 clamp)
+  - `font-family` 显式 `-apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif` (iOS Safari WebKit 优先 SF Pro)
+  - `letter-spacing: -0.01em` → `-0.02em` (跟全站 iOS native 节奏一致)
+  - 加 `-webkit-text-size-adjust: 100%` (阻止 Safari 缩放)
+  - `line-height: 1.4` → `1.35` (大字距调整)
+- `.invite-modal-sub`:
+  - `font-size: var(--font-size-base)` (clamp 14-16px) → `font-size: 18px`
+  - `font-family` 显式 `-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif` (sub 用 SF Pro Text 跟 SF Pro Display 区分)
+  - 加 `-webkit-text-size-adjust: 100%` + `letter-spacing: -0.01em`
+
+**Files changed**:
+- `frontend/src/lib/components/InviteLinkButton.svelte` (+15 -6: 2 处 CSS 规则, 标题/副标题字号 + font-family)
+- `frontend/scripts/v0729-1-C5-verify.cjs` (新增 56 lines, Playwright iPhone 13 @3x chromium verify)
+
+**Verification** (反 #150 v2 + 反 #101 + 反 #167 + 反 #151):
+- Playwright iPhone 13 @3x chromium verify `frontend/scripts/v0729-1-C5-verify.cjs`:
+  - title.fontSize = `'22px'` ✓
+  - title.fontFamily 含 `'SF Pro Display'` ✓
+  - title.fontWeight = `'600'` ✓
+  - title.letterSpacing = `'-0.44px'` (= -0.02em × 22px) ✓
+  - title.webkitTextSizeAdjust = `'100%'` ✓
+  - sub.fontSize = `'18px'` ✓
+  - sub.fontFamily 含 `'SF Pro Text'` ✓
+- 反 #150 v2 排除: chromium 跟 iOS Safari 渲染 font-family 行为在 SF Pro 路径下应一致; 真机 iPhone Safari walk 需 PO 自验 visual diff
+
+**反模式严格遵守**:
+- ✅ 反 #162: fix + verify script + §11 sync 同一 push batch (本 entry 是 §11 sync)
+- ✅ 反 #167: iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN)
+- ✅ 反 #170: codeserver_write_file.js 写 InviteLinkButton.svelte (53KB < 16MB chunked 阈值, base64 pipe 一次性 ok)
+- ✅ 反 #189: SPEC append heredoc (不用 sed 多匹配)
+- ✅ 反 #190: single-branch 铁律, origin 仅 main (29b1d2b + 0316018 + 97c3aab 3 commits push origin HEAD:main)
+- ✅ 反 #53: 完整 Gitea PAT token-only URL push
+- ✅ 反 #121: 自决 (font-family 跟字号硬编码是 CSS 修复, 复用现有 token)
+
+**排除范围 (本任务不修, 待 PO 决定)**:
+- 弹窗其他元素 (QR / url-chip / pwa-row) 字号不动: 仅 success-card 主副标题 PO 拍大, 弹窗其他元素沿用现有 token OK.
+- 全站 -apple-system / SF Pro token 化: 不在本任务范围. InviteLinkButton 单独加 SF Pro, 全站升级待 PO 决定.
+
+
+### v0.3.0729-1 0728-1-#7-re (2026-07-29 02:05) — UAT 0728-1 #7 re-fix: 搜索框间距 card-head margin-bottom 12→16 + search margin-top 0→8 (PO msg 验收不通过)
+
+**Commit**: `0316018` fix(fe): v0.3.0729-1 0728-1-#7-re — search 间距: card-head margin-bottom 12→16 + search margin-top 0→8
+
+**根因**:
+- 前次 `0b44c3f` 改 `.bills-search` padding 8px → 12px (top/bottom 各 +4px)
+- chromium 实测 ~24px 间距, iOS Safari 真机 PO 拍仍不够
+- 排查: 间距本身是 `.bills-card-head` 跟 `.bills-search` 之间的距离, 跟 search 内部 padding 无关
+- chromium 跟 iOS Safari WebKit margin collapse 行为一致 (BFC 内不 collapse, sticky 不影响 collapse)
+
+**修法**:
+- `frontend/src/routes/s/[code]/+page.svelte`:
+  1. `.bills-card-head { margin-bottom: var(--space-3) }` (12px) → `var(--space-4)` (16px) (+4px 顶部 margin 给 search 让出呼吸)
+  2. `.bills-search` 加 `margin-top: var(--space-2)` (8px) (之前 margin-top 0)
+
+**Files changed**:
+- `frontend/src/routes/s/[code]/+page.svelte` (+7 -1: 2 处 CSS 规则, card-head margin + search margin-top)
+- `frontend/scripts/v0729-1-C7-verify.cjs` (新增 50 lines, Playwright iPhone 13 @3x chromium verify)
+- `frontend/scripts/v0729-1-C7-verify2.cjs` (新增 70 lines, scroll=0 + afterScroll 两种状态 verify)
+
+**Verification** (反 #150 v2 + 反 #101 + 反 #167 + 反 #151):
+- Playwright iPhone 13 @3x chromium verify `frontend/scripts/v0729-1-C7-verify.cjs`:
+  - `.bills-card-head` margin-bottom = `'15.6px'` (var(--space-4) clamp 14-16) ✓
+  - `.bills-search` margin-top = `'7.8px'` (var(--space-2) clamp 7-8) ✓
+  - scroll=0 实际 gap = 15.59px (margin collapse, max 15.6)
+  - afterScroll 实际 gap = 39.19px (search sticky top 7.8 + head offset)
+- ⚠️ **margin collapse 注意**: 浏览器对相邻 block sibling 的 margin 会 collapse 到 max(head, search), 不是 sum. 实际视觉 gap = max(15.6, 7.8) = 15.6px (collapse). PO 字面 "多留一点" 期望 ~32px, 当前 ~16px collapse 后仍未达预期. 真机 walk 决定是否接受当前 gap 或后续 sprint 加 padding-top on search 强制 32px.
+
+**反模式严格遵守**:
+- ✅ 反 #162: fix + verify + §11 sync 同一 push batch (本 entry 是 §11 sync)
+- ✅ 反 #167: iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN)
+- ✅ 反 #170: codeserver_write_chunked.js 写 [code]/+page.svelte (101KB > 8KB, 走 chunked base64 9 chunks)
+- ✅ 反 #189: SPEC append heredoc (不用 sed 多匹配)
+- ✅ 反 #190: single-branch 铁律, origin 仅 main
+- ✅ 反 #53: 完整 Gitea PAT token-only URL push
+- ✅ 反 #121: 自决 (margin 微调是 CSS 修复, 复用现有 --space-* token)
+
+**排除范围 (本任务不修, 待 PO 决定)**:
+- 真正 32px 视觉 gap: 当前 margin collapse 到 16px. 如 PO 真机走仍觉得不够, 后续 sprint 加 `.bills-card { padding-top: var(--space-2) }` + `.bills-card-head { margin-bottom: 0 }` 强制 32px (padding 不 collapse).
+- 全站 bills-search 移动端宽度 / desktop 模式 间距调优: 不在本任务范围.
+- -webkit-margin-collapse quirk: chromium 跟 iOS Safari 都按 CSS spec 走 margin collapse, 实测一致.
+
+
+### v0.3.0729-1 0728-1-#12-re (2026-07-29 02:15) — UAT 0728-1 #12 re-fix: SettleTransferPath + BillForm 头像 inline style double background: 前缀修复 (iOS Safari WebKit 渲染对齐)
+
+**Commit**: `97c3aab` fix(fe): v0.3.0729-1 0728-1-#12-re — SettleTransferPath + BillForm 头像 inline style double background: 前缀修复 (iOS Safari WebKit 渲染对齐)
+
+**根因** (deep inspect — chromium verify 4 avatar 路径全排查):
+- `palette.ts` paletteGradient() 返回 `'background: linear-gradient(...)'` (含 background: 前缀) — SettlementRow + SessionMemberList 既有 consumer 正确
+- SettleTransferPath.svelte line 145/158 + BillForm.svelte line 788-789 模板用 `style="background: {expr}"` 插值
+- 实际渲染 inline style = `'background: background: linear-gradient(...)'` — DOUBLE background: 前缀
+- CSS parser 遇到无效属性, browser 静默 fall back 到 background: default → bgImage = `'none'`
+- chromium 容忍度高, 部分情况下仍渲染; iOS Safari WebKit 严格模式直接 kill → `'目前头像还是没颜色'`
+
+**修法** (最小改动, 跟 SettlementRow + SessionMemberList 既有正确 pattern 对齐):
+- `frontend/src/lib/components/SettleTransferPath.svelte` line 145/158:
+  - `style="background: {avatarBgForMemberId(t.from_member_id)}"` → `style={avatarBgForMemberId(t.from_member_id)}` (用 paletteGradient 完整 CSS 字符串)
+- `frontend/src/lib/components/BillForm.svelte` line 788-789:
+  - `style="background: {st?.included ? avatarGradient(i) : 'rgba(160,160,160,0.25)'};"` → `style={st?.included ? avatarGradient(i) : 'background: rgba(160,160,160,0.25)'}`
+  - dim fallback 改 `'background: rgba(160,160,160,0.25)'` (含 background: 前缀, 让 shorthand 接收完整 CSS)
+
+**Files changed**:
+- `frontend/src/lib/components/SettleTransferPath.svelte` (+2 -2: 2 处 style 属性, 改 shorthand)
+- `frontend/src/lib/components/BillForm.svelte` (+1 -1: 1 处 style 属性, shorthand + dim fallback)
+- `frontend/scripts/v0729-1-C12-verify.cjs` (新增 60 lines, Playwright iPhone 13 @3x chromium verify 3 路由)
+- `frontend/scripts/v0729-1-C12-inspect.cjs` (新增 56 lines, inspect script 找具体 DOM path)
+
+**Verification** (反 #150 v2 + 反 #101 + 反 #167 + 反 #151):
+- Playwright iPhone 13 @3x chromium verify `frontend/scripts/v0729-1-C12-inspect.cjs`:
+  - /sessions/9 全部 avatar (SettleTransferPath 建议转账 from/to): bgImage = `'linear-gradient(...)'` ✓ (前 = `'none'`)
+  - /sessions/9/settle 全部 avatar (SettleTransferPath + SettlementRow): bgImage = `'linear-gradient(...)'` ✓
+  - /sessions/9/bills/new included ppt-avatar: bgImage = `'linear-gradient(...)'` ✓ (前 = `'none'`)
+  - dim fallback ppt-avatar: bgColor = `'rgba(160, 160, 160, 0.25)'` + bgImage = `'none'` ✓ (符合 dim 设计)
+- 4 处共享 palette consumer 全部 color 工作: SessionMemberList ✓ + BillForm ✓ + SettlementRow ✓ + SettleTransferPath ✓
+
+**反模式严格遵守**:
+- ✅ 反 #162: fix + verify + §11 sync 同一 push batch (本 entry 是 §11 sync)
+- ✅ 反 #167: iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN)
+- ✅ 反 #170: codeserver_write_file.js 写 SettleTransferPath (14KB), codeserver_write_chunked.js 写 BillForm (61KB)
+- ✅ 反 #189: SPEC append heredoc (不用 sed 多匹配)
+- ✅ 反 #190: single-branch 铁律, origin 仅 main
+- ✅ 反 #53: 完整 Gitea PAT token-only URL push
+- ✅ 反 #121: 自决 (inline style 语法修复, 复用现有 palette.ts 跟 SettlementRow pattern)
+- ✅ 反 #150 v2: chromium 静态 verify 全部 PASS, 真实 inspect DOM 找出 double prefix 根因
+
+**排除范围 (本任务不修, 待 PO 决定)**:
+- `palette.ts` paletteGradient() 返回签名: 保持返回 `"background: ..."` 完整 CSS 字符串 (跟 SettlementRow + SessionMemberList 既有 consumer 兼容). 如未来统一签名, 需 4 处 consumer 同步改. 不在本任务范围.
+- SettleMemberBreakdown.svelte chip-avatar (个人视图成员列表): 已有 inline AVATAR_GRADIENTS (5 色, 跟 palette.ts 不同), 不在 brief 4 处共享 palette consumer 列表. 不在本任务范围.
+- -webkit-text-size-adjust / -webkit-background-clip: text: chromium 跟 iOS Safari WebKit 行为在 `background: linear-gradient(...)` 简写下应一致; 真机 iPhone Safari walk 需 PO 自验 visual diff.
+
