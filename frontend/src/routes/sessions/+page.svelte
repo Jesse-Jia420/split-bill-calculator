@@ -156,4 +156,35 @@
       bottom: 20px;
     }
   }
+
+  /* v0.3.0728-3 #3 — list-top hint 玻璃 pill (跟原 SessionCard per-item .swipe-hint 同族:
+     rgba(99,102,241,0.10) bg + 1px rgba(99,102,241,0.18) border + 8px 12px padding + 11px font + 6px radius).
+     位置: list 顶部右上方 (margin-left: auto 兜底右对齐, align-self: flex-end 在 .stack flex column 内右对齐).
+     pointer-events: none (不抢 click, swipe 仍能透过触发 delete).
+     reverse v0.3.0728-2 #14 per-item hint: 删 SessionCard.svelte 内的 per-item hint + dead CSS,
+     挪到 list 顶部 (single hint 替代 per-item, 跟 PO 字面 "整个列表的右上方" 一致). */
+  .list-top-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    align-self: flex-end;
+    margin: 0 0 8px auto;
+    padding: 3px 8px;
+    background: rgba(99, 102, 241, 0.10);
+    border: 1px solid rgba(99, 102, 241, 0.18);
+    border-radius: 6px;
+    color: var(--accent-700, #4338ca);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.4;
+    letter-spacing: -0.005em;
+    pointer-events: none;
+    font-variant-numeric: tabular-nums;
+    backdrop-filter: blur(4px) saturate(180%);
+    -webkit-backdrop-filter: blur(4px) saturate(180%);
+  }
+  .list-top-hint .swipe-arrow {
+    font-weight: 600;
+    font-size: 12px;
+  }
 </style>
