@@ -708,10 +708,17 @@
     border-radius: 100px;
     margin: 0 auto 12px;
   }
+  /* v0.3.0728-3 #5 (PO msg 2026-07-28 batch 新批 #5): 币种设置弹窗的标题应该居中.
+     原 flex + space-between 标题靠左, × 在最右. 改成 grid 3 列 (1fr auto 1fr):
+     - 中间列 (auto) 放标题, justify-self: center 让标题视觉居中
+     - 最后一列 (1fr) 放 close ×, justify-self: end 贴右边
+     - 第一列 (1fr) spacer 让标题视觉真正居中 (不会因为标题 + close 宽度差异而偏移)
+     跟 v0.3.37 #5 #1 InviteLinkButton.svelte sheet-head (justify-content: center 删 close 后) 模式不同:
+     CurrencyAddModal 保留 close × 按钮, 用 grid 三列平衡布局. */
   .sheet-head {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    justify-content: space-between;
     padding: 0 4px 12px;
   }
   .sheet-title {
@@ -719,6 +726,7 @@
     font-weight: 600;
     color: #171717;
     letter-spacing: -0.01em;
+    justify-self: center;
   }
   .sheet-close {
     width: 32px;
@@ -726,6 +734,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    justify-self: end; /* v0.3.0728-3 #5: grid 最后一列右对齐 */
     border-radius: 50%;
     background: rgba(15, 23, 42, 0.10);
     color: #525252;
