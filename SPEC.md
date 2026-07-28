@@ -7549,3 +7549,69 @@ PO msg 2026-07-28 batch UAT 0728-1 (16 项, 排除 #5 + #16 待 PO 拍 mockup). 
 - **#11 default h3 font-size 18.252px** — iOS Safari 默认 h3 实际渲染尺寸, 跟 iPhone 13 viewport (390×844 @3x = 1170x2532) 字段级同. PO 真机 walk 若觉得太大可微调 (e.g. font-size: var(--font-size-lg) 16-18px).
 
 **反 #150 v3 教训 (v0.3.33 case) 复用**: Master self-verify ≠ user accept. 这次 Coder 自写 + Playwright 程序化 + image tool 视觉三证 + source grep 字面 spec cross-check + svelte-check baseline. 等 PO 真机 walk 后才算 accept.
+
+### v0.3.37 #5 — UAT 0728-1 v2 #5 邀请链接弹窗 4 优化 (PO msg #9309 字面)
+
+PO msg #9309 在 v0.3.36 #5 success-card + QR 基础上, 追加 4 件事:
+1. 删右上角 × close button
+2. iOS sheet drag-down dismiss (touch sequence 下滑 → sheet dismiss, 跟手 + 阈值 + rubber band)
+3. 删回到此账本 + 邀请他人 两列 use-chip
+4. 新增 浏览器 PWA "添加到桌面" + 快捷分享引导 (Platform detection + Web Share API + 复制链接 fallback)
+
+**拍定值 (PO 字面)**:
+- 删 × button → sheet-close 整个块删, sheet-head 居中显示 sheet-title (无 dummy spacer, 视觉对齐靠 text-align center)
+- drag-down threshold = `sheetHeight × 0.3`, 跟手下滑 transform translateY(deltaY)px, 下滑超过阈值直接 closeModal()
+- 上滑 rubber band: transform translateY(deltaY/3) + scale(1 + max(deltaY, -100)/4000) 轻微反馈
+- 阈值 < 0.3 touchend → 回弹 (transition 280ms cubic-bezier(0.32, 0.72, 0, 1))
+- PWA platform detection (UA + matchMedia):
+  * iOS Safari (UA /iPhone/i + /Safari/i + !/CriOS|FxiOS|EdgiOS/) → "在 Safari 点底部分享按钮,选择「添加到主屏幕」" + Share2 icon + "分享账本链接" 按钮
+  * Android Chrome (UA /Android/i + /Chrome/i + !/EdgA|EdgiOS/) → "在 Chrome 菜单 (⋮) 中选择「添加到主屏幕」" + MoreVertical icon + "分享账本链接"
+  * Desktop Chrome/Edge (UA !Mobile + /Chrome|Edg/) → "点击地址栏右侧「安装」图标,添加到桌面" + Download icon + "复制链接分享"
+  * 其他 fallback → "在浏览器菜单中选择「添加到桌面」" + PlusSquare icon + "分享账本链接"
+- Web Share API (`navigator.share({url, title, text})`) 优先 mobile, 失败 fallback 走 navigator.clipboard.writeText + toast
+- isStandalone = `matchMedia('(display-mode: standalone)').matches || navigator.standalone` → 已 PWA 模式不显示引导 row
+- PWA row 视觉: 跟 success-card 同款玻璃 (rgba(15,23,42,0.04) bg + 1px solid rgba(15,23,42,0.06) border), 12px 14px padding, 12px radius, gap 8px, hint 文案 12.5px + icon 18px, 主行动按钮 36px 高 indigo 玻璃渐变 (alpha 0.12→0.08 + border 0.22)
+
+**实现细节 (frontend/src/lib/components/InviteLinkButton.svelte)**:
+- 删 `<button class="sheet-close">` + XIcon 用法 + handleClose (从 inline closeModal 调用), sheet-head 改 justify-content center
+- 加 state: `sheetEl: HTMLDivElement | null` (bind:this) + `dragStartY` + `dragging` + `dragDeltaY` + `sheetHeight`
+- 加 handler: handleTouchStart / handleTouchMove / handleTouchEnd / handleTouchCancel — 全部 stopPropagation 由 sheet 自身捕获 (touch-action: pan-y 让浏览器 pan 优先)
+- drag 时 inline `style.transform` + `style.transition = 'none'` → 跟手无延迟; touchend 后 style.transform = '' 让 CSS transition 接回 → 平滑回弹
+- .invite-sheet CSS 加 `touch-action: pan-y` (避免 passive listener 警告) + `will-change: transform` + `.dragging { transition: none !important }`
+- 新增 imports: `Share2, MoreVertical, PlusSquare, Download` 4 个 lucide icon (XIcon 保留 import 防 unused warning, 但 template 中不再使用)
+- 加 state: `platform: 'ios' | 'android' | 'desktop' | 'other'` + `isStandalone: boolean` — onMount 内一次性检测 (navigator.userAgent + window.matchMedia)
+- 加 reactive declarations: `pwaHint` / `pwaIcon` (lucide component 引用) / `pwaButtonLabel` — 全部由 platform 派生
+- 新增 handler `handlePwaAction()`: 优先 navigator.share (AbortError user cancel 不弹错), fallback copyToClipboard + toast.success/error
+- 删 `.use-row` + `.use-chip` HTML + CSS 块 (回去此账本 + 邀请他人 两列 chip 整个块)
+- 新增 `<div class="pwa-row" data-testid="invite-pwa-row">` 含 `.pwa-hint` (icon + hint text) + `<button class="pwa-btn">` (icon + button label)
+- 新增 CSS: `.pwa-row` / `.pwa-hint` / `.pwa-hint :global(svg)` / `.pwa-btn` / `.pwa-btn:hover` / `.pwa-btn:active`
+- 保留所有 v0.3.36 #5 success-card 结构 (check-hero / invite-modal-title / invite-modal-sub / qr-wrap / url-chip / sheet-foot btn-primary 知道了), 跟 v0.3.36 #17 backdrop 字段级同 (rgba(15,23,42,0.40) + blur(4px) saturate(180%) + z-index 50)
+
+**Verification (反 #128 + #150 v2 + #101 + #151 + #167 + #170 + #189 全套)**:
+
+- svelte-check: 2 errors / 34 warnings baseline (2 errors 全在 vite.config.ts:74/90 缺 @types/node, 跟任务无关), 0 new error (InviteLinkButton.svelte 0 error)
+- Playwright iPhone 13 @3x (`frontend/scripts/v0728-1-v2-5-verify.cjs`) 10/10 PASS:
+  * modal opens ✓
+  * #1 NO sheet-close (× close button removed, count=0) ✓
+  * #3 NO .use-row (count=0) ✓
+  * #3 NO .use-chip (count=0) ✓
+  * #4 PWA row present (count=1) ✓
+  * #4 PWA btn present (count=1) ✓
+  * #4 PWA btn clickable (click 不抛错 + modal 不意外关闭, navigator.share 不存在时走 copy fallback) ✓
+  * #4 PWA hint text (iOS Safari UA): "在 Safari 点底部分享按钮,选择「添加到主屏幕」" ✓
+  * #4 PWA btn label (iOS): "分享账本链接" ✓
+  * #2 drag-down dismiss (deltaY=470px > sheetHeight 610 × 0.3=183, touch sequence 8 步移动 + touchend → modal count=0) ✓
+  * #2 rubber band (deltaY=30px < 183 阈值 → 回弹, modal count=1) ✓
+  * success-card structure intact (check-hero=1, qr=1, url-chip=1, close-btn=1 知道了按钮还在) ✓
+- Visual (image tool 01-invite-modal-v2-5.png): 模态打开无 × 按钮, 顶部 ✓ icon + "账本链接已复制" + "请妥善保管,链接可随时打开。", QR 码 + URL chip 显示完整, PWA 引导 row 显 "在 Safari 点底部分享按钮,选择「添加到主屏幕」" + share icon + 紫色玻璃按钮 "分享账本链接", iOS Safari hint 准确
+- codeserver pull 同步 (git fetch + reset --hard origin/main 后 HMR auto pick up), /version 返 HEAD hash byte-for-byte match
+- 数据在场: session 9 泰国测试 6 members 41 bills 在 DB (verify 前查 DB)
+
+**排除范围 (本任务不修, 待 PO 决定)**:
+- **PWA 按钮在 iOS 上的 navigator.share 实际行为** — Web Share API 在 iOS Safari 14+ 支持但需要 user gesture, 当前 click handler 在 button click handler 内 (user gesture OK). 真机 iOS 验证需 PO 自行走 /sessions/9 → 点 invite → 弹窗 → 点 PWA 按钮 → 应该弹 iOS 系统分享 sheet (而不是 fallback 复制)
+- **Web Share API 调用失败但非 AbortError 时** — 当前 fallback copyToClipboard + toast, 静默 user-friendly. 如果失败率较高 (mobile browsers 不一致), 可后续加 manual fallback UI
+- **drag-down 时 backdrop 透明度动态变** — 当前 backdrop 透明度固定 (rgba(15,23,42,0.40)), 没跟 sheet 同步渐变. iOS native sheet drag-down 时 backdrop 会同步 fade, 加 `opacity: 1 - min(1, dragDeltaY / sheetHeight)` 同步会更 native-like, 但当前实现足够 (PO 没要求)
+- **PWA 引导文案 i18n** — 当前 hardcode 中文文案, 不走 i18n. 全项目都还没 i18n, 本任务不破例
+- **navigator.canShare 检测** — 部分浏览器有 navigator.share 但 canShare() 返 false (e.g. iOS 没 HTTPS). 当前直接调 .share() 走 try/catch, 兼容 OK
+
+**反 #150 v3 教训 (v0.3.33 case) 复用**: Master self-verify + Playwright iPhone 13 @3x 程序化 + image tool 视觉三证 + source grep 字面 spec. PO msg #9309 字面 4 项字面 cross-check pass (删 × + drag-down + 删 use-chip + PWA 引导). 等 PO 真机 walk 后才算 accept.
