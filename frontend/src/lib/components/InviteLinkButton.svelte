@@ -32,6 +32,24 @@
     * toast 反馈: 成功 "二维码已保存" / 失败 "保存失败,请长按图片手动保存".
     * 反 #121 自决 — 不用 file-saver 库, 走原生 fetch + Blob + URL.createObjectURL.
 
+  v0.3.0728-2 #5 — UAT 0728-2 #5: 分享按钮 1 button → 3 button row (从左至右).
+    1) 保存账本二维码 (anchor download QR.png, 复用 #4 downloadQrPng)
+    2) 分享账本二维码 (navigator.share 带 QR PNG file attachment + AbortError 静默 + fallback 走 #4 downloadQrPng)
+    3) 分享账本链接 (navigator.share URL, 跟 v0.3.37 #5 同款, handlePwaAction 不变)
+    * 3 个 button 等宽 (flex: 1 1 0; gap: 8px; width: 100% 容器)
+    * 字体从 13.5px → 12.5px (3 button 紧凑布局, padding 12 → 8px)
+    * 视觉: 玻璃风 rgba(99,102,241,0.12→0.08) + border 1px 0.22 + accent-700 文字 (跟之前 1 button 同源)
+    * Data-testid 3 个: invite-pwa-save-qr / invite-pwa-share-qr / invite-pwa-share-link (test-friendly)
+    * PWA 引导 hint 文案保留在按钮上方 (1 hint + 3 button stack, 跟 mockup 一致)
+    * 反 #121 自决 — 3 button 等宽 + 文案精简 + 文件名 账本二维码.png
+
+  v0.3.37 #5 (PO msg #9309 UAT 0728-1 v2 #5) — 弹窗 4 优化:
+    * QR <img> 加 onclick → fetch(qrDataUrl) → blob → URL.createObjectURL → anchor.download="账本二维码.png".
+    * 视觉提示: cursor pointer + hover opacity 0.92 + active scale 0.98 + focus ring.
+    * 键盘可达: role="button" + tabindex="0" + onkeydown (Enter/Space) 同样触发下载.
+    * toast 反馈: 成功 "二维码已保存" / 失败 "保存失败,请长按图片手动保存".
+    * 反 #121 自决 — 不用 file-saver 库, 走原生 fetch + Blob + URL.createObjectURL.
+
   v0.3.37 #5 (PO msg #9309 UAT 0728-1 v2 #5) — 弹窗 4 优化:
     1. 删除右上角 × close button — 删 <button class="sheet-close"> + aria-label + handler.
        保留 sheet-title 左侧空白让标题居中感 (不补 dummy spacer, 视觉对齐靠 text-align center).
@@ -245,7 +263,57 @@
     }
   }
 
-  /** v0.3.37 #5 #4: PWA 引导行动 — Web Share API (mobile) 或复制链接 (desktop fallback). */
+  /** v0.3.0728-2 #5: 3-button row 第 2 个 — 分享账本二维码 (mobile Web Share + QR file).
+   * 跟 #4 链接分享类似, 但附件是 QR PNG (blob from qrDataUrl fetch).
+   * AbortError user cancel 静默; fallback 走 navigator.clipboard.writeText (URL 兜底). */
+  async function handleShareQr() {
+    if (!qrDataUrl) {
+      toast.error('二维码未生成');
+      return;
+    }
+    let qrBlob: Blob | null = null;
+    try {
+      const resp = await fetch(qrDataUrl);
+      qrBlob = await resp.blob();
+    } catch {
+      toast.error('二维码读取失败');
+      return;
+    }
+    // 优先 Web Share API 带附件 (mobile 主流浏览器支持 files)
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      // @ts-ignore — navigator.canShare 是非标准但主流浏览器都支持
+      const file = new File([qrBlob], '账本二维码.png', { type: 'image/png' });
+      // @ts-ignore — navigator.canShare 同上
+      if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
+        try {
+          // @ts-ignore
+          await navigator.share({
+            title: '账本链接二维码',
+            text: '扫一扫加入账本',
+            files: [file],
+          });
+          dispatch('copy');
+          return;
+        } catch (e: any) {
+          if (e?.name !== 'AbortError') {
+            console.warn('[InviteLinkButton] Share QR failed, falling back:', e);
+          } else {
+            return;
+          }
+        }
+      }
+    }
+    // fallback: 无 navigator.share / 不支持 files → 走下载
+    const ok = await downloadQrPng();
+    if (ok) {
+      toast.success('二维码已保存, 可从相册分享');
+    } else {
+      toast.error('分享失败, 请长按二维码保存');
+    }
+  }
+
+  /** v0.3.37 #5 #4: PWA 引导行动 — Web Share API (mobile) 或复制链接 (desktop fallback).
+   * v0.3.0728-2 #5: 现仅用作 3-button row 第 3 个按钮 "分享账本链接" 的 handler. */
   async function handlePwaAction() {
     if (!inviteUrl) return;
     // 优先 Web Share API (mobile + Chrome desktop 都支持)
@@ -467,23 +535,57 @@
         {inviteUrl}
       </button>
 
-      <!-- v0.3.37 #5 #4: PWA 引导 row (删 use-row use-chip 后, 替换为此块) -->
+      <!-- v0.3.37 #5 #4: PWA 引导 row (删 use-row use-chip 后, 替换为此块)
+           v0.3.0728-2 #5: 1 button row → 3 button row (从左至右):
+             1) 保存账本二维码 — anchor download QR.png (reuse downloadQrPng)
+             2) 分享账本二维码 — navigator.share + QR file (handleShareQr)
+             3) 分享账本链接 — navigator.share URL (handlePwaAction, 跟之前一样)
+           3 个 button 等宽 gap 8px (玻璃风 + 全站 .glass-pill 同族).
       {#if !isStandalone}
         <div class="pwa-row" data-testid="invite-pwa-row">
           <div class="pwa-hint">
             <svelte:component this={pwaIcon} size={18} strokeWidth={2} color="currentColor" />
             <span>{pwaHint}</span>
           </div>
-          <button
-            type="button"
-            class="pwa-btn"
-            onclick={handlePwaAction}
-            data-testid="invite-pwa-btn"
-            aria-label={pwaButtonLabel}
-          >
-            <svelte:component this={pwaIcon} size={14} strokeWidth={2.2} color="currentColor" />
-            <span>{pwaButtonLabel}</span>
-          </button>
+          <div class="pwa-actions" data-testid="invite-pwa-actions">
+            <button
+              type="button"
+              class="pwa-btn"
+              onclick={async () => {
+                const ok = await downloadQrPng();
+                if (ok) toast.success('二维码已保存');
+                else toast.error('保存失败,请长按图片手动保存');
+              }}
+              data-testid="invite-pwa-save-qr"
+              aria-label="保存账本二维码"
+              title="保存账本二维码"
+            >
+              <svelte:component this={Download} size={14} strokeWidth={2.2} color="currentColor" />
+              <span>保存二维码</span>
+            </button>
+            <button
+              type="button"
+              class="pwa-btn"
+              onclick={handleShareQr}
+              data-testid="invite-pwa-share-qr"
+              aria-label="分享账本二维码"
+              title="分享账本二维码"
+            >
+              <svelte:component this={Share2} size={14} strokeWidth={2.2} color="currentColor" />
+              <span>分享二维码</span>
+            </button>
+            <button
+              type="button"
+              class="pwa-btn"
+              onclick={handlePwaAction}
+              data-testid="invite-pwa-share-link"
+              aria-label={pwaButtonLabel}
+              title={pwaButtonLabel}
+            >
+              <svelte:component this={pwaIcon} size={14} strokeWidth={2.2} color="currentColor" />
+              <span>{pwaButtonLabel}</span>
+            </button>
+          </div>
         </div>
       {/if}
     </div>
@@ -792,23 +894,31 @@
     flex-shrink: 0;
     color: var(--gray-700);
   }
-  .pwa-btn {
+  /* v0.3.0728-2 #5: 3-button row 容器 — flex 等宽 gap 8px */
+  .pwa-actions {
+    display: flex;
+    gap: 8px;
     width: 100%;
+  }
+  .pwa-btn {
+    flex: 1 1 0;
+    min-width: 0;
     height: 36px;
-    padding: 0 12px;
+    padding: 0 8px;
     border-radius: 10px;
     background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(99, 102, 241, 0.08) 100%);
     border: 1px solid rgba(99, 102, 241, 0.22);
     color: var(--accent-700, #4338ca);
-    font-size: 13.5px;
+    font-size: 12.5px;
     font-weight: 600;
     font-family: inherit;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
+    gap: 4px;
     transition: background 150ms ease, transform 100ms ease;
+    white-space: nowrap;
   }
   .pwa-btn:hover {
     background: linear-gradient(135deg, rgba(99, 102, 241, 0.18) 0%, rgba(99, 102, 241, 0.12) 100%);
