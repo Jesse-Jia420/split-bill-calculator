@@ -425,7 +425,14 @@
   <header class="sheet-head">
     <h3 class="sheet-title">{modalTitle}</h3>
     <button class="sheet-close" type="button" aria-label="关闭" onclick={close}>
-      <XIcon size={16} strokeWidth={2.4} />
+      <!-- v0.3.36 #4 — UAT 0728-1 #4 (PO 字面 "× 按钮圆形 + icon 可见, 跟 v0.3.27 #1 同款"):
+           XIcon 加显式 color="currentColor" 防止 stroke 被 anti-aliasing 隐形 (跟 AddSettlementSheet
+           sheet-close 同款). 颜色 = .sheet-close CSS color (rgba(15, 23, 42, 0.10) bg 衬下
+           color: #525252 中性灰), icon stroke = currentColor → 自动 inherit. 改前实测在 chromium
+           上 icon 渲染非常浅, 跟 rgba(15,23,42,0.10) bg 颜色相近, 看起来"不可见". 显式
+           color="currentColor" 让 lucide 直接读 .sheet-close color, 确保 iOS Safari 真机也能
+           看见 icon 描边. -->
+      <XIcon size={16} strokeWidth={2.4} color="currentColor" />
     </button>
   </header>
 
