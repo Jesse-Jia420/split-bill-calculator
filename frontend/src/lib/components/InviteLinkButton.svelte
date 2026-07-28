@@ -888,25 +888,34 @@
   }
   .check-hero svg { color: #047857; }
 
-  /* Main heading */
+  /* Main heading — v0.3.0729-1 0728-1-#5-re:
+   * 17px → 22px (硬编码 px, 不走 clamp, 避免不同 viewport 缩放导致 chromium 跟 iOS Safari 渲染差异)
+   * font-family 显式指定 -apple-system / SF Pro Display (iOS Safari WebKit 优先用 SF Pro;
+   * 之前沿用 var(--font-family) 即 'Inter Variable', iOS 真机视觉比 chromium 偏小)
+   * letter-spacing -0.02em (跟全站 iOS native 字号节奏一致) */
   .invite-modal-title {
-    font-size: var(--font-size-lg);
+    font-size: 22px;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif;
     font-weight: 600;
     color: var(--gray-900);
-    letter-spacing: -0.01em;
-    line-height: 1.4;
+    letter-spacing: -0.02em;
+    line-height: 1.35;
     text-align: center;
     margin: 0;
+    -webkit-text-size-adjust: 100%;
   }
 
-  /* Sub line */
+  /* Sub line — v0.3.0729-1 0728-1-#5-re: 15px → 18px + 同标题 SF Pro font-family */
   .invite-modal-sub {
-    font-size: var(--font-size-base);
+    font-size: 18px;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
     line-height: 1.5;
     color: var(--gray-700);
     text-align: center;
     margin: 0;
     font-weight: 400;
+    letter-spacing: -0.01em;
+    -webkit-text-size-adjust: 100%;
   }
   .invite-modal-sub strong {
     font-weight: 600;
