@@ -204,9 +204,13 @@
       const snap = finalOffset > 0 ? ACTION_WIDTH : -ACTION_WIDTH;
       swipeOffsetStore.update((o) => ({ ...o, [id]: snap }));
       openSwipeIdStore.set(id);
+      // v0.3.36 #1: swipe 打开 → 通知 parent 更新 swipedId state (跨 item 互斥).
+      dispatch('swipechange', id);
     } else {
       swipeOffsetStore.update((o) => ({ ...o, [id]: 0 }));
       if (get(openSwipeIdStore) === id) openSwipeIdStore.set(null);
+      // v0.3.36 #1: swipe 未达阈值关 → 通知 parent 清 swipedId (如果本来是自己的).
+      if (swipedId === id) dispatch('swipechange', null);
     }
     isDraggingStore.update((o) => ({ ...o, [id]: false }));
     dragOffsetStore.update((o) => ({ ...o, [id]: 0 }));
@@ -320,7 +324,26 @@
     openSwipeIdStore.set(null);
   }
 
+  // v0.3.36 #1 — UAT 0728-1 #1 (PO 字面 "账本 item 滑动删除按钮跨 item 互斥"):
+  // 接受 parent swipedId prop + dispatch 'swipechange' 事件让 parent sessions/+page.svelte
+  // 集中管理 state. 类似 v0.3.28 #3 settle page swipe 互斥模式 — 父管 state, child 通过
+  // prop 读/写. swipeOffsetStore / openSwipeIdStore 仍保留 (子组件自己渲染用), 但 mutual
+  // exclusion 走 parent swipedId prop 单一 source of truth.
+  // v0.3.36 follow-up #2 (跟 v0.3.36 #16 等组件事件 listener 原则): Svelte 4 syntax
+  // createEventDispatcher + on:eventname 保留 (component 事件, 不用 runes $effect 仿).
+  import { createEventDispatcher } from 'svelte';
+  const dispatch = createEventDispatcher<{ swipechange: number | null }>();
   export let session: SessionSummary;
+  /** v0.3.36 #1: 父传递的 swipedId — null 表示无任何 swipe 打开, number 表示当前打开 swipe 的 session.id. */
+  export let swipedId: number | null = null;
+  // prop change → sync local store. 当 parent swipedId 变化 (其他 item swipe 打开), 自身 reset.
+  $: if (swipedId !== session.id && (get(swipeOffsetStore)[session.id] !== 0 || get(openSwipeIdStore) === session.id)) {
+    // 自身不是当前 swipe → reset local store.
+    swipeOffsetStore.update((o) => ({ ...o, [session.id]: 0 }));
+    if (get(openSwipeIdStore) === session.id) {
+      openSwipeIdStore.set(null);
+    }
+  }
 
   /** v0.3.24 #9: 跟 mockup refined 一致 — 最多显示 6 个头像, 超出显示 +N. */
   const MAX_AVATARS = 6;
@@ -353,12 +376,14 @@
 
   /** v0.3.28 UAT 0724-1 #3: 从 swipe-action button 调用. stopPropagation 避免冒泡
    * 到 .card-link 触发导航 (跟原 #16 handleDeleteClick 同款), 同时关掉 swipe 状态
-   * 让卡片回到原位. */
+   * 让卡片回到原位.
+   * v0.3.36 #1: 关 swipe 后 dispatch 'swipechange' null 让 parent swipedId 清零. */
   function onSwipeDelete(e: MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
     swipeOffsetStore.update((o) => ({ ...o, [session.id]: 0 }));
     if (get(openSwipeIdStore) === session.id) openSwipeIdStore.set(null);
+    dispatch('swipechange', null);
     showDeleteModal = true;
   }
 

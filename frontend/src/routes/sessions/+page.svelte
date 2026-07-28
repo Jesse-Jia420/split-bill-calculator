@@ -20,6 +20,13 @@
 
   let loading = true;
 
+  // v0.3.36 #1 — UAT 0728-1 #1 (PO 字面 "账本 item 滑动删除按钮跨 item 互斥"):
+  // 父 sessions/+page.svelte 加 inline swipedId state, 传给 SessionCard props + on:swipechange 事件.
+  // 类似 v0.3.28 #3 settle page swipe 互斥模式 — 父管 state, child 通过 prop 读/写.
+  // 新 swipe 触发时: SessionCard dispatch 'swipechange' 事件带新 swipe id, parent set swipedId = id
+  // → 其他 SessionCard 收到 swipedId !== session.id 自动收起 swipe. type number 跟 session.id 一致.
+  let swipedId: number | null = $state(null);
+
   onMount(async () => {
     try {
       await loadSessions();
@@ -52,7 +59,14 @@
   {:else}
     <div class="stack">
       {#each $sessions as s (s.id)}
-        <SessionCard session={s} />
+        <!-- v0.3.36 #1: 传 swipedId prop + on:swipechange 事件 (Svelte 4 syntax, SessionCard 内部
+             createEventDispatcher<{ swipechange: number | null }> 派发). 父管 state, child 通过
+             prop 读/写; swipe 状态变更时 child dispatch 事件让 parent 集中管理. -->
+        <SessionCard
+          session={s}
+          {swipedId}
+          on:swipechange={(e) => (swipedId = e.detail)}
+        />
       {/each}
     </div>
   {/if}
