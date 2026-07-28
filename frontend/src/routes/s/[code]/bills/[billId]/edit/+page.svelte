@@ -28,9 +28,12 @@
   import LoadingOverlay from '$components/LoadingOverlay.svelte';
   import { toast } from '$stores/toast';
 
-  let session: SessionDetail | null = null;
-  let bill: Bill | null = null;
-  let loading = true;
+  // v0.3.36 #9 — UAT 0728-1 #9 (PO 反馈 "账单编辑创建页目前打不开了"):
+  // 跟 /s/[code]/bills/new/+page.svelte 同源 regression (commit 589ca59 把 plain let 替换
+  // runes mode $state() 但漏了几个文件). 修法: 3 个 reassigned vars 加 $state() 包装.
+  let session: SessionDetail | null = $state(null);
+  let bill: Bill | null = $state(null);
+  let loading = $state(true);
 
   // v0.3.36 — UAT 0727-1 #8 sub-route: /s/{session_code}/bills/{billId}/edit 用 code 替代 id.
   // sessionId 一开始 = 0; 首次 onMount 通过 getSessionByCode(code) 拿到 session 后回填.
