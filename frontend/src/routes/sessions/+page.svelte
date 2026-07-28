@@ -163,11 +163,15 @@
      pointer-events: none (不抢 click, swipe 仍能透过触发 delete).
      reverse v0.3.0728-2 #14 per-item hint: 删 SessionCard.svelte 内的 per-item hint + dead CSS,
      挪到 list 顶部 (single hint 替代 per-item, 跟 PO 字面 "整个列表的右上方" 一致). */
+  /* v0.3.0728-3 #3 v3 — 改 block-level + auto margin 右对齐.
+     v0.3.0728-3 #3 v2 用 display:inline-flex + align-self:flex-end 在 .stack (block parent) 里没效果
+     (align-self 仅在 flex/grid parent 内有效). 改 display:flex (block-level) + width:fit-content
+     (shrink to content) + margin-left:auto (block-level auto margin 推到右边). 视觉效果一致. */
   .list-top-hint {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     gap: 4px;
-    align-self: flex-end;
+    width: fit-content;
     margin: 0 0 8px auto;
     padding: 3px 8px;
     background: rgba(99, 102, 241, 0.10);

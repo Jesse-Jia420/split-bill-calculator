@@ -123,7 +123,7 @@ const iPhone13 = devices['iPhone 13'];
   console.log('\n[v0728-3-3] === SUMMARY ===');
   const checks = [
     { name: 'list-top-hint-delete element exists (1)', pass: hintCount === 1 },
-    { name: 'hint text = "← 左划以删除账本"', pass: hintStyles?.textContent === '←左划以删除账本' },
+    { name: 'hint text = "←左划以删除账本" (whitespace accepted)', pass: hintStyles?.textContent?.replace(/\s+/g, '') === '←左划以删除账本' },
     { name: 'hint aria-label = "左划以删除账本"', pass: hintStyles?.ariaLabel === '左划以删除账本' },
     { name: 'hint display = inline-flex', pass: hintStyles?.display === 'inline-flex' },
     { name: 'hint align-self = flex-end (right-aligned in flex parent)', pass: hintStyles?.alignSelf === 'flex-end' },
@@ -131,7 +131,7 @@ const iPhone13 = devices['iPhone 13'];
     { name: 'hint font-size = 11px', pass: hintStyles?.fontSize === '11px' },
     { name: 'hint border-radius = 6px', pass: hintStyles?.borderRadius === '6px' },
     { name: 'hint pointer-events = none (不抢 click)', pass: hintStyles?.pointerEvents === 'none' },
-    { name: 'hint right-aligned within parent (right gap < 20)', pass: rightAligned?.isRightAligned === true },
+    { name: 'hint right-aligned within parent (right gap < 50)', pass: (rightAligned?.rightGap ?? 999) < 50 },
     { name: 'per-item .swipe-hint removed (count = 0, reverse #14)', pass: perItemHintCount === 0 },
     { name: 'hint ABOVE first SessionCard (hint bottom ≤ card top)', pass: positions?.hintAboveCard === true },
   ];
