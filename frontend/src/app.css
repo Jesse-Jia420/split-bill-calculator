@@ -673,7 +673,11 @@ button.glass-pill.invite-btn.invite-btn-breathing,
   position: absolute;
   inset: 2px;
   border-radius: inherit;
-  background: rgba(255, 255, 255, 0.55);
+  /* v0.3.0728-2-anim-fix-3 (PO msg 2026-07-28 21:24 实机截图): ::after 玻璃 opacity 0.55 → 0.92.
+     原始 0.55 在 iOS Safari WebKit 上不够遮住 ::before 的 5 色 conic-gradient, 彩虹 leak 到中心
+     把 "账本链接/邀请" 的中间 "链接" 两字挡住. 0.92 几乎纯白, 让彩虹只在 2px border ring 显示
+     (inset:2px + ::before 全幅 inset:0 = 2px ring 露出), 中心保持 glass 质感 但不 leak 彩虹. */
+  background: rgba(255, 255, 255, 0.92);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
           backdrop-filter: blur(20px) saturate(180%);
   pointer-events: none;         /* 让 click 穿透到底层 button */
