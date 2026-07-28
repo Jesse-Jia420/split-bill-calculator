@@ -590,6 +590,12 @@ button.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
    - duration:    1.5s → 1.0s (快 33%, pulse 节奏更明显)
    注: transform scale 是视觉放大不影响 button click box (layout box 不变), a11y OK.
 
+   /* v0.3.0728-2 #7 — UAT 0728-2 #7 dramatic breathing 动画外溢 button 边界修复 (PO msg 16:50).
+   v0.3.37 #16 / v0.3.34 #4 视觉效果 (peak glow 64px + scale 1.05) 飘出 button 边界, 看起来像"漂浮"而非"按钮呼吸".
+   修法: 缩 transform scale 1.05→1.03 (-40%) + 缩 box-shadow blur peak 64→32 (-50%) + rest 32→24 (-25%).
+   视觉效果: 呼吸幅度变小但仍可见, 不会超出 button 视觉边界 (iOS button 一般 36-44px 高, 32px glow ≈ 同高,
+   64px glow = button 2x 高, 视觉像"飞出"而非"呼吸").
+*/
    v0.3.37 #16 — UAT 0728-1 #16 v3-1 边框流光 (PO msg #9309 "#16 用 v3-1").
    v0.3.34 #4 dramatic breathing 保留 (象牙白光晕 + scale 1↔1.05 不变, 既显眼又 elegant 主旨).
    新增 5 色 conic-gradient 边框流光: indigo→purple→pink→amber→green 顺时针 5s/cycle,
@@ -600,12 +606,12 @@ button.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
    (PO 字面 "v3-1" 拍定值, 跟 mockup v3-1 / v3-2 / v3-3 比较后 PO 选 v3-1). */
 @keyframes invite-breath {
   0%, 100% {
-    box-shadow: 0 0 32px rgba(99, 102, 241, 0.55);   /* v0.3.37 #16 改: 象牙白 → indigo 主色 token (跟 accent-500 同源, 跟边框 5 色首位 indigo 呼应) */
+    box-shadow: 0 0 24px rgba(99, 102, 241, 0.55);   /* v0.3.0728-2 #7 改: 32→24 (缩) + v0.3.37 #16 改色: 象牙白 → indigo 主色 token (跟 accent-500 同源, 跟边框 5 色首位 indigo 呼应) */
     transform: scale(1);
   }
   50% {
-    box-shadow: 0 0 64px rgba(168, 85, 247, 0.75);   /* v0.3.37 #16 改: 象牙白峰值 → purple 峰值 (跟 conic 第 2 色 purple 呼应) */
-    transform: scale(1.05);
+    box-shadow: 0 0 32px rgba(168, 85, 247, 0.75);   /* v0.3.0728-2 #7 改: 64→32 (缩 50%, 防外溢 button 边界) + v0.3.37 #16 改色: 象牙白峰值 → purple 峰值 (跟 conic 第 2 色 purple 呼应) */
+    transform: scale(1.03);                            /* v0.3.0728-2 #7 改: 1.05→1.03 (缩 40%, 防外溢 button 边界) */
   }
 }
 /* v0.3.37 #16: 5 色 conic-gradient 边框流光 (PO 拍 v3-1 = RECOMMENDED) */
