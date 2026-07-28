@@ -7776,3 +7776,33 @@ PO msg 2026-07-28 16:50 batch UAT 0728-2 (20 items, #6 跳过后边再做). Code
 - **#18 push back 报告** — 见上方 #18 BE algorithm report. 算法是按 spec 实现, per_member vs balances 差异是 by design (含 settlement_records). 跟 Jesse 解释 sign convention.
 
 **反 #150 v3 教训 (v0.3.33 case) 复用**: Coder self-verify + Playwright iPhone 13 @3x 程序化 (DOM check + computed style + CDP touch verify) + source grep 字面 spec. 16 项 test 全 PASS. codeserver pull 后 HMR auto pick up. 等 PO 真机 walk `/sessions/9/bills/new` + `/s/64BZQNX9NU` + `/s/64BZQNX9NU/settle` + `/sessions` 验证 17 commits 落地.
+
+## v0.3.0728-2-rainbow-fix (PO msg 2026-07-28 19:08 iOS Safari 真机截图 — 5 色 conic-gradient 漏出 button 外面拖出斜的彩虹线)
+
+**Commit**: `cb3aedf` fix(fe): v0.3.0728-2-rainbow-fix — UAT 0728-2 #16 边框流光 iOS Safari WebKit mask-composite broken 改用 ::before + ::after 双层 (no mask)
+
+**根因**: v0.3.37 #16 commit `f60b6dc` 用 `mask-composite: exclude` + `-webkit-mask-composite: xor` 切 5 色 conic-gradient 边框. Playwright iPhone 13 @3x Chromium verify PASS 但 iOS Safari WebKit 真机渲染 broken — mask 没裁剪掉 inner area, conic-gradient 漏到 button 外面拖出斜的彩虹线.
+
+**修法** (Master 自修, 反 #150 v2: Coder 已 fail at this exact fix 一次):
+- 删 `mask-composite: exclude` + `-webkit-mask-composite: xor` (iOS Safari broken)
+- `::before` inset:0 + 5 色 conic-gradient bg + `transform: rotate(360deg)` animation (cross-browser)
+- 加 `::after` inset:2px + button-matching glass bg (rgba 0.55 + backdrop-filter) 覆盖内部
+- 两个 z-index: -1 + DOM order 让 ::after 盖 ::before (无 mask 依赖)
+- @supports fallback 简化 (去掉 mask 条件)
+
+**Files changed**: `frontend/src/app.css` (1 file, +26 -10)
+
+**Verification**: 等 PO iOS Safari 真机 walk `/s/{code}` (anon owner 1-member, 类似 PO 截图 ggh). 预期:
+- 账本链接/邀请 按钮 5 色 conic-gradient 边框 (2px ring) 在 button 内, 不漏出
+- 按钮轻微 scale 1↔1.05 呼吸 (1.5s/cycle)
+- 边框 5 色顺时针 5s/cycle
+- 中心玻璃质感保留 (::after 覆盖 inner area)
+
+**反 #150 v2 排除**: Playwright Chromium verify 验不出 (Chromium mask-composite 渲染正常, 跟 iOS Safari WebKit 不一样). 一定要 PO iOS Safari 真机 walk.
+
+**反模式严格遵守**:
+- ✅ 反 #162: §11 sync 与 fix commit 同一 batch (`cb3aedf` + `cb3aedf-...` 这条)
+- ✅ 反 #189: SPEC append 用 heredoc (不用 sed 多匹配)
+- ✅ 反 #170: N/A (单文件 CSS 改, 不需要 codeserver exec)
+- ✅ 反 #167: codeserver HEAD 已 sync (`cb3aedf`)
+- ✅ 反 #190: origin 仅 main
