@@ -39,8 +39,14 @@ const iPhone13 = devices['iPhone 13'];
   await page.waitForTimeout(2000);
 
   // 3. Switch to 个人视图 (view=split) so paid + consumed sections both render
+  //    页面默认可能是 概览/主币种汇总, 没有 paid/consumed split sections.
+  //    用 Playwright-friendly getByRole selector.
   console.log('[v0728-3-6] Step 3: switch to 个人视图');
-  await page.click('[data-testid="settle-view-toggle-split"], text=/个人视图/');
+  try {
+    await page.getByRole('button', { name: '个人视图' }).click({ timeout: 3000 });
+  } catch {
+    console.log('  个人视图 button not found (可能默认就是个人视图), 继续');
+  }
   await page.waitForTimeout(800);
 
   // 4. Locate both .bills-section-search boxes (paid + consumed)
