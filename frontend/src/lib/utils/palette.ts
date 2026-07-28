@@ -41,9 +41,14 @@ const AVATAR_GRADIENTS: ReadonlyArray<string> = [
   'linear-gradient(135deg, rgba(249, 115, 22, 0.88) 0%, rgba(239, 68, 68, 0.88) 100%)',    // orange → red (#9, warm orange/red family)
 ];
 
-/** 10 色循环 (index wrap) — 用于 SessionMemberList / BillForm 数组下标 (跟 memberCount 顺序一致). */
+/** 10 色循环 (index wrap) — 用于 SessionMemberList / BillForm 数组下标 (跟 memberCount 顺序一致).
+ * 返回完整 CSS `background: linear-gradient(...)` 让 inline style 属性是 valid CSS.
+ * v0.3.0728-2 #12 re-fix: 之前只返 linear-gradient(...) 裸值, inline style="linear-gradient(...)"
+ * 在 iOS Safari / 严格 CSS parser 下无效, 导致 avatar 背景不渲染 → "目前头像还是没颜色".
+ * 加 background: 前缀 4 处共享 (SessionMemberList + BillForm + SettlementRow + SettleTransferPath)
+ * 全部受益. 反 #121 Master 自决技术细节. */
 export function paletteGradient(index: number): string {
-  return AVATAR_GRADIENTS[index % AVATAR_GRADIENTS.length];
+  return `background: ${AVATAR_GRADIENTS[index % AVATAR_GRADIENTS.length]}`;
 }
 
 /**
