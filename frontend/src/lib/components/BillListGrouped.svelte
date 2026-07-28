@@ -617,6 +617,18 @@
       </p>
     {/if}
   {:else}
+    <!-- v0.3.0728-2 #15 (PO msg 2026-07-28 21:17 解冻 "继续0728-2其他"):
+         账单列表页右侧上方小字标注 "左划以删除账本, 右划以编辑账本".
+         跟 v0.3.0728-2 #14 (session card per-item hint) 形成对比:
+         #14 是 per-bill-item 小字 (swipe 提示放在每个 item), #15 是整个 bill list 顶部 1 个 hint
+         (跟 0728-3 #3 sessions list 顶部 hint 模式对齐, 视觉一致).
+         玻璃感跟 .swipe-hint-delete 同源 (indigo alpha 0.10/0.18), 但放顶层而不是 per-item,
+         右对齐 (align-self: flex-end), 12.5px font, 6px padding, 8px radius.
+         pointer-events: none (不抢 click, swipe 仍能透过触发 delete/edit).
+         aria-label: 账单列表左右划手势提示 (屏幕阅读器可读). -->
+    <div class="bill-swipe-hint" data-testid="bill-swipe-hint" aria-label="左滑删除账单, 右滑编辑账单">
+      左划以删除账本, 右划以编辑账本
+    </div>
     <ul class="day-list" style="list-style: none; padding: 0; margin: 0;">
       {#each groups as g, gi (g.date)}
         <li class="day-group" in:fly={{ y: 8, duration: 220, delay: Math.min(gi * 40, 240) }}>
@@ -898,6 +910,32 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
+  }
+  /* v0.3.0728-2 #15 (PO msg 2026-07-28 21:17 解冻): 账单列表页右侧上方小字标注
+     "左划以删除账本, 右划以编辑账本". 跟 v0.3.0728-2 #14 .swipe-hint-delete 视觉同源
+     (indigo alpha 0.10/0.18 glass), 但放顶层而不是 per-bill-item.
+     .bill-grouped 用 flex column 让 hint 自然垂直排在 day-list 之上,
+     gap: var(--space-2) = 8px 视觉呼吸. hint 自己 align-self: flex-end 右对齐.
+     pointer-events: none (不抢 click, swipe 仍能透过触发 delete/edit). */
+  .bill-grouped {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .bill-swipe-hint {
+    align-self: flex-end;
+    background: rgba(99, 102, 241, 0.10);
+    border: 1px solid rgba(99, 102, 241, 0.18);
+    padding: 4px 10px;
+    font-size: 12px;
+    border-radius: 8px;
+    pointer-events: none;
+    color: var(--accent-700, #4338ca);
+    font-weight: 500;
+    line-height: 1.4;
+    /* v0.3.20 #93 兼容: hint 排在 .bills-search 之下, day-header sticky 之上,
+       sticky top: var(--bills-search-h, 50px) + .bills-search ~46px = ~96px,
+       hint 在这区间内 ~visible, 不被 sticky header 盖 */
   }
   /* v0.3.24 #18 (PO msg 16:35 UAT line #18 字面 "账单列表搜索框，当无搜索结果时，提示的 没有匹配的账单，换个关键词试试 ，出现的位置不对，被搜索框挡住了。应下移一些"):
      原 .muted (app.css 全局类, 仅 color: gray-500) 无 padding, placeholder 紧贴 .bills-search bottom (跟 day-group 头一行同 y 位置), 视觉跟 search box "拼"在一起 — 用户感受是 "被搜索框挡".
