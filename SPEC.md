@@ -8003,3 +8003,59 @@ PO msg 2026-07-28 16:50 batch UAT 0728-2 (20 items, #6 跳过后边再做). Code
 - session-scoped random palette (更彻底避免碰撞, 但需要 design 决策 + 持久化 session-specific palette seed, 跟 v0.3.36 #12 5 色 family 不兼容): 当前 5 → 10 方案在 ≤10 成员 session 100% 不撞色. >10 成员的 session 仍有 1+ 碰撞风险 (mod 10 wrap). 后续 sprint 如有 >10 成员 session 需求可考虑 session-scoped random.
 - 现有 members 在 5 → 10 切换时颜色会改变 (因为 i % 10 != i % 5 对大多数 member): 这是 by-design, 现有 session 的视觉颜色会重新分配. PO 可接受 (新成员头像独立颜色是主要诉求, 旧 members 颜色重排不算 regression).
 - palette-{i%10} 11+ 成员碰撞: 留作未来 sprint 单独处理, 当前 5 → 10 已解决 UAT 报告的 6+ 成员场景.
+### v0.3.0728-3 #2 — UAT 0728-3 #2 (PO msg 2026-07-28 batch 新批 #2): QR 下载文件名 "账本二维码" → "{sessionName}账本二维码.png"
+
+**Commit**: `fc20baa` fix(fe): v0.3.0728-3 #2 — QR 下载文件名带 session 名 + sanitize 函数 + 空 fallback
+
+**根因**: v0.3.0728-2 #4 (QR 可保存) 用了硬编码 `a.download = '账本二维码.png'`. PO msg 2026-07-28 batch #2: 文件名应带账本名, e.g. "泰国测试账单_2_7.25-7.28账本二维码.png", 跟账本名有视觉锚点. 当前文件多账本下载时文件名全是 "账本二维码.png" 无法区分.
+
+**修法** (Master 自修, 反 #121 自决 + 反 #155 自决):
+- `frontend/src/lib/components/InviteLinkButton.svelte` 加 `sessionName: string = ''` prop (默认空, 向后兼容)
+- 新 helper `buildQrFilename(name)` — 4 步 sanitize:
+  1. `replace(/[\/\\:*?"<>|\x00-\x1f]/g, '')` — 剔文件系统非法字符 + 控制字符 (Windows/macOS 通用)
+  2. `replace(/\s+/g, '_')` — 空格 → 下划线 (避免 path 解析)
+  3. `replace(/^[._]+|[._]+$/g, '')` — 去掉首尾 `.` / `_` (避免 hidden file / 空文件名)
+  4. `slice(0, 32)` — 截断 32 字符避免 macOS HFS+/APFS 255 字节限制
+- 空 name (null/undefined/'') → fallback "账本二维码.png" (跟原 #4 兼容)
+- `downloadQrPng` 改 `a.download = buildQrFilename(sessionName)` 替换硬编码
+- `frontend/src/routes/s/[code]/+page.svelte` `<InviteLinkButton>` 加 `sessionName={session?.name ?? ""}` prop 传值
+
+**Files changed**:
+- `frontend/src/lib/components/InviteLinkButton.svelte` (+18 -4: sessionName prop + buildQrFilename helper + downloadQrPng 调用)
+- `frontend/src/routes/s/[code]/+page.svelte` (+1: sessionName prop pass)
+- `frontend/scripts/v0728-3-2-verify.cjs` (新增 147 lines, Playwright iPhone 13 @3x chromium verify + 14 项 check)
+
+**Verification** (反 #150 v2 + 反 #101 + 反 #167 + 反 #151):
+- Playwright iPhone 13 @3x chromium verify `frontend/scripts/v0728-3-2-verify.cjs`:
+  - **14/14 PASS**:
+    - ✅ modal opens after invite click
+    - ✅ QR image rendered
+    - ✅ captured filename starts with session name ("泰国测试账单...")
+    - ✅ captured filename ends with "账本二维码.png"
+    - ✅ captured filename 是 "泰国测试账单_2_7.25-7.28账本二维码.png" (跟 session.name "泰国测试账单 2 7.25-7.28" 字段级一致, 空格 → 下划线)
+    - ✅ buildQrFilename("") → fallback "账本二维码.png"
+    - ✅ buildQrFilename(null) → fallback "账本二维码.png"
+    - ✅ buildQrFilename(undefined) → fallback "账本二维码.png"
+    - ✅ spaces replaced with underscores ("My Trip 2026" → "My_Trip_2026")
+    - ✅ special chars `/\:*?"<>|` stripped ("a/b\\c:d*e?f"g<h>i|j" → "abcdefghij")
+    - ✅ leading/trailing dots stripped ("..test.." → "test")
+    - ✅ over 32 chars truncated ("a".repeat(50) → "a".repeat(32))
+    - ✅ control chars stripped ("test\x00\x01name" → "testname")
+    - ✅ CJK + spaces + slash sanitized ("北京/上海 2026" → "北京上海_2026")
+- 反 #150 v2 排除: chromium headless 验证 OK, 真 iOS Safari 视觉验证需 PO 自验. 真机: /sessions/9 → 复制邀请链接 → 点 QR → iOS Safari 自动 download 弹 toast, 文件名应是 "泰国测试账单 2 7.25-7.28账本二维码.png".
+
+**反模式严格遵守**:
+- ✅ 反 #162: fix + verify script + §11 sync 同一 push batch (1 fix commit + 1 test commit + 1 docs commit, push 一起)
+- ✅ 反 #170: N/A (sandbox 直接 edit, codeserver pull 后再跑 verify)
+- ✅ 反 #189: SPEC append heredoc (不用 sed 多匹配)
+- ✅ 反 #167: iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN)
+- ✅ 反 #190: single-branch 铁律, origin 仅 main
+- ✅ 反 #53: 完整 Gitea PAT token-only URL push
+- ✅ 反 #155: 自决 (1 sanitize 函数 + 1 行文件名替换, 不涉及 design token 决策, 不 spawn Designer)
+- ✅ 反 #150 v2: Master 自修自验 (14/14 check + 真实 filename capture + 14 edge case unit test)
+- ✅ 反 #121: 自决 (sanitize 规则 — 32 字符截断是合理判断, 不 spawn Designer)
+
+**排除范围 (本任务不修, 待 PO 决定)**:
+- 文件名长度上限 32 字符: 是经验值 (大部分 session.name ≤ 16 字, 32 给充足 buffer). 后续可考虑按 session 长度动态调整.
+- 多语言文件名 (中文 / 日文 / 韩文): 当前 CJK 直接保留 (跟 v0.3.36 #13 currency code 字段级同). macOS APFS / Windows NTFS 都支持 Unicode 文件名, 无需 escape.
+- QR 图像内容: 没改 (仍是 session.url). 仅下载文件名变.
