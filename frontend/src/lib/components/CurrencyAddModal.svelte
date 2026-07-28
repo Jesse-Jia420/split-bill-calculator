@@ -184,18 +184,25 @@
     const origMainOverflow = mainEl?.style.overflow ?? '';
     const origMainOverscroll = mainEl?.style.overscrollBehavior ?? '';
     const origBodyOverflow = document.body.style.overflow;
+    const origBodyOverscroll = document.body.style.overscrollBehavior ?? '';
     const origHtmlOverflow = document.documentElement.style.overflow;
-    // v0.3.36 #3: 锁 document.body + document.documentElement + main 三层滚动 context.
-    // 任务字面 "打开 sheet 时 document.body.style.overflow = 'hidden', 关时还原 ''".
+    const origHtmlOverscroll = document.documentElement.style.overscrollBehavior ?? '';
+    // v0.3.36 #3 re-fix (PO 验收不通过): 锁 document.body + document.documentElement + main 三层
+    // 滚动 context, 加 overscroll-behavior: contain 到 body + html (之前只 main 设了).
+    // iOS Safari body/html overscroll-behavior 缺失会让 modal 边缘 rubber-band 触发 body 滚动.
     document.body.style.overflow = 'hidden';
+    document.body.style.overscrollBehavior = 'contain';
     document.documentElement.style.overflow = 'hidden';
+    document.documentElement.style.overscrollBehavior = 'contain';
     if (mainEl) {
       mainEl.style.overflow = 'hidden';
       mainEl.style.overscrollBehavior = 'contain';
     }
     return () => {
       document.body.style.overflow = origBodyOverflow;
+      document.body.style.overscrollBehavior = origBodyOverscroll;
       document.documentElement.style.overflow = origHtmlOverflow;
+      document.documentElement.style.overscrollBehavior = origHtmlOverscroll;
       if (mainEl) {
         mainEl.style.overflow = origMainOverflow;
         mainEl.style.overscrollBehavior = origMainOverscroll;
