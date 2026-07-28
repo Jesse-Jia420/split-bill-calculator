@@ -131,11 +131,20 @@ export const getSession = (id: number) => {
 export const getSessionByCode = async (code: string): Promise<SessionDetail> => {
   const extraHeaders: Record<string, string> = {};
   if (typeof window !== "undefined") {
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith("sbc.actingAs.")) {
-        const v = localStorage.getItem(k);
-        if (v) extraHeaders["X-Nickname-Secret"] = v;
+    // v0.3.0728-2 #3 followup: 优先读 code-keyed secret (sbc.actingAs.{code}),
+    // 避免循环扫所有 sbc.actingAs.* 拿错 secret 的 bug (浏览器有 N 个 anon 账本 secret 时
+    // 互相覆盖导致 BE 返 403). Fallback 老 id-keyed entry 兼容旧 anon 创建记录.
+    const codeKey = "sbc.actingAs." + code;
+    const codeSecret = localStorage.getItem(codeKey);
+    if (codeSecret) {
+      extraHeaders["X-Nickname-Secret"] = codeSecret;
+    } else {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith("sbc.actingAs.") && k !== codeKey) {
+          const v = localStorage.getItem(k);
+          if (v) extraHeaders["X-Nickname-Secret"] = v;
+        }
       }
     }
   }
