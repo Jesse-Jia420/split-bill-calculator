@@ -7387,3 +7387,74 @@ Jesse 拍对答案 **f.邀请链接被使用过才行** = 复制成功 + modal �
 - 不加额外 npm 包. 滚动隐藏走原生 `scrollbar-width: none` + `::-webkit-scrollbar { display: none }` (跟 `SessionMemberList.svelte:206-210` `.chip-row` 同款).
 - 不改 record 间距 / margin / padding 内部尺寸 (`.record-row` padding 12px 14px + gap 10px 全保持).
 - prerequisite fix `frontend/src/routes/s/[code]/settle/+page.svelte` 11 个 `$state()` 包装不引入新 design token / 不改逻辑, 纯响应式 bug 修.
+
+### v0.3.36 #5 — UAT 0728-1 #5 邀请链接复制弹窗 success-card + QR code 自动生成 (Coder 自写, PO msg 2026-07-28 12:28 batch 字面 "邀请链接复制弹窗中的文字字号要适当增大, 你可以请 design agent 重新设计一下这里")
+
+**实现方案**: 设计师自决方案 B (mockup 3, PO 拍板) — Success card pattern + QR code 内嵌, 弹窗成功态重排 body 内部 DOM:
+- 顶部 64×64 圆角玻璃 ✓ check-hero (linear-gradient emerald 0.20→0.14 + 4-layer glass shadow + inset highlight, success visual anchor, mockup 3 拍板)
+- 主标题 "账本链接已复制" 17px (var(--font-size-lg) + font-weight 600 + letter-spacing -0.01em, 跟 mockup 3 .invite-modal-title 一致, 跟 AddSettlementSheet sheet-title 同款)
+- 副标题 "请妥善保管,链接可随时打开。" 15px (var(--font-size-base), 关键动词 "随时打开" 加粗)
+- **QR code 200×200 居中** — 用 npm `qrcode` 库 `toDataURL(text, opts)` 生成 base64 PNG (反 #121 自决选 lib — `qrcode` 稳定 + canvas 输出 + TS 支持, 跟 `qrcode-generator` 备选比 TS 支持更好 + 视觉稳定性更好). qrcode.toDataURL opts: errorCorrectionLevel=M, margin=2 (4 modules ~12-14px 留白), width=240 (retina clarity), color dark=#0f172a (slate-900 跟设计 token 同源) + light=#ffffff. 12px white padding + 12px border-radius + bg 白 + 浅 slate border + 微 box-shadow. image-rendering: pixelated + -webkit-optimize-contrast 让 QR 像素边缘锐利. QR 内容 = `inviteUrl` (sessionCode 用 `/s/{code}` 否则 fallback `/sessions/{id}`).
+- URL preview chip (subtle indigo 玻璃: bg rgba(99,102,241,0.06) + border 1px dashed indigo 0.30 + tabular-nums, 字面展示当前 invite URL)
+- URL chip click → handleUrlChipClick 重新复制 invite URL (二次复制便利, 跟初始复制同 source + dispatch 'copy' 同步状态)
+- "可用于 回到此账本 / 邀请他人" 用两列微型 use-chip (1fr 1fr grid, 9px 10px padding + 10px border-radius + slate-15-23-42 alpha 0.04 bg) 而非长句, 视觉更清晰
+- "知道了" 按钮 → manual dismiss (跟 AddSettlementSheet cta-row btn-primary 同款 50px height + indigo→purple linear-gradient)
+
+**实现改动** (3 文件):
+- `frontend/src/lib/components/InviteLinkButton.svelte` — 大量重写 (18589 bytes / 622 lines, vs 原 455 lines). 5 sub-edits:
+  1. **import** (line 34): 加 `import QRCode from 'qrcode';` (qrcode lib)
+  2. **state** (line 47-50): 加 `let qrDataUrl: string = '';` + `let qrError: string | null = null;`
+  3. **reactive QR generate** (line 60-63): 加 `$: if (modalOpen && inviteUrl) { generateQr(inviteUrl); }` modal open + inviteUrl 变化时 lazy compute
+  4. **generateQr function** (line 71-89): qrcode.toDataURL async, errorCorrectionLevel=M, margin=2, width=240, color slate-900/white, 错误捕获 + qrError fallback
+  5. **handleUrlChipClick** (line 119-131): URL chip click → 二次复制 inviteUrl + dispatch 'copy' + toast success/error
+  6. **template**: sheet-handle / sheet-head / sheet-close 不变; sheet-body 重排为 success-card (check-hero + title + sub + qr-wrap + url-chip + use-row); sheet-foot cta-row + btn-primary 不变. 加 5 data-testid (invite-confirm-title / invite-confirm-sub / invite-qr-wrap / invite-qr-img / invite-url-chip) + 1 data-testid error (invite-qr-error)
+  7. **CSS**: sheet-body 改 center column + gap 14px; 加 .check-hero (64×64 emerald glass) + .invite-modal-title (17px 600) + .invite-modal-sub (15px) + .qr-wrap (224×224 white padding) + .qr-img (200×200 pixelated) + .qr-error (dashed) + .url-chip (subtle indigo) + .use-row + .use-chip
+- `frontend/package.json` — 加 `qrcode: ^1.5.4` (dependencies) + `@types/qrcode: ^1.5.6` (devDependencies)
+- `frontend/package-lock.json` — 同步更新 (959 lines diff, 主要是 caret semver 解析结果)
+
+**验证** (反 #150 v2 + 反 #101 + 反 #167 + 反 #151):
+- Playwright iPhone 13 @3x 真机 walk (`frontend/scripts/v0728-1-5-verify.cjs`) — 13/13 PASS:
+  * invite button found (1) ✓
+  * modal opens (1) ✓
+  * check-hero present (1) ✓
+  * title "账本链接已复制" ✓
+  * sub title "请妥善保管,链接可随时打开。" ✓
+  * QR code present (200×200) ✓
+  * QR src = data:image/png;base64 ✓
+  * url-chip present (text: `https://test.jessejia.pp.ua/s/64BZQNX9NU` = session 9 hash URL) ✓
+  * url-chip contains expected URL ✓
+  * use-row present (1) ✓
+  * close button "知道了" present ✓
+  * modal closes on 知道了 click ✓
+- QR 内容解码验证 (jsQR + pngjs): `https://test.jessejia.pp.ua/s/64BZQNX9NU` — 100% 匹配 inviteUrl, 字节级一致
+- check-hero computed style: `background-image: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(20, 184, 166, 0.14) 100%))` ✓ (mockup 3 token 字段级精确匹配)
+- qr-img computed style: `width=200px, height=200px, image-rendering=-webkit-optimize-contrast` ✓
+- 3 张 PNG 存 `~/.openclaw/media/browser/v0728-1-5-success-card/`:
+  * `01-invite-modal-success-card.png` (fullPage, 210160 bytes)
+  * `02-qr-zoom.png` (qr-wrap 截图, 13288 bytes)
+  * `03-qr-raw.png` (raw QR PNG, 2735 bytes — 用 jsQR + pngjs 解码确认内容 = `https://test.jessejia.pp.ua/s/64BZQNX9NU`)
+- image tool 视觉确认 (01): "Green success checkmark icon" + "Bold text '账本链接已复制'" + "QR code in white card" + "URL link in blue text within light purple/lavender dashed border box" + "Two action buttons at the bottom (回到此账本 / 邀请他人)"
+- image tool 视觉确认 (02): "Valid QR code Version 2 (25×25 grid)" + "Substantial white padding (quiet zone)" + "High-contrast (dark blue/black on white) clearly defined" + "Outer corners slightly rounded"
+- 数据在场: session 9 泰国测试 6 members 41 bills (per sbc skill expected)
+- svelte-check: 2 errors / 38 warnings baseline 同 (2 errors 全在 vite.config.ts:3/29/31 缺 @types/node 引入的, 跟本任务无关), 0 new error
+- vite build: ✓ 24.94s 0 error
+- BE /version 返 `4b34c01e` ✓ match HEAD (uvicorn 重启后)
+- FE 返 `4b34c01e` ✓ match HEAD
+
+**反模式 / 铁律**:
+- 反 #121 ✅ QR lib 自决选 qrcode (vs qrcode-generator)
+- 反 #150 v2 ✅ Coder 自写自验 (Playwright 程序化 + jsQR decode + image tool 视觉 三证)
+- 反 #162 ✅ SPEC §11 sync + fix + package.json + package-lock.json 同一 batch (single commit `4b34c01` 注: 由于多个并行 Coder Agent 在同一 sandbox working tree 操作, 我的 InviteLinkButton.svelte + package.json + package-lock.json 3 文件改动被 #18 agent 的 commit `4b34c01` 一起 push — InviteLinkButton.svelte 404 lines diff 全在 `4b34c01` 内 + v0.3.36 #5 注释标记清晰, 仅 commit subject 走 #18. 内容 100% 完整, 无功能损失.)
+- 反 #170 ✅ codeserver_exec_clean.js (写文件用 base64 pipe)
+- 反 #189 ✅ SPEC append 用 heredoc (不用 sed 多匹配)
+- 反 #53 ✅ push 用完整 Gitea PAT (gitea.jessejia.pp.ua)
+- 反 #159 ✅ uvicorn setsid + disown (PID 13975, PPID 1 detached)
+- 反 #160 ✅ vite bind 0.0.0.0 (172.18.0.5:8448 HTTP 200, cf tunnel 外部可达)
+- 反 #167 ✅ iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN)
+
+**排除范围 (本任务不修, 待 PO 决定)**:
+- QR 内容里扫码后是否打开 invite URL 还是加邀请 token — 当前 QR 内容是 session URL `/s/{code}`, 扫码后进入 session 详情页 (已认领 user 直接进, anon 跳 join), 跟点击 invite URL 行为一致 (per v0.3.36 #8 canonical URL). 如果未来要让 QR 显式显示 invite token (含 _token_ 参数), 需要 BE 加新 endpoint.
+- QR 自定义 logo / 颜色 (当前 dark=#0f172a + light=#ffffff, mockup 一致). 未来如要品牌色 QR, 改 generateQr options color dark 即可.
+- "回到此账本" / "邀请他人" use-chip 二次点击交互 (当前只展示, 不触发). 未来如要点 use-chip 触发动作 (e.g. 回到此账本 = 关闭 modal 跳详情页), 加 onClick 即可.
+- QR error state UI 完整化 (当前只显 "二维码加载失败" 文字). qrcode lib 实际失败率极低 (本地生成 PNG), 跟 AddSettlementSheet .toast.error 兜底同模式.
+
