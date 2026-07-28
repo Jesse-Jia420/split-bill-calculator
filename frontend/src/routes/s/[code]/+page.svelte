@@ -1837,7 +1837,10 @@
     justify-content: space-between;
     gap: var(--space-3);
     flex-wrap: wrap;
-    margin-bottom: var(--space-3);
+    /* v0.3.0729-1 0728-1-#7-re: margin-bottom 12→16px (var(--space-3) → var(--space-4)).
+       之前 0b44c3f 调 padding 12px 还是不够, chromium 跟 iOS 像素应一致; 实测真机 search 跟
+       card-head gap 视觉太紧 (24px), PO 拍 "多留一点". 顶部 margin +4px 给 search 让出呼吸. */
+    margin-bottom: var(--space-4);
     padding: 0;
     background: none;
     border: none;
@@ -2012,6 +2015,10 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
+    /* v0.3.0729-1 0728-1-#7-re: margin-top 0 → var(--space-2) (8px).
+       配合 .bills-card-head margin-bottom 12→16px, 视觉 gap 24px → 32px (PO 拍 "多留一点").
+       chromium 跟 iOS Safari WebKit margin collapse 行为一致 (BFC 内不 collapse), 实测可用. */
+    margin-top: var(--space-2);
     /* v0.3.20 #98 (PO msg 13:36 #7532 #1): padding 上下对称.
        原 18px var(--space-3) var(--space-2) (18 top + 8 bottom) 让 content area
        偏 search box 顶部 ~5px (input 22px 填满 content area, flex 居中在
