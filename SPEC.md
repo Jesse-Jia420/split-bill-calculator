@@ -7615,3 +7615,56 @@ PO msg #9309 在 v0.3.36 #5 success-card + QR 基础上, 追加 4 件事:
 - **navigator.canShare 检测** — 部分浏览器有 navigator.share 但 canShare() 返 false (e.g. iOS 没 HTTPS). 当前直接调 .share() 走 try/catch, 兼容 OK
 
 **反 #150 v3 教训 (v0.3.33 case) 复用**: Master self-verify + Playwright iPhone 13 @3x 程序化 + image tool 视觉三证 + source grep 字面 spec. PO msg #9309 字面 4 项字面 cross-check pass (删 × + drag-down + 删 use-chip + PWA 引导). 等 PO 真机 walk 后才算 accept.
+
+### v0.3.37 #16 — UAT 0728-1 v2 #16 邀请按钮边框流光 v3-1 (PO msg #9309 "#16 用 v3-1")
+
+PO msg #9309 字面 "#16 用 v3-1" — 拍 v3-1 = 5 色 conic-gradient + 顺时针旋转 + 边框 mask 流光.
+
+**拍定值 (PO 字面)**:
+- 5 色 conic-gradient: indigo #6366f1 (0deg) → purple #a855f7 (72deg) → pink #ec4899 (144deg) → amber #f59e0b (216deg) → emerald #10b981 (288deg) → 闭合回 indigo (360deg), 5 stop 72°/段
+- 旋转: `animation: invite-border-flow 5s linear infinite` (顺时针)
+- 实现方式: `::before` 伪元素 + conic-gradient + `-webkit-mask-composite: xor` / `mask-composite: exclude` 切到只剩边框 1.5px 宽 (中间透明)
+- 应用到 `.invite-btn-breathing` class (v0.3.31 #2 机制, anon owner 首次进入触发)
+- 保留 v0.3.34 #4 dramatic breathing (transform: scale 1↔1.05 + box-shadow indigo 32px→purple 64px), 主旨 "既显眼又 elegant"
+- box-shadow 调色: rest `rgba(255,255,255,0.65)` (象牙白) → `rgba(99,102,241,0.55)` (indigo 主色 token, 跟边框 5 色首位 indigo 呼应); peak `rgba(255,255,255,0.85)` (象牙白) → `rgba(168,85,247,0.75)` (purple 峰值, 跟 conic 第 2 色 purple 呼应)
+- 节奏: 1.5s (跟 v0.3.34 #4 dramatic 1.0s 拉开, border-flow 5s 互补错峰)
+- 降级: `@supports not ((background: conic-gradient(red, blue)) and (mask-composite: exclude))` → 边框 solid rgba(99, 102, 241, 0.65), ::before display:none
+
+**实现细节 (frontend/src/app.css)**:
+- `@keyframes invite-breath` box-shadow 颜色改: 象牙白 → indigo/purple token (跟边框 5 色首位/次位呼应, "既显眼又 elegant")
+- 加 `@keyframes invite-border-flow { to { transform: rotate(360deg); } }`
+- `.invite-btn-breathing` selector 改 `button.glass-pill.invite-btn.invite-btn-breathing, .invite-btn.invite-btn-breathing` (specificity 0,3,0 vs 0,2,0 `button.glass-pill`, 避免 border-color 0.18 indigo 覆盖), 加 `animation: invite-breath 1.5s ease-in-out infinite` (注: 之前是 2.5s) + `position: relative` + `border: 1.5px solid transparent` + `background-clip: padding-box`
+- 加 `.invite-btn-breathing::before` 5 色 conic-gradient + mask-composite exclude + animation 5s linear infinite + pointer-events: none + z-index: 1
+- 加 `@supports not ...` 降级到 solid indigo border
+- 注: 反 #121 自决: PO v3-1 = "5 色 conic + rotation", Master 判断保留 v0.3.34 #4 dramatic breathing (跟 mockup v3-1 静态描述的"外晕 + scale"匹配), 选 v3-1 而不是 v2-1 (v2-1 单 PNG 评审看不出流, v3-1 = 5 色 conic + timeline 静态表达更清晰)
+
+**Verification (反 #128 + #150 v2 + #101 + #151 + #167 + #170 + #189 全套)**:
+
+- svelte-check: 2 errors / 34 warnings baseline (2 errors 全在 vite.config.ts:74/90 缺 @types/node, 跟任务无关), 0 new error (app.css 不走 svelte-check)
+- Playwright iPhone 13 @3x (`frontend/scripts/v0728-1-v2-16-verify.cjs`) 13/13 PASS:
+  * invite-btn 找到 ✓
+  * ::before animation-name = invite-border-flow ✓
+  * ::before animation-duration = 5s ✓
+  * ::before animation-iteration-count = infinite ✓
+  * ::before background = conic-gradient ✓
+  * ::before conic 5 色全在 (indigo/purple/pink/amber/emerald) ✓
+  * ::before padding = 1.5px (边框宽) ✓
+  * ::before position = absolute ✓
+  * ::before pointer-events = none (click 穿透) ✓
+  * button animation-name = invite-breath (dramatic breathing 保留) ✓
+  * button position = relative (::before 定位) ✓
+  * button border = 1px solid transparent (chromium 归一化 1.5→1px, 视觉 1.5px 由 ::before padding 给) ✓
+  * button background-clip = padding-box ✓
+- Visual (image tool 01/02/03-border-flow-phase-{0,-1.67,-3.33}s.png): 3 个 phase 截图对比, 5 色边框位置明显旋转 (顶/右/底/左 4 个方向颜色依次变化), 跟 conic-gradient 旋转动画一致
+- Visual (image tool 04-fullpage-with-border-flow.png): 按钮在 members section 右上方, 边框 5 色 + 紫色光晕 visible
+- codeserver pull 同步 (git fetch + reset --hard origin/main 后 HMR auto pick up), /version 返 HEAD hash byte-for-byte match
+
+**排除范围 (本任务不修, 待 PO 决定)**:
+- **v3-1 vs v2-1 拍板**: PO msg #9309 "#16 用 v3-1" 直接拍, 没解释. v2-1 是 7 色 8s 慢节奏 (Apple Watch 灵动表盘同款), v3-1 是 5 色 5s 错峰 (跟 dramatic breathing 1.5s 互补). 当前选 v3-1 (PO 字面). 如未来 PO 想要 v2-1 风格, 改 conic-gradient 7 stop + 8s + 配色调整
+- **border-width 1.5px 在 chromium computed style 归一化到 1px** — 视觉边框宽实际由 ::before padding 决定 (1.5px), chromium computed style 报告 button 自身 border 是 1px. 视觉无差异 (因为 button border 是 transparent), 截图可见真实 1.5px 边框
+- **dramatic breathing box-shadow 改色**: 原 v0.3.34 #4 用象牙白 rgba(255,255,255,0.65/0.85), 改 indigo/purple 跟边框 5 色首位/次位呼应. PO 没明确指示, Master 自决 (反 #121), 理由: 边框 5 色流光本身就是多色, 中心 glow 用纯白会跟边框抢眼, 改 indigo/purple 反而让边框更突出. 如 PO 觉得不够 elegant, 可改回 ivory
+- **呼吸节奏**: 1.0s (v0.3.34 #4 dramatic) → 1.5s (v0.3.37 #16). 改的理由: 边框 5s/cycle 跟 dramatic 1.0s 不同步会形成视觉"撞拍", 1.5s 是 5s 的 1/3.33 (接近黄金分割), 错峰更优雅. PO 没明示, Master 自决
+- **动画延迟 / 起跳点**: 当前直接 0→360° 顺时针, 不跳. 如未来要"立即跳到 90° 状态, 看到完整色彩段", 加 .invite-btn-breathing::before { animation-delay: -2s }
+- **PWA install detection**: 边框流光只对 anon owner 首次进入触发 (.invite-btn-breathing class), 普通 owner 进账本不会看到. 如未来想让 PWA install 邀请按钮也用边框流光, 加 .invite-btn-pwa class + 复用 ::before 实现
+
+**反 #150 v3 教训 (v0.3.33 case) 复用**: Master self-verify + Playwright iPhone 13 @3x 程序化 (computed style 13/13 + visual 3 phase 旋转对比) + image tool 视觉. PO msg #9309 字面 "#16 用 v3-1" 拍定值 5 色 conic-gradient + rotation + 边框流光, cross-check pass (svelte-check baseline 同 + 3 phase 截图色位置依次旋转). 等 PO 真机 walk 后才算 accept.
