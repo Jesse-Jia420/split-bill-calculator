@@ -588,17 +588,71 @@ button.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
    - rest (0%, 100%): 32px indigo 0.65 (亮但跟 peak 拉开对比)
    - peak (50%):   64px indigo 0.85 (glow 翻倍, 比 rest 强 1.25x alpha + 5% scale 鼓动)
    - duration:    1.5s → 1.0s (快 33%, pulse 节奏更明显)
-   注: transform scale 是视觉放大不影响 button click box (layout box 不变), a11y OK. */
+   注: transform scale 是视觉放大不影响 button click box (layout box 不变), a11y OK.
+
+   v0.3.37 #16 — UAT 0728-1 #16 v3-1 边框流光 (PO msg #9309 "#16 用 v3-1").
+   v0.3.34 #4 dramatic breathing 保留 (象牙白光晕 + scale 1↔1.05 不变, 既显眼又 elegant 主旨).
+   新增 5 色 conic-gradient 边框流光: indigo→purple→pink→amber→green 顺时针 5s/cycle,
+   跟 Apple Watch 灵动表盘 / iOS 灵动岛待机色同款 (5 stop, 72°/段, 优雅舒缓不廉价闪烁).
+   实现: `.invite-btn` ::before 伪元素 + conic-gradient + mask 切到只剩边框 1.5px 宽 (中间透明),
+   实际看到的只有边框那一圈在流光, 内部仍透明玻璃. animation: invite-border-flow 5s linear infinite.
+   @supports 检测: 不支持 conic-gradient 的浏览器 (-webkit-mask-composite xor) → 边框降级到 solid indigo
+   (PO 字面 "v3-1" 拍定值, 跟 mockup v3-1 / v3-2 / v3-3 比较后 PO 选 v3-1). */
 @keyframes invite-breath {
   0%, 100% {
-    box-shadow: 0 0 32px rgba(255, 255, 255, 0.65);
+    box-shadow: 0 0 32px rgba(99, 102, 241, 0.55);   /* v0.3.37 #16 改: 象牙白 → indigo 主色 token (跟 accent-500 同源, 跟边框 5 色首位 indigo 呼应) */
     transform: scale(1);
   }
   50% {
-    box-shadow: 0 0 64px rgba(255, 255, 255, 0.85);
+    box-shadow: 0 0 64px rgba(168, 85, 247, 0.75);   /* v0.3.37 #16 改: 象牙白峰值 → purple 峰值 (跟 conic 第 2 色 purple 呼应) */
     transform: scale(1.05);
   }
 }
-.invite-btn-breathing {
-  animation: invite-breath 2.5s ease-in-out infinite;
+/* v0.3.37 #16: 5 色 conic-gradient 边框流光 (PO 拍 v3-1 = RECOMMENDED) */
+@keyframes invite-border-flow {
+  to { transform: rotate(360deg); }
+}
+
+button.glass-pill.invite-btn.invite-btn-breathing,
+.invite-btn.invite-btn-breathing {
+  animation: invite-breath 1.5s ease-in-out infinite;
+  position: relative;          /* v0.3.37 #16: 让 ::before absolute 定位生效 */
+  /* v0.3.37 #16: 边框让位给 conic 流光层 (transparent 让 ::before 显示).
+     specificity (0,3,0) 跟 button.glass-pill (0,2,0) 拉开避免被覆盖 */
+  border: 1.5px solid transparent;
+  background-clip: padding-box; /* 让 background 不溢出到 border 区域 */
+}
+/* v0.3.37 #16: ::before 5 色 conic 流光 (被 mask 切到只剩边框 1.5px) */
+.invite-btn-breathing::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.5px;              /* 边框宽度 */
+  background: conic-gradient(
+    from 0deg,
+    #6366f1 0deg,    /* indigo-500 */
+    #a855f7 72deg,   /* purple-500 */
+    #ec4899 144deg,  /* pink-500 */
+    #f59e0b 216deg,  /* amber-500 */
+    #10b981 288deg,  /* emerald-500 */
+    #6366f1 360deg   /* 闭合回 indigo */
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  animation: invite-border-flow 5s linear infinite;
+  pointer-events: none;         /* 让 click 穿透到底层 button */
+  z-index: 1;                   /* 在 button bg 之上, text 之下 (text z 默认 auto, 实际在 mask 之上因 position stacking) */
+}
+/* v0.3.37 #16: 不支持 conic + mask-composite 的浏览器降级到 solid indigo 边框 */
+@supports not ((background: conic-gradient(red, blue)) and (mask-composite: exclude)) {
+  .invite-btn-breathing {
+    border-color: rgba(99, 102, 241, 0.65);
+  }
+  .invite-btn-breathing::before {
+    display: none;
+  }
 }
