@@ -535,6 +535,14 @@
 
   /* v0.3.32 -- UAT 0725-2 #1: 三段 layout 共享样式 */
   .section {
+    /* v0.3.0728-2 #19 — UAT 0728-2 #19 (PO msg 16:50) 结算页间距修复:
+       已结算记录 section 离建议转账 section 间距 = 建议转账 section 离每人净收/净付 section 间距.
+       原 .section 只有 margin-bottom: var(--space-4) 16px, 没 margin-top.
+       Gap A (净收/净付 → 建议转账): 16px (.balances ul margin-bottom 16px + h3 margin-top 0)
+       Gap B (建议转账 → 已结算记录): 0 + 0 = 0 (transfers-list margin 0 + .section margin-top 0)
+       不等. 修法: .section 加 margin-top: var(--space-4, 16px) 跟 balances ul 对齐 → Gap B = 16px.
+       跟净收/净付 → 建议转账 (Gap A) 完全一致. */
+    margin-top: var(--space-4, 16px);
     margin-bottom: var(--space-4, 16px);
   }
   .section-head {
