@@ -33,6 +33,7 @@
   import {
     getSessionByCode,
     getSessionPreview,
+    getSessionPreviewByCode,
     joinClaim,
     type SessionDetail,
     type SessionMember,
@@ -131,10 +132,21 @@
     }
 
     // Step 3: load public session preview (BUG-LANDING-1)
-    // getSessionPreview(sessionId) 需要 numeric id, 但我们只有 code.
+    // v0.3.0728-2 #3 — UAT 0728-2 #3 (PO msg 16:50) anon join 404 修复:
+    //   原 getSessionPreview(sessionId) 需要 numeric id, 但 anon 路径 sessionId 一直 0
+    //   (getSessionByCode anon 返 403, preview call 返 404, 然后 joinClaim(0, ...) 报错).
+    //   改: 加 public /sessions/by-code/{code}/preview — anon 可访问, 返 numeric id 让后续 joinClaim 成功.
+    if (sessionId === 0 && code) {
+      try {
+        const previewData = await getSessionPreviewByCode(code);
+        preview = previewData;
+        sessionId = previewData.id;
+      } catch {
+        // Preview by-code 不可访问 (session 不存在 / 超 7 天) — 让 join form 不显示预览, 用户仍能试输入
+      }
+    }
     // Fallback: 跳过 preview 直接走 join form (session name 暂不显示).
-    // 真要 preview: 在 BE 加 /by-code/{code}/preview 端点 (未来 sprint).
-    if (sessionId > 0) {
+    if (sessionId > 0 && !preview) {
       try {
         preview = await getSessionPreview(sessionId);
       } catch {

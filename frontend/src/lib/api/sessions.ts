@@ -301,6 +301,13 @@ export interface SessionPreview {
 export async function getSessionPreview(sessionId: number): Promise<SessionPreview> {
   return apiFetch<SessionPreview>(`/sessions/${sessionId}/preview`, { method: 'GET' });
 }
+
+/** v0.3.0728-2 #3 — UAT 0728-2 #3 /s/[code]/join 页面 anon 首次 join 需要 numeric id.
+ *  /sessions/{id}/preview 需要 numeric id, 但 /s/[code] 路径 anon 不能获取 (getSessionByCode 返 403).
+ *  加 public endpoint /sessions/by-code/{code}/preview 让 anon 也能拿到 numeric id. */
+export async function getSessionPreviewByCode(sessionCode: string): Promise<SessionPreview> {
+  return apiFetch<SessionPreview>(`/sessions/by-code/${sessionCode}/preview`, { method: 'GET' });
+}
 /**
  * §3.11.14: anon-claimed slot → user-bound on login.
  *

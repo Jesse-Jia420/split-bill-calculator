@@ -938,6 +938,76 @@ async def get_session_preview(
 
 
 # ---------------------------------------------------------------------------
+# GET /sessions/by-code/{session_code}/preview   (v0.3.0728-2 #3)
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/by-code/{session_code}/preview",
+    response_model=SessionPreview,
+    status_code=status.HTTP_200_OK,
+)
+async def get_session_preview_by_code(
+    db: Annotated[Session, Depends(get_db)],
+    session_code: str = Path(..., description="Session public code (e.g. 64BZQNX9NU)"),
+) -> dict:
+    """Public, no-auth preview by code (跟 /{id}/preview 同 payload).
+
+    v0.3.0728-2 #3 — UAT 0728-2 #3 (PO msg 16:50) /s/[code]/join 页面 anon 首次 join
+    不能获取 numeric session_id (getSessionByCode 返 403 because anon 不是成员).
+    之前 fallback 走 getSessionPreview(0) 也 404, 然后 joinClaim(0, ...) 报错 session not found.
+
+    修法: 加 public /sessions/by-code/{session_code}/preview endpoint — anon 可访问,
+    返 SessionPreview (含 numeric id), 让 /s/[code]/join anon 能拿到 sessionId 后 joinClaim.
+
+    404: code 不存在.
+    410: session 超过 7-day activity window (跟其他 endpoint 一致).
+    """
+    session = db.query(SessionModel).filter_by(session_code=session_code).first()
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "session not found"},
+        )
+
+    _check_session_activity_window(session)
+
+    sm_user_pairs = (
+        db.query(SessionMember, User)
+        .outerjoin(User, User.id == SessionMember.user_id)
+        .filter(SessionMember.session_id == session.id)
+        .order_by(SessionMember.claimed_at.is_(None).desc(), SessionMember.id.asc())
+        .all()
+    )
+
+    members_payload: list[dict] = []
+    for sm_row, user_row in sm_user_pairs:
+        members_payload.append(
+            {
+                "id": sm_row.id,
+                "display_name": sm_row.display_name,
+                "role": sm_row.role,
+                "user_id": sm_row.user_id,
+                "is_anon": bool(sm_row.is_anon),
+                "claimed_at": _iso(sm_row.claimed_at) if sm_row.claimed_at else None,
+                "email": user_row.email if user_row else None,
+            }
+        )
+
+    invite_token = session.invite_token or ""
+    return {
+        "id": session.id,
+        "name": session.name,
+        "currencies": list(session.currencies or ["CNY"]),
+        "primary_currency": session.primary_currency or "CNY",
+        "session_code": session.session_code or "",
+        "invite_token": invite_token,
+        "invite_url": f"/invites/{invite_token}" if invite_token else "",
+        "members": members_payload,
+    }
+
+
+# ---------------------------------------------------------------------------
 # GET /sessions/{id}
 # ---------------------------------------------------------------------------
 
