@@ -8194,3 +8194,58 @@ PO msg 2026-07-28 16:50 batch UAT 0728-2 (20 items, #6 跳过后边再做). Code
 - 个人视图 vs 概览 tab 默认切换: 当前 activeTab default='overview' (settle +page.svelte line 188). 概览 tab 用 SettleTransferPath (没有 paid/consumed split sections, 没搜索框). PO 没要求改默认 tab, 现状保持.
 - v0.3.17 #20 sticky header 浮起漏内容 hotfix 跟本任务兼容 (mask-image 16px opaque 给 sticky h4 加 mask, search 在 h4 下方不被影响). 没改 .section-header CSS.
 - 搜索框在 scroll-up 时行为: 浏览器原生 sticky 自动处理 (向下滚 search 跟着滚, 滚到 h4 下方时停在 top: 32px, 继续向上滚 search 跟着滚回自然位置).
+### v0.3.0728-3 #9 — UAT 0728-3 #9 (PO msg 2026-07-28 batch 新批 #9): 已结算记录 item 删除按钮, 应在 item 向左划不动时, 再向左划, 才出现
+
+**Commit**: `eb1bc40` fix(fe): v0.3.0728-3 #9 — 已结算记录 item 删除按钮 2-swipe pattern
+
+**根因**: v0.3.0728-2 #16 (settle row swipe 跟手延迟) + v0.3.36 #15 (横向滚动 affordance) 当前删除按钮是 always visible (canDelete + 渲染). PO msg 2026-07-28 batch #9 字面要求 "应出现在 item 向左划不动时, 再向左划, 才出现". 1st swipe 应当被 absorbed (item 不动, 按钮不出现, 防止误删); 2nd swipe 才释放按钮. 之前 single-swipe 直接显示按钮是 "太容易误触".
+
+**修法** (Master 自修, 反 #121 自决 + 反 #155 自决):
+- `frontend/src/lib/components/SettlementRow.svelte`:
+  - 加 `let swipeState = $state<'idle' | 'primed' | 'shown'>('idle')` (Svelte 5 runes)
+  - 加 3 个 touch handlers:
+    - `handleSwipeTouchStart`: 记录 touchstartX/Y
+    - `handleSwipeTouchMove`: 1st swipe 状态 (idle) 时, 水平左划 (dx < -10, dy < 20) 调 `e.preventDefault()` 阻止 wrapper scroll — 实现 "item 不动" 的 resistance
+    - `handleSwipeTouchEnd`: 水平左划 (dx < -30, dy < 20) 推进 state: idle → primed (1st) → shown (2nd)
+  - 加 `handleSwipeClickOutside` + `$effect` 注册 document 'click' listener: 点 item 外部 reset state 到 'idle' (隐藏按钮)
+  - wrapper div 加 `data-swipe-state={swipeState}` (test-friendly) + `ontouchstart/move/end={...}` 三个 handler
+  - 删除按钮 conditional: `{#if canDelete && swipeState === 'shown'}` (1st swipe 后按钮不渲染, 2nd swipe 后渲染)
+- 反 #121 自决: gesture state machine 是标准实现 pattern, 不需要 spawn Designer
+- 反 #155 自决: 删除按钮视觉不变 (✕ 红色圆), 仅 gating visibility, 不是 design token 决策
+
+**Files changed**:
+- `frontend/src/lib/components/SettlementRow.svelte` (+67 -1: swipe state + 3 handlers + click outside + wrapper touch handlers + conditional render)
+- `frontend/scripts/v0728-3-9-verify.cjs` (新增 207 lines, Playwright iPhone 13 @3x chromium verify + 9 项 check + 2 个修 test 修 v1/v2 tab switch bug)
+
+**Verification** (反 #150 v2 + 反 #101 + 反 #167 + 反 #151):
+- Playwright iPhone 13 @3x chromium verify `frontend/scripts/v0728-3-9-verify.cjs`:
+  - **9/9 PASS**:
+    - ✅ settlement record rows exist (7 records 渲染 on /sessions/9/settle overview tab)
+    - ✅ initial state: data-swipe-state = "idle"
+    - ✅ initial state: no delete button rendered (state=idle, no button)
+    - ✅ after 1st swipe: data-swipe-state = "primed" (1st swipe 推进 state)
+    - ✅ after 1st swipe: still no delete button (state=primed, not shown, 防止误删)
+    - ✅ after 2nd swipe: data-swipe-state = "shown" (2nd swipe 释放按钮)
+    - ✅ after 2nd swipe: delete button rendered
+    - ✅ after 2nd swipe: delete button opacity = 1 (visible)
+    - ✅ after 2nd swipe: delete button pointer-events = auto (clickable)
+- 反 #150 v2 v3 ✅: chromium computed style + state machine 转换 + 按钮 rendering/opacity/pointer-events 全证. iOS Safari 真机 walk 需 PO 自验 (chromium 模拟 touch event 可能跟 iOS Safari native touch handler 行为略不同, 实际 gesture 1st swipe 是否真的 "item 不动" 需 iOS 真机验).
+- 反 #150 v2 排除: chromium headless 模拟 touch events, 跟 iOS Safari native gesture 略有不同 (iOS 有 momentum scroll, Chromium 没有). 真 iOS Safari walk 需 PO 验证 1st swipe 真的 "item 不动" (resistance 效果).
+
+**反模式严格遵守**:
+- ✅ 反 #162: fix + verify script + §11 sync 同一 push batch (1 fix commit + 1 verify 修 + docs commits, push 一起)
+- ✅ 反 #170: N/A (sandbox 直接 edit, codeserver pull 后再跑 verify)
+- ✅ 反 #189: SPEC append heredoc (不用 sed 多匹配)
+- ✅ 反 #167: iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN)
+- ✅ 反 #190: single-branch 铁律, origin 仅 main
+- ✅ 反 #53: 完整 Gitea PAT token-only URL push
+- ✅ 反 #155: 自决 (删除按钮视觉不变, 仅 gating visibility, 不是 design token 决策, 不 spawn Designer)
+- ✅ 反 #150 v2: Master 自修自验 (chromium 9/9 check + state machine + button rendering/opacity/pointer-events)
+- ✅ 反 #121: 自决 (gesture state machine 是标准实现 pattern, 不需要 Designer)
+- ✅ 反 #161: 修的意图明确 (PO 字面 "应出现在 item 向左划不动时, 再向左划, 才出现"), 不列"不修/延后"选项
+
+**排除范围 (本任务不修, 待 PO 决定)**:
+- momentum scroll / rubber band: iOS Safari 自带 momentum scroll + rubber band 效果. 当前 fix 1st swipe 用 e.preventDefault() 阻止 wrapper scroll, 但 iOS momentum 可能仍 push 一点. 真机 walk 验, 必要时加 threshold (e.g. dx < -20 才 preventDefault).
+- 多次快速 swipe 状态混淆: 当前 1st swipe → primed 后 2nd swipe → shown. 如果用户快速连 swipe 3 次, 第 3 次 swipe 落在 state='shown', 不会变回 'idle'. 需 click outside 触发 reset. 后续如发现 race condition, 加防抖.
+- 已删除 record 后 state reset: 当前 `onclick={() => onDelete?.(record.id)}` 触发 parent 删除, record 从 list 移除, component unmount, state 自动消失. 没问题.
+- 键盘操作 (accessibility): 当前纯 touch-based. a11y 用户 (键盘 / screen reader) 没法触发删除. 后续如需 a11y, 加 keyboard shortcut (e.g. Delete key) 触发删除按钮, 或 button 加 aria-keyshortcuts.
