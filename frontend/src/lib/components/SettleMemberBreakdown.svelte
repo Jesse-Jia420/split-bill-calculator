@@ -45,7 +45,7 @@
   import { getSettle } from '$api/settle';
   import { formatMoney, formatDate } from '$lib/utils/format';
   import { tweenNumber } from '$lib/utils/tween';
-  import { currencySymbol } from '$lib/utils/currency';
+  // v0.3.0728-2 #13 — UAT 0728-2 #13 currencySymbol import 已删 (不再用).
   import { toast } from '$stores/toast';
   import SkeletonBill from '$components/SkeletonBill.svelte';
   import { Search, X } from 'lucide-svelte';
@@ -426,7 +426,7 @@
                     class:pos={bucket.net > 0}
                     class:neg={bucket.net < 0}
                   class:zero={bucket.net === 0}
-                  >{fmtSigned(bucket.net)} {currencySymbol(cur)}</div>
+                  >{fmtSigned(bucket.net)} {cur}</div>
                 {/each}
               {:else}
                 <div
@@ -434,7 +434,7 @@
                   class:pos={m.net > 0}
                   class:neg={m.net < 0}
                   class:zero={m.net === 0}
-                >{fmtSigned(m.net)} {currencySymbol(session.primary_currency)}</div>
+                >{fmtSigned(m.net)} {session.primary_currency}</div>
               {/if}
             </div>
           </button>

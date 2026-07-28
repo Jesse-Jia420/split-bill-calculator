@@ -18,7 +18,7 @@
   import type { SessionDetail } from '$api/sessions';
   import type { Bill } from '$api/bills';
   import { evaluateExpression } from '$api/calculator';
-  import { currencySymbol } from '$lib/utils/currency';
+  // v0.3.0728-2 #13 — currencySymbol import 已删 (不再用, pill 内改显 currency code CNY/THB).
   import { ApiError } from '$api/client';
   import { toast } from '$stores/toast';
   // v0.3.36 #12 — UAT 0728-1 #12 (PO 字面 "已结算记录头像样式应跟成员 section 一致"):
@@ -762,8 +762,9 @@
             </button>
             {#if st?.exclusive}
               <!-- v0.3.20 #92 (PO msg 07:13 #7409): exclusive 实态: ¥ + input, accent 玻璃, 102×32 钉死.
-                   删 stepper (▲▼) — pill 背景不连续, 视觉混乱; 改纯双元素 (¥ + input).
-                   金额调整走 native input (mobile keyboard 自带 + / - 控件). -->
+                   v0.3.0728-2 #13 (UAT 0728-2 #13): pill-currency 内 currencySymbol (¥/$) → currency code (CNY/THB).
+                   pill 32px 高保留, text 缩小到 11px (原 ~14px font-weight 600), 仍居中.
+                   pill-currency width: auto (原 32px 固定, 改 auto 让 CNY/THB 三字符 fit). -->
               <div
                 class="excl-pill excl-pill-exclusive"
                 role="group"
@@ -776,7 +777,7 @@
                   class="pill-currency"
                   onclick={() => exitExclusiveMode(m.id)}
                   aria-label={`退出 ${m.display_name} 的个人消费`}
-                >{currencySymbol(currency)}</button>
+                >{currency}</button>
                 <input
                   type="number"
                   min="0"
@@ -792,7 +793,9 @@
               </div>
             {:else}
               <!-- shared 虚态: "¥ 个人消费" ghost 玻璃 (currency 在前, label 在后), 点 → 进 exclusive.
-                   v0.3.21 #115 (PO msg 11:35): 货币符号应在前, 个人消费字样在后 (货币语义在前更直接). -->
+                   v0.3.21 #115 (PO msg 11:35): 货币符号应在前, 个人消费字样在后 (货币语义在前更直接).
+                   v0.3.0728-2 #13 (UAT 0728-2 #13): currencySymbol (¥/$) → currency code (CNY/THB).
+                   pill 内 CNY/THB 显示 11px font 500 tabular-nums. -->
               <button
                 type="button"
                 class="excl-pill excl-pill-shared"
@@ -801,7 +804,7 @@
                 data-testid={`ppts-chip-${m.id}`}
                 data-state="shared"
               >
-                <span class="pill-currency" aria-hidden="true">{currencySymbol(currency)}</span>
+                <span class="pill-currency" aria-hidden="true">{currency}</span>
                 <span class="pill-label">个人消费</span>
               </button>
             {/if}
@@ -1067,17 +1070,25 @@
       background: rgba(99, 102, 241, 0.32);
     }
   }
+  /* v0.3.0728-2 #13 — UAT 0728-2 #13 pill-currency 改显 CNY/THB (currency code).
+       原 ¥/三字符 ¥¥¥ → CNY/THB 三字符, 字号缩 11px tabular-nums + padding 4px 让三字符 fit.
+       width: auto (原 0 0 auto, 实际因为 currencySymbol 是单字符跟 .pill-input 一起能 fit,
+       现改成 width auto 让三字符 自己决定 width, 不跟 input 冲突). */
   .pill-currency {
     flex: 0 0 auto;
+    width: auto;
+    min-width: 28px;
     background: transparent;
     border: 0;
-    padding: 0 2px;
-    font-size: 13px;
+    padding: 0 4px;
+    font-size: 11px;
     font-weight: 500;
     color: var(--gray-500, #64748b);
     cursor: pointer;
     line-height: 1;
     font-family: inherit;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
   }
   /* v0.3.20 #93 (Fix 2): exclusive pill-currency accent-600 -> accent-700 (deeper indigo) 配新玻璃 bg 0.18 */
   .excl-pill-exclusive .pill-currency {

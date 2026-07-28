@@ -35,7 +35,7 @@
   import { fly, fade } from "svelte/transition";
   import { Pencil, Trash2 } from 'lucide-svelte';
   import { formatMoney, formatDate } from '$lib/utils/format';
-  import { currencySymbol } from '$lib/utils/currency';
+  // v0.3.0728-2 #13: currencySymbol import 已删 (不再用). 依赖 $lib/utils/currency 取消.
   // v0.3.20 #96 (PO msg 02:41 #7467): extracted the per-bill "分摊" and
   // per-day "人均" math out of this component so the algorithm can be
   // unit-tested without spinning up Svelte. Bug: previous implementation
@@ -822,8 +822,12 @@
                              "0 不可隐藏"). 改: 删 {#if billExclusiveTotal(b) > 0} 条件, 总是渲染.
                              billExclusiveTotal(b) === 0 时 fmtAmount(0) 返 "0.00", 视觉 = "个人消费 ¥0.00 CNY".
                              scope: 仅 billListGrouped item 行; 其他地方 (settle 页面) 不变. -->
+                        <!-- v0.3.0728-2 #13 — UAT 0728-2 #13 个人消费只显 cny thb 不显 ¥.
+                             原 个人消费 ¥X.XX CNY → 个人消费 X.XX CNY (eurrencySymbol 删, unit CNY 保留).
+                             跟全站 visual 一致 — amount 数字后直接跟 CNY / THB 大写 (currency code).
+                             v0.3.36 #8 仍保留 (0 显示 "0.00"). -->
                         <div class="bill-row-exclusive muted">
-                          个人消费 {currencySymbol(b.currency)}{fmtAmount(billExclusiveTotal(b))}<span class="unit">{b.currency}</span>
+                          个人消费 {fmtAmount(billExclusiveTotal(b))}<span class="unit">{b.currency}</span>
                         </div>
                         <div class="bill-row3 muted">
                           <span class="bill-meta-left">
