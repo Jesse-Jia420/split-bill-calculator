@@ -163,6 +163,59 @@
     dispatch('close');
   }
 
+  /** v0.3.0728-2 #4 — UAT 0728-1 #4 (PO 字面 "币种弹窗可通过下滑关闭, 同邀请链接弹窗一致"):
+   *  删 .sheet-close × button 后, 加 drag-down dismiss (跟 v0.3.37 #5 #1 InviteLinkButton + v0.3.0728-2 #21
+   *  AddSettlementSheet 同款). touch-action: none (CSS 已设) 让 JS 完全接管 touch, handleTouchMove
+   *  内 preventDefault 兑底 iOS Safari pan-y 抢 touchmove. */
+  let sheetEl: HTMLDivElement | null = null;
+  let dragStartY = 0;
+  let dragging = false;
+  let dragDeltaY = 0;
+  let sheetHeight = 0;
+
+  function handleTouchStart(e: TouchEvent) {
+    if (!sheetEl) return;
+    const t = e.touches[0];
+    if (!t) return;
+    dragStartY = t.clientY;
+    dragging = true;
+    sheetHeight = sheetEl.getBoundingClientRect().height;
+  }
+
+  function handleTouchMove(e: TouchEvent) {
+    if (!dragging || !sheetEl) return;
+    const t = e.touches[0];
+    if (!t) return;
+    const deltaY = t.clientY - dragStartY;
+    dragDeltaY = deltaY;
+    if (deltaY >= 0) {
+      e.preventDefault();
+      sheetEl.style.transform = `translateY(${deltaY}px)`;
+      sheetEl.style.transition = 'none';
+    } else {
+      const rubberY = deltaY / 3;
+      const scale = 1 + Math.max(deltaY, -100) / 4000;
+      sheetEl.style.transform = `translateY(${rubberY}px) scale(${scale})`;
+      sheetEl.style.transition = 'none';
+    }
+  }
+
+  function handleTouchEnd() {
+    if (!dragging || !sheetEl) return;
+    const threshold = sheetHeight * 0.3;
+    if (dragDeltaY > threshold) {
+      close();
+    } else {
+      sheetEl.style.transform = '';
+      sheetEl.style.transition = 'transform 280ms cubic-bezier(0.32, 0.72, 0, 1)';
+      setTimeout(() => {
+        if (sheetEl) sheetEl.style.transition = '';
+      }, 300);
+    }
+    dragging = false;
+    dragDeltaY = 0;
+  }
+
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape' && !busy) close();
   }
@@ -421,26 +474,25 @@
 ></div>
 <div
   class="sheet"
+  class:dragging
   role="dialog"
   aria-modal="true"
   aria-label={modalTitle}
   data-sbc="currency-add-modal"
   data-mode={mode}
   data-has-bills={has_bills ? 'true' : 'false'}
+  bind:this={sheetEl}
+  ontouchstart={handleTouchStart}
+  ontouchmove={handleTouchMove}
+  ontouchend={handleTouchEnd}
+  ontouchcancel={handleTouchEnd}
 >
   <div class="sheet-handle" aria-hidden="true"></div>
   <header class="sheet-head">
     <h3 class="sheet-title">{modalTitle}</h3>
-    <button class="sheet-close" type="button" aria-label="关闭" onclick={close}>
-      <!-- v0.3.36 #4 — UAT 0728-1 #4 (PO 字面 "× 按钮圆形 + icon 可见, 跟 v0.3.27 #1 同款"):
-           XIcon 加显式 color="currentColor" 防止 stroke 被 anti-aliasing 隐形 (跟 AddSettlementSheet
-           sheet-close 同款). 颜色 = .sheet-close CSS color (rgba(15, 23, 42, 0.10) bg 衬下
-           color: #525252 中性灰), icon stroke = currentColor → 自动 inherit. 改前实测在 chromium
-           上 icon 渲染非常浅, 跟 rgba(15,23,42,0.10) bg 颜色相近, 看起来"不可见". 显式
-           color="currentColor" 让 lucide 直接读 .sheet-close color, 确保 iOS Safari 真机也能
-           看见 icon 描边. -->
-      <XIcon size={16} strokeWidth={2.4} color="currentColor" />
-    </button>
+    <!-- v0.3.0728-2 #4 — UAT 0728-1 #4 (PO 字面 "币种弹窗可通过下滑关闭, 同邀请链接弹窗一致").
+         删 .sheet-close × button (跟 v0.3.37 #5 InviteLinkButton sheet-close 删除同款), 改用
+         drag-down dismiss (sheet-head 仅保留居中 title, 跟 AddSettlementSheet v0.3.0728-2 #21 同模式). -->
   </header>
 
   <div class="sheet-body">
@@ -696,6 +748,14 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+    /* v0.3.0728-2 #4 re-fix: 跟 v0.3.0728-2 #21 AddSettlementSheet 同款 — JS 完全接管 touch.
+       删 .sheet-close × button 后, sheet 仅通过 drag-down dismiss 关. touch-action: none
+       让浏览器不 pan, handleTouchMove 内 preventDefault 兑底. */
+    touch-action: none;
+    will-change: transform;
+  }
+  .sheet.dragging {
+    transition: none !important;
   }
   /* v0.3.35 #5: 兼容 Safari iOS < 18 (无 backdrop-filter), fallback bg 加深一档, 跟 modal centered
      fallback 同样的逻辑. */
@@ -715,51 +775,22 @@
     border-radius: 100px;
     margin: 0 auto 12px;
   }
-  /* v0.3.0728-3 #5 (PO msg 2026-07-28 batch 新批 #5): 币种设置弹窗的标题应该居中.
-     原 flex + space-between 标题靠左, × 在最右. 改成 grid 3 列 (1fr auto 1fr):
-     - 中间列 (auto) 放标题, justify-self: center 让标题视觉居中
-     - 最后一列 (1fr) 放 close ×, justify-self: end 贴右边
-     - 第一列 (1fr) spacer 让标题视觉真正居中 (不会因为标题 + close 宽度差异而偏移)
-     跟 v0.3.37 #5 #1 InviteLinkButton.svelte sheet-head (justify-content: center 删 close 后) 模式不同:
-     CurrencyAddModal 保留 close × 按钮, 用 grid 三列平衡布局. */
-  /* v0.3.0728-3 #5 (PO msg 2026-07-28 batch 新批 #5): 币种设置弹窗的标题应该居中.
-     用 grid 3 列 (1fr auto 1fr) + grid-column 显式分配:
-     - .sheet-title: grid-column: 2 (中间 auto column, 跟 title 自身宽度一致)
-     - .sheet-close: grid-column: 3 (最后 1fr column, justify-self: end 贴右边)
-     - 第一列 1fr = spacer 让 title 真正视觉居中 (跟 AddSettlementSheet 删 close 后 justify-content:center 模式不同,
-       CurrencyAddModal 保留 close × 按钮).
-     v1 验证时 chromium 报告 "title center 99.99px / head center 195px / delta 95px", 因为没 grid-column 显式分配,
-     browser 默认把 2 个 children 塞到 column 1 + column 2, column 3 空. v2 加 grid-column 修. */
+  /* v0.3.0728-2 #4 re-fix: 删 .sheet-close × button 后 (UAT 0728-1 #4 验收不通过:
+     "币种弹窗可通过下滑关闭, 同邀请链接弹窗一致"), sheet-head 从 grid 3 列 (1fr auto 1fr spacer)
+     改回 flex + justify-content: center 让 title 真正居中 (跟 AddSettlementSheet + InviteLinkButton
+     v0.3.37 #5 #1 sheet-head 模式一致). .sheet-close CSS 整块删 (sheet 仅通过 drag-down dismiss). */
   .sheet-head {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    display: flex;
     align-items: center;
+    justify-content: center;
     padding: 0 4px 12px;
   }
   .sheet-title {
-    grid-column: 2;
     font-size: 17px;
     font-weight: 600;
     color: #171717;
     letter-spacing: -0.01em;
-    justify-self: center;
   }
-  .sheet-close {
-    grid-column: 3; /* v0.3.0728-3 #5: 显式分配到 grid 最后列 */
-    width: 32px;
-    height: 32px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    justify-self: end; /* 最后一列内右对齐 */
-    border-radius: 50%;
-    background: rgba(15, 23, 42, 0.10);
-    color: #525252;
-    border: 0;
-    cursor: pointer;
-    transition: background 150ms ease;
-  }
-  .sheet-close:hover { background: rgba(15, 23, 42, 0.12); }
   .sheet-body {
     flex: 1;
     display: flex;
