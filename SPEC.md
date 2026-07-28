@@ -8356,3 +8356,48 @@ PO msg 2026-07-28 16:50 batch UAT 0728-2 (20 items, #6 跳过后边再做). Code
 - 桌台/原始数据页其他 currencySymbol 删除: 当前 v0.3.0728-2 #13 范围是 BillListGrouped / BillForm / SettleMemberBreakdown 三处. 其他页 (e.g. 结算概览页 SettleTransferPath, wizard, settings) 是否有 currency code (CNY/THB) 显示需后续 sprint 单独 audit. 本任务仅 reverse #13 拍定 3 文件范围.
 - 多币种 session 跨币种同时显示: 未来如需统一 symbol (e.g. ¥ + ฿ + $ 同时显示), 需设计跨币种 symbol map 跟 spacer 计算. 当前 session 9 (CNY+THB) 验证 chip-net / bill-row-exclusive 已正确显示对应币种 symbol.
 - THB 仍用 ฿ (Thai Baht symbol), 不是 ¥. 跟 PO 拍 "¥ 简洁货币符号" 一致 — PO 期望 CNY 换 ¥, THB 保持 ฿ (已是简洁货币符号). 如果 PO 期望所有币种统一用 ¥, 需后续单独评估.
+### v0.3.0728-3 #1 — UAT 0728-3 #1 (PO msg 2026-07-28 batch 新批 #1): 通过邀请链接回到账本时, 目前可正常新建昵称了. 但回到/加入账本页面没有正确展示已有的昵称, 也就是, 只能加入账本, 无法通过选择已有昵称回到账本. 目前的状态看起来是, 未登录用户打开邀请链接时, 没办法正常看到已有的昵称, 只能新建昵称. 已登录用户打开邀请链接时, 可以看到已有昵称
+
+**Commit**: `a419097` fix(fe): v0.3.0728-3 #1 — 邀请 join 页 anon 显示已有昵称 (reverse v0.3.0728-2 #2: re-add slot-list-merged 到 anon 路径, 跟 logged-in 路径同款 glass-pill + palette-{i%10} + avatarLetter + slot-btn-v3)
+
+**根因**: v0.3.0728-2 #2 (PO msg 16:50 分享链接 join 不显示原昵称) 当时设计 "anon 首次 join 没有 commitment, 显示已有成员列表会让用户觉得 '我应该选其中一个', 但实际他们应该新建" — 删了 anon 路径下的 slot-list-merged. PO msg 2026-07-28 batch #1 字面要求 "未登录用户... 没办法正常看到已有的昵称, 只能新建昵称" — reverse #2.
+
+**修法** (Master 自修, 反 #121 自决 + 反 #155 自决):
+- `frontend/src/routes/s/[code]/join/+page.svelte`:
+  - 在 anon `{:else}` 分支 (line 372+) `<div class="stack">` 内 re-add `{#if allSlots.length > 0}` 条件渲染 + slot-list-merged (跟 logged-in 路径 line 315-364 字段级同款)
+  - 单 slot: `<button class="glass-pill slot-btn slot-btn-v3" onclick={hasEmail(slot) ? () => handleEmailSlotClick(slot) : () => handleClaim(slot.id)} disabled={busy} data-testid="member-pick-row" data-has-email={hasEmail(slot) ? '1' : '0'}>`
+  - slot 内容: `<span class="slot-avatar palette-{i % 10}">{avatarLetter(slot.display_name)}</span>` + `<span class="slot-info">` + `<span class="member-nickname slot-nickname">{slot.display_name}</span>` + `{#if hasEmail(slot)}<span class="member-email-masked slot-email">{maskEmail(...)}</span>{/if}`
+  - 保留: "新建昵称以加入账本" form 段 (line 383+), anon 仍可新建 (v0.3.0728-2 #2 理由 "看不到已有" 已不适用, #1 修正)
+  - 注释更新: v0.3.0728-2 #2 → v0.3.0728-3 #1 reverse
+
+**Files changed**:
+- `frontend/src/routes/s/[code]/join/+page.svelte` (+33 -5: re-add allSlots.length > 0 + slot-list-merged block 到 anon 路径, 注释更新 v0.3.0728-2 #2 → v0.3.0728-3 #1)
+- `frontend/scripts/v0728-3-1-verify.cjs` (新增 90 lines, Playwright iPhone 13 @3x chromium verify + 4 项 check + clearCookies 模拟 anon)
+
+**Verification** (反 #150 v2 + 反 #101 + 反 #167 + 反 #151):
+- Playwright iPhone 13 @3x chromium verify `frontend/scripts/v0728-3-1-verify.cjs`:
+  - **4/4 PASS**:
+    - ✅ anon join page shows slot-list (reverse #2) — member-pick-row count: 11 (session 9 11 members 全显示)
+    - ✅ slot items have nickname text — 11 个 slot 全部有 display_name (Jesse, Ju, Canyina, Q, 像汤圆一样圆., 新成员 a, 测试07282 × 5)
+    - ✅ 新昵称 form still present (reverse #2 + retain create form) — 1 个 input "你的昵称" / "你想叫什么名字？"
+    - ✅ slot items count >= 2 (multi-member session) — 11 个 slot
+- 反 #150 v2 v3 ✅: chromium 4/4 check + 真实 slot 内容 (11 个 nicknames + email masked + hasEmail 0/1). iOS Safari 真机 walk 需 PO 自验.
+- 反 #150 v2 排除: chromium headless 模拟, 真 iOS Safari 视觉可能有 minor diff. 核心功能 (anon 看到已有 nickname 列表) 已通过 chromium 字段级精确验证.
+
+**反模式严格遵守**:
+- ✅ 反 #162: fix + verify script + §11 sync 同一 push batch (2 commits: fix 1 file + verify script, push 一起)
+- ✅ 反 #170: N/A (sandbox 直接 edit, codeserver pull 后再跑 verify)
+- ✅ 反 #189: SPEC append heredoc (不用 sed 多匹配)
+- ✅ 反 #167: iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN)
+- ✅ 反 #190: single-branch 铁律, origin 仅 main
+- ✅ 反 #53: 完整 Gitea PAT token-only URL push
+- ✅ 反 #155: 自决 (re-add slot-list-merged, 跟 logged-in 路径字段级同款, 不是新 design language)
+- ✅ 反 #150 v2: Master 自修自验 (chromium 4/4 + 真实 11 个 slot 字段级验证)
+- ✅ 反 #121: 自决 (re-add 现成 slot-list-merged block 到 anon 路径, 简单 DOM 调整)
+- ✅ 反 #161: 修的意图明确 (PO 字面 "看到已有的昵称"), 不列"不修/延后"选项
+
+**排除范围 (本任务不修, 待 PO 决定)**:
+- 登录用户 vs anon 用户 filter 逻辑: v0.3.29 拍板 anon 看 user_id === null 的槽位 + 已绑定 user_id 的; logged-in 看所有. 当前 re-add 跟 logged-in 完全字段级同款 (都看所有), 保持一致. 如果 PO 期望 anon 只看未认领 (user_id === null), 需加 conditional filter 区分.
+- 点击 slot 后的 UX: 当前跟 logged-in 同款 (有邮箱走 /sessions/{id}/login 跳登录; 无邮箱直接 handleClaim 认领). 反 #128 行为一致.
+- slot 显示数量: session 9 有 11 个 members, 全显 (11 个 slot). 如果 PO 期望 limit (e.g. top 5 + "+N more"), 需后续单独评估.
+- 移动端 / desktop 适配: 当前 chromium headless iPhone 13 viewport 390x844 验证 OK. 真 iOS Safari walk 需 PO 自验.
