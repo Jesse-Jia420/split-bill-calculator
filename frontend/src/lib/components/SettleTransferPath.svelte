@@ -151,23 +151,13 @@
         {/each}
       </ul>
     {/if}
-    <!-- v0.3.14.1 (Bug B): currency breakdown in split view -->
-    {#if viewMode === 'split' && data.currency_breakdown}
-      <h3>按源币种</h3>
-      <ul class="currency-breakdown" style="list-style: none; padding: 0; margin: 0 0 var(--space-4);">
-        {#each Object.entries(data.currency_breakdown).sort((a, b) => (b[1].paid || 0) - (a[1].paid || 0)) as [ccy, breakdown] (ccy)}
-          <li class="currency-row row between">
-            <span class="ccy-name">{ccy}</span>
-            <span class="ccy-detail">
-              paid {fmtWithSymbol(breakdown.paid, ccy)} / consumed {fmtWithSymbol(breakdown.consumed, ccy)} / net
-              <span class:pos={breakdown.net > 0} class:neg={breakdown.net < 0}>
-                {breakdown.net > 0 ? '+' : ''}{fmtWithSymbol(breakdown.net, ccy)}
-              </span>
-            </span>
-          </li>
-        {/each}
-      </ul>
-    {/if}
+    <!-- v0.3.36 #10 — UAT 0728-1 #10 (PO 字面 "建议转账 section 下边有一个"按原币种" section, 把这个删除"):
+         删整块 template (h3 + ul.currency-breakdown + li.currency-row) + reactive 计算.
+         命名检查: 模板 .currency-breakdown + .currency-row + .ccy-name + .ccy-detail
+         4 个 CSS rule 都删 (orphan cleanup). scope: 仅 SettleTransferPath.svelte (SettleMemberBreakdown
+         仍保留自己的 per-currency breakdown, 那是个人视图, 跟此 overview tab currency breakdown 不同).
+         BE API /settle 仍返回 currency_breakdown 字段 (SettleTransferPath 不再消费, 但 BE schema 不变
+         保持 backward-compat). -->
 
   {:else}
     <!-- v0.3.15 (PO #4807): 失败后 data=null, 显示"暂无数据"占位让用户能切 tab / 刷新重试 -->
@@ -189,18 +179,10 @@
   .amount.neg {
     color: var(--error-500);
   }
-  .currency-row {
-    padding: var(--space-2) 0;
-    border-bottom: 1px solid #f0f0f0;
-  }
-  .ccy-name {
-    font-weight: 600;
-    font-size: var(--font-size-base);
-  }
-  .ccy-detail {
-    font-size: var(--font-size-sm);
-    color: var(--gray-500);
-  }
+  /* v0.3.36 #10 — UAT 0728-1 #10: 删 .currency-row / .ccy-name / .ccy-detail 三个 orphan CSS rule,
+     跟 template 删法同步 (上面 {#if currency_breakdown} 整块已删, 这三个 selector 再无 consumer).
+     .currency-breakdown 类名 也无 template 引用, 一并 orphan (但这里没定义 CSS rule, 模板里
+     只用了 list-style: none inline). */
   /* 反馈修 6 项目 5: 用户名 normal 字体 (不加粗) */
   .member-name {
     font-weight: 400;
