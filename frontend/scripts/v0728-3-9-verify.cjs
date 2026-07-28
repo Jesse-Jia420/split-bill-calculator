@@ -38,14 +38,10 @@ const iPhone13 = devices['iPhone 13'];
   await page.goto(`${BASE}/sessions/9/settle`, { waitUntil: 'networkidle', timeout: 30000 });
   await page.waitForTimeout(2000);
 
-  // 3. Switch to 个人视图 (settle defaults to overview tab)
-  console.log('[v0728-3-9] Step 3: switch to 个人视图 tab');
-  try {
-    await page.getByText('个人视图', { exact: true }).first().click({ timeout: 5000 });
-  } catch {
-    console.log('  个人视图 tab not found, continue');
-  }
-  await page.waitForTimeout(800);
+  // 3. settle +page.svelte line 188 default activeTab='overview' — 已结算记录 section 在 overview tab
+  //    (SettlementRow 渲染 for each record). 不用点 个人视图 tab, 那个 tab 是给 paid/consumed bills
+  //    (SettleMemberBreakdown), 不是已结算 records. 直接用 default overview tab.
+  console.log('[v0728-3-9] Step 3: stay on default overview tab (已结算 records in overview)');
 
   // 4. Find settlement record rows (.scroll-wrapper with data-sbc="settlement-row")
   console.log('[v0728-3-9] Step 4: locate settlement record rows');
