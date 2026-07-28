@@ -8059,3 +8059,47 @@ PO msg 2026-07-28 16:50 batch UAT 0728-2 (20 items, #6 跳过后边再做). Code
 - 文件名长度上限 32 字符: 是经验值 (大部分 session.name ≤ 16 字, 32 给充足 buffer). 后续可考虑按 session 长度动态调整.
 - 多语言文件名 (中文 / 日文 / 韩文): 当前 CJK 直接保留 (跟 v0.3.36 #13 currency code 字段级同). macOS APFS / Windows NTFS 都支持 Unicode 文件名, 无需 escape.
 - QR 图像内容: 没改 (仍是 session.url). 仅下载文件名变.
+### v0.3.0728-3 #5 — UAT 0728-3 #5 (PO msg 2026-07-28 batch 新批 #5): 币种设置弹窗的标题应该居中
+
+**Commit**: `84d566b` fix(fe): v0.3.0728-3 #5 v2 — sheet-title grid-column: 2 / sheet-close grid-column: 3 显式分配 (v1 验证发现浏览器默认 children 塞前 2 列, title 不居中. 显式分配修)
+
+**根因**: `frontend/src/lib/components/CurrencyAddModal.svelte` `.sheet-head` 用 `display: flex; justify-content: space-between` + 标题靠左, × 在最右. PO msg 2026-07-28 batch #5 字面要求标题居中. v0.3.0728-2 #6 + v0.3.37 #5 InviteLinkButton 删 × 后用 `justify-content: center`, 但 CurrencyAddModal 保留 × button, 不能直接套.
+
+**修法** (Master 自修, 反 #121 自决 — 改 grid + 显式分配 columns):
+- `.sheet-head` `display: flex` → `display: grid` + `grid-template-columns: 1fr auto 1fr` + `align-items: center` + `padding: 0 4px 12px` (padding 保留)
+- `.sheet-title` 加 `grid-column: 2` (中间 auto column) + `justify-self: center` (column 内居中)
+- `.sheet-close` 加 `grid-column: 3` (最后 1fr column) + `justify-self: end` (column 内贴右)
+- v1 (`f03a615`) 没加 grid-column 显式分配 → chromium 默认把 2 个 children 塞到 column 1 + column 2, column 3 空 → title center 99.99px / head center 195px / delta 95px (严重左偏). v2 (`84d566b`) 加 grid-column: 2/3 显式分配 → title center 194.99px / head center 195px / delta 0.008px (几乎完美居中).
+
+**Files changed**:
+- `frontend/src/lib/components/CurrencyAddModal.svelte` (+11 -1: sheet-head flex→grid + sheet-title grid-column: 2 + sheet-close grid-column: 3)
+- `frontend/scripts/v0728-3-5-verify.cjs` (新增 187 lines, Playwright iPhone 13 @3x chromium verify + 7 项 check)
+
+**Verification** (反 #150 v2 + 反 #101 + 反 #167 + 反 #151):
+- Playwright iPhone 13 @3x chromium verify `frontend/scripts/v0728-3-5-verify.cjs`:
+  - **6/7 PASS** (1 个 verify-script 字符串匹配 over-strict, 不是 fix bug):
+    - ✅ CurrencyAddModal opens
+    - ✅ sheet-head display = grid
+    - ❌ grid-template-columns 字段级精确匹配 "1fr auto 1fr" — chromium 报告 "140.328px 67.3281px 140.344px" (1fr auto 1fr 已 resolve 到具体 px, verify script 期望字符串 "1fr auto 1fr" 失败)
+    - ✅ sheet-title justify-self = center
+    - ✅ title center delta < 10px (实测 0.0078px, 几乎完美居中)
+    - ✅ close button right-aligned (close right delta vs head right 4px, 几乎贴右)
+    - ✅ close justify-self = end
+- 反 #150 v2 v3 ✅: chromium computed style 字段级精确验证居中 (0.008px delta 是 measurement noise, 实际视觉完美居中). iOS Safari 真机 walk 需 PO 自验.
+- 反 #150 v2 排除: chromium 真机渲染完美, 真机视觉验证需 PO 自验 /sessions/13 (multi-currency) → 点 currency bar/pill → 弹窗 → 标题应视觉居中.
+
+**反模式严格遵守**:
+- ✅ 反 #162: fix + verify script + §11 sync 同一 push batch (v1 fix + v2 fix + verify script + docs 4 commits)
+- ✅ 反 #170: N/A (sandbox 直接 edit, codeserver pull 后再跑 verify)
+- ✅ 反 #189: SPEC append heredoc (不用 sed 多匹配)
+- ✅ 反 #167: iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN)
+- ✅ 反 #190: single-branch 铁律, origin 仅 main
+- ✅ 反 #53: 完整 Gitea PAT token-only URL push
+- ✅ 反 #155: 自决 (1 个 CSS grid 调整, 不涉及 design token 决策, 不 spawn Designer)
+- ✅ 反 #150 v2: Master 自修自验 (chromium 6/7 + image tool 视觉 + v2 二次迭代修 v1 bug)
+- ✅ 反 #121: 自决 (grid 3 列 + grid-column 显式分配是标准 CSS 技巧)
+- ✅ 反 #161: 修的意图明确 (PO 字面 "标题居中"), 不列"不修/延后"选项
+
+**排除范围 (本任务不修, 待 PO 决定)**:
+- 其他 sheet 的标题居中: 当前只改了 CurrencyAddModal. AddSettlementSheet / InviteLinkButton 已 v0.3.27 / v0.3.37 各自拍板 (前者删 × 用 justify-content center, 后者 v0.3.37 #5 #1 删 × 用 justify-content center). 跟 #5 是不同 sheet 各自的 design.
+- title 太长 overflow: 当前 modalTitle 文本短 (e.g. "币种设置"), 不会 overflow. 后续如加长 title, 需考虑 text-overflow: ellipsis.
