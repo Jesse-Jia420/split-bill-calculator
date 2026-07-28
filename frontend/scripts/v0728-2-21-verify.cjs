@@ -110,12 +110,15 @@ const iPhone13 = devices['iPhone 13'];
   console.log('  跳过 drag-down simulation — 用其他 close 路径验证 close() 流程正常.');
 
   // Verify close() flow works via backdrop click (alternative close mechanism)
-  console.log('[v0728-2-21] Step 6a: close via backdrop click (verify close() flow)');
+  // Note: click on backdrop element center fails because sheet is on top.
+  // Use page.mouse.click at top of viewport (above sheet) instead.
+  console.log('[v0728-2-21] Step 6a: close via backdrop click (top of viewport, above sheet)');
   const backdropEl = await page.locator('[data-sbc="settlement-sheet-backdrop"]');
   const backdropCount = await backdropEl.count();
   console.log(`  backdrop count: ${backdropCount}`);
   if (backdropCount > 0) {
-    await backdropEl.first().click();
+    // Click at top of viewport (above the sheet)
+    await page.mouse.click(195, 100);
     await page.waitForTimeout(800);
   }
 
