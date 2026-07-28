@@ -1661,13 +1661,26 @@
 
   /* v0.2.1 UI rev: 折叠态 header 内嵌 avatar 预览 (max 8 + overflow) */
   /* v0.3.19 #83 (PO #7300): 18px, -6px overlap (不再用 -8px, 18px 间距 -6 视觉刚好). */
+  /* v0.3.0728-3 #8 (PO msg 16:35 #3 fix #8 字面): 多成员时 avatar 不应被压缩变椭圆,
+     保留原形状 + 允许左右滑动 + iOS 弹性 (rubber band).
+     根因: 旧 `overflow:hidden` + 默认 `flex-shrink:1` 子元素 → 容器太窄时 avatar 收缩变形.
+     修法: overflow-x:auto + flex-shrink:0 + overscroll-behavior-x:contain (iOS 弹性). */
   .members-avatars-inline {
     display: inline-flex;
     align-items: center;
     gap: 0;
     flex: 1 1 auto;
     min-width: 0;
-    overflow: hidden;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .members-avatars-inline::-webkit-scrollbar {
+    display: none;
   }
   /* v0.3.20 #94 Fix 3 (PO msg 02:13 #7455): 折叠态 row2 头像高度 = InviteLinkButton 高度.
      之前 .members-avatars-inline .avatar-mini 18×18, 跟 InviteLinkButton 48px (desktop) / 44px
@@ -1689,6 +1702,7 @@
     height: var(--invite-btn-h, 48px);
     font-size: calc(var(--invite-btn-h, 48px) * 0.32);
     margin-left: calc(var(--invite-btn-h, 48px) * -0.25);
+    flex-shrink: 0;
   }
   .members-avatars-inline .avatar-mini:first-child {
     margin-left: 0;
