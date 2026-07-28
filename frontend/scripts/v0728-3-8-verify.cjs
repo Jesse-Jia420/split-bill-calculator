@@ -41,13 +41,22 @@ const iPhone13 = devices['iPhone 13'];
   await page.goto(`${BASE}/s/64BZQNX9NU`, { waitUntil: 'networkidle', timeout: 30000 });
   await page.waitForTimeout(3000); // wait for hydration
 
-  // 3. Verify members section is collapsed (default state) and avatars visible
-  console.log('[v0728-3-8] Step 3: check members section collapsed state');
+  // 3. Verify default state is EXPANDED (not collapsed) — toggle once to collapse
+  console.log('[v0728-3-8] Step 3: default state check + toggle to collapsed');
+  const headerAriaExpandedInitial = await page
+    .locator('header.members-head')
+    .first()
+    .getAttribute('aria-expanded');
+  console.log(`  initial aria-expanded: ${headerAriaExpandedInitial}`);
+
+  // Click header to collapse (default expanded → collapsed)
+  await page.locator('header.members-head').first().click();
+  await page.waitForTimeout(800);
   const headerAriaExpanded = await page
     .locator('header.members-head')
     .first()
     .getAttribute('aria-expanded');
-  console.log(`  members-head aria-expanded: ${headerAriaExpanded}`);
+  console.log(`  after 1st click (should be collapsed=false): ${headerAriaExpanded}`);
 
   // 4. Check .members-avatars-inline exists and has CSS properties
   console.log('[v0728-3-8] Step 4: inspect .members-avatars-inline CSS');
@@ -112,8 +121,8 @@ const iPhone13 = devices['iPhone 13'];
   });
   console.log(`  scroll result: ${JSON.stringify(scrollResult)}`);
 
-  // 7. Screenshot the members section
-  console.log('[v0728-3-8] Step 7: screenshot members section');
+  // 7. Screenshot the members section (in collapsed state)
+  console.log('[v0728-3-8] Step 7: screenshot members section (collapsed)');
   const membersHeadEl = await page.locator('header.members-head').first();
   await membersHeadEl.screenshot({
     path: path.join(SCREENSHOTS_DIR, '01-members-head-collapsed.png'),
@@ -131,7 +140,7 @@ const iPhone13 = devices['iPhone 13'];
     .locator('header.members-head')
     .first()
     .getAttribute('aria-expanded');
-  console.log(`  after click aria-expanded: ${expandedAria}`);
+  console.log(`  after click aria-expanded (should be expanded=true): ${expandedAria}`);
   await page.screenshot({
     path: path.join(SCREENSHOTS_DIR, '03-fullpage-expanded.png'),
     fullPage: false,
@@ -144,7 +153,7 @@ const iPhone13 = devices['iPhone 13'];
     .locator('header.members-head')
     .first()
     .getAttribute('aria-expanded');
-  console.log(`  after 2nd click aria-expanded: ${collapsedAria}`);
+  console.log(`  after 2nd click aria-expanded (should be collapsed=false): ${collapsedAria}`);
 
   await browser.close();
 
@@ -188,8 +197,9 @@ const iPhone13 = devices['iPhone 13'];
         scrollResult.newScrollLeft > scrollResult.initialScrollLeft,
     },
     {
-      name: 'toggle 切换正常 (collapsed → expanded → collapsed)',
+      name: 'toggle 切换正常 (initial expanded → 1st click collapsed → 2nd click expanded)',
       pass:
+        headerAriaExpandedInitial === 'true' &&
         headerAriaExpanded === 'false' &&
         expandedAria === 'true' &&
         collapsedAria === 'false',
