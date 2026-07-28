@@ -11,34 +11,34 @@
 
   v0.3.23 #129 (PO msg 16:35 UAT 新批) — 删 btn-icon (emoji 视觉不一致).
 
-  v0.3.24 #14 (PO msg 16:35 UAT #14) — 成功反馈 toast 改 confirm modal:
-  - 用户复制成功后, 弹 confirm modal 而不是 auto-dismiss toast
-  - 文案 (两段, 中间换行, v0.3.24 #14.1 PO msg #8285 反馈调整):
-      已复制此账本链接,请妥善保管!
-      可用于 回到此账本(粗体) 或 邀请他人(粗体)
-  - "知道了" 按钮 → manual dismiss (state modalOpen = false)
-  - 点击 backdrop / 按 Esc 也关闭 (一致 UX)
-  - 复制失败仍走 toast.error 兜底 (保留错误反馈)
-  - z-index 1000 (在 Toast 9999 之下, 在普通 modal 999 之上)
-  - 半透明黑 backdrop (rgba 0,0,0,0.10 + blur 4px) + 玻璃 modal (圆角 18px, 白底 + backdrop-filter, padding 24px)
+  v0.3.24 #14 (PO msg 16:35 UAT #14) — 成功反馈 toast 改 confirm modal.
 
-  v0.3.31 #2 (UAT 0725-2 #2, PO msg ~20:03 字面 "匿名用户创建账本,首次进入账单页时,邀请链接按钮高亮呼吸"):
-  - 加 `breathing: boolean = false` prop
-  - breathing=true 时按钮加 `.invite-btn-breathing` class (CSS keyframes 1.5s ease-in-out infinite,
-    box-shadow 16→24px indigo + scale 1↔1.02; keyframes @keyframes invite-breath 在 frontend/src/app.css)
-  - 触发条件: 由 /sessions/[id]/+page.svelte 在 isAnonOwner && sessionStorage 首次访问 设 true
-  - 文案 pill (.expiry-anon-a 红色 pill) 在 page-level 渲染, InviteLinkButton 不参与
+  v0.3.31 #2 (UAT 0725-2 #2) — breathing 匿名 owner 首次进入触发高亮呼吸.
+
+  v0.3.36 #5 (UAT 0728-1 #5, PO 字面 "邀请链接复制弹窗中的文字字号要适当增大, 你可以请 design agent 重新设计一下这里")
+    — 弹窗成功态改 success-card 形态 (PO 拍 mockup 3) + QR code 自动生成:
+    * 顶部 64×64 绿色玻璃 ✓ icon (linear-gradient emerald 0.20→0.14 + 4-layer glass shadow)
+    * 主标题 "账本链接已复制" 17px (lg, font-weight 600, letter-spacing -0.01em)
+    * 副标题 15px (base) 一行, 关键动词加粗
+    * URL preview chip (subtle indigo 玻璃: bg rgba(99,102,241,0.06) + border 1px dashed indigo 0.30)
+    * "可用于 回到此账本 / 邀请他人" 用两列微型 chip 而非长句, 视觉更清晰
+    * QR code (~200×200, 居中, white padding 12px + border-radius 12px + bg 白色) — 用 npm `qrcode`
+      库 `toDataURL(text)` 生成, 嵌在 sub 跟 url-chip 中间. 反 #121 自决选 lib (qrcode vs qrcode-generator)
+      选 qrcode — 稳定, canvas 输出, TS 支持, 比 qrcode-generator 大但 QR 视觉稳定性更好.
+    * "知道了" 按钮 → manual dismiss (跟 AddSettlementSheet cta-row btn-primary 同款)
+    * 弹窗关闭行为不变 (跟 v0.3.36 #16 + 之前的 auto-close 行为一致 — Esc / backdrop click / 知道了 全 OK)
+    * URL chip click → 重新复制 invite URL (二次复制便利, e.g. user 第一次没保存)
+
+  注: 跟 v0.3.36 #6 + #17 兼容 — 保留 currentColor XIcon (防 anti-aliasing 隐形) + CurrencyAddModal 同款 backdrop token.
 -->
 <script lang="ts">
   import { X as XIcon } from 'lucide-svelte';
+  import QRCode from 'qrcode';
   import { toast } from '$stores/toast';
   import { portal } from '$lib/actions/portal';
-  // v0.3.36 #16 (UAT 0727-1): add createEventDispatcher for copy/open events
-  //   Jesse msg 2026-07-27 23:35 "f.邀请链接被使用过才行"
   import { createEventDispatcher } from 'svelte';
 
-  /** v0.3.36 #16: dispatch 'copy' on successful clipboard write, 'open' on modal opens.
-   *   Parent /s/[code]/+page.svelte listens and writes sessionStorage to stop breathing + hint. */
+  /** v0.3.36 #16: dispatch 'copy' on successful clipboard write, 'open' on modal opens. */
   const dispatch = createEventDispatcher<{ copy: void; open: void }>();
 
   export let sessionId: number;
@@ -46,10 +46,7 @@
   export let sessionCode: string = '';
   /** True if the caller is the session owner (保留 prop,后续 v0.2 rotate 功能回归使用)。 */
   export const isOwner: boolean = false;
-  /** v0.3.31 #2 (UAT 0725-2 #2): 匿名 owner 首次进入账单页时由 parent 设 true,
-   *  按钮加 .invite-btn-breathing class 触发 CSS keyframes @keyframes invite-breath
-   *  (1.5s ease-in-out infinite, 紫光晕 16→24px + scale 1↔1.02).
-   *  默认 false, 不触发.  触发后立即写 sessionStorage 避免刷新重触. */
+  /** v0.3.31 #2: anon owner 首次进入账本页时由 parent 设 true, 触发 CSS keyframes. */
   export let breathing: boolean = false;
   /* v0.3.18 #66 (PO #6899 Mockup A): 过期提示已移到 page-level .expiry-inline-a (amber pill),
      ownerEmail / inviteExpiresAt / formatExpiresDate / expiresDate 全部不再需要,
@@ -59,16 +56,43 @@
   let resetTimer: ReturnType<typeof setTimeout> | null = null;
   /** v0.3.24 #14: 复制成功后弹 confirm modal — manual dismiss by user. */
   let modalOpen = false;
+  /** v0.3.36 #5: QR code data URL (从 inviteUrl 生成, modal open 时 lazy compute). */
+  let qrDataUrl: string = '';
+  /** v0.3.36 #5: QR generate loading/error 状态 (rare failure fallback). */
+  let qrError: string | null = null;
 
-  /** v0.3.1: copy the SESSION URL (not the invite URL).
-   * Per PO 16:55, the "invite link" that gets copied should just be the
-   * session page URL — the invite token is internal and not surfaced. */
+  /** v0.3.1: copy the SESSION URL (not the invite URL). */
   $: inviteUrl =
     typeof window !== 'undefined'
       ? sessionCode
         ? window.location.origin + '/s/' + sessionCode
         : window.location.origin + '/sessions/' + sessionId
       : '';
+
+  /** v0.3.36 #5: modal open + inviteUrl 变化时 lazy generate QR. */
+  $: if (modalOpen && inviteUrl) {
+    generateQr(inviteUrl);
+  }
+
+  /** v0.3.36 #5: QR 生成 — qrcode.toDataURL (canvas → base64 PNG), 200×200 + white padding 让边界清晰. */
+  async function generateQr(text: string) {
+    qrError = null;
+    try {
+      qrDataUrl = await QRCode.toDataURL(text, {
+        errorCorrectionLevel: 'M', // Medium ~15% 容错 (URL 长度 < 200 char 完全够)
+        margin: 2, // qrcode lib margin 是 module count, 2 = 留白 ~ 4 modules (12-14px 视觉清晰)
+        width: 240, // 240 = 200 logical * 1.2 (retina clarity, 实际 CSS 显示 200×200)
+        color: {
+          dark: '#0f172a', // slate-900, 跟设计 token 同源
+          light: '#ffffff', // 白底, 跟 mockup 一致
+        },
+      });
+    } catch (e: any) {
+      console.error('[InviteLinkButton] QR generate failed:', e);
+      qrError = e?.message ?? 'QR 码生成失败';
+      qrDataUrl = '';
+    }
+  }
 
   /** v0.3.24 #14: extract copy logic for readability (原内联在 handleInviteClick). */
   async function copyToClipboard(url: string): Promise<boolean> {
@@ -101,8 +125,6 @@
     return ok;
   }
 
-  /** v0.3.1: copy SESSION URL directly (no lazy load needed — no
-   *  API call, no expiry display). Just copy `${origin}/sessions/${id}`. */
   async function handleInviteClick() {
     const url = inviteUrl;
     if (!url) return;
@@ -110,18 +132,17 @@
     const ok = await copyToClipboard(url);
 
     if (ok) {
-      // v0.3.24 #14: 成功 → 弹 confirm modal 而非 toast (PO UAT 字面要求)
+      // v0.3.24 #14: 成功 → 弹 confirm modal 而非 toast
       modalOpen = true;
-      // v0.3.36 #16 (UAT 0727-1): dispatch copy + open events for parent
+      // v0.3.36 #16: dispatch copy + open events for parent
       dispatch('copy');
       dispatch('open');
     } else {
-      // 失败仍走 toast.error 兜底 (复制失败用户需要看到, 修以重试)
+      // 失败仍走 toast.error 兜底
       toast.error('复制失败,请手动选中链接');
     }
 
     // v0.3.1 (PO Bug #4): show "已复制" for 10s then reset to "邀请".
-    // Only 2 states: 邀请 / 已复制. No busy / loading state.
     copied = true;
     if (resetTimer) clearTimeout(resetTimer);
     resetTimer = setTimeout(() => {
@@ -130,12 +151,25 @@
     }, 10000);
   }
 
+  /** v0.3.36 #5: URL chip click → 重新复制 invite URL (二次复制便利, 跟初始复制同 source). */
+  async function handleUrlChipClick(e: MouseEvent) {
+    e.stopPropagation();
+    if (!inviteUrl) return;
+    const ok = await copyToClipboard(inviteUrl);
+    if (ok) {
+      toast.success('已重新复制链接');
+      dispatch('copy');
+    } else {
+      toast.error('复制失败,请手动选中链接');
+    }
+  }
+
   /** v0.3.24 #14: manual close (知道了 / Esc / backdrop click). */
   function closeModal() {
     modalOpen = false;
   }
 
-  /** v0.3.24 #14: Esc 关闭 modal (跟全站 modal 键盘 UX 一致 — CurrencyAddModal 同款). */
+  /** v0.3.24 #14: Esc 关闭 modal. */
   function handleKeydown(e: KeyboardEvent) {
     if (modalOpen && e.key === 'Escape') closeModal();
   }
@@ -149,7 +183,6 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="invite-row">
-  <!-- PO 反馈修 6 项目 1: 点击立即复制 + 显示确认反馈。 -->
   <button
     type="button"
     class="glass-pill invite-btn"
@@ -164,23 +197,12 @@
       <span class="btn-label">{copied ? '已复制' : '账本链接/邀请'}</span>
     </span>
   </button>
-  <!-- v0.3.18 #66 (PO #6899 Mockup A): anon 账本过期提示**移到 section header** (amber pill).
-       不再挂在 invite 按钮下方, 由 /sessions/[id]/+page.svelte 的 .expiry-inline-a 渲染。
-       保留 ownerEmail / inviteExpiresAt / formatExpiresDate / expiresDate 派生以备未来回归。 -->
 </div>
 
 <!-- v0.3.24 #14: 复制成功弹出 confirm modal (manual dismiss).
-     文案两段中间 <br /> 换行 (PO 字面要求); "知道了" 按钮 manual close.
      v0.3.27 #3 (PO msg 9234 真机截图质问): wrap modal markup 在 `<div use:portal>` host 里.
-     portal Svelte action 物理把 host 搬到 document.body (via appendChild), 跳出 ancestor
-     `.members-head-row2` (有 `backdrop-filter: blur(20px) saturate(180%)` 玻璃) 的 CSS
-     containing block trap. Per CSS Containing Block spec, `transform/filter/backdrop-filter`
-     等都会让 ancestor 成为后代 `position:fixed` 的 containing block, 所以 `bottom: 0`
-     实际 anchor 到 ancestor 底部 (.members-head-row2 占 viewport 上半部), 视觉居中
-     — 这就是 Jesse iPhone Safari 真机截图清楚显示的 bug. 物理搬到 body 后
-     containing block = viewport, `bottom: 0` 才真贴 viewport 底部.
-     Playwright iPhone 13 @3x 真机 walk 验: `getBoundingClientRect().bottom` 贴近
-     `window.innerHeight` (iPhone 13 viewport = 844 logical px) 才是真正 bottom sheet. -->
+     v0.3.36 #5 (UAT 0728-1 #5): 弹窗成功态改 success-card 形态 (mockup 3) — check-hero + 标题 + sub + QR + url-chip + use-row + cta-row.
+     内部结构 100% 跟 AddSettlementSheet bottom sheet 同源 (backdrop / sheet-handle / sheet-head / sheet-close / sheet-body / sheet-foot + cta-row + btn-primary). -->
 <div use:portal data-testid="invite-modal-host">
 {#if modalOpen}
   <div
@@ -199,18 +221,61 @@
     <div class="sheet-head">
       <span class="sheet-title">账本链接</span>
       <button class="sheet-close" type="button" aria-label="关闭" onclick={closeModal}>
-        <!-- v0.3.36 #6 — UAT 0728-1 #6 (PO 字面 "× 按钮圆形 + icon 可见, 跟 #4 同款 (复用 token)"):
-             XIcon 加显式 color="currentColor" 跟 CurrencyAddModal.svelte sheet-close (#4) 同款,
-             防止 stroke 被 anti-aliasing 隐形. CSS .sheet-close 已是 32×32 圆形 + bg rgba(15,23,42,0.10)
-             (跟 CurrencyAddModal / AddSettlementSheet 三者统一), 这里只补 icon 显式颜色. -->
+        <!-- v0.3.36 #6 — UAT 0728-1 #6: XIcon 加显式 color="currentColor" 防止 stroke 被 anti-aliasing 隐形 -->
         <XIcon size={16} strokeWidth={2.4} color="currentColor" />
       </button>
     </div>
+    <!-- v0.3.36 #5 success-card: 中心 column, gap 14px (跟 mockup 3 .sheet-body 一致). -->
     <div class="sheet-body">
-      <p class="invite-modal-msg" data-testid="invite-confirm-msg">
-        已复制此账本链接,请妥善保管!<br />
-        可用于 <strong class="emphasize">回到此账本</strong> 或 <strong class="emphasize">邀请他人</strong>。
+      <!-- 顶部绿色玻璃 ✓ icon (success visual anchor) -->
+      <div class="check-hero" aria-hidden="true">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 6L9 17l-5-5"/>
+        </svg>
+      </div>
+      <!-- 主标题 17px (跟 mockup 3 .invite-modal-title 一致) -->
+      <p class="invite-modal-title" data-testid="invite-confirm-title">账本链接已复制</p>
+      <!-- 副标题 15px, 关键动词加粗 -->
+      <p class="invite-modal-sub" data-testid="invite-confirm-sub">
+        请妥善保管,链接可<strong>随时打开</strong>。
       </p>
+      <!-- QR code 200×200 居中, white padding + 12px border-radius + bg 白 -->
+      {#if qrDataUrl}
+        <div class="qr-wrap" data-testid="invite-qr-wrap" aria-label="链接二维码">
+          <img
+            class="qr-img"
+            src={qrDataUrl}
+            alt="账本链接二维码"
+            width="200"
+            height="200"
+            data-testid="invite-qr-img"
+          />
+        </div>
+      {:else if qrError}
+        <div class="qr-wrap qr-error" data-testid="invite-qr-error">二维码加载失败</div>
+      {/if}
+      <!-- URL preview chip — subtle indigo 玻璃, click 触发二次复制 (跟初始复制同 source) -->
+      <button
+        type="button"
+        class="url-chip"
+        onclick={handleUrlChipClick}
+        title="点击重新复制链接"
+        aria-label="重新复制账本链接"
+        data-testid="invite-url-chip"
+      >
+        {inviteUrl}
+      </button>
+      <!-- 两列微型 use-case chip (回到此账本 / 邀请他人) -->
+      <div class="use-row">
+        <div class="use-chip">
+          <strong>回到此账本</strong>
+          粘贴到浏览器打开
+        </div>
+        <div class="use-chip">
+          <strong>邀请他人</strong>
+          发给朋友扫码
+        </div>
+      </div>
     </div>
     <div class="sheet-foot">
       <button type="button" class="btn-primary" onclick={closeModal} data-testid="invite-confirm-btn">
@@ -228,17 +293,13 @@
     gap: var(--space-1);
     align-items: flex-end;
   }
-  /* v0.3.16 #8 (PO msg 19:26): 加 .glass-pill 玻璃化 —
-     bg/border/box-shadow 由 .glass-pill 提供, 这里只保留布局与 copied 反馈。 */
+  /* v0.3.16 #8 (PO msg 19:26): 加 .glass-pill 玻璃化 */
   .invite-btn {
-    /* 玻璃化在 .glass-pill 类里, 这里不重复定义 bg/border/box-shadow。
-       只保留 copied 状态的视觉反馈 (绿色) + transition (匹配 pill 的 150ms)。 */
     transition: transform 150ms ease, background 150ms ease, box-shadow 150ms ease, color 150ms ease;
   }
   .invite-btn:active {
     transform: scale(0.97);
   }
-  /* copied 状态: 玻璃底色 + 绿色文字 + 绿色光晕, 保持玻璃质感 */
   .invite-btn.copied {
     background: linear-gradient(
       135deg,
@@ -264,7 +325,6 @@
     align-items: center;
     white-space: nowrap;
   }
-  /* 移动端 375px: 极致紧凑,文字同行,不挤压 */
   @media (max-width: 380px) {
     .invite-btn {
       padding: var(--space-2) var(--space-3);
@@ -275,37 +335,11 @@
     }
   }
 
-  /* v0.3.18 #66: removed .hint — 过期提示移到 page-level .expiry-inline-a (amber pill).
-     保留此处注释占位避免未来误回退。 */
-
   /* ============================================================
-   * v0.3.24 #14 (PO msg 16:35 UAT) — confirm modal (替换 toast)
+   * v0.3.36 #17 — UAT 0728-1 #17 (PO 字面 "复制弹窗背景跟汇率弹窗完全一致"):
+   * .invite-sheet-backdrop 跟 CurrencyAddModal .sheet-backdrop 字段级同 — bg rgba(15,23,42,0.40)
+   * + blur(4px) saturate(180%) + z-index 50 (跟 CurrencyAddModal 字段级同).
    * ============================================================ */
-  /* v0.3.29 (UAT 0725-1 #2, PO msg 12:43): 跟 CurrencyAddModal .modal-backdrop 完全一致.
-     PO 字面 "同汇率设置一样". 之前 v0.3.28 #8 re-fix 把 invite backdrop 升级到
-     blur(24px) saturate(200%) + bg 0.45, 跟 CurrencyAddModal 不一致. PO 反馈
-     两者看起来不同. 修法: 改回 CurrencyAddModal 同款 token — bg rgba(0,0,0,0.30)
-     + blur(16px) saturate(180%) + z-index 999. 同步更新 fallback bg 0.48→0.30
-     跟 bg 主值一致 (Safari iOS < 18). 两个弹窗现在视觉完全统一 (跨组件但
-     token 同源, 跟 v0.3.27 #9 commit 80abeda 原始统一设计一致). */
-  /* v0.3.34 #1 (UAT 0725-1 #2, PO 字面 "同汇率设置一样"): 升级 invite 弹窗 backdrop 强度.
-     之前 v0.3.29 (a14820c) 改回跟 CurrencyAddModal 同款 (blur 16px / saturate 180% / bg 0.30),
-     但 PO 真机验证测试不通过. 实际 CurrencyAddModal 跟 invite backdrop 不一致:
-     - CurrencyAddModal: blur(24px) saturate(200%) bg rgba(0,0,0,0.45)
-     - invite (旧): blur(16px) saturate(180%) bg rgba(0,0,0,0.30)
-     修法: invite 升级到 CurrencyAddModal 同款 token — blur(24px) saturate(200%) bg rgba(0,0,0,0.45).
-     两个弹窗现在真的一致 (跨组件 token 完全同源, 含 z-index 999, position fixed, inset 0).
-     v0.3.35 #5 (UAT 0725-3 #11, PO 字面 "样式要与 添加已结算记录的弹窗一致"): 形态从 centered modal
-     改 bottom sheet (跟 AddSettlementSheet 同款). 保留 v0.3.34 #1 backdrop blur 强度 (24/200%/0.45)
-     — 比 AddSettlementSheet (4/0.40) 更暗一档, 视觉上还跟 centered modal 一样. z-index 999 跟
-     CurrencyAddModal .sheet-backdrop 同一层 (Toast 9999 之下, 普通 modal 999 之上). */
-  /* v0.3.36 #17 — UAT 0728-1 #17 (PO 字面 "复制弹窗背景跟汇率弹窗完全一致"):
-     .invite-sheet-backdrop 跟 CurrencyAddModal .sheet-backdrop 字段级同 — bg rgba(15,23,42,0.40)
-     + blur(4px) saturate(180%) + max-width 480px (在 .invite-sheet 上).
-     原 v0.3.34 #1 强 darkener (24/200%/0.45) 改为 CurrencyAddModal 同款 (4/180%/0.40).
-     z-index 也从 999 降到 50 (跟 CurrencyAddModal .sheet-backdrop 字段级同),
-     让两个弹窗背景完全同 token. (sheet 本身 z-index 仍 1000, 高于 backdrop, 不影响视觉层级.)
-     max-width 480px 在 .invite-sheet 上已存在, 此处不重复. */
   .invite-sheet-backdrop {
     position: fixed;
     inset: 0;
@@ -315,8 +349,8 @@
     z-index: 50;
     animation: backdropFadeIn 200ms ease-out;
   }
-  /* v0.3.35 #5: 形态从 centered modal 改 bottom sheet (跟 AddSettlementSheet 同款).
-     圆角只在顶部 24px, 底部贴屏 max-width 480px, slide-up 280ms cubic-bezier 动效. */
+
+  /* === Bottom sheet (跟 AddSettlementSheet .sheet 同族, v0.3.35 #5 升级) === */
   .invite-sheet {
     position: fixed;
     left: 0;
@@ -353,26 +387,19 @@
       background: rgba(255, 255, 255, 0.96);
     }
     .invite-sheet-backdrop {
-      /* v0.3.36 #17 — 跟 CurrencyAddModal .sheet-backdrop @supports fallback 同款 (0.55).
-         改前用 0.30 (跟 CurrencyAddModal 0.55 不同, 不一致). */
+      /* v0.3.36 #17 — 跟 CurrencyAddModal .sheet-backdrop @supports fallback 同款 (0.55) */
       background: rgba(15, 23, 42, 0.55);
     }
   }
-  .invite-modal-msg {
-    /* PO 字面: 字号 15-16px + 行高舒适 */
-    margin: 0;
-    font-size: 15px;
-    line-height: 1.7;
-    color: var(--gray-800, #1f2937);
-    text-align: center;
-    font-weight: var(--font-weight-medium, 500);
-    /* 中文段落视觉: 两个<br /> 对应两段,中间空隙自然, 不需要额外 margin */
-  }
-  /* v0.3.24 #14.1 (PO msg #8285 反馈): "回到此账本" / "邀请他人" 强调粗体 */
-  .invite-modal-msg strong.emphasize {
-    font-weight: var(--font-weight-semibold, 600);
-    color: var(--gray-900, #111827);
-  }
+
+  /* ============================================================
+   * v0.3.36 #5 (UAT 0728-1 #5, PO 字面 "邀请链接复制弹窗中的文字字号要适当增大,
+   * 你可以请 design agent 重新设计一下这里") — success-card 形态
+   * 设计师自决方案 = mockup 3 (PO 拍板).
+   * 内部结构 100% 跟 AddSettlementSheet bottom sheet 同源
+   * (sheet-handle / sheet-head / sheet-close / sheet-body / sheet-foot / btn-primary),
+   * 只重排 sheet-body 内部 DOM.
+   * ============================================================ */
   .sheet-handle {
     width: 36px;
     height: 4px;
@@ -406,12 +433,151 @@
     transition: background 150ms ease;
   }
   .sheet-close:hover { background: rgba(15, 23, 42, 0.12); }
+
+  /* === v0.3.36 #5: sheet-body 改 center column + gap 14px (success-card layout) === */
   .sheet-body {
     padding: 4px 4px 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
   }
+
+  /* Checkmark hero — 64×64 绿色玻璃 disc */
+  .check-hero {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.20) 0%, rgba(20, 184, 166, 0.14) 100%);
+    backdrop-filter: saturate(200%) blur(20px);
+    -webkit-backdrop-filter: saturate(200%) blur(20px);
+    border: 1px solid rgba(16, 185, 129, 0.32);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.7),
+      inset 0 -1px 0 rgba(16, 185, 129, 0.08),
+      0 4px 14px rgba(16, 185, 129, 0.18);
+    margin: 6px 0 0;
+  }
+  .check-hero svg { color: #047857; }
+
+  /* Main heading — 17px 600 (跟 mockup 3 .invite-modal-title 一致, 跟 AddSettlementSheet sheet-title 同款) */
+  .invite-modal-title {
+    font-size: var(--font-size-lg); /* 17px clamp */
+    font-weight: 600;
+    color: var(--gray-900);
+    letter-spacing: -0.01em;
+    line-height: 1.4;
+    text-align: center;
+    margin: 0;
+  }
+
+  /* Sub line — 15px 400, 关键动词加粗 */
+  .invite-modal-sub {
+    font-size: var(--font-size-base); /* 15-16px */
+    line-height: 1.5;
+    color: var(--gray-700);
+    text-align: center;
+    margin: 0;
+    font-weight: 400;
+  }
+  .invite-modal-sub strong {
+    font-weight: 600;
+    color: var(--gray-900);
+  }
+
+  /* QR code wrap — 200×200 + white padding + radius 8px + bg 白 + 浅 border + 微 shadow */
+  .qr-wrap {
+    width: 224px;          /* 200 (QR) + 12px × 2 padding = 224 */
+    height: 224px;
+    padding: 12px;
+    border-radius: 12px;
+    background: #ffffff;
+    border: 1px solid rgba(15, 23, 42, 0.06);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.7),
+      0 4px 12px rgba(15, 23, 42, 0.06);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 4px 0;
+  }
+  .qr-img {
+    display: block;
+    width: 200px;
+    height: 200px;
+    border-radius: 4px;
+    image-rendering: pixelated;       /* 让 QR 像素边缘锐利, 不被浏览器抗锯齿磨掉 */
+    image-rendering: -webkit-optimize-contrast;
+  }
+  .qr-error {
+    color: var(--gray-500);
+    font-size: 13px;
+    background: rgba(15, 23, 42, 0.04);
+    border-style: dashed;
+  }
+
+  /* URL preview chip — subtle indigo 玻璃, click 触发 handleUrlChipClick 二次复制 */
+  .url-chip {
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: rgba(99, 102, 241, 0.06);
+    border: 1px dashed rgba(99, 102, 241, 0.30);
+    color: var(--accent-700, #4338ca);
+    font-size: 13px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.005em;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 150ms ease, border-color 150ms ease;
+  }
+  .url-chip:hover {
+    background: rgba(99, 102, 241, 0.10);
+    border-color: rgba(99, 102, 241, 0.45);
+  }
+  .url-chip:active {
+    transform: scale(0.99);
+  }
+
+  /* Use-case chips — 两列微型 chip */
+  .use-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    width: 100%;
+    margin-top: 2px;
+  }
+  .use-chip {
+    padding: 9px 10px;
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.04);
+    border: 1px solid rgba(15, 23, 42, 0.06);
+    color: var(--gray-700);
+    font-size: 12px;
+    font-weight: 500;
+    text-align: center;
+    line-height: 1.35;
+  }
+  .use-chip strong {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gray-900);
+    margin-bottom: 1px;
+  }
+
+  /* === sheet-foot + cta-row + btn-primary (跟 AddSettlementSheet 同族) === */
   .sheet-foot {
     display: flex;
-    padding: 12px 4px 0;
+    padding: 14px 4px 0;
   }
   .btn-primary {
     width: 100%;
@@ -449,17 +615,22 @@
     from { opacity: 0; }
     to { opacity: 1; }
   }
-  @keyframes modalSlideUp {
-    from { opacity: 0; transform: translateY(8px) scale(0.98); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
-  }
 
-  /* 移动端 375px: 紧凑 padding + 字号不变 (PO 字面要求 24px padding) */
+  /* === 移动端 375px: 紧凑 padding (跟 v0.3.35 #5 同款) === */
   @media (max-width: 380px) {
     .invite-modal {
       max-width: calc(100vw - 32px);
       padding: 20px;
       border-radius: 16px;
+    }
+    .qr-wrap {
+      width: 200px;
+      height: 200px;
+      padding: 10px;
+    }
+    .qr-img {
+      width: 180px;
+      height: 180px;
     }
   }
 </style>
