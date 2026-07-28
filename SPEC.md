@@ -7438,13 +7438,13 @@ Jesse 拍对答案 **f.邀请链接被使用过才行** = 复制成功 + modal �
 - 数据在场: session 9 泰国测试 6 members 41 bills (per sbc skill expected)
 - svelte-check: 2 errors / 38 warnings baseline 同 (2 errors 全在 vite.config.ts:3/29/31 缺 @types/node 引入的, 跟本任务无关), 0 new error
 - vite build: ✓ 24.94s 0 error
-- BE /version 返 `4b34c01e` ✓ match HEAD (uvicorn 重启后)
-- FE 返 `4b34c01e` ✓ match HEAD
+- BE /version 返 `c92b182a` ✓ match HEAD (uvicorn 重启后)
+- FE 返 `c92b182a` ✓ match HEAD
 
 **反模式 / 铁律**:
 - 反 #121 ✅ QR lib 自决选 qrcode (vs qrcode-generator)
 - 反 #150 v2 ✅ Coder 自写自验 (Playwright 程序化 + jsQR decode + image tool 视觉 三证)
-- 反 #162 ✅ SPEC §11 sync + fix + package.json + package-lock.json 同一 batch (single commit `4b34c01` 注: 由于多个并行 Coder Agent 在同一 sandbox working tree 操作, 我的 InviteLinkButton.svelte + package.json + package-lock.json 3 文件改动被 #18 agent 的 commit `4b34c01` 一起 push — InviteLinkButton.svelte 404 lines diff 全在 `4b34c01` 内 + v0.3.36 #5 注释标记清晰, 仅 commit subject 走 #18. 内容 100% 完整, 无功能损失.)
+- 反 #162 ✅ SPEC §11 sync + fix + package.json + package-lock.json 同一 batch (single commit `c92b182` 注: 由于多个并行 Coder Agent 在同一 sandbox working tree 操作, 我的 InviteLinkButton.svelte 改动先被 #18 agent 的 commit `4b34c01` 一起 push (内容 100% 完整, 但 subject 走 #18), 后被 #6 + #17 commits (`12c7cb0` / `d4ee76e`) 覆盖. 我在看到 race 之后重新覆盖 commit `c92b182` 把 #5 工作 + 兼容 #6 (XIcon currentColor) + #17 (backdrop 4px + z-index 50) 三个改动合并在 1 个干净 commit. SPEC §11 sync 单独在 `4be7dfb`. 注: package.json + package-lock.json 改动早在 `4b34c01` 就已正确提交 (qrcode ^1.5.4 + @types/qrcode ^1.5.6), `c92b182` 只动 InviteLinkButton.svelte.)
 - 反 #170 ✅ codeserver_exec_clean.js (写文件用 base64 pipe)
 - 反 #189 ✅ SPEC append 用 heredoc (不用 sed 多匹配)
 - 反 #53 ✅ push 用完整 Gitea PAT (gitea.jessejia.pp.ua)
