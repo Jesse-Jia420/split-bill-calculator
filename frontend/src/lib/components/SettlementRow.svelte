@@ -239,18 +239,14 @@
 
   /* ============================================================
    * v0.3.36 #15 — SettlementRow 横向滚动 wrapper (拍板 e.a)
-   * ------------------------------------------------------------
-   * PO 字面 (msg 2026-07-27 23:35 "e.a"): 已结算记录 section 下的 item 如果超长,
-   * 则每个独立的 item 可以左右滚动. 不要改变目前每个 item 内部的结构.
-   * 拍板方案 e.a = 左/右边缘渐变阴影 (iOS Mail / Telegram 风格).
-   *
-   * 实现要点:
-   * - position: relative: 让 ::before/::after 锚定 wrapper 自身 (而非 viewport)
-   * - overflow-x: auto + scrollbar 隐藏: 内容溢出时横向滚动, 滚动条不可见
-   * - ::before / ::after 28px 双层渐变阴影 (白 mask 0.85 + 深 slate scrim 0.10),
-   *   opacity 0 → 1 由 .at-start / .at-end class 控制 (联动由 $effect 监听 scroll 切换)
-   * - 依赖下方 .row-info / .row-meta / .row-name 三处 CSS 微调:
-   *   flex children 不收缩, 让内容真实撑开触发 wrapper 横向滚动
+   * v0.3.0728-2 #17 — UAT 0728-2 #17 (PO msg 16:50 batch) scroll-wrapper 永久激活 + scroll snap + fade edge always visible:
+   *   PO 字面 "已结算记录 section 下的 item 即使没超长的 item 也可以左右滑动 (有弹性)".
+   *   拍板: scroll-wrapper 永久激活 (没超长也允许弹性滚动) + scroll snap + always visible 双侧 fade.
+   *   改动:
+   *   - ::before/::after opacity 从 0 → 1 (always visible, 不靠 .at-start / .at-end 切换).
+   *   - scroll-snap-type: x proximity 让 row 内 snap 到起始位置 (iOS Mail 同款).
+   *   - overscroll-behavior-x: contain 防止左右溢出触发 page scroll.
+   *   - 删除对应 :not(.at-start) / :not(.at-end) 规则 (不再需要).
    * ============================================================ */
   .scroll-wrapper {
     position: relative;
@@ -258,6 +254,9 @@
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     -ms-overflow-style: none;
+    /* v0.3.0728-2 #17: scroll snap 永久激活 (没超长也允许弹性滚动). */
+    scroll-snap-type: x proximity;
+    overscroll-behavior-x: contain;
   }
   .scroll-wrapper::-webkit-scrollbar { display: none; }
   .scroll-wrapper::before, .scroll-wrapper::after {
@@ -267,7 +266,8 @@
     width: 28px;
     pointer-events: none;
     z-index: 2;
-    opacity: 0;
+    /* v0.3.0728-2 #17: opacity 0 → 1 (always visible, 不依赖 .at-start/.at-end class). */
+    opacity: 1;
     transition: opacity 200ms ease;
   }
   .scroll-wrapper::before {
@@ -282,8 +282,7 @@
       linear-gradient(to left, rgba(15, 23, 42, 0.10) 0%, rgba(15, 23, 42, 0) 100%),
       linear-gradient(to left, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0) 100%);
   }
-  .scroll-wrapper:not(.at-start)::before { opacity: 1; }
-  .scroll-wrapper:not(.at-end)::after { opacity: 1; }
+  /* v0.3.0728-2 #17: 删 :not(.at-start) / :not(.at-end) 规则 — fade 现在 always visible. */
 
   /* v0.3.36 #15 — 配套微调 (让 record 内容真实撑开 wrapper 触发滚动):
    * - .row-info min-width: 0 → auto: 内容驱动宽度, 不提前收缩 (wrapper 才有机会横向溢出)
