@@ -730,7 +730,10 @@
                  仅匿名 owner + 首次进入账单页时渲染, 替代原 amber pill "邀请朋友加入,开始分摊第一笔账单吧".
                  视觉: 红色玻璃 pill (跟 expiry-inline-a 同族), 1px border + backdrop-filter blur(8px).
                  位置: 邀请按钮正下方, 跟 .members-row2-right 一起 align-items: flex-end 右对齐.
-                 二次访问 sessionStorage 有标记 → 不渲染 (PO 明确 "首次进入"). -->
+                 二次访问 sessionStorage 有标记 → 不渲染 (PO 明确 "首次进入").
+                 v0.3.36 #15 — UAT 0728-1 #15 (PO 字面 "把提示分成两行 放在当前的 pill 里。第一行是 当前未登录 请收藏此链接, 第二行是 这是您回到此账本的唯一密钥。"):
+                 文案从一行变两行, pill 内文字保留原字号/颜色, 但 text 拆成 <span class="line-1"> + <br /> + <span class="line-2">.
+                 CSS .line-1 / .line-2 各自 display: block 让两行垂直堆叠 (跟 PO 字面 "分成两行" 一致). -->
             {#if showAnonHint}
               <span class="expiry-anon-a" data-testid="invite-anon-hint">
                 <!-- Lucide `lock` 11×11 -->
@@ -738,7 +741,10 @@
                   <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                   <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                 </svg>
-                <span>当前未登录,请收藏此链接,这是您回到此账本的唯一密钥！</span>
+                <span class="anon-hint-text">
+                  <span class="line-1">当前未登录 请收藏此链接</span>
+                  <span class="line-2">这是您回到此账本的唯一密钥。</span>
+                </span>
               </span>
             {/if}
           </div>
@@ -1388,6 +1394,22 @@
   .expiry-anon-a svg {
     flex-shrink: 0;
     opacity: 0.95;
+  }
+  /* v0.3.36 #15 — UAT 0728-1 #15: 匿名 hint 文案两行 (PO 字面 "第一行 当前未登录 请收藏此链接, 第二行 这是您回到此账本的唯一密钥。")
+     — 拆成 .line-1 + .line-2, 各自 display:block 垂直堆叠. pill 保留原 13px font-size + color + padding, 只调整内部 layout.
+     .anon-hint-text 容器 inline-flex item 跟 svg 同行水平 baseline, 内部两行垂直堆叠.
+     因为 .expiry-anon-a 是 inline-flex align-items: center, .anon-hint-text 仍按一行对待 (高度是 line-1 + line-2),
+     svg 在 align-items center 中垂直居中 (跟两行整体中点对齐). */
+  .expiry-anon-a .anon-hint-text {
+    display: inline-flex;
+    flex-direction: column;
+    line-height: 1.4;
+  }
+  .expiry-anon-a .anon-hint-text .line-1 {
+    display: block;
+  }
+  .expiry-anon-a .anon-hint-text .line-2 {
+    display: block;
   }
   /* v0.3.28 (UAT 0723-3 #9): "已永久保存" 绿色版 — 跟 .expiry-inline-a 视觉同族 (pill shape + font-size 11px + gap 4px + border-radius 999px + flex-shrink 0), 配色改 emerald 系 (跟 .is-me ring / 已登录状态色系区分, 表示「已成功认领」). */
   .expiry-saved-a {
