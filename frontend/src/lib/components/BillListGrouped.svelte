@@ -816,12 +816,15 @@
                         </div>
                         <!-- v0.3.20 #92 (PO msg 07:13 #7409): 新增 .bill-row-exclusive —
                              独占金额行. 仅当 b.participants 里有任意 is_exclusive && exclusive_amount > 0 时渲染.
-                             单币独占金额聚合 (双币独占场景后端暂不支持, 但代码防御性 sum 一下). -->
-                        {#if billExclusiveTotal(b) > 0}
-                          <div class="bill-row-exclusive muted">
-                            个人消费 {currencySymbol(b.currency)}{fmtAmount(billExclusiveTotal(b))}<span class="unit">{b.currency}</span>
-                          </div>
-                        {/if}
+                             单币独占金额聚合 (双币独占场景后端暂不支持, 但代码防御性 sum 一下).
+                             v0.3.36 #8 — UAT 0728-1 #8 (PO 字面 "个人消费金额 0 时显示 ¥0.00"):
+                             0 不可隐藏, 总是展示 个人消费 ¥0.00 行 (跟 v0.3.33 #1 descriptionError 同模式
+                             "0 不可隐藏"). 改: 删 {#if billExclusiveTotal(b) > 0} 条件, 总是渲染.
+                             billExclusiveTotal(b) === 0 时 fmtAmount(0) 返 "0.00", 视觉 = "个人消费 ¥0.00 CNY".
+                             scope: 仅 billListGrouped item 行; 其他地方 (settle 页面) 不变. -->
+                        <div class="bill-row-exclusive muted">
+                          个人消费 {currencySymbol(b.currency)}{fmtAmount(billExclusiveTotal(b))}<span class="unit">{b.currency}</span>
+                        </div>
                         <div class="bill-row3 muted">
                           <span class="bill-meta-left">
                             <span class="bill-participants" aria-label="参与人数 {b.participants.length}">
