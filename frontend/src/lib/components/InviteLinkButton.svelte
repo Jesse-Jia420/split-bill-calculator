@@ -90,6 +90,10 @@
   export let sessionId: number;
   /** v0.3.1: unguessable public code from sessions.session_code. */
   export let sessionCode: string = '';
+  /** v0.3.0728-3 #2 (PO msg 2026-07-28 batch 新批): QR 下载文件名 "账本二维码" → "{sessionName}账本二维码.png".
+   * 默认空字符串 → fallback "账本二维码.png" (跟 v0.3.0728-2 #4 兼容).
+   * sanitize 函数剔除文件名非法字符 (/\:*?"<>|) + 控制字符 + 过长截断 (避免 macOS 255 字节限制). */
+  export let sessionName: string = '';
   /** True if the caller is the session owner (保留 prop,后续 v0.2 rotate 功能回归使用)。 */
   export const isOwner: boolean = false;
   /** v0.3.31 #2: anon owner 首次进入账本页时由 parent 设 true, 触发 CSS keyframes. */
@@ -215,12 +219,15 @@
     }
   }
 
-  /** v0.3.0728-2 #4: download QR code as PNG file.
+  /** v0.3.0728-2 #4 + v0.3.0728-3 #2 (PO msg 2026-07-28 batch 新批): download QR code as PNG file.
    * 当前 qrDataUrl 已经是 base64 PNG data URL (qrcode.toDataURL 输出).
    * 用 fetch(dataURL) → blob → URL.createObjectURL → anchor download.
    * 反 #121 自决 — 不引入 file-saver 依赖, 直接走原生 API.
-   * 文件名: "账本二维码.png" (跟 description 描述一致).
-   */
+   * 文件名: "{sessionName 净化后}账本二维码.png" (v0.3.0728-3 #2 新批)
+   *  - 空 sessionName → fallback "账本二维码.png" (跟 #4 兼容)
+   *  - sanitize 剔除  / \ : * ? " < > | (文件系统非法) + 控制字符 + 空格→下划线 + 截断 32 字符
+   *  - 截断 32 字符避免 macOS HFS+/APFS 255 字节限制
+   *  - 后缀 "账本二维码.png" 永远保留 (跟原 #4 文件名模式一致). */
   async function downloadQrPng(): Promise<boolean> {
     if (!qrDataUrl) return false;
     try {
@@ -229,7 +236,7 @@
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = blobUrl;
-      a.download = '账本二维码.png';
+      a.download = buildQrFilename(sessionName);
       a.style.display = 'none';
       document.body.appendChild(a);
       a.click();
@@ -241,6 +248,16 @@
       console.error('[InviteLinkButton] QR download failed:', e);
       return false;
     }
+  }
+
+  /** v0.3.0728-3 #2: 净化 QR 文件名 — 剔除非法字符 + 控制字符 + 过长截断 + 空 fallback. */
+  function buildQrFilename(name: string): string {
+    const cleaned = (name ?? '')
+      .replace(/[\/\:*?"<>| -]/g, '')  // 文件系统非法 + 控制字符
+      .replace(/\s+/g, '_')                     // 空格 → 下划线
+      .replace(/^[._]+|[._]+$/g, '')             // 去掉首尾 . _
+      .slice(0, 32);                             // 截断 32 字符避免 macOS 255 字节限制
+    return cleaned ? `${cleaned}账本二维码.png` : '账本二维码.png';
   }
 
   /** v0.3.24 #14: extract copy logic for readability. */

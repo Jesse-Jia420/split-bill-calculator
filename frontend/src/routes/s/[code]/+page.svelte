@@ -707,6 +707,7 @@
             <InviteLinkButton
               sessionId={session.id}
               sessionCode={session?.session_code ?? ""}
+              sessionName={session?.name ?? ""}
               {isOwner}
               breathing={showBreathing}
               on:copy={() => {
