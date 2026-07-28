@@ -1455,19 +1455,29 @@
     }
   }
 
-  /* === v0.3.24 #12 (PO msg 16:35 UAT file line 12): 付款明细 / 消费明细 搜索框
-       跟 BillListGrouped.svelte 的 .bills-search 同款玻璃风 (placeholder
-       "搜索账单名称", bg rgba(255,255,255,0.55) + backdrop-filter blur saturate).
-       settle 页搜索框不加 sticky (settle 页 section 已有 sticky head, 多个
-       sticky 会叠层); 放在 .bills-section 内, 跟 .bills-section-head (.h4)
-       自然衔接, 跟下面 .bill-sublist (ul) 也紧挨. */
+  /* === v0.3.24 #12 (PO msg 16:35 UAT file line 12) + v0.3.0728-3 #6:
+       付款明细 / 消费明细 搜索框 (跟 BillListGrouped.svelte 的 .bills-search 同款
+       玻璃风, placeholder "搜索账单名称", bg rgba(255,255,255,0.55) +
+       backdrop-filter blur saturate).
+       v0.3.0728-3 #6 (PO msg 2026-07-28 batch 新批 #6): 搜索框应 sticky,
+       用户滚动 bill 列表时搜索框常驻可见, 不用滚回去找. 之前设计 "不加 sticky
+       避免叠层" 已不适用 — 改成 sticky + 显式 z-index 栈分层 + 注释说明堆叠顺序.
+       堆叠 (从底到顶): bill items (z-index auto) → 搜索框 (z-index 9) → section h4
+       sticky header (z-index 10). 搜索框 z-index 9 < h4 z-index 10, 滚到 h4 重叠时
+       h4 视觉压在搜索框上方 (跟 iOS native section header 行为一致). */
   .bills-section-search {
+    position: sticky;
+    /* top: 32px = .bills-section-head sticky h4 高度 (padding 8 + 内容 ~16 + padding 8 = 32px).
+       h4 margin-bottom 8px + search margin-top 0 = h4 底部到 search 顶部 8px 视觉间距.
+       实测 chromium computed h4 height 32px 字段级精确. */
+    top: 32px;
+    z-index: 9; /* < h4 sticky 10, > bill items 0 (auto) */
     display: flex;
     align-items: center;
     gap: var(--space-2, 8px);
-    /* 跟 .bills-section-head (sticky 0px) 区分, search 紧跟 sticky header 下方,
-       不上 sticky 不下 sticky (settle 页本身滚动 + section sticky 已有 head). */
-    margin-bottom: var(--space-2, 8px);
+    /* margin-bottom 8px 保留 (跟下面 bill items 视觉间距), 但改成 sticky 后 margin-top 也归 0
+       (避免跟 h4 视觉间距 8px + h4 margin-bottom 8px 叠加 16px). */
+    margin: 0 0 var(--space-2, 8px);
     padding: 8px var(--space-2, 8px);
     background: rgba(255, 255, 255, 0.55);
     backdrop-filter: blur(20px) saturate(180%);
