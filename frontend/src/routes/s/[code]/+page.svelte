@@ -1930,9 +1930,10 @@
      同步 --bills-search-h 60px → 54px (search 实际高度 -6px, region 同步减 6px 保持
      day-header sticky offset 一致). */
   .bills-card {
-    /* v0.3.36 #7 — --bills-search-h 48px → 56px (+8px 跟 .bills-search padding 12px 14px
-       同步加 8px 高度一致). BillListGrouped day-header sticky top 偏移跟着 +8px. */
-    --bills-search-h: 56px;
+    /* v0.3.0728-2 #11 — --bills-search-h 56px → 44px (-12px 跟 .bills-search padding 12px→8px
+       同步减, 3 字符高). BillListGrouped day-header sticky top 偏移跟着 -12px.
+       注: v0.3.36 #7 是 48→56, v0.3.29 是 60→54, 现在 v0.3.0728-2 #11 是 56→44 (3 字符高). */
+    --bills-search-h: 44px;
     padding-bottom: 96px;
   }
 
@@ -1981,7 +1982,15 @@
          留视觉呼吸; 底部多留 4px 跟下方 BillListGrouped 第一行 day-header 留呼吸.
          --bills-search-h 同步 +8px (48 → 56), BillListGrouped day-header sticky top 偏移跟着 +
          让搜索框区域 总高 = 56px. */
-    padding: 12px 14px;
+    /* v0.3.0728-2 #11 — UAT 0728-2 #11 搜索框垂直高度修复 (PO 拍 "5 字符 → 3 字符高").
+         现状 12px padding + 14px font-size + 1.4 line-height = 12*2 + 14*1.4 = 43.6 + 2 border = 45.6,
+         实际包含 padding+input+border 总高度 ~56px (5 字符高, 太胖). 拍定 8px 14px padding + 36px min-height
+         + 1.4 line-height. --bills-search-h 同步 56 → 44 (-12px, 跟 gap 8 → 12 调整一致). */
+    padding: 8px 14px;
+    min-height: 36px;
+    line-height: 1.4;
+    display: flex;
+    align-items: center;
     background: transparent;
     border: 1px solid transparent;
     border-radius: var(--radius-md, 8px);
