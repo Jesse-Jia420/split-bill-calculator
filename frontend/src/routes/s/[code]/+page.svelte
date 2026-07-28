@@ -1908,7 +1908,9 @@
      同步 --bills-search-h 60px → 54px (search 实际高度 -6px, region 同步减 6px 保持
      day-header sticky offset 一致). */
   .bills-card {
-    --bills-search-h: 48px;
+    /* v0.3.36 #7 — --bills-search-h 48px → 56px (+8px 跟 .bills-search padding 12px 14px
+       同步加 8px 高度一致). BillListGrouped day-header sticky top 偏移跟着 +8px. */
+    --bills-search-h: 56px;
     padding-bottom: 96px;
   }
 
@@ -1951,7 +1953,13 @@
        在视觉中央. --bills-search-h 60px 不变 (那是 region 计算用, search 高度
        仍是 50px, 实际 region 高度由 BillListGrouped 偏移自行处理).
        v0.3.29 (UAT 0725-1 #1, PO msg 12:43): PO 字面 "没让你把搜索账单的搜索框垂直高度变大, 只让你给搜索框及其背后的区域加模糊背景". 现状 50px 太胖, 改回 ~44px (padding 11px 让 content area 22px 居中, +2 border = 44px 总高). --bills-search-h 同步收 10px (50→44, 但 sticky offset 需让出 day-header 区域, 改 44→54 让出原 10px padding 给 day-header 浮起缓冲). */
-    padding: 8px var(--space-3) 8px;
+    /* v0.3.36 #7 — UAT 0728-1 #7 (PO 字面 "搜索, 账单名称搜索框, 与上方的按钮以及下方的账单之间, 应多留一点空间"):
+         padding 8px 12px → 12px 14px (top/bottom 各加 4px = +8px 高度; 左右各加 2px = 让内部 input
+         padding 也增加, 跟 placeholder 距离两边更宽). 顶部多留 4px 跟上方 .bills-card-head 按钮
+         留视觉呼吸; 底部多留 4px 跟下方 BillListGrouped 第一行 day-header 留呼吸.
+         --bills-search-h 同步 +8px (48 → 56), BillListGrouped day-header sticky top 偏移跟着 +
+         让搜索框区域 总高 = 56px. */
+    padding: 12px 14px;
     background: transparent;
     border: 1px solid transparent;
     border-radius: var(--radius-md, 8px);
