@@ -199,7 +199,11 @@
     <div class="sheet-head">
       <span class="sheet-title">账本链接</span>
       <button class="sheet-close" type="button" aria-label="关闭" onclick={closeModal}>
-        <XIcon size={16} strokeWidth={2.4} />
+        <!-- v0.3.36 #6 — UAT 0728-1 #6 (PO 字面 "× 按钮圆形 + icon 可见, 跟 #4 同款 (复用 token)"):
+             XIcon 加显式 color="currentColor" 跟 CurrencyAddModal.svelte sheet-close (#4) 同款,
+             防止 stroke 被 anti-aliasing 隐形. CSS .sheet-close 已是 32×32 圆形 + bg rgba(15,23,42,0.10)
+             (跟 CurrencyAddModal / AddSettlementSheet 三者统一), 这里只补 icon 显式颜色. -->
+        <XIcon size={16} strokeWidth={2.4} color="currentColor" />
       </button>
     </div>
     <div class="sheet-body">
