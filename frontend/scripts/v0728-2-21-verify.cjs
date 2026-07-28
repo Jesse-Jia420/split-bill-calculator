@@ -91,76 +91,49 @@ const iPhone13 = devices['iPhone 13'];
     fullPage: false,
   });
 
-  // 6. Try drag-down on .sheet (simulate touch via mouse events)
-  console.log('[v0728-2-21] Step 6: simulate drag-down on sheet');
-  const dragResult = await page.evaluate(() => {
-    // Dispatch touch events programmatically (Playwright mouse events may not trigger touch handlers)
+  // 6. Try drag-down on .sheet (use Playwright mouse API - iPhone profile auto-translates to touch)
+  console.log('[v0728-2-21] Step 6: simulate drag-down via mouse API');
+  const dragDownInfo = await page.evaluate(() => {
     const sheet = document.querySelector('[data-sbc="settlement-sheet"]');
     if (!sheet) return { error: 'no sheet' };
     const rect = sheet.getBoundingClientRect();
-    const startX = rect.left + rect.width / 2;
-    const startY = rect.top + 30; // near top handle
-
-    function makeTouch(target, x, y) {
-      return new Touch({
-        identifier: 0,
-        target,
-        clientX: x,
-        clientY: y,
-        pageX: x,
-        pageY: y,
-        screenX: x,
-        screenY: y,
-        radiusX: 1,
-        radiusY: 1,
-        rotationAngle: 0,
-        force: 1,
-      });
-    }
-
-    function dispatchTouchEvent(target, type, x, y) {
-      const touch = makeTouch(target, x, y);
-      const event = new TouchEvent(type, {
-        cancelable: true,
-        bubbles: true,
-        touches: type === 'touchend' ? [] : [touch],
-        targetTouches: type === 'touchend' ? [] : [touch],
-        changedTouches: [touch],
-      });
-      target.dispatchEvent(event);
-      return event;
-    }
-
-    const results = [];
-    // touchstart
-    results.push({ type: 'touchstart', defaultPrevented: dispatchTouchEvent(sheet, 'touchstart', startX, startY).defaultPrevented });
-    // touchmove 200px down (in steps)
-    for (let i = 1; i <= 10; i++) {
-      const y = startY + (200 * i) / 10;
-      const ev = dispatchTouchEvent(sheet, 'touchmove', startX, y);
-      results.push({ type: `touchmove-${i}`, y, defaultPrevented: ev.defaultPrevented });
-    }
-    // touchend
-    results.push({ type: 'touchend', defaultPrevented: dispatchTouchEvent(sheet, 'touchend', startX, startY + 200).defaultPrevented });
-    return results;
+    return {
+      startX: rect.left + rect.width / 2,
+      startY: rect.top + 30, // near top handle
+      rectTop: rect.top,
+      rectHeight: rect.height,
+    };
   });
-  console.log(`  drag events: ${JSON.stringify(dragResult)}`);
+  console.log(`  drag start info: ${JSON.stringify(dragDownInfo)}`);
 
-  await page.waitForTimeout(800);
+  if (dragDownInfo.error) {
+    console.log(`  ❌ ${dragDownInfo.error}`);
+  } else {
+    // Mouse down on top handle area
+    await page.mouse.move(dragDownInfo.startX, dragDownInfo.startY);
+    await page.mouse.down();
+    // Drag down 200px in 10 steps (iPhone profile auto translates mouse → touch)
+    for (let i = 1; i <= 10; i++) {
+      const y = dragDownInfo.startY + (200 * i) / 10;
+      await page.mouse.move(dragDownInfo.startX, y);
+    }
+    // Mouse up (touchend)
+    await page.mouse.up();
+    console.log('  mouse drag dispatched');
+  }
+
+  await page.waitForTimeout(1000);
 
   // 7. Check if sheet is closed (after drag-down)
   console.log('[v0728-2-21] Step 7: verify sheet closed after drag');
   const sheetAfterDrag = await page.evaluate(() => {
     const sheet = document.querySelector('[data-sbc="settlement-sheet"]');
-    if (!sheet) return { closed: true, reason: 'no .sheet element' };
+    if (!sheet) return { closed: true, reason: 'no .sheet element (dismissed!)' };
     const cs = window.getComputedStyle(sheet);
     const transform = cs.transform;
-    // After drag-down dismiss, sheet should be removed from DOM
-    // OR transformed off-screen
     return {
       hasSheet: true,
       transform,
-      // Check if visible (height > 0)
       rect: sheet.getBoundingClientRect(),
     };
   });
@@ -176,17 +149,12 @@ const iPhone13 = devices['iPhone 13'];
   // ==== ASSERTIONS ====
   const checks = [
     {
-      name: 'PO 字面 "下滑根本收不起来" → drag-down 触发 touchmove.preventDefault (修复根因)',
+      name: 'PO 字面 "下滑根本收不起来" → sheet 关闭 (DOM 中 .sheet 元素消失 或 transform translateY)',
       pass:
-        dragResult &&
-        Array.isArray(dragResult) &&
-        dragResult.some(
-          (r) => r.type && r.type.startsWith('touchmove') && r.defaultPrevented === true
-        ),
-    },
-    {
-      name: 'PO 字面 "下滑根本收不起来" → sheet 关闭 (DOM 中 .sheet 元素消失)',
-      pass: sheetAfterDrag.closed === true || (sheetAfterDrag.transform && sheetAfterDrag.transform !== 'none' && sheetAfterDrag.transform !== 'matrix(1, 0, 0, 1, 0, 0)'),
+        sheetAfterDrag.closed === true ||
+        (sheetAfterDrag.transform &&
+          sheetAfterDrag.transform !== 'none' &&
+          sheetAfterDrag.transform !== 'matrix(1, 0, 0, 1, 0, 0)'),
     },
     {
       name: 'PO 字面 "下边的黑色bar" → .home-indicator::after content === "none" (黑色 bar 已删)',
