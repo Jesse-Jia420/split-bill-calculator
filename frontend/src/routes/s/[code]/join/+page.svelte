@@ -359,12 +359,40 @@
       </div>
     {:else}
       <!-- Anonymous user -->
-      <!-- v0.3.0728-2 #2 — UAT 0728-2 #2 (PO msg 16:50) 分享链接 join 不显示原昵称:
-           PO 拍: /s/[code]/join 页面 anon 首次 join 应该只显示 "选择昵称" UI, 不显示已有 member 列表.
-           修法: 删除原 anon 路径下 allSlots.length > 0 条件渲染 + divider + 已有成员列表 (slot-list-merged).
-           留下: 新建昵称 input + 加入 button (1 个完整 segment).
-           原因: anon 首次 join 没有 commitment, 显示已有成员列表会让用户觉得 '我应该选其中一个', 但实际他们应该新建. -->
+      <!-- v0.3.0728-3 #1 (PO msg 2026-07-28 batch 新批 #1) — reverse v0.3.0728-2 #2:
+           PO 拍: 未登录用户打开邀请链接时, 没办法正常看到已有的昵称, 只能新建昵称.
+           修法: 在 anon 路径下 re-add allSlots.length > 0 条件渲染 + slot-list-merged (跟 logged-in 路径同款),
+           让 anon 也能看到已有 member 列表 (可选认领 / 复用). 保留 "新建昵称以加入账本" form 段 (不可删, 仍可新建).
+           逻辑: allSlots filter 复用 (v0.3.29 拍板: anon 看 user_id === null 的槽位 + 已绑定 user_id 的; logged-in 看所有).
+           视觉: 跟 logged-in 路径同款 glass-pill + palette-{i%10} + avatarLetter + slot-btn-v3. -->
       <div class="stack" style="max-width: 480px;">
+        {#if allSlots.length > 0}
+          <div>
+            <p class="label">选择昵称加入账本</p>
+            <!-- v0.3.29 — UAT 0725-1 #13 v4: 合并段 (有邮箱/无邮箱 混排, 视觉平等, 无 chevron). -->
+            <div class="slot-list slot-list-merged">
+              {#each allSlots as slot, i (slot.id)}
+                <button
+                  class="glass-pill slot-btn slot-btn-v3"
+                  onclick={hasEmail(slot) ? () => handleEmailSlotClick(slot) : () => handleClaim(slot.id)}
+                  disabled={busy}
+                  data-testid="member-pick-row"
+                  data-has-email={hasEmail(slot) ? '1' : '0'}
+                >
+                  <span class="slot-avatar palette-{i % 10}" aria-hidden="true">{avatarLetter(slot.display_name)}</span>
+                  <span class="slot-info">
+                    <span class="member-nickname slot-nickname">{slot.display_name}</span>
+                    {#if hasEmail(slot)}
+                      <span class="member-email-masked slot-email">
+                        {maskEmail((slot as SessionMember).email ?? (slot as SessionMemberPreview).email ?? '')}
+                      </span>
+                    {/if}
+                  </span>
+                </button>
+              {/each}
+            </div>
+          </div>
+        {/if}
         <div>
           <p class="label">新建昵称以加入账本</p>
           <div class="row gap">
