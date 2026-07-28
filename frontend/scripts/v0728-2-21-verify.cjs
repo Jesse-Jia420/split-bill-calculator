@@ -62,7 +62,7 @@ const iPhone13 = devices['iPhone 13'];
   // 4. Verify sheet opens
   console.log('[v0728-2-21] Step 4: verify sheet opens');
   const sheetOpenInfo = await page.evaluate(() => {
-    const sheet = document.querySelector('[data-sbc="add-settlement-sheet"]');
+    const sheet = document.querySelector('[data-sbc="settlement-sheet"]');
     if (!sheet) return null;
     const cs = window.getComputedStyle(sheet);
     const rect = sheet.getBoundingClientRect();
@@ -95,7 +95,7 @@ const iPhone13 = devices['iPhone 13'];
   console.log('[v0728-2-21] Step 6: simulate drag-down on sheet');
   const dragResult = await page.evaluate(() => {
     // Dispatch touch events programmatically (Playwright mouse events may not trigger touch handlers)
-    const sheet = document.querySelector('[data-sbc="add-settlement-sheet"]');
+    const sheet = document.querySelector('[data-sbc="settlement-sheet"]');
     if (!sheet) return { error: 'no sheet' };
     const rect = sheet.getBoundingClientRect();
     const startX = rect.left + rect.width / 2;
@@ -151,7 +151,7 @@ const iPhone13 = devices['iPhone 13'];
   // 7. Check if sheet is closed (after drag-down)
   console.log('[v0728-2-21] Step 7: verify sheet closed after drag');
   const sheetAfterDrag = await page.evaluate(() => {
-    const sheet = document.querySelector('[data-sbc="add-settlement-sheet"]');
+    const sheet = document.querySelector('[data-sbc="settlement-sheet"]');
     if (!sheet) return { closed: true, reason: 'no .sheet element' };
     const cs = window.getComputedStyle(sheet);
     const transform = cs.transform;
@@ -179,8 +179,9 @@ const iPhone13 = devices['iPhone 13'];
       name: 'PO 字面 "下滑根本收不起来" → drag-down 触发 touchmove.preventDefault (修复根因)',
       pass:
         dragResult &&
+        Array.isArray(dragResult) &&
         dragResult.some(
-          (r) => r.type.startsWith('touchmove') && r.defaultPrevented === true
+          (r) => r.type && r.type.startsWith('touchmove') && r.defaultPrevented === true
         ),
     },
     {
