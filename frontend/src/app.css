@@ -671,17 +671,18 @@ button.glass-pill.invite-btn.invite-btn-breathing,
 .invite-btn-breathing::after {
   content: '';
   position: absolute;
-  inset: 2px;
+  inset: 2px;                   /* 比 button 小 2px → 留 2px ring 给 ::before 流光显示 */
   border-radius: inherit;
-  /* v0.3.0728-2-anim-fix-3 (PO msg 2026-07-28 21:24 实机截图): ::after 玻璃 opacity 0.55 → 0.92.
-     原始 0.55 在 iOS Safari WebKit 上不够遮住 ::before 的 5 色 conic-gradient, 彩虹 leak 到中心
-     把 "账本链接/邀请" 的中间 "链接" 两字挡住. 0.92 几乎纯白, 让彩虹只在 2px border ring 显示
-     (inset:2px + ::before 全幅 inset:0 = 2px ring 露出), 中心保持 glass 质感 但不 leak 彩虹. */
-  background: rgba(255, 255, 255, 0.92);
+  /* v0.3.0728-2-anim-fix-followup (chromium 验证): ::after 玻璃 opacity 0.92 → 1.0.
+     0.92 留 8% transparent 让 ::before 的 5 色 conic 在中心透出, 形成淡彩洗干扰文字.
+     妥协: opacity 1.0 彻底纯白覆盖中心 (牺牲中心 glass 透明感换干净视觉).
+     视觉: 白底按钮中心 + 5 色 conic 2px 外圈 ring + 文字 (text z-index:3 在最上).
+     (iOS Safari WebKit 兼容: 不依赖 mask-composite / -webkit-mask, 走纯 background + z-index 隔离) */
+  background: rgba(255, 255, 255, 1);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
           backdrop-filter: blur(20px) saturate(180%);
   pointer-events: none;         /* 让 click 穿透到底层 button */
-  z-index: 1;                   /* FIX (was -1): 覆盖 ::before 中间, 留 2px ring ::before 在外圈, button text 之上 */
+  z-index: 1;                   /* 覆盖 ::before, button text 之上 (text z:3) */
 }
 /* 不支持 conic-gradient 的浏览器降级到 solid indigo 边框 (v0.3.37 #16 fallback, 去掉 mask 条件) */
 @supports not (background: conic-gradient(red, blue)) {
