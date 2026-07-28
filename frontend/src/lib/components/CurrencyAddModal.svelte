@@ -715,6 +715,14 @@
      - 第一列 (1fr) spacer 让标题视觉真正居中 (不会因为标题 + close 宽度差异而偏移)
      跟 v0.3.37 #5 #1 InviteLinkButton.svelte sheet-head (justify-content: center 删 close 后) 模式不同:
      CurrencyAddModal 保留 close × 按钮, 用 grid 三列平衡布局. */
+  /* v0.3.0728-3 #5 (PO msg 2026-07-28 batch 新批 #5): 币种设置弹窗的标题应该居中.
+     用 grid 3 列 (1fr auto 1fr) + grid-column 显式分配:
+     - .sheet-title: grid-column: 2 (中间 auto column, 跟 title 自身宽度一致)
+     - .sheet-close: grid-column: 3 (最后 1fr column, justify-self: end 贴右边)
+     - 第一列 1fr = spacer 让 title 真正视觉居中 (跟 AddSettlementSheet 删 close 后 justify-content:center 模式不同,
+       CurrencyAddModal 保留 close × 按钮).
+     v1 验证时 chromium 报告 "title center 99.99px / head center 195px / delta 95px", 因为没 grid-column 显式分配,
+     browser 默认把 2 个 children 塞到 column 1 + column 2, column 3 空. v2 加 grid-column 修. */
   .sheet-head {
     display: grid;
     grid-template-columns: 1fr auto 1fr;
@@ -722,6 +730,7 @@
     padding: 0 4px 12px;
   }
   .sheet-title {
+    grid-column: 2;
     font-size: 17px;
     font-weight: 600;
     color: #171717;
@@ -729,12 +738,13 @@
     justify-self: center;
   }
   .sheet-close {
+    grid-column: 3; /* v0.3.0728-3 #5: 显式分配到 grid 最后列 */
     width: 32px;
     height: 32px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    justify-self: end; /* v0.3.0728-3 #5: grid 最后一列右对齐 */
+    justify-self: end; /* 最后一列内右对齐 */
     border-radius: 50%;
     background: rgba(15, 23, 42, 0.10);
     color: #525252;
