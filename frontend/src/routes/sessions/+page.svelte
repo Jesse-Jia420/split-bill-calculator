@@ -18,7 +18,10 @@
   import EmptyState from '$components/EmptyState.svelte';
   import { toast } from '$stores/toast';
 
-  let loading = true;
+  // v0.3.36 #1.1 — 跟 #9 同源 regression: 文件含 $state() (swipedId) 进入 runes mode 后,
+  // plain `let loading = true` 写入 loading = false 不触发响应式更新.
+  // sessions 列表页面永远停留在 SkeletonCard 状态. 修法: loading 改 $state() 包装.
+  let loading = $state(true);
 
   // v0.3.36 #1 — UAT 0728-1 #1 (PO 字面 "账本 item 滑动删除按钮跨 item 互斥"):
   // 父 sessions/+page.svelte 加 inline swipedId state, 传给 SessionCard props + on:swipechange 事件.
