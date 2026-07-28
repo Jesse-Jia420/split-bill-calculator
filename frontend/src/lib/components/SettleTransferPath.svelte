@@ -142,7 +142,7 @@
               <div class="transfer-party">
                 <!-- v0.3.36 #13: 头像 bg 用 palette (跟成员 section 一致), 通过 inline style 把 from_member_id
                      哈希后映射到 5 色循环 (跟 SessionMemberList / BillForm / SettlementRow 字段级同). -->
-                <div class="avatar" aria-hidden="true" style="background: {avatarBgForMemberId(t.from_member_id)};">{avatarLetter(fromName)}</div>
+                <div class="avatar" aria-hidden="true" style={avatarBgForMemberId(t.from_member_id)}>{avatarLetter(fromName)}</div>
                 <span class="transfer-name">{fromName}</span>
               </div>
 
@@ -155,7 +155,7 @@
               <!-- 收款方 -->
               <div class="transfer-party">
                 <!-- v0.3.36 #13: 跟付款方同源 — 头像 bg 用 palette, to_member_id 哈希映射. -->
-                <div class="avatar" aria-hidden="true" style="background: {avatarBgForMemberId(t.to_member_id)};">{avatarLetter(toName)}</div>
+                <div class="avatar" aria-hidden="true" style={avatarBgForMemberId(t.to_member_id)}>{avatarLetter(toName)}</div>
                 <span class="transfer-name">{toName}</span>
               </div>
             </div>
