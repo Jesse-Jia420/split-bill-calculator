@@ -519,16 +519,11 @@
         {session.role === "owner" ? "owner" : "member"}
       </span>
     </div>
-    <!-- v0.3.0728-2 #14 — UAT 0728-2 #14 账本列表 "左划以删除" 小字提示 (PO msg 16:50).
-         owner only — 只在账本 owner 看到的可滑动项上加提示 (跟 delete-btn 可见性一致).
-         位置: row-top 下 (跟原 expiry 提示同族位), 玻璃风 + 全站 .glass-pill 同族.
-         默认显示, swipe 时跟着 wrap transform 一起被遮住 (不用额外隐藏逻辑). -->
-    {#if session.role === 'owner'}
-      <div class="swipe-hint" data-testid="swipe-hint-delete" aria-label="左划以删除账本">
-        <span class="swipe-arrow" aria-hidden="true">←</span>
-        <span>左划以删除</span>
-      </div>
-    {/if}
+    <!-- v0.3.0728-3 #3 — reverse v0.3.0728-2 #14: 删 per-item .swipe-hint.
+         移到 /sessions/+page.svelte list 顶部 (single list-top hint, 不是 per-item).
+         PO msg 2026-07-28 batch #3: "在我的账本页, 整个列表的右上方添加提示文字'左划以删除账本'.
+         目前你在每个账本item内加的提示, 不对".
+         这里 per-item 删掉, list 顶部加单 hint. -->
     <!-- v0.3.24 #9 (UAT bug 账本 item 重设计): row-bottom 拆 3 段
          v0.3.24 #9.3 flip (PO msg #8299 反馈):
          - 左: .date 独立 — 跟原 .meta .muted 一致, 但脱离 .dot 分隔符
@@ -685,34 +680,6 @@
    * v0.3.24 #9 (UAT bug 账本 item 重设计): 玻璃更透 — bg alpha 0.75/0.50 → 0.62/0.38
    *   (再 -17%/-24%, 让背景径向渐变更透出来). backdrop-filter blur 24→28px (补偿透明度损失
    *   让背后仍模糊), brightness 1.04→1.05 (微亮补偿). hover 同步加深到 0.78/0.55. */
-  /* v0.3.0728-2 #14 — UAT 0728-2 #14 账本列表 "左划以删除" 小字提示 (PO msg 16:50).
-     owner only .swipe-hint — 在 .session-card 内 row-bottom 上方, 跟全站 .glass-pill 同族.
-     视觉: rgba(99,102,241,0.10) bg + 1px rgba(99,102,241,0.18) border + 8px 12px padding
-     + 12.5px font + 6px radius + 0.5em swipe-arrow (跟 ↑ → 等同 unicode). */
-  .swipe-hint {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    align-self: flex-end;
-    margin: -2px 0 6px auto;
-    padding: 3px 8px;
-    background: rgba(99, 102, 241, 0.10);
-    border: 1px solid rgba(99, 102, 241, 0.18);
-    border-radius: 6px;
-    color: var(--accent-700, #4338ca);
-    font-size: 11px;
-    font-weight: 500;
-    line-height: 1.4;
-    letter-spacing: -0.005em;
-    font-variant-numeric: tabular-nums;
-    pointer-events: none;
-    backdrop-filter: blur(4px) saturate(180%);
-    -webkit-backdrop-filter: blur(4px) saturate(180%);
-  }
-  .swipe-hint .swipe-arrow {
-    font-weight: 600;
-    font-size: 12px;
-  }
 
   .session-card {
     position: relative;
