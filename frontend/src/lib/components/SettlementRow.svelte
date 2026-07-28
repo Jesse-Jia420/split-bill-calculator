@@ -88,6 +88,68 @@
   // 不需要 $state (rowEl 只读一次, 不需 reactivity).
   let rowEl: HTMLElement | undefined;
 
+  // v0.3.0728-3 #9 — UAT 0728-3 #9 (PO msg 2026-07-28 batch 新批 #9):
+  //   PO 字面 "已结算记录item的删除按钮, 应在item向左划不动时, 再向左划, 才出现".
+  //   1st swipe: item 不动 (resistance, touchmove preventDefault 拦截 wrapper scroll)
+  //   2nd swipe: 删除按钮出现 (state 'primed' → 'shown', 按钮 opacity 0 → 1)
+  //   点击 item 外部 / 滚动其他记录: reset state 'shown' → 'idle' (隐藏按钮)
+  // 反 #121 自决 (技术细节 gesture state machine, 复用现有 touchstart/touchend 模式)
+  // 反 #155 自决 (delete button 视觉不变, 仅 gating visibility, 不是 design token 决策)
+  let swipeState = $state<'idle' | 'primed' | 'shown'>('idle');
+  let touchStartX = 0;
+  let touchStartY = 0;
+
+  function handleSwipeTouchStart(e: TouchEvent) {
+    if (!canDelete) return;
+    const t = e.touches[0];
+    if (!t) return;
+    touchStartX = t.clientX;
+    touchStartY = t.clientY;
+  }
+
+  function handleSwipeTouchMove(e: TouchEvent) {
+    // 1st swipe (state='idle') 时拦截左划: preventDefault 让 item 不滚
+    if (!canDelete || swipeState !== 'idle') return;
+    const t = e.touches[0];
+    if (!t) return;
+    const dx = t.clientX - touchStartX;
+    const dy = Math.abs(t.clientY - touchStartY);
+    // 水平左划 (dx < -10, dy < 20) → preventDefault 阻止 wrapper scroll
+    if (dx < -10 && dy < 20) {
+      e.preventDefault();
+    }
+  }
+
+  function handleSwipeTouchEnd(e: TouchEvent) {
+    if (!canDelete) return;
+    const t = e.changedTouches[0];
+    if (!t) return;
+    const dx = t.clientX - touchStartX;
+    const dy = Math.abs(t.clientY - touchStartY);
+    // 只算水平左划: dx < -30 (足够长), dy < 20 (不垂直)
+    if (dx > -30 || dy > 20) return;
+    if (swipeState === 'idle') {
+      // 1st swipe: 推进到 'primed' (item 不动, 按钮不出现, 等待 2nd swipe)
+      swipeState = 'primed';
+    } else if (swipeState === 'primed') {
+      // 2nd swipe: 推进到 'shown' (删除按钮出现, 点击触发 onDelete)
+      swipeState = 'shown';
+    }
+  }
+
+  function handleSwipeClickOutside(e: MouseEvent) {
+    // 点 item 外部 (e.g. 点其他 record, 点 section header, 点 backdrop) → reset 到 'idle'
+    if (swipeState === 'idle') return;
+    const target = e.target as HTMLElement | null;
+    if (target && target.closest('[data-sbc="settlement-row"]')) return;
+    swipeState = 'idle';
+  }
+
+  $effect(() => {
+    document.addEventListener('click', handleSwipeClickOutside);
+    return () => document.removeEventListener('click', handleSwipeClickOutside);
+  });
+
   $effect(() => {
     const el = rowEl;
     if (!el) return;
@@ -115,7 +177,11 @@
   class="record-row scroll-wrapper"
   data-sbc="settlement-row"
   data-record-id={record.id}
+  data-swipe-state={swipeState}
   bind:this={rowEl}
+  ontouchstart={handleSwipeTouchStart}
+  ontouchmove={handleSwipeTouchMove}
+  ontouchend={handleSwipeTouchEnd}
 >
   <span class="avatar" style={payerPal} aria-hidden="true">{initialOf(record.payer_name)}</span>
   <span class="arrow-mini" aria-hidden="true">→</span>
@@ -132,7 +198,7 @@
     </div>
   </div>
   <div class="row-amount">{fmtAmount(record.amount, record.currency)}</div>
-  {#if canDelete}
+  {#if canDelete && swipeState === 'shown'}
     <button
       class="delete-mini"
       type="button"
