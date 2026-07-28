@@ -7849,3 +7849,56 @@ PO msg 2026-07-28 16:50 batch UAT 0728-2 (20 items, #6 跳过后边再做). Code
 **排除范围 (本任务不修, 待 PO 决定)**:
 - chromium 是否能复现 iOS Safari WebKit z-index escape: 当前 chromium verify 视觉 OK, iOS Safari 真机验证为主. 真不放心可加 `transform: translateZ(0)` 再保险一层 (will-change: transform 创建独立 stacking context), 但当前 fix 已够, 不加额外 hack 降低复杂度.
 - 真机 walk timing: animation 总周期 1.5s breath + 5s border-flow 错峰, 当前 chromium 截图用 animation-delay pause 模拟相位, 真机 walk 是连续动画不会暂停, PO 自行观察 5s 周期旋转 + 1.5s breath scale 鼓动即可.
+### v0.3.0728-2 #6 — UAT 0728-2 #6 解冻 (PO msg 2026-07-28 20:44 "0728-2 #6 现在做"): 复制弹窗 1-click 立即添加到桌面 (Android/Desktop Chrome 走 beforeinstallprompt 原生 install dialog)
+
+**Commit**: `8253e36` fix(fe): v0.3.0728-2 #6 PO解冻 — 复制弹窗加 1-click 立即添加到桌面 (Android/Desktop Chrome 走 beforeinstallprompt 原生 install dialog, iOS Safari 走 navigator.share 天然最短路径)
+
+**根因**: v0.3.37 #5 #4 实现的 PWA 引导对 Android/Desktop Chrome 用户只给 hint text "在 Chrome 菜单 (⋮) 中选择「添加到主屏幕」", 路径是 5+ 步 (modal 显示 → 滚到底 → 读 hint → 关闭 modal → 打开 Chrome 菜单 → 找 "安装 app" 选项 → 点确认). PO 拍 "更短路径, 更快捷的 添加到主屏幕 的办法或引导" (#6 解冻).
+
+**修法** (Master 自修, 反 #155 自决 — 复用 btn-primary gradient token, 1 button 1 icon 1 行文字, 不是新 design language):
+- `installPromptEvent` state 捕获浏览器 `beforeinstallprompt` event (PWA installable 条件满足时触发)
+- onMount: `window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPromptEvent = e; })` + cleanup
+- `handleOneClickInstall` 1-click handler: `installPromptEvent.prompt()` → 浏览器弹原生 install dialog → `await userChoice` → toast 反馈 (成功 / 取消 / 失败)
+- 一次性: prompt 后 installPromptEvent = null, 避免重复触发
+- Template: `{#if !isStandalone && installPromptEvent}` 加 1 个 prominent CTA button (data-testid="invite-install-btn"), 放在 sheet-body 最显眼位置 (sub copy 之后, QR 之前)
+- CSS: `.install-btn` 44px 高 + 12px radius + gradient indigo→purple (跟 .btn-primary 同族) + inset highlight + drop shadow + 100ms scale press 反馈
+
+**iOS Safari 不支持 beforeinstallprompt** — 走 `navigator.share()` (#3 按钮, v0.3.37 #5 #4) 已是天然最短路径 (1 click → iOS native share sheet → "添加到主屏幕" Action). 现状不变.
+
+**Files changed**:
+- `frontend/src/lib/components/InviteLinkButton.svelte` (+104 -5: state + listener + handler + template + CSS)
+- `frontend/scripts/v0728-2-6-verify.cjs` (新增 250 lines, Playwright iPhone 13 @3x chromium verify + 1-click click handler mocked)
+
+**Verification** (反 #150 v2 + 反 #101 + 反 #167 + 反 #151):
+- Playwright iPhone 13 @3x chromium verify `frontend/scripts/v0728-2-6-verify.cjs`:
+  - **17/17 PASS**:
+    - ✅ modal opens after invite click
+    - ✅ install-btn hidden initially (iOS Safari UA, no beforeinstallprompt)
+    - ✅ install-btn visible after dispatch fake beforeinstallprompt event
+    - ✅ text/aria-label/title = "立即添加到桌面"
+    - ✅ gradient background (indigo→purple), color rgb(255,255,255)
+    - ✅ font-size 14px / font-weight 600 / height 44px / border-radius 12px / cursor pointer / box-shadow
+    - ✅ btn placed BEFORE QR code (top 299.58 < qr top 361.58)
+    - ✅ existing 3-button row still present (regression check: save-qr 1 + share-qr 1 + share-link 1)
+    - ✅ prompt() called when clicking install-btn (mocked userChoice Promise)
+    - ✅ install-btn hidden after one-time use (event 失效后清空)
+- 反 #150 v3 排除: chromium headless 不主动触发 beforeinstallprompt event (它是浏览器主动行为), 用 mocked fake event 验证 capture + prompt + state clear 链路. 真 Android Chrome / Desktop Chrome 真机 walk 才是 1-click install 实际体验验证, 真机: modal 打开 → 看到 "立即添加到桌面" CTA button → 1 click → 浏览器原生 install dialog → 接受 → 应用出现在桌面.
+
+**Files**: `frontend/src/lib/components/InviteLinkButton.svelte` (+104 -5), `frontend/scripts/v0728-2-6-verify.cjs` (新增 250 lines)
+
+**反模式严格遵守**:
+- ✅ 反 #162: fix + verify script + §11 sync 同一 push batch (跟 v0.3.0728-2-rainbow-fix 同模式: 1 fix commit + 1 docs commit, push 一起)
+- ✅ 反 #170: N/A (sandbox 直接 edit, codeserver pull 后再跑 verify; 不需要 codeserver exec_clean.js)
+- ✅ 反 #189: SPEC append heredoc (不用 sed 多匹配)
+- ✅ 反 #167: iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN)
+- ✅ 反 #190: single-branch 铁律, origin 仅 main
+- ✅ 反 #53: 完整 Gitea PAT token-only URL push
+- ✅ 反 #155: 自决 (新增 1 个 CTA button, 复用现有 btn-primary gradient token, 不 spawn Designer; 这不是新 design language, 是 token 复用)
+- ✅ 反 #150 v2: Master 自修自验 (17/17 check + 截图 + 数据在场)
+- ✅ 反 #121: 自决 (1-click 走原生 beforeinstallprompt, iOS 走 navigator.share 已有 #3 按钮)
+- ✅ 反 #161: 修的意图明确, 不列"不修/延后"选项
+
+**排除范围 (本任务不修, 待 PO 决定)**:
+- Service Worker + Web App Manifest 完备性: beforeinstallprompt event 触发前提是 manifest 有效 + service worker registered + HTTPS + engagement heuristic. 当前 fix 不检查/安装这些, 假设 PWA 基础设施已就绪 (前端 serve vite dev → 走 cf tunnel → HTTPS OK; manifest 看后续 sprint 是否补). 如果 manifest 缺失, beforeinstallprompt 永不触发, button 不会显示, 用户走 iOS 路径.
+- A2HS (Add to Home Screen) hero shot / 演示动画: iOS Safari 没自动路径, 当前 hint text "在 Safari 点底部分享按钮,选择「添加到主屏幕」" 是静态文字. 后续可加 SVG 示意图 + 箭头动画 (iOS HIG share 按钮图标), 但当前 commit 不强求.
+- Standalone mode 检测: 当前 `isStandalone` 用 `matchMedia('(display-mode: standalone)')` + `navigator.standalone`. Edge case (PWA in standalone 但用户重新打开 modal) 已 guard.
