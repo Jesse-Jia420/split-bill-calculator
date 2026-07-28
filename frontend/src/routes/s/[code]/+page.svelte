@@ -693,7 +693,7 @@
             {#if !membersOpen && session.members.length > 0}
               <div class="members-avatars-inline" aria-hidden="true">
                 {#each session.members.slice(0, 8) as m, i (m.id)}
-                  <div class="avatar-mini palette-{i % 5}" title={m.display_name}>
+                  <div class="avatar-mini palette-{i % 10}" title={m.display_name}>
                     {avatarLetter(m.display_name)}
                   </div>
                 {/each}
@@ -794,7 +794,7 @@
                 in:fly={{ y: 8, duration: 220, delay: Math.min(i * 30, 300) }}
               >
                 <div
-                  class="avatar-a palette-{i % 5}"
+                  class="avatar-a palette-{i % 10}"
                   class:is-owner={m.role === 'owner'}
                   class:is-me={isMe}
                   aria-hidden="true"
@@ -1548,6 +1548,22 @@
   .avatar-a.palette-4 {
     background: linear-gradient(135deg, rgba(96, 165, 250, 0.88) 0%, rgba(59, 130, 246, 0.88) 100%);
   }
+  /* v0.3.0728-2 #20 解冻: 5 → 10 扩色 (palette-5..9) — 跟 palette.ts AVATAR_GRADIENTS 字段级同 */
+  .avatar-a.palette-5 {
+    background: linear-gradient(135deg, rgba(244, 63, 94, 0.88) 0%, rgba(217, 70, 239, 0.88) 100%);
+  }
+  .avatar-a.palette-6 {
+    background: linear-gradient(135deg, rgba(132, 204, 22, 0.88) 0%, rgba(34, 197, 94, 0.88) 100%);
+  }
+  .avatar-a.palette-7 {
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.88) 0%, rgba(59, 130, 246, 0.88) 100%);
+  }
+  .avatar-a.palette-8 {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.88) 0%, rgba(236, 72, 153, 0.88) 100%);
+  }
+  .avatar-a.palette-9 {
+    background: linear-gradient(135deg, rgba(249, 115, 22, 0.88) 0%, rgba(239, 68, 68, 0.88) 100%);
+  }
   .avatar-a.is-owner {
     box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(168, 85, 247, 0.55);
   }
@@ -1716,6 +1732,22 @@
   }
   .avatar-mini.palette-4 {
     background: linear-gradient(135deg, rgba(96, 165, 250, 0.88), rgba(59, 130, 246, 0.88));
+  }
+  /* v0.3.0728-2 #20 解冻: 5 → 10 扩色 (palette-5..9) — 跟 SessionCard 同源 */
+  .avatar-mini.palette-5 {
+    background: linear-gradient(135deg, rgba(244, 63, 94, 0.88), rgba(217, 70, 239, 0.88));
+  }
+  .avatar-mini.palette-6 {
+    background: linear-gradient(135deg, rgba(132, 204, 22, 0.88), rgba(34, 197, 94, 0.88));
+  }
+  .avatar-mini.palette-7 {
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.88), rgba(59, 130, 246, 0.88));
+  }
+  .avatar-mini.palette-8 {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.88), rgba(236, 72, 153, 0.88));
+  }
+  .avatar-mini.palette-9 {
+    background: linear-gradient(135deg, rgba(249, 115, 22, 0.88), rgba(239, 68, 68, 0.88));
   }
   .avatar-mini-overflow {
     background: var(--gray-300, #d1d5db) !important;
