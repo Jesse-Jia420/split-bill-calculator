@@ -11,22 +11,28 @@
   // §3.11.13 决策 η: 在 session 内 vs session 外, 登录按钮语义不同.
   // 在 session 内 → "登录以保存" + returnTo=当前路径 (登录后回 session 页面)
   // 在 session 外 → 普通 "登录" → /sessions (默认登录后跳转)
+  // v0.3.0728-2 #10 — UAT 0728-2 #10 (PO msg 16:50): inSession regex 加 /s/{code} canonical URL.
+  //   原 regex /^\/sessions\/\d+(\/|$)/ 只命中老 URL, anon 访 canonical /s/64BZQNX9NU 会错误
+  //   看到 "登录" (而非 "登录以保存"). 改: 同时匹配 /sessions/{id} (legacy) + /s/{code} (canonical).
   function inSession(): boolean {
-    return /^\/sessions\/\d+(\/|$)/.test(page.url.pathname);
+    return /^\/sessions\/\d+(\/|$)/.test(page.url.pathname) ||
+           /^\/s\/[A-Z0-9]+(\/|$)/i.test(page.url.pathname);
   }
-  // v0.3.17 #36fix2 (PO msg 12:57): join page (/sessions/<id>/join) 流程本身
+  // v0.3.17 #36fix2 (PO msg 12:57): join page (/sessions/<id>/join 或 /s/<code>/join) 流程本身
   // 支持 anon 加入 (「新建昵称以加入账本」), 不需要 "先登录再保存" 按钮.
   // 上面 inSession() 的 regex 命中 /sessions/123/join 因为 /sessions/123 后
   // 是 /, 之前会错误渲染 "登录以保存". 用 isJoinPage() 排除这一支.
   function isJoinPage(): boolean {
-    return /^\/sessions\/\d+\/join/.test(page.url.pathname);
+    return /^\/sessions\/\d+\/join/.test(page.url.pathname) ||
+           /^\/s\/[A-Z0-9]+\/join/i.test(page.url.pathname);
   }
   // v0.3.33 — UAT 0725-3 #1 (PO 14:59 batch):
   //   /sessions/{id}/login 是账本专属登录页 (用户进入 OTP 时已在登录流程),
   //   NavBar 上的 "登录以保存" 跟页面本身重复 — 隐藏.
   //   跟 /auth/login 一样, 整个 .right 区在此路由下不渲染.
   function isLoginPage(): boolean {
-    return /^\/sessions\/\d+\/login/.test(page.url.pathname);
+    return /^\/sessions\/\d+\/login/.test(page.url.pathname) ||
+           /^\/s\/[A-Z0-9]+\/login/i.test(page.url.pathname);
   }
 </script>
 
