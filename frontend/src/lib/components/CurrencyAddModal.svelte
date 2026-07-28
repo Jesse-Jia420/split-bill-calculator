@@ -639,8 +639,13 @@
       {/if}
     </div>
 
-    <!-- v0.3.27 (PO UAT 0727-1 #4): 排版跟 AddSettlementSheet 一致 — iOS home indicator, 让 sheet 视觉收尾对称. -->
-    <div class="home-indicator" aria-hidden="true"></div>
+    <!-- v0.3.36 #18 — UAT 0728-1 #18 (PO 字面 "币种设置弹窗最下方的黑色横条不知道是做什么的, 应该把它删掉"):
+         删整块 home-indicator template + 配套 CSS + ::after 黑色横条.
+         v0.3.27 #4 (跟 AddSettlementSheet 一致) 引入的 iOS home indicator, 但 PO 觉得这条
+         黑色横条视觉冗余 (iOS 已经有真实 home indicator 在屏幕底部). AddSettlementSheet
+         仍保留 home-indicator (它有自己的设计意图); 本弹窗独有删法.
+         scope: 只删 CurrencyAddModal.svelte 内 .home-indicator 3 处 (template 1 + CSS 2),
+         不动其他组件 (InviteLinkButton, AddSettlementSheet 等都保留自己的). -->
   </div>
 </div>
 
@@ -973,22 +978,6 @@
     box-shadow:
       0 4px 12px rgba(148, 163, 184, 0.22),
       inset 0 1px 0 rgba(255, 255, 255, 0.30);
-  }
-
-  /* v0.3.27 (PO UAT 0727-1 #4): 排版跟 AddSettlementSheet 一致 — iOS home indicator 收尾. */
-  .home-indicator {
-    height: 30px;
-    display: flex;
-    justify-content: center;
-    align-items: flex-end;
-    padding-bottom: 8px;
-  }
-  .home-indicator::after {
-    content: '';
-    width: 134px;
-    height: 5px;
-    background: rgba(0, 0, 0, 0.85);
-    border-radius: 100px;
   }
 
   /* v0.3.19 #85 PO #7731 (#2): 去掉 fadeIn (backdrop 透明无 opacity 变化). */
