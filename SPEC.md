@@ -8103,3 +8103,47 @@ PO msg 2026-07-28 16:50 batch UAT 0728-2 (20 items, #6 跳过后边再做). Code
 **排除范围 (本任务不修, 待 PO 决定)**:
 - 其他 sheet 的标题居中: 当前只改了 CurrencyAddModal. AddSettlementSheet / InviteLinkButton 已 v0.3.27 / v0.3.37 各自拍板 (前者删 × 用 justify-content center, 后者 v0.3.37 #5 #1 删 × 用 justify-content center). 跟 #5 是不同 sheet 各自的 design.
 - title 太长 overflow: 当前 modalTitle 文本短 (e.g. "币种设置"), 不会 overflow. 后续如加长 title, 需考虑 text-overflow: ellipsis.
+### v0.3.0728-3 #4 — UAT 0728-3 #4 (PO msg 2026-07-28 batch 新批 #4): BillForm 预设选项 chip 位置 — 从 "说明 上方" 挪到 "说明 和 说明 input 之间"
+
+**Commit**: `88018d4` fix(fe): v0.3.0728-3 #4 — BillForm 预设选项 chip 位置: 从「说明 上方」挪到「说明 和 说明 input 之间」 (DOM order label → preset-row → input)
+
+**根因**: v0.3.0728-2 #9 (BillForm 8 个预设选项) 把 preset-row 放在 label 上方. PO msg 2026-07-28 batch #4 字面要求挪到 "说明 和 说明 input 之间", 跟 chip 的语义 (input 的预设辅助) 视觉关联更强.
+
+**修法** (Master 自修, 反 #121 自决 + 反 #155 自决):
+- `frontend/src/lib/components/BillForm.svelte` template: DOM order 改 [label → preset-row → input] (之前 [preset-row → label → input])
+- comment block 更新, 加 v0.3.0728-3 #4 拍板说明 (跟 v0.3.0728-2 #9 拍板并存, 解释 DOM order 改的原因)
+- CSS `.preset-row` 不变 (`margin: 0 0 8px` margin-bottom 视觉呼吸保留)
+
+**Files changed**:
+- `frontend/src/lib/components/BillForm.svelte` (+19 -15: template DOM order 改 + comment 更新)
+- `frontend/scripts/v0728-3-4-verify.cjs` (新增 152 lines, Playwright iPhone 13 @3x chromium verify + 7 项 check)
+
+**Verification** (反 #150 v2 + 反 #101 + 反 #167 + 反 #151):
+- Playwright iPhone 13 @3x chromium verify `frontend/scripts/v0728-3-4-verify.cjs`:
+  - **7/7 PASS**:
+    - ✅ preset-row exists (data-testid="desc-preset-row")
+    - ✅ label[for=desc] exists
+    - ✅ input#desc exists
+    - ✅ DOM order: label before preset-row (compareDocumentPosition)
+    - ✅ DOM order: preset-row before input
+    - ✅ visual order: label top 438.66 < preset top 463.03 < input top 519.03 (字段级精确)
+    - ✅ preset chip 晚餐 click fills description "晚餐" (functionality 验证)
+- 反 #150 v2 v3 ✅: chromium DOM + visual + functionality 三证. iOS Safari 真机 walk 需 PO 自验.
+- 反 #150 v2 排除: chromium 验证 OK, 真 iOS Safari 视觉验证需 PO 自验 /sessions/9/bills/new → 说明 label 下方 → 预设 chip 行 (8 chip) → 说明 input 上方. 跟 #9 拍板 "chip 是 input 的预设辅助" 语义契合.
+
+**反模式严格遵守**:
+- ✅ 反 #162: fix + verify script + §11 sync 同一 push batch (1 fix commit + docs commit, push 一起)
+- ✅ 反 #170: N/A (sandbox 直接 edit, codeserver pull 后再跑 verify)
+- ✅ 反 #189: SPEC append heredoc (不用 sed 多匹配)
+- ✅ 反 #167: iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN)
+- ✅ 反 #190: single-branch 铁律, origin 仅 main
+- ✅ 反 #53: 完整 Gitea PAT token-only URL push
+- ✅ 反 #155: 自决 (DOM order 改, 不涉及 design token 决策, 不 spawn Designer)
+- ✅ 反 #150 v2: Master 自修自验 (chromium 7/7 check + DOM order + visual order + 功能 click 三证)
+- ✅ 反 #121: 自决 (DOM order 调整是 markup 微调, 不需要 Designer)
+- ✅ 反 #161: 修的意图明确 (PO 字面 "说明和说明 input 之间"), 不列"不修/延后"选项
+
+**排除范围 (本任务不修, 待 PO 决定)**:
+- 预设 chip 样式 / 数量 / 内容: 跟 v0.3.0728-2 #9 保持一致 (8 chip, 全站 .glass-pill 同族), 仅改位置
+- chip 在 mobile landscape (横屏) 视觉: 当前 horizontal overflow-x: auto (iOS Safari 支持), 跟 v0.3.0728-2 #9 兼容
+- chip 默认 selected 态: 当前无 selected, 跟 v0.3.0728-2 #9 兼容
