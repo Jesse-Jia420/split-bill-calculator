@@ -655,14 +655,18 @@ button.glass-pill.invite-btn.invite-btn-breathing,
   position: absolute;
   inset: 0;
   border-radius: inherit;
+  /* v0.3.0729-1 #16-followup (PO msg 02:05 字面 "动画要一直布满整个border, 而非现在这样
+     一会儿大片空白, 一会儿满"): 5 色 stops 密度提高 (5 色重复 4 圈 = 20 段 × 18°/段),
+     ring 任何角度都被一种颜色覆盖, rotate 5s 期间颜色段密集位移, 视觉上"一直满".
+     原 5 段 72°/段在 ring 2px 上色段过于稀疏, rotate 时某些瞬间 ring 位置采样到色段
+     过渡区 (颜色相近 → 看着像空白). 加 density 4x 后 ring 始终有颜色. */
   background: conic-gradient(
     from 0deg,
-    #6366f1 0deg,    /* indigo-500 */
-    #a855f7 72deg,   /* purple-500 */
-    #ec4899 144deg,  /* pink-500 */
-    #f59e0b 216deg,  /* amber-500 */
-    #10b981 288deg,  /* emerald-500 */
-    #6366f1 360deg   /* 闭合回 indigo */
+    #6366f1 0deg,    #a855f7 18deg,   #ec4899 36deg,   #f59e0b 54deg,   #10b981 72deg,
+    #6366f1 90deg,   #a855f7 108deg,  #ec4899 126deg,  #f59e0b 144deg,  #10b981 162deg,
+    #6366f1 180deg,  #a855f7 198deg,  #ec4899 216deg,  #f59e0b 234deg,  #10b981 252deg,
+    #6366f1 270deg,  #a855f7 288deg,  #ec4899 306deg,  #f59e0b 324deg,  #10b981 342deg,
+    #6366f1 360deg
   );
   animation: invite-border-flow 5s linear infinite;
   pointer-events: none;         /* 让 click 穿透到底层 button */
