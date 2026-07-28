@@ -8,7 +8,9 @@
  * 建议转账头像) 视觉完全一致.
  *
  * 命名约定:
- * - AVATAR_GRADIENTS = 5 色循环 (跟 v0.3.18 #64 + v0.3.20 #91 + v0.3.23 #132 沿用, glass 语言同源).
+ * - AVATAR_GRADIENTS = 10 色循环 (5 → 10 扩色, v0.3.0728-2 #20 PO 解冻:
+ *   之前 5 色让 session 6+ 成员时 loop index % 5 撞色 (e.g. 6th member 跟 1st 同色).
+ *   10 色保证 ≤10 成员的 session 每位独立颜色, 视觉一致性高).
  * - paletteGradient(index) → 5 色循环返回 CSS background value.
  * - paletteIndexFromMemberId(memberId) → stable hash 让同一 memberId 总拿到同一颜色 (跨 render 一致).
  *   反 #121 Master 自决技术细节: 用 string hash (djb2-like) 而不是 Math.random, 保证同 member 颜色稳定.
@@ -29,15 +31,23 @@ const AVATAR_GRADIENTS: ReadonlyArray<string> = [
   'linear-gradient(135deg, rgba(16, 185, 129, 0.88) 0%, rgba(20, 184, 166, 0.88) 100%)', // emerald → teal
   'linear-gradient(135deg, rgba(245, 158, 11, 0.88) 0%, rgba(234, 179, 8, 0.88) 100%)', // amber → yellow
   'linear-gradient(135deg, rgba(59, 130, 246, 0.88) 0%, rgba(6, 182, 212, 0.88) 100%)', // blue → cyan
+  // v0.3.0728-2 #20 解冻 (PO msg 2026-07-28 21:17 "继续0728-2其他"): 5 → 10 扩色
+  // 跟现有 5 色 (indigo/pink/emerald/amber/blue) 形成 hue 家族区分 (warm red/orange, lime/green, sky/blue, violet/pink, orange/red),
+  // 让 6+ 成员 session 中 loop index % 10 给每位独立颜色 (vs 之前 % 5 会让 6th member 跟 1st 撞色).
+  'linear-gradient(135deg, rgba(244, 63, 94, 0.88) 0%, rgba(217, 70, 239, 0.88) 100%)',   // rose → fuchsia (#5, warm red/magenta family)
+  'linear-gradient(135deg, rgba(132, 204, 22, 0.88) 0%, rgba(34, 197, 94, 0.88) 100%)',    // lime → green (#6, warm green family)
+  'linear-gradient(135deg, rgba(14, 165, 233, 0.88) 0%, rgba(59, 130, 246, 0.88) 100%)',    // sky → blue (#7, light blue family)
+  'linear-gradient(135deg, rgba(139, 92, 246, 0.88) 0%, rgba(236, 72, 153, 0.88) 100%)',   // violet → pink (#8, purple/pink family)
+  'linear-gradient(135deg, rgba(249, 115, 22, 0.88) 0%, rgba(239, 68, 68, 0.88) 100%)',    // orange → red (#9, warm orange/red family)
 ];
 
-/** 5 色循环 (index wrap) — 用于 SessionMemberList / BillForm 数组下标 (跟 memberCount 顺序一致). */
+/** 10 色循环 (index wrap) — 用于 SessionMemberList / BillForm 数组下标 (跟 memberCount 顺序一致). */
 export function paletteGradient(index: number): string {
   return AVATAR_GRADIENTS[index % AVATAR_GRADIENTS.length];
 }
 
 /**
- * Stable hash: memberId → 0..AVATAR_GRADIENTS.length-1.
+ * Stable hash: memberId → 0..AVATAR_GRADIENTS.length-1 (10 色, v0.3.0728-2 #20).
  * 用于 SettlementRow (payer_id / payee_id) + SettleTransferPath (from_member_id / to_member_id).
  * 不要求 cryptographically unique — 只用于跨 session 跨 render 给同 member 稳定颜色.
  */

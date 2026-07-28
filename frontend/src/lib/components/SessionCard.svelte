@@ -556,7 +556,7 @@
         {#if hasAvatars}
           {#each (session.avatars ?? []).slice(0, MAX_AVATARS) as avatar, i (i)}
             <span
-              class="avatar-mini palette-{i % 5}"
+              class="avatar-mini palette-{i % 10}"
               aria-label={avatar.name}
               title={avatar.name}>{avatar.initial}</span>
           {/each}
@@ -565,7 +565,7 @@
           {/if}
         {:else}
           {#each Array(displayAvatars) as _, i (i)}
-            <span class="avatar-mini palette-{i % 5}" aria-hidden="true"></span>
+            <span class="avatar-mini palette-{i % 10}" aria-hidden="true"></span>
           {/each}
           {#if overflowCount > 0}
             <span class="avatar-mini avatar-mini-overflow" aria-label="还有 {overflowCount} 个成员">+{overflowCount}</span>
@@ -953,6 +953,22 @@
   }
   .avatar-mini.palette-4 {
     background: linear-gradient(135deg, rgba(96, 165, 250, 0.88), rgba(59, 130, 246, 0.88));
+  }
+  /* v0.3.0728-2 #20 解冻: 5 → 10 扩色 (palette-5..9) — 跟 v0.3.0728-2 #20 字段级同 */
+  .avatar-mini.palette-5 {
+    background: linear-gradient(135deg, rgba(244, 63, 94, 0.88), rgba(217, 70, 239, 0.88));
+  }
+  .avatar-mini.palette-6 {
+    background: linear-gradient(135deg, rgba(132, 204, 22, 0.88), rgba(34, 197, 94, 0.88));
+  }
+  .avatar-mini.palette-7 {
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.88), rgba(59, 130, 246, 0.88));
+  }
+  .avatar-mini.palette-8 {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.88), rgba(236, 72, 153, 0.88));
+  }
+  .avatar-mini.palette-9 {
+    background: linear-gradient(135deg, rgba(249, 115, 22, 0.88), rgba(239, 68, 68, 0.88));
   }
   .avatar-mini-overflow {
     background: #d1d5db !important;

@@ -325,7 +325,7 @@
                   data-testid="member-pick-row"
                   data-has-email={hasEmail(slot) ? '1' : '0'}
                 >
-                  <span class="slot-avatar palette-{i % 7}" aria-hidden="true">{avatarLetter(slot.display_name)}</span>
+                  <span class="slot-avatar palette-{i % 10}" aria-hidden="true">{avatarLetter(slot.display_name)}</span>
                   <span class="slot-info">
                     <span class="member-nickname slot-nickname">{slot.display_name}</span>
                     {#if hasEmail(slot)}
@@ -483,6 +483,10 @@
   .palette-4 { background: linear-gradient(135deg, rgba(96, 165, 250, 0.88) 0%, rgba(59, 130, 246, 0.88) 100%); }
   .palette-5 { background: linear-gradient(135deg, rgba(168, 85, 247, 0.88) 0%, rgba(236, 72, 153, 0.88) 100%); }
   .palette-6 { background: linear-gradient(135deg, rgba(34, 197, 94, 0.88) 0%, rgba(16, 185, 129, 0.88) 100%); }
+  /* v0.3.0728-2 #20 解冻: 5 → 10 扩色 (palette-7..9) — 跟 SessionCard avatar-mini 字段级同 */
+  .palette-7 { background: linear-gradient(135deg, rgba(14, 165, 233, 0.88) 0%, rgba(59, 130, 246, 0.88) 100%); }
+  .palette-8 { background: linear-gradient(135deg, rgba(139, 92, 246, 0.88) 0%, rgba(236, 72, 153, 0.88) 100%); }
+  .palette-9 { background: linear-gradient(135deg, rgba(249, 115, 22, 0.88) 0%, rgba(239, 68, 68, 0.88) 100%); }
   .slot-info {
     display: flex;
     flex-direction: column;
