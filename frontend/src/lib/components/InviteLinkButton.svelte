@@ -25,6 +25,13 @@
     * 弹窗关闭行为不变 (Esc / backdrop click / 知道了 全 OK)
     * URL chip click → 重新复制 invite URL
 
+  v0.3.0728-2 #4 — UAT 0728-2 #4: QR code 点击保存 PNG.
+    * QR <img> 加 onclick → fetch(qrDataUrl) → blob → URL.createObjectURL → anchor.download="账本二维码.png".
+    * 视觉提示: cursor pointer + hover opacity 0.92 + active scale 0.98 + focus ring.
+    * 键盘可达: role="button" + tabindex="0" + onkeydown (Enter/Space) 同样触发下载.
+    * toast 反馈: 成功 "二维码已保存" / 失败 "保存失败,请长按图片手动保存".
+    * 反 #121 自决 — 不用 file-saver 库, 走原生 fetch + Blob + URL.createObjectURL.
+
   v0.3.37 #5 (PO msg #9309 UAT 0728-1 v2 #5) — 弹窗 4 优化:
     1. 删除右上角 × close button — 删 <button class="sheet-close"> + aria-label + handler.
        保留 sheet-title 左侧空白让标题居中感 (不补 dummy spacer, 视觉对齐靠 text-align center).
@@ -142,6 +149,34 @@
       console.error('[InviteLinkButton] QR generate failed:', e);
       qrError = e?.message ?? 'QR 码生成失败';
       qrDataUrl = '';
+    }
+  }
+
+  /** v0.3.0728-2 #4: download QR code as PNG file.
+   * 当前 qrDataUrl 已经是 base64 PNG data URL (qrcode.toDataURL 输出).
+   * 用 fetch(dataURL) → blob → URL.createObjectURL → anchor download.
+   * 反 #121 自决 — 不引入 file-saver 依赖, 直接走原生 API.
+   * 文件名: "账本二维码.png" (跟 description 描述一致).
+   */
+  async function downloadQrPng(): Promise<boolean> {
+    if (!qrDataUrl) return false;
+    try {
+      const resp = await fetch(qrDataUrl);
+      const blob = await resp.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = '账本二维码.png';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      // 短延迟再 revoke, 给浏览器一点时间触发下载
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+      return true;
+    } catch (e) {
+      console.error('[InviteLinkButton] QR download failed:', e);
+      return false;
     }
   }
 
@@ -389,6 +424,8 @@
       </p>
       {#if qrDataUrl}
         <div class="qr-wrap" data-testid="invite-qr-wrap" aria-label="链接二维码">
+          <!-- v0.3.0728-2 #4: QR image 加 onclick → 触发下载 (PNG, 文件名 "账本二维码.png").
+               cursor: pointer + hover 视觉提示可在 CSS 中调整. -->
           <img
             class="qr-img"
             src={qrDataUrl}
@@ -396,6 +433,24 @@
             width="200"
             height="200"
             data-testid="invite-qr-img"
+            role="button"
+            tabindex="0"
+            aria-label="点击保存二维码"
+            title="点击保存二维码"
+            onclick={async (e) => {
+              e.stopPropagation();
+              const ok = await downloadQrPng();
+              if (ok) toast.success('二维码已保存');
+              else toast.error('保存失败,请长按图片手动保存');
+            }}
+            onkeydown={async (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                const ok = await downloadQrPng();
+                if (ok) toast.success('二维码已保存');
+                else toast.error('保存失败,请长按图片手动保存');
+              }
+            }}
           />
         </div>
       {:else if qrError}
@@ -654,6 +709,19 @@
     border-radius: 4px;
     image-rendering: pixelated;
     image-rendering: -webkit-optimize-contrast;
+    /* v0.3.0728-2 #4: QR 可点击保存 — cursor pointer + 微弱 hover 高光让用户知道可交互. */
+    cursor: pointer;
+    transition: opacity 150ms ease, transform 100ms ease;
+  }
+  .qr-img:hover {
+    opacity: 0.92;
+  }
+  .qr-img:active {
+    transform: scale(0.98);
+  }
+  .qr-img:focus-visible {
+    outline: 2px solid var(--accent-500, #6366f1);
+    outline-offset: 2px;
   }
   .qr-error {
     color: var(--gray-500);
