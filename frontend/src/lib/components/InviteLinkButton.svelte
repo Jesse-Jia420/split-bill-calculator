@@ -118,7 +118,16 @@
   let platform: 'ios' | 'android' | 'desktop' | 'other' = 'other';
   let isStandalone = false;
 
-  /** v0.3.37 #5 #4: detect platform once on mount (UA + standalone check). */
+  /** v0.3.0728-2 #6 (PO 解冻): 捕获 beforeinstallprompt event, 给 Android/Desktop Chrome
+   * 用户 1-click 立即添加到桌面 (vs 之前 "在 Chrome 菜单 (⋮) 中选择「添加到主屏幕」" 多步).
+   * iOS Safari 不支持 beforeinstallprompt, 走 navigator.share() (#3 按钮) 已是天然最短路径.
+   * 事件由浏览器在 PWA installable 条件满足时 (manifest + service worker + HTTPS + engagement heuristic)
+   * 触发, 我们 preventDefault 阻止 Chrome 默认 mini-infobar, 留住事件 + 自己 prompt.
+   * Type: BeforeInstallPromptEvent (non-standard, 所有实现都是 {prompt(), userChoice Promise}). */
+  let installPromptEvent: any = null;
+
+  /** v0.3.37 #5 #4: detect platform once on mount (UA + standalone check).
+   * v0.3.0728-2 #6: 同时注册 beforeinstallprompt event listener + cleanup. */
   onMount(() => {
     if (typeof navigator === 'undefined' || typeof window === 'undefined') return;
     const ua = navigator.userAgent || '';
@@ -135,7 +144,43 @@
     isStandalone = window.matchMedia?.('(display-mode: standalone)').matches ||
       // @ts-ignore
       window.navigator.standalone === true;
+
+    // v0.3.0728-2 #6: 捕获 beforeinstallprompt event
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault(); // 阻止 Chrome 默认 mini-infobar
+      installPromptEvent = e;
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
   });
+
+  /** v0.3.0728-2 #6: 1-click 立即添加到桌面 (Android/Desktop Chrome 走原生 install dialog).
+   * 流程: installPromptEvent.prompt() → 浏览器弹原生 install dialog → user 接受 / 拒绝
+   * → userChoice Promise resolve {outcome: 'accepted' | 'dismissed'} → toast 反馈.
+   * 一次性: prompt 之后 event 失效, 清空 installPromptEvent 状态. */
+  async function handleOneClickInstall() {
+    if (!installPromptEvent) return;
+    const evt = installPromptEvent;
+    installPromptEvent = null; // 一次性, 避免重复触发
+    evt.prompt();
+    try {
+      const choice = await evt.userChoice;
+      if (choice?.outcome === 'accepted') {
+        toast.success('已添加到桌面');
+      } else {
+        toast.info('已取消添加到桌面');
+      }
+    } catch (e: any) {
+      console.warn('[InviteLinkButton] install prompt failed:', e);
+      toast.error('添加失败, 请重试');
+    }
+  }
+
+  /** v0.3.0728-2 #6: 派发 'install' 事件给 parent (跟 copy/open 同步状态, retain consistency). */
+  // (no extra dispatch needed — handleOneClickInstall already toasts locally)
 
   /** v0.3.1: copy the SESSION URL (not the invite URL). */
   $: inviteUrl =
@@ -490,6 +535,24 @@
       <p class="invite-modal-sub" data-testid="invite-confirm-sub">
         请妥善保管,链接可<strong>随时打开</strong>。
       </p>
+      <!-- v0.3.0728-2 #6 (PO 解冻): 1-click 立即添加到桌面 (Android/Desktop Chrome).
+           仅在 beforeinstallprompt event 被捕获时 (PWA installable 满足) 显示.
+           iOS Safari 不支持此 event, 走 #3 按钮 navigator.share() 已经是天然最短路径.
+           视觉: 1 个 prominent CTA button (gradient indigo→purple, 跟 btn-primary 同族),
+           放最显眼位置 (sub copy 之后, QR 之前), 让用户 1 click 直接触发 native install dialog. -->
+      {#if !isStandalone && installPromptEvent}
+        <button
+          type="button"
+          class="install-btn"
+          onclick={handleOneClickInstall}
+          data-testid="invite-install-btn"
+          aria-label="立即添加到桌面"
+          title="立即添加到桌面"
+        >
+          <svelte:component this={PlusSquare} size={18} strokeWidth={2.4} color="currentColor" />
+          <span>立即添加到桌面</span>
+        </button>
+      {/if}
       {#if qrDataUrl}
         <div class="qr-wrap" data-testid="invite-qr-wrap" aria-label="链接二维码">
           <!-- v0.3.0728-2 #4: QR image 加 onclick → 触发下载 (PNG, 文件名 "账本二维码.png").
@@ -605,12 +668,48 @@
     gap: var(--space-1);
     align-items: flex-end;
   }
-  /* v0.3.16 #8 (PO msg 19:26): 加 .glass-pill 玻璃化 */
-  .invite-btn {
-    transition: transform 150ms ease, background 150ms ease, box-shadow 150ms ease, color 150ms ease;
+  /* v0.3.0728-2 #6: 1-click 立即添加到桌面 CTA (Android/Desktop Chrome).
+     视觉: 全宽 44px, gradient indigo→purple (跟 .btn-primary 同族),
+     inset highlight + drop shadow 让按钮有浮起感, 跟 iOS native install sheet 视觉一致.
+     反 #155 自决 (新增视觉 CTA, 复用现有 primary token — 不是新 design language):
+     1 个 button, 1 个 icon (PlusSquare), 1 行中文, 跟 v0.3.37 #5 #4 全站 glass 设计继承. */
+  .install-btn {
+    width: 100%;
+    height: 44px;
+    padding: 0 16px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.95) 0%, rgba(168, 85, 247, 0.95) 100%);
+    border: 0;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.25),
+      0 4px 12px rgba(99, 102, 241, 0.30);
+    transition: background 150ms ease, transform 100ms ease, box-shadow 150ms ease;
+    -webkit-tap-highlight-color: transparent;
   }
-  .invite-btn:active {
+  .install-btn:hover {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 1) 0%, rgba(168, 85, 247, 1) 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.4),
+      0 6px 16px rgba(99, 102, 241, 0.36);
+  }
+  .install-btn:active {
     transform: scale(0.97);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.18),
+      0 2px 8px rgba(99, 102, 241, 0.24);
+  }
+  .install-btn:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.6);
+    outline-offset: 2px;
   }
   .invite-btn.copied {
     background: linear-gradient(
