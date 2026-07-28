@@ -856,12 +856,15 @@
                                  仅作用在 "xx 付" 这 2 字符上. -->
                             <span class="bill-meta-text">{fmtBillTime(b.occurred_at)} · </span><span class="bill-meta-text" style="color: {payerColor(b)};">{payerName(b)} 付</span>
                           </span>
-                          {#if share !== null}
-                            <!-- v0.3.27 (UAT 0723-2 #5): 「只有个人消费」账单 (billExclusiveTotal(b) >= b.amount, 没共享份额)
-                                 强制展示「分摊 0.00」, 让二行结构统一 (个人消费 + 分摊 永远同时出现). -->
-                            {@const isOnlyExclusive = billExclusiveTotal(b) >= Number(b.amount)}
-                            <span class="your-share">分摊 {fmtAmount(isOnlyExclusive ? 0 : share)}<span class="unit">{b.currency}</span></span>
-                          {/if}
+                          <!-- v0.3.0728-2 #12 — UAT 0728-2 #12 bill item 没分摊时显 "分摊 0" (PO msg 16:50).
+                               原 {#if share !== null} 条件限制只在 user 是 participant 时才显 — 但 own_share = 0 (user is participant 但 share_amount = 0)
+                               也需展示. v0.3.36 #8 个人消费 0 总显 ("个人消费 0.00 CNY") 已实施, 但 分摊 0 在某些 edge case (user 是 participant + share = 0)
+                               需同样总显.
+                               修法: 不再用 {#if share !== null}, 改为总是渲染. own_share = 0 → fmtAmount(0) = "0.00" → "分摊 0.00 CNY".
+                               share === null (user 不是 participant) 也补 0 — 跟 #8 同模式 "总显". -->
+                          {@const displayShare = share ?? 0}
+                          {@const isOnlyExclusive = billExclusiveTotal(b) >= Number(b.amount)}
+                          <span class="your-share">分摊 {fmtAmount(isOnlyExclusive ? 0 : displayShare)}<span class="unit">{b.currency}</span></span>
                         </div>
                       </div>
                     </li>
