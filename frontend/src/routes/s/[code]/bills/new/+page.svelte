@@ -17,8 +17,17 @@
   import LoadingOverlay from '$components/LoadingOverlay.svelte';
   import { toast } from '$stores/toast';
 
-  let session: SessionDetail | null = null;
-  let loading = true;
+  // v0.3.36 #9 — UAT 0728-1 #9 (PO 反馈 "账单编辑创建页目前打不开了"):
+  // commit 589ca59 (UAT 0727-1 #8 sub-route) 把该文件改 runes mode (`<script lang="ts">` 头
+  // 隐含进 Svelte 5 strict mode) 但把所有 reassigned vars 都改成 plain `let` — 原 `$state(true)`
+  // / `$state(null)` 都退化成 `let`. runes mode 下 plain `let` 不触发响应式更新, 后果:
+  // `loading = false` 写入后 `{#if loading}` 模板不更新 → 页面永远卡在 "加载账单..." LoadingOverlay.
+  // 修法: 11 个 reassigned vars 加 `$state()` 包装 (跟 v0.3.36 #15 settle/+page.svelte 同源修复).
+  // 注意: 跟 v0.3.36 follow-up #2 的 `on:close` component event listener 还不同 — `on:close`
+  // 是组件 createEventDispatcher 派发的事件, 必须保留 `on:close=` syntax (组件 import on:close
+  // 拦截). 但 plain `let session/loading/...` 是 template 读响应式的局部 state, 必须用 $state().
+  let session: SessionDetail | null = $state(null);
+  let loading = $state(true);
 
   // v0.1.2 (T19): pass this into BillForm so the payer dropdown
   // defaults to the caller's own SessionMember.id in this session.
