@@ -700,6 +700,11 @@
                 <ul class="day-bills">
                   {#each g.bills as b, bi (b.id)}
                     {@const share = yourShare(b, currentUserMemberId)}
+                    <!-- v0.3.0728-2 #12: 分摊 0 总显 (跟 #8 同模式). displayShare = share ?? 0,
+                         isOnlyExclusive = billExclusiveTotal(b) >= b.amount (硬护 wrap 个人消费全额独占场景).
+                         两个 const 在 each 顶级 (跟 share = yourShare(...), rowOffset = ... 同源), 模板内可访问. -->
+                    {@const displayShare = share ?? 0}
+                    {@const isOnlyExclusive = billExclusiveTotal(b) >= Number(b.amount)}
                     <!-- v0.3.16 #11 (PO msg 21:07): swipe 动画重做 — bill info 不动,
                          按钮随 --swipe-progress 从 0 → 80px clip-path 展开 -->
                     <!-- v0.3.16 #13 (PO msg 23:56 续): 改用 $store auto-subscription
@@ -857,13 +862,11 @@
                             <span class="bill-meta-text">{fmtBillTime(b.occurred_at)} · </span><span class="bill-meta-text" style="color: {payerColor(b)};">{payerName(b)} 付</span>
                           </span>
                           <!-- v0.3.0728-2 #12 — UAT 0728-2 #12 bill item 没分摊时显 "分摊 0" (PO msg 16:50).
-                               原 {#if share !== null} 条件限制只在 user 是 participant 时才显 — 但 own_share = 0 (user is participant 但 share_amount = 0)
+                               原 {#if share !== null} 条件限制只在 user 是 participant 时才显 — 但 own_share = 0 (user 是 participant 但 share_amount = 0)
                                也需展示. v0.3.36 #8 个人消费 0 总显 ("个人消费 0.00 CNY") 已实施, 但 分摊 0 在某些 edge case (user 是 participant + share = 0)
                                需同样总显.
                                修法: 不再用 {#if share !== null}, 改为总是渲染. own_share = 0 → fmtAmount(0) = "0.00" → "分摊 0.00 CNY".
                                share === null (user 不是 participant) 也补 0 — 跟 #8 同模式 "总显". -->
-                          {@const displayShare = share ?? 0}
-                          {@const isOnlyExclusive = billExclusiveTotal(b) >= Number(b.amount)}
                           <span class="your-share">分摊 {fmtAmount(isOnlyExclusive ? 0 : displayShare)}<span class="unit">{b.currency}</span></span>
                         </div>
                       </div>
