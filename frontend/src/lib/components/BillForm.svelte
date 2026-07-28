@@ -18,8 +18,10 @@
   import type { SessionDetail } from '$api/sessions';
   import type { Bill } from '$api/bills';
   import { evaluateExpression } from '$api/calculator';
-  // v0.3.0728-2 #13 — currencySymbol import 已删 (不再用, pill 内改显 currency code CNY/THB).
+  // v0.3.0728-3 #7 (PO msg 2026-07-28 batch 新批 #7) — reverse v0.3.0728-2 #13: 重新 import currencySymbol,
+  // pill 内从显 currency code (CNY/THB) 改回 currency symbol (¥). 简洁货币符号 跟人物选框 (member picker) 一致.
   import { ApiError } from '$api/client';
+  import { currencySymbol } from '$lib/utils/currency';
   import { toast } from '$stores/toast';
   // v0.3.36 #12 — UAT 0728-1 #12 (PO 字面 "已结算记录头像样式应跟成员 section 一致"):
   // 改用共享 lib/utils/palette.ts (跟 SessionMemberList + SettlementRow + SettleTransferPath 4 处统一 source).
@@ -833,7 +835,7 @@
                 data-testid={`ppts-chip-${m.id}`}
                 data-state="shared"
               >
-                <span class="pill-currency" aria-hidden="true">{currency}</span>
+                <span class="pill-currency" aria-hidden="true">{currencySymbol(currency)}</span>
                 <span class="pill-label">个人消费</span>
               </button>
             {/if}
@@ -1109,15 +1111,15 @@
     min-width: 28px;
     background: transparent;
     border: 0;
-    padding: 0 4px;
-    font-size: 11px;
+    padding: 0 2px;
+    font-size: 13px;
     font-weight: 500;
     color: var(--gray-500, #64748b);
     cursor: pointer;
     line-height: 1;
     font-family: inherit;
     font-variant-numeric: tabular-nums;
-    letter-spacing: 0.02em;
+    letter-spacing: 0;
   }
   /* v0.3.20 #93 (Fix 2): exclusive pill-currency accent-600 -> accent-700 (deeper indigo) 配新玻璃 bg 0.18 */
   .excl-pill-exclusive .pill-currency {

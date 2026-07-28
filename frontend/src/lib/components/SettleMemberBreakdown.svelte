@@ -44,8 +44,10 @@
   import { scale, fly, fade, slide } from 'svelte/transition';
   import { getSettle } from '$api/settle';
   import { formatMoney, formatDate } from '$lib/utils/format';
+  import { currencySymbol } from '$lib/utils/currency';
   import { tweenNumber } from '$lib/utils/tween';
-  // v0.3.0728-2 #13 — UAT 0728-2 #13 currencySymbol import 已删 (不再用).
+  // v0.3.0728-3 #7 (PO msg 2026-07-28 batch 新批 #7) — reverse v0.3.0728-2 #13: 重新 import currencySymbol,
+  // 人物选框 chip-net / chip-net-line 改回 ¥ currency symbol (简洁货币符号).
   import { toast } from '$stores/toast';
   import SkeletonBill from '$components/SkeletonBill.svelte';
   import { Search, X } from 'lucide-svelte';
@@ -426,7 +428,7 @@
                     class:pos={bucket.net > 0}
                     class:neg={bucket.net < 0}
                   class:zero={bucket.net === 0}
-                  >{fmtSigned(bucket.net)} {cur}</div>
+                  >{fmtSigned(bucket.net)} {currencySymbol(cur)}</div>
                 {/each}
               {:else}
                 <div
@@ -434,7 +436,7 @@
                   class:pos={m.net > 0}
                   class:neg={m.net < 0}
                   class:zero={m.net === 0}
-                >{fmtSigned(m.net)} {session.primary_currency}</div>
+                >{fmtSigned(m.net)} {currencySymbol(session.primary_currency)}</div>
               {/if}
             </div>
           </button>
