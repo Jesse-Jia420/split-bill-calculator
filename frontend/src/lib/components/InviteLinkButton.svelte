@@ -3,9 +3,7 @@
 
   v0.1.2 反馈修 6 + v0.2.1 UI rev — 邀请按钮 stopPropagation (避免触发 members header 折叠).
 
-  v0.3.15 (PO #4807 + Designer 报告) — 清理死代码:
-  - 删 `let error: string | null = null` (声明后从未赋值)
-  - 删 `<div class="error">{error}</div>` 模板 (永远不显示)
+  v0.3.15 (PO #4807 + Designer 报告) — 清理死代码.
 
   v0.3.22 #122 (PO msg 15:38 #8025) — 按钮文案 "邀请" → "账本链接/邀请".
 
@@ -17,26 +15,49 @@
 
   v0.3.36 #5 (UAT 0728-1 #5, PO 字面 "邀请链接复制弹窗中的文字字号要适当增大, 你可以请 design agent 重新设计一下这里")
     — 弹窗成功态改 success-card 形态 (PO 拍 mockup 3) + QR code 自动生成:
-    * 顶部 64×64 绿色玻璃 ✓ icon (linear-gradient emerald 0.20→0.14 + 4-layer glass shadow)
-    * 主标题 "账本链接已复制" 17px (lg, font-weight 600, letter-spacing -0.01em)
-    * 副标题 15px (base) 一行, 关键动词加粗
-    * URL preview chip (subtle indigo 玻璃: bg rgba(99,102,241,0.06) + border 1px dashed indigo 0.30)
-    * "可用于 回到此账本 / 邀请他人" 用两列微型 chip 而非长句, 视觉更清晰
-    * QR code (~200×200, 居中, white padding 12px + border-radius 12px + bg 白色) — 用 npm `qrcode`
-      库 `toDataURL(text)` 生成, 嵌在 sub 跟 url-chip 中间. 反 #121 自决选 lib (qrcode vs qrcode-generator)
-      选 qrcode — 稳定, canvas 输出, TS 支持, 比 qrcode-generator 大但 QR 视觉稳定性更好.
-    * "知道了" 按钮 → manual dismiss (跟 AddSettlementSheet cta-row btn-primary 同款)
-    * 弹窗关闭行为不变 (跟 v0.3.36 #16 + 之前的 auto-close 行为一致 — Esc / backdrop click / 知道了 全 OK)
-    * URL chip click → 重新复制 invite URL (二次复制便利, e.g. user 第一次没保存)
+    * 顶部 64×64 绿色玻璃 ✓ icon
+    * 主标题 "账本链接已复制" 17px
+    * 副标题 15px, 关键动词加粗
+    * URL preview chip (subtle indigo 玻璃)
+    * "可用于 回到此账本 / 邀请他人" 用两列微型 chip
+    * QR code (~200×200, 居中)
+    * "知道了" 按钮 → manual dismiss
+    * 弹窗关闭行为不变 (Esc / backdrop click / 知道了 全 OK)
+    * URL chip click → 重新复制 invite URL
 
-  注: 跟 v0.3.36 #6 + #17 兼容 — 保留 currentColor XIcon (防 anti-aliasing 隐形) + CurrencyAddModal 同款 backdrop token.
+  v0.3.37 #5 (PO msg #9309 UAT 0728-1 v2 #5) — 弹窗 4 优化:
+    1. 删除右上角 × close button — 删 <button class="sheet-close"> + aria-label + handler.
+       保留 sheet-title 左侧空白让标题居中感 (不补 dummy spacer, 视觉对齐靠 text-align center).
+    2. iOS sheet drag-down → dismiss:
+       - touchstart 记录 sheetTopY + sheetHeight (调 use:portal 后 sheet 在 body 末尾)
+       - touchmove deltaY > 0 → sheet `transform: translateY(deltaY)px`, backdrop alpha = 1 - min(1, deltaY / sheetHeight)
+       - deltaY > sheetHeight × 0.3 → closeModal (跟手下滑)
+       - deltaY < 0 (上滑) → rubber band: transform: translateY(deltaY/3)px + scale(1 - |deltaY|/2000) 轻微反馈
+       - threshold < 0.3 → touchend 时回弹 (transition: transform 280ms cubic-bezier(0.32, 0.72, 0, 1), transform: none)
+       - Playwright iPhone 13 touch sequence 模拟下滑 → sheet dismiss 验证
+    3. 删 .use-row + .use-chip HTML + CSS (回到此账本 + 邀请他人 两列 chip).
+       替换为 PWA 引导 row (下面 #4).
+    4. 浏览器 PWA "添加到桌面" + 浏览器快捷邀请他人引导 (新功能):
+       - Platform detection (navigator.userAgent + window.matchMedia):
+         * iOS Safari (UA 含 "iPhone" + "Safari"): "在 Safari 点 [分享] 按钮 → 添加到主屏幕"
+         * Android Chrome (UA 含 "Android" + "Chrome"): "在 Chrome 菜单 (⋮) → 添加到主屏幕"
+         * Desktop Chrome/Edge (UA 含 "Chrome" + 非 mobile): "点击地址栏右侧 [安装] 图标"
+         * 其他 fallback: "在浏览器菜单中添加到桌面"
+       - Web Share API `navigator.share({url, title})` mobile + 复制链接 fallback desktop.
+         注: Web Share API 只在 HTTPS + secure context 才能调, 失败 fallback 走 navigator.clipboard.writeText.
+       - 视觉: 跟 success-card 同款玻璃 (rgba(15,23,42,0.04) bg + 1px solid rgba(15,23,42,0.06) border),
+         2 行短文案 + 图标 (lucide) + 主行动按钮. 整体在 sheet-body 末尾 (QR + url-chip 之后).
+       - 跟 modalOpen 同步: modal 关 → 不再显示 PWA row.
+
+  注: 跟 v0.3.36 #6 + #17 兼容 — 保留 currentColor XIcon (实际已被 v0.3.37 删, 但 XIcon import 保留防止 unused 警告).
+      PWA 引导用 lucide-svelte 新增 icons (Share2, MoreVertical, PlusSquare, Download).
 -->
 <script lang="ts">
-  import { X as XIcon } from 'lucide-svelte';
+  import { X as XIcon, Share2, MoreVertical, PlusSquare, Download } from 'lucide-svelte';
   import QRCode from 'qrcode';
   import { toast } from '$stores/toast';
   import { portal } from '$lib/actions/portal';
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount } from 'svelte';
 
   /** v0.3.36 #16: dispatch 'copy' on successful clipboard write, 'open' on modal opens. */
   const dispatch = createEventDispatcher<{ copy: void; open: void }>();
@@ -61,6 +82,36 @@
   /** v0.3.36 #5: QR generate loading/error 状态 (rare failure fallback). */
   let qrError: string | null = null;
 
+  /** v0.3.37 #5 #2: drag-down dismiss state. */
+  let sheetEl: HTMLDivElement | null = null;
+  let dragStartY = 0;
+  let dragging = false;
+  let dragDeltaY = 0;
+  let sheetHeight = 0;
+
+  /** v0.3.37 #5 #4: platform detection state (mobile / iOS / android / desktop). */
+  let platform: 'ios' | 'android' | 'desktop' | 'other' = 'other';
+  let isStandalone = false;
+
+  /** v0.3.37 #5 #4: detect platform once on mount (UA + standalone check). */
+  onMount(() => {
+    if (typeof navigator === 'undefined' || typeof window === 'undefined') return;
+    const ua = navigator.userAgent || '';
+    const isiPhone = /iPhone/i.test(ua) && /Safari/i.test(ua) && !/CriOS|FxiOS|EdgiOS/i.test(ua);
+    const isAndroid = /Android/i.test(ua) && /Chrome/i.test(ua) && !/EdgA|EdgiOS/i.test(ua);
+    const isDesktopChrome = !/Mobile|iPhone|iPad|Android/i.test(ua) && /Chrome|Edg/i.test(ua);
+    if (isiPhone) platform = 'ios';
+    else if (isAndroid) platform = 'android';
+    else if (isDesktopChrome) platform = 'desktop';
+    else platform = 'other';
+
+    // 检测是否已经添加到桌面 (standalone mode), 已经是 PWA 就不显示引导
+    // @ts-ignore — standalone 是 non-standard 但 Safari/Chrome 都支持
+    isStandalone = window.matchMedia?.('(display-mode: standalone)').matches ||
+      // @ts-ignore
+      window.navigator.standalone === true;
+  });
+
   /** v0.3.1: copy the SESSION URL (not the invite URL). */
   $: inviteUrl =
     typeof window !== 'undefined'
@@ -79,12 +130,12 @@
     qrError = null;
     try {
       qrDataUrl = await QRCode.toDataURL(text, {
-        errorCorrectionLevel: 'M', // Medium ~15% 容错 (URL 长度 < 200 char 完全够)
-        margin: 2, // qrcode lib margin 是 module count, 2 = 留白 ~ 4 modules (12-14px 视觉清晰)
-        width: 240, // 240 = 200 logical * 1.2 (retina clarity, 实际 CSS 显示 200×200)
+        errorCorrectionLevel: 'M',
+        margin: 2,
+        width: 240,
         color: {
-          dark: '#0f172a', // slate-900, 跟设计 token 同源
-          light: '#ffffff', // 白底, 跟 mockup 一致
+          dark: '#0f172a',
+          light: '#ffffff',
         },
       });
     } catch (e: any) {
@@ -94,7 +145,7 @@
     }
   }
 
-  /** v0.3.24 #14: extract copy logic for readability (原内联在 handleInviteClick). */
+  /** v0.3.24 #14: extract copy logic for readability. */
   async function copyToClipboard(url: string): Promise<boolean> {
     let ok = false;
     try {
@@ -106,7 +157,6 @@
       ok = false;
     }
     if (!ok) {
-      // Fallback: 隐藏 input + execCommand('copy')
       try {
         const ta = document.createElement('textarea');
         ta.value = url;
@@ -132,17 +182,13 @@
     const ok = await copyToClipboard(url);
 
     if (ok) {
-      // v0.3.24 #14: 成功 → 弹 confirm modal 而非 toast
       modalOpen = true;
-      // v0.3.36 #16: dispatch copy + open events for parent
       dispatch('copy');
       dispatch('open');
     } else {
-      // 失败仍走 toast.error 兜底
       toast.error('复制失败,请手动选中链接');
     }
 
-    // v0.3.1 (PO Bug #4): show "已复制" for 10s then reset to "邀请".
     copied = true;
     if (resetTimer) clearTimeout(resetTimer);
     resetTimer = setTimeout(() => {
@@ -151,7 +197,7 @@
     }, 10000);
   }
 
-  /** v0.3.36 #5: URL chip click → 重新复制 invite URL (二次复制便利, 跟初始复制同 source). */
+  /** v0.3.36 #5: URL chip click → 重新复制 invite URL. */
   async function handleUrlChipClick(e: MouseEvent) {
     e.stopPropagation();
     if (!inviteUrl) return;
@@ -164,9 +210,43 @@
     }
   }
 
+  /** v0.3.37 #5 #4: PWA 引导行动 — Web Share API (mobile) 或复制链接 (desktop fallback). */
+  async function handlePwaAction() {
+    if (!inviteUrl) return;
+    // 优先 Web Share API (mobile + Chrome desktop 都支持)
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      try {
+        await navigator.share({
+          title: '账本链接',
+          text: '邀请你加入账本',
+          url: inviteUrl,
+        });
+        dispatch('copy');
+        return;
+      } catch (e: any) {
+        // user cancel → AbortError, 不弹错误; 真错 (TypeError 等) → fallback
+        if (e?.name !== 'AbortError') {
+          console.warn('[InviteLinkButton] Web Share failed, falling back:', e);
+        } else {
+          return; // user 主动取消
+        }
+      }
+    }
+    // fallback: 复制链接 + toast
+    const ok = await copyToClipboard(inviteUrl);
+    if (ok) {
+      toast.success('链接已复制, 可粘贴分享');
+      dispatch('copy');
+    } else {
+      toast.error('分享失败,请手动复制链接');
+    }
+  }
+
   /** v0.3.24 #14: manual close (知道了 / Esc / backdrop click). */
   function closeModal() {
     modalOpen = false;
+    dragDeltaY = 0;
+    dragging = false;
   }
 
   /** v0.3.24 #14: Esc 关闭 modal. */
@@ -178,6 +258,68 @@
   function handleBackdropClick(e: MouseEvent) {
     if (e.target === e.currentTarget) closeModal();
   }
+
+  /** v0.3.37 #5 #2: drag-down dismiss — touch sequence. */
+  function handleTouchStart(e: TouchEvent) {
+    if (!sheetEl) return;
+    const t = e.touches[0];
+    if (!t) return;
+    dragStartY = t.clientY;
+    dragging = true;
+    sheetHeight = sheetEl.getBoundingClientRect().height;
+  }
+
+  function handleTouchMove(e: TouchEvent) {
+    if (!dragging || !sheetEl) return;
+    const t = e.touches[0];
+    if (!t) return;
+    const deltaY = t.clientY - dragStartY;
+    dragDeltaY = deltaY;
+    // 下滑 (deltaY > 0) → 跟手下滑
+    // 上滑 (deltaY < 0) → rubber band (减缓 + 轻微 scale 反馈)
+    if (deltaY >= 0) {
+      sheetEl.style.transform = `translateY(${deltaY}px)`;
+      sheetEl.style.transition = 'none';
+    } else {
+      // rubber band: 1/3 反馈 + 极轻微 scale (max -0.025)
+      const rubberY = deltaY / 3;
+      const scale = 1 + Math.max(deltaY, -100) / 4000;
+      sheetEl.style.transform = `translateY(${rubberY}px) scale(${scale})`;
+      sheetEl.style.transition = 'none';
+    }
+  }
+
+  function handleTouchEnd() {
+    if (!dragging || !sheetEl) return;
+    const threshold = sheetHeight * 0.3;
+    if (dragDeltaY > threshold) {
+      // 跟手下滑超过 30% → dismiss
+      closeModal();
+    } else {
+      // 回弹 (transition 280ms 同 sheet 进场)
+      sheetEl.style.transform = '';
+      sheetEl.style.transition = 'transform 280ms cubic-bezier(0.32, 0.72, 0, 1)';
+      // 280ms 后清 transition
+      setTimeout(() => {
+        if (sheetEl) sheetEl.style.transition = '';
+      }, 300);
+    }
+    dragging = false;
+    dragDeltaY = 0;
+  }
+
+  /** v0.3.37 #5 #4: PWA 引导文案 (按平台分). */
+  $: pwaHint = platform === 'ios'
+    ? '在 Safari 点底部分享按钮,选择「添加到主屏幕」'
+    : platform === 'android'
+      ? '在 Chrome 菜单 (⋮) 中选择「添加到主屏幕」'
+      : platform === 'desktop'
+        ? '点击地址栏右侧「安装」图标,添加到桌面'
+        : '在浏览器菜单中选择「添加到桌面」';
+
+  $: pwaIcon = platform === 'ios' ? Share2 : platform === 'android' ? MoreVertical : platform === 'desktop' ? Download : PlusSquare;
+
+  $: pwaButtonLabel = platform === 'desktop' ? '复制链接分享' : '分享账本链接';
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
@@ -202,44 +344,49 @@
 <!-- v0.3.24 #14: 复制成功弹出 confirm modal (manual dismiss).
      v0.3.27 #3 (PO msg 9234 真机截图质问): wrap modal markup 在 `<div use:portal>` host 里.
      v0.3.36 #5 (UAT 0728-1 #5): 弹窗成功态改 success-card 形态 (mockup 3) — check-hero + 标题 + sub + QR + url-chip + use-row + cta-row.
-     内部结构 100% 跟 AddSettlementSheet bottom sheet 同源 (backdrop / sheet-handle / sheet-head / sheet-close / sheet-body / sheet-foot + cta-row + btn-primary). -->
+     v0.3.37 #5 (PO msg #9309 UAT 0728-1 v2 #5): 弹窗 4 优化 —
+       1. 删 sheet-close (× button)
+       2. touch sequence drag-down dismiss (iOS sheet pattern)
+       3. 删 use-row (回到此账本 + 邀请他人 两列 chip)
+       4. 加 PWA 引导 row (添加到桌面 + 分享按钮)
+     内部结构 100% 跟 AddSettlementSheet bottom sheet 同源 (backdrop / sheet-handle / sheet-body / sheet-foot). -->
 <div use:portal data-testid="invite-modal-host">
 {#if modalOpen}
   <div
     class="invite-sheet-backdrop"
     role="presentation"
     onclick={handleBackdropClick}
+    data-testid="invite-sheet-backdrop"
   ></div>
   <div
     class="invite-sheet"
+    class:dragging
     role="dialog"
     aria-modal="true"
     aria-label="账本链接已复制"
     data-testid="invite-confirm-modal"
+    bind:this={sheetEl}
+    ontouchstart={handleTouchStart}
+    ontouchmove={handleTouchMove}
+    ontouchend={handleTouchEnd}
+    ontouchcancel={handleTouchEnd}
   >
     <div class="sheet-handle" aria-hidden="true"></div>
+    <!-- v0.3.37 #5 #1: 删 sheet-close (× button), sheet-head 仅保留居中 title -->
     <div class="sheet-head">
-      <span class="sheet-title">账本链接</span>
-      <button class="sheet-close" type="button" aria-label="关闭" onclick={closeModal}>
-        <!-- v0.3.36 #6 — UAT 0728-1 #6: XIcon 加显式 color="currentColor" 防止 stroke 被 anti-aliasing 隐形 -->
-        <XIcon size={16} strokeWidth={2.4} color="currentColor" />
-      </button>
+      <span class="sheet-title" data-testid="invite-sheet-title">账本链接</span>
     </div>
-    <!-- v0.3.36 #5 success-card: 中心 column, gap 14px (跟 mockup 3 .sheet-body 一致). -->
+    <!-- v0.3.36 #5 success-card: 中心 column, gap 14px -->
     <div class="sheet-body">
-      <!-- 顶部绿色玻璃 ✓ icon (success visual anchor) -->
       <div class="check-hero" aria-hidden="true">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
           <path d="M20 6L9 17l-5-5"/>
         </svg>
       </div>
-      <!-- 主标题 17px (跟 mockup 3 .invite-modal-title 一致) -->
       <p class="invite-modal-title" data-testid="invite-confirm-title">账本链接已复制</p>
-      <!-- 副标题 15px, 关键动词加粗 -->
       <p class="invite-modal-sub" data-testid="invite-confirm-sub">
         请妥善保管,链接可<strong>随时打开</strong>。
       </p>
-      <!-- QR code 200×200 居中, white padding + 12px border-radius + bg 白 -->
       {#if qrDataUrl}
         <div class="qr-wrap" data-testid="invite-qr-wrap" aria-label="链接二维码">
           <img
@@ -254,7 +401,6 @@
       {:else if qrError}
         <div class="qr-wrap qr-error" data-testid="invite-qr-error">二维码加载失败</div>
       {/if}
-      <!-- URL preview chip — subtle indigo 玻璃, click 触发二次复制 (跟初始复制同 source) -->
       <button
         type="button"
         class="url-chip"
@@ -265,17 +411,26 @@
       >
         {inviteUrl}
       </button>
-      <!-- 两列微型 use-case chip (回到此账本 / 邀请他人) -->
-      <div class="use-row">
-        <div class="use-chip">
-          <strong>回到此账本</strong>
-          粘贴到浏览器打开
+
+      <!-- v0.3.37 #5 #4: PWA 引导 row (删 use-row use-chip 后, 替换为此块) -->
+      {#if !isStandalone}
+        <div class="pwa-row" data-testid="invite-pwa-row">
+          <div class="pwa-hint">
+            <svelte:component this={pwaIcon} size={18} strokeWidth={2} color="currentColor" />
+            <span>{pwaHint}</span>
+          </div>
+          <button
+            type="button"
+            class="pwa-btn"
+            onclick={handlePwaAction}
+            data-testid="invite-pwa-btn"
+            aria-label={pwaButtonLabel}
+          >
+            <svelte:component this={pwaIcon} size={14} strokeWidth={2.2} color="currentColor" />
+            <span>{pwaButtonLabel}</span>
+          </button>
         </div>
-        <div class="use-chip">
-          <strong>邀请他人</strong>
-          发给朋友扫码
-        </div>
-      </div>
+      {/if}
     </div>
     <div class="sheet-foot">
       <button type="button" class="btn-primary" onclick={closeModal} data-testid="invite-confirm-btn">
@@ -337,8 +492,7 @@
 
   /* ============================================================
    * v0.3.36 #17 — UAT 0728-1 #17 (PO 字面 "复制弹窗背景跟汇率弹窗完全一致"):
-   * .invite-sheet-backdrop 跟 CurrencyAddModal .sheet-backdrop 字段级同 — bg rgba(15,23,42,0.40)
-   * + blur(4px) saturate(180%) + z-index 50 (跟 CurrencyAddModal 字段级同).
+   * .invite-sheet-backdrop 跟 CurrencyAddModal .sheet-backdrop 字段级同.
    * ============================================================ */
   .invite-sheet-backdrop {
     position: fixed;
@@ -350,7 +504,9 @@
     animation: backdropFadeIn 200ms ease-out;
   }
 
-  /* === Bottom sheet (跟 AddSettlementSheet .sheet 同族, v0.3.35 #5 升级) === */
+  /* === Bottom sheet (跟 AddSettlementSheet .sheet 同族, v0.3.35 #5 升级) ===
+   * v0.3.37 #5 #2: 加 touch-action: pan-y 让浏览器知道此元素可垂直 pan (避免 passive listener 警告 + scroll lock conflict)
+   * + 拖动时 transition:none (inline style 控制 transform) → 跟手反馈流畅 */
   .invite-sheet {
     position: fixed;
     left: 0;
@@ -361,6 +517,7 @@
     max-height: 92vh;
     overflow-y: auto;
     overscroll-behavior: contain;
+    touch-action: pan-y;
     background: rgba(255, 255, 255, 0.92);
     backdrop-filter: saturate(220%) blur(28px);
     -webkit-backdrop-filter: saturate(220%) blur(28px);
@@ -377,6 +534,11 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+    will-change: transform;
+  }
+  .invite-sheet.dragging {
+    /* drag 时 inline style 控制 transform, 这里只保证动画期间 overflow 不被 clip */
+    transition: none !important;
   }
   @keyframes inviteSheetUp {
     from { transform: translateY(100%); }
@@ -387,18 +549,13 @@
       background: rgba(255, 255, 255, 0.96);
     }
     .invite-sheet-backdrop {
-      /* v0.3.36 #17 — 跟 CurrencyAddModal .sheet-backdrop @supports fallback 同款 (0.55) */
       background: rgba(15, 23, 42, 0.55);
     }
   }
 
   /* ============================================================
-   * v0.3.36 #5 (UAT 0728-1 #5, PO 字面 "邀请链接复制弹窗中的文字字号要适当增大,
-   * 你可以请 design agent 重新设计一下这里") — success-card 形态
-   * 设计师自决方案 = mockup 3 (PO 拍板).
-   * 内部结构 100% 跟 AddSettlementSheet bottom sheet 同源
-   * (sheet-handle / sheet-head / sheet-close / sheet-body / sheet-foot / btn-primary),
-   * 只重排 sheet-body 内部 DOM.
+   * v0.3.37 #5: sheet-handle / sheet-head / sheet-title 保留
+   * sheet-close 整个块删掉 (#1)
    * ============================================================ */
   .sheet-handle {
     width: 36px;
@@ -410,7 +567,7 @@
   .sheet-head {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;     /* v0.3.37 #5 #1: 删 close 后 title 居中 */
     padding: 0 4px 12px;
   }
   .sheet-title {
@@ -419,20 +576,6 @@
     color: #171717;
     letter-spacing: -0.01em;
   }
-  .sheet-close {
-    width: 32px;
-    height: 32px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    background: rgba(15, 23, 42, 0.10);
-    color: #525252;
-    border: 0;
-    cursor: pointer;
-    transition: background 150ms ease;
-  }
-  .sheet-close:hover { background: rgba(15, 23, 42, 0.12); }
 
   /* === v0.3.36 #5: sheet-body 改 center column + gap 14px (success-card layout) === */
   .sheet-body {
@@ -463,9 +606,9 @@
   }
   .check-hero svg { color: #047857; }
 
-  /* Main heading — 17px 600 (跟 mockup 3 .invite-modal-title 一致, 跟 AddSettlementSheet sheet-title 同款) */
+  /* Main heading */
   .invite-modal-title {
-    font-size: var(--font-size-lg); /* 17px clamp */
+    font-size: var(--font-size-lg);
     font-weight: 600;
     color: var(--gray-900);
     letter-spacing: -0.01em;
@@ -474,9 +617,9 @@
     margin: 0;
   }
 
-  /* Sub line — 15px 400, 关键动词加粗 */
+  /* Sub line */
   .invite-modal-sub {
-    font-size: var(--font-size-base); /* 15-16px */
+    font-size: var(--font-size-base);
     line-height: 1.5;
     color: var(--gray-700);
     text-align: center;
@@ -488,9 +631,9 @@
     color: var(--gray-900);
   }
 
-  /* QR code wrap — 200×200 + white padding + radius 8px + bg 白 + 浅 border + 微 shadow */
+  /* QR code wrap */
   .qr-wrap {
-    width: 224px;          /* 200 (QR) + 12px × 2 padding = 224 */
+    width: 224px;
     height: 224px;
     padding: 12px;
     border-radius: 12px;
@@ -509,7 +652,7 @@
     width: 200px;
     height: 200px;
     border-radius: 4px;
-    image-rendering: pixelated;       /* 让 QR 像素边缘锐利, 不被浏览器抗锯齿磨掉 */
+    image-rendering: pixelated;
     image-rendering: -webkit-optimize-contrast;
   }
   .qr-error {
@@ -519,7 +662,7 @@
     border-style: dashed;
   }
 
-  /* URL preview chip — subtle indigo 玻璃, click 触发 handleUrlChipClick 二次复制 */
+  /* URL preview chip */
   .url-chip {
     width: 100%;
     padding: 10px 14px;
@@ -547,34 +690,66 @@
     transform: scale(0.99);
   }
 
-  /* Use-case chips — 两列微型 chip */
-  .use-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
+  /* v0.3.37 #5 #3: 删 .use-row + .use-chip (回到此账本 + 邀请他人 两列 chip 整个块删)
+   * 删原因: 之前 #5 success-card 把这两列做视觉装饰, 但实际功能被 v0.3.37 #4 PWA 引导替代 (PWA 引导含"分享账本链接"按钮实际可触达邀请场景) */
+
+  /* ============================================================
+   * v0.3.37 #5 #4: PWA 引导 row
+   * 视觉: 跟 success-card 同款玻璃 (rgba(15,23,42,0.04) bg + 1px solid rgba(15,23,42,0.06) border)
+   * 2 行: 顶部 hint 文案 + 图标 (一行, 12.5px)
+   *      底部主行动按钮 (full width, 玻璃 indigo, 36px 高)
+   * PWA 添加后 (isStandalone=true) → 整个块 hidden
+   * ============================================================ */
+  .pwa-row {
     width: 100%;
-    margin-top: 2px;
-  }
-  .use-chip {
-    padding: 9px 10px;
-    border-radius: 10px;
+    padding: 12px 14px;
+    border-radius: 12px;
     background: rgba(15, 23, 42, 0.04);
     border: 1px solid rgba(15, 23, 42, 0.06);
-    color: var(--gray-700);
-    font-size: 12px;
-    font-weight: 500;
-    text-align: center;
-    line-height: 1.35;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 2px 0 0;
   }
-  .use-chip strong {
-    display: block;
-    font-size: 13px;
+  .pwa-hint {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--gray-700);
+    font-size: 12.5px;
+    line-height: 1.45;
+    font-weight: 500;
+  }
+  .pwa-hint :global(svg) {
+    flex-shrink: 0;
+    color: var(--gray-700);
+  }
+  .pwa-btn {
+    width: 100%;
+    height: 36px;
+    padding: 0 12px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(99, 102, 241, 0.08) 100%);
+    border: 1px solid rgba(99, 102, 241, 0.22);
+    color: var(--accent-700, #4338ca);
+    font-size: 13.5px;
     font-weight: 600;
-    color: var(--gray-900);
-    margin-bottom: 1px;
+    font-family: inherit;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: background 150ms ease, transform 100ms ease;
+  }
+  .pwa-btn:hover {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.18) 0%, rgba(99, 102, 241, 0.12) 100%);
+  }
+  .pwa-btn:active {
+    transform: scale(0.98);
   }
 
-  /* === sheet-foot + cta-row + btn-primary (跟 AddSettlementSheet 同族) === */
+  /* === sheet-foot + btn-primary (跟 AddSettlementSheet 同族) === */
   .sheet-foot {
     display: flex;
     padding: 14px 4px 0;
@@ -616,7 +791,7 @@
     to { opacity: 1; }
   }
 
-  /* === 移动端 375px: 紧凑 padding (跟 v0.3.35 #5 同款) === */
+  /* === 移动端 375px: 紧凑 padding === */
   @media (max-width: 380px) {
     .invite-modal {
       max-width: calc(100vw - 32px);
