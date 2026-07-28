@@ -696,23 +696,27 @@
   </div>
 
   <div>
-    <!-- v0.3.0728-2 #9 — UAT 0728-2 #9 BillForm 8 个预设选项 (PO msg 16:50).
-         PO 拍: 新建账单的说明部分增加快捷预设选项, 点击可快速将选项中的内容替换至说明 input 中.
+    <label class="label" for="desc">说明</label>
+    <!-- v0.3.0728-2 #9 (UAT 0728-2 #9 BillForm 8 个预设选项, PO msg 16:50)
+         + v0.3.0728-3 #4 (PO msg 2026-07-28 batch 新批 #4 "预设选项应放在 说明和说明 input 之间")
+         PO 拍 (0728-2 #9): 新建账单的说明部分增加快捷预设选项, 点击可快速将选项中的内容替换至说明 input 中.
+         PO 拍 (0728-3 #4): 预设选项 chip 排版位置 — 从 "说明 上方" 挪到 "说明 和 说明 input 之间".
          选项 (8 个, 合作记账软件性质): 早餐 / 午餐 / 晚餐 / 交通 / 门票 / 购物 / 房租 / 水电.
          玻璃风 + 全站 .glass-pill 同族. chip horizontal scroll if overflow (iOS Safari overflow-x: auto).
-         click chip → description = preset + descriptionPristine = false + descriptionError = false. -->
-      <div class="preset-row" data-testid="desc-preset-row">
-        {#each DESCRIPTION_PRESETS as preset (preset)}
-          <button
-            type="button"
-            class="preset-chip"
-            onclick={() => applyPreset(preset)}
-            disabled={!canEditDescription}
-            data-testid="desc-preset-{preset}"
-          >{preset}</button>
-        {/each}
-      </div>
-      <label class="label" for="desc">说明</label>
+         click chip → description = preset + descriptionPristine = false + descriptionError = false.
+         位置 (0728-3 #4): DOM order 改 [label → preset-row → input], 视觉 chip 在 label 下方紧贴 input 上方,
+         chip 是 "input 的预设辅助", 跟 input 视觉关联更强 (跟 PO 期望语义一致). -->
+    <div class="preset-row" data-testid="desc-preset-row">
+      {#each DESCRIPTION_PRESETS as preset (preset)}
+        <button
+          type="button"
+          class="preset-chip"
+          onclick={() => applyPreset(preset)}
+          disabled={!canEditDescription}
+          data-testid="desc-preset-{preset}"
+        >{preset}</button>
+      {/each}
+    </div>
     <input
       id="desc"
       type="text"
