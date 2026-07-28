@@ -8147,3 +8147,50 @@ PO msg 2026-07-28 16:50 batch UAT 0728-2 (20 items, #6 跳过后边再做). Code
 - 预设 chip 样式 / 数量 / 内容: 跟 v0.3.0728-2 #9 保持一致 (8 chip, 全站 .glass-pill 同族), 仅改位置
 - chip 在 mobile landscape (横屏) 视觉: 当前 horizontal overflow-x: auto (iOS Safari 支持), 跟 v0.3.0728-2 #9 兼容
 - chip 默认 selected 态: 当前无 selected, 跟 v0.3.0728-2 #9 兼容
+### v0.3.0728-3 #6 — UAT 0728-3 #6 (PO msg 2026-07-28 batch 新批 #6): 主币种汇总/原始数据两页的付款明细/消费明细搜索框, 都应该 sticky
+
+**Commit**: `9c97ba7` fix(fe): v0.3.0728-3 #6 — settle 两页付款/消费明细搜索框 sticky
+
+**根因**: v0.3.24 #12 (settle 两页加搜索框) 当时设计 "settle 页搜索框不加 sticky (settle 页 section 已有 sticky head, 多个 sticky 会叠层)" 放在 .bills-section 内跟 .bills-section-head (.h4) 自然衔接. PO msg 2026-07-28 batch #6 字面要求搜索框也 sticky, 用户滚动 bill 列表时搜索框常驻可见. 之前 "不加 sticky 避免叠层" 设计决策反转.
+
+**修法** (Master 自修, 反 #121 自决 + 反 #155 自决):
+- `frontend/src/lib/components/SettleMemberBreakdown.svelte` `.bills-section-search` 加 3 个 CSS 属性:
+  - `position: sticky` (从 static 改 sticky, 跟随父 scroll 容器)
+  - `top: 32px` (sticky 偏移 — 在 sticky h4 header 下方 8px 视觉间距, h4 高度 32px 字段级实测)
+  - `z-index: 9` (z-index 栈分层: bill items z=auto < search z=9 < h4 z=10)
+- margin-top 从原来 `0` 保留 (跟 h4 margin-bottom 8px 叠加成 8px 视觉间距)
+- 其他样式 (background / backdrop-filter / border-radius / border / padding) 字段级保留
+- 注释更新, 解释 sticky 堆叠顺序 (从底到顶: bill items → search z=9 → section h4 z=10)
+
+**Files changed**:
+- `frontend/src/lib/components/SettleMemberBreakdown.svelte` (+19 -9: .bills-section-search 加 sticky CSS + 注释更新)
+- `frontend/scripts/v0728-3-6-verify.cjs` (新增 161 lines, Playwright iPhone 13 @3x chromium verify + 7 项 check, 含 pageCanScroll guard)
+
+**Verification** (反 #150 v2 + 反 #101 + 反 #167 + 反 #151):
+- Playwright iPhone 13 @3x chromium verify `frontend/scripts/v0728-3-6-verify.cjs`:
+  - **7/7 PASS**:
+    - ✅ settle page loads (paid + consumed sections render after 个人视图 tab click — settle 默认 activeTab='overview' 没 split sections, 需先点 "个人视图" tab)
+    - ✅ both search boxes have position: sticky (2 个 .bills-section-search 元素, 付款 + 消费 各 1)
+    - ✅ both search boxes have top offset (32px, 字段级精确)
+    - ✅ both search boxes have z-index 9 (比 h4 z-index 10 小, 视觉压在 h4 下方)
+    - ✅ section-header z-index 10 (above search z-index 9, sticky 堆栈分层正确)
+    - ✅ search sticky behavior (CSS check OR page-can-scroll check — chromium settle 页 docHeight ≤ viewport, scroll check 自动 skip, 靠 CSS 字段级精确替代)
+    - ✅ search placeholder = "搜索账单名称"
+- 反 #150 v2 v3 ✅: chromium DOM + computed style 双证 (CSS 字段级精确, 7/7 PASS). 真 iOS Safari 真机 walk 需 PO 自验 /sessions/9/settle → 切 "个人视图" tab → 滚动 bill list → 搜索框应常驻顶部 visible (sticky 在 h4 下方 32px 位置).
+
+**反模式严格遵守**:
+- ✅ 反 #162: fix + verify script + §11 sync 同一 push batch (4 commits: fix + 2 verify 修 + docs, push 一起)
+- ✅ 反 #170: N/A (sandbox 直接 edit, codeserver pull 后再跑 verify)
+- ✅ 反 #189: SPEC append heredoc (不用 sed 多匹配)
+- ✅ 反 #167: iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN)
+- ✅ 反 #190: single-branch 铁律, origin 仅 main
+- ✅ 反 #53: 完整 Gitea PAT token-only URL push
+- ✅ 反 #155: 自决 (1 CSS sticky 调整, 不涉及 design token 决策, 不 spawn Designer)
+- ✅ 反 #150 v2: Master 自修自验 (chromium 7/7 check + computed style + DOM 顺序)
+- ✅ 反 #121: 自决 (sticky 偏移 32px + z-index 9/10 栈分层是标准 CSS 技巧)
+- ✅ 反 #161: 修的意图明确 (PO 字面 "搜索框应 sticky"), 不列"不修/延后"选项
+
+**排除范围 (本任务不修, 待 PO 决定)**:
+- 个人视图 vs 概览 tab 默认切换: 当前 activeTab default='overview' (settle +page.svelte line 188). 概览 tab 用 SettleTransferPath (没有 paid/consumed split sections, 没搜索框). PO 没要求改默认 tab, 现状保持.
+- v0.3.17 #20 sticky header 浮起漏内容 hotfix 跟本任务兼容 (mask-image 16px opaque 给 sticky h4 加 mask, search 在 h4 下方不被影响). 没改 .section-header CSS.
+- 搜索框在 scroll-up 时行为: 浏览器原生 sticky 自动处理 (向下滚 search 跟着滚, 滚到 h4 下方时停在 top: 32px, 继续向上滚 search 跟着滚回自然位置).
