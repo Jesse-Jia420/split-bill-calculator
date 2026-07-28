@@ -299,13 +299,20 @@
      改 bottom sheet (跟 AddSettlementSheet 同款). 保留 v0.3.34 #1 backdrop blur 强度 (24/200%/0.45)
      — 比 AddSettlementSheet (4/0.40) 更暗一档, 视觉上还跟 centered modal 一样. z-index 999 跟
      CurrencyAddModal .sheet-backdrop 同一层 (Toast 9999 之下, 普通 modal 999 之上). */
+  /* v0.3.36 #17 — UAT 0728-1 #17 (PO 字面 "复制弹窗背景跟汇率弹窗完全一致"):
+     .invite-sheet-backdrop 跟 CurrencyAddModal .sheet-backdrop 字段级同 — bg rgba(15,23,42,0.40)
+     + blur(4px) saturate(180%) + max-width 480px (在 .invite-sheet 上).
+     原 v0.3.34 #1 强 darkener (24/200%/0.45) 改为 CurrencyAddModal 同款 (4/180%/0.40).
+     z-index 也从 999 降到 50 (跟 CurrencyAddModal .sheet-backdrop 字段级同),
+     让两个弹窗背景完全同 token. (sheet 本身 z-index 仍 1000, 高于 backdrop, 不影响视觉层级.)
+     max-width 480px 在 .invite-sheet 上已存在, 此处不重复. */
   .invite-sheet-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.45);
-    backdrop-filter: blur(24px) saturate(200%);
-    -webkit-backdrop-filter: blur(24px) saturate(200%);
-    z-index: 999;
+    background: rgba(15, 23, 42, 0.40);
+    backdrop-filter: blur(4px) saturate(180%);
+    -webkit-backdrop-filter: blur(4px) saturate(180%);
+    z-index: 50;
     animation: backdropFadeIn 200ms ease-out;
   }
   /* v0.3.35 #5: 形态从 centered modal 改 bottom sheet (跟 AddSettlementSheet 同款).
@@ -346,10 +353,9 @@
       background: rgba(255, 255, 255, 0.96);
     }
     .invite-sheet-backdrop {
-      /* v0.3.29 (UAT 0725-1 #2): 跟 CurrencyAddModal .modal-backdrop fallback 一致 (0.30)
-         (Safari iOS < 18 无 backdrop-filter, fallback bg = 主值 bg, 让两个弹窗 fallback
-         状态也完全相同, 不需要 0.48 让 invite backdrop 更浓液). */
-      background: rgba(0, 0, 0, 0.30);
+      /* v0.3.36 #17 — 跟 CurrencyAddModal .sheet-backdrop @supports fallback 同款 (0.55).
+         改前用 0.30 (跟 CurrencyAddModal 0.55 不同, 不一致). */
+      background: rgba(15, 23, 42, 0.55);
     }
   }
   .invite-modal-msg {
