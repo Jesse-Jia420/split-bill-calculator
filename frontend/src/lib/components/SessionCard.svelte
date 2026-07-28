@@ -659,10 +659,14 @@
    *   让背后仍模糊), brightness 1.04→1.05 (微亮补偿). hover 同步加深到 0.78/0.55. */
   .session-card {
     position: relative;
+    /* v0.3.36 #2 — UAT 0728-1 #2 (PO 字面 "账本 item 透明度再增加一些, 让背景图片的纹理隐约可见"):
+       bg alpha 0.62/0.38 → 0.48/0.24 (-25% / -37%), 让背景纹理更透出来.
+       跟 v0.3.24 #9 玻璃更透路径延续 (0.75/0.50 → 0.62/0.38 → 0.48/0.24).
+       backdrop-filter 仍 saturate(200%) blur(28px) brightness(1.05) — 玻璃语言保持, 只是透明度再降. */
     background: linear-gradient(
       135deg,
-      rgba(255, 255, 255, 0.62) 0%,
-      rgba(255, 255, 255, 0.38) 100%
+      rgba(255, 255, 255, 0.48) 0%,
+      rgba(255, 255, 255, 0.24) 100%
     );
     backdrop-filter: saturate(200%) blur(28px) brightness(1.05);
     -webkit-backdrop-filter: saturate(200%) blur(28px) brightness(1.05);
@@ -702,10 +706,11 @@
    * v0.3.24 #9: hover bg alpha 0.78/0.55 (mockup refined 字面值, 跟 base 0.62/0.38 同步加深). */
   .card-link:hover .session-card {
     transform: translateY(-2px);
+    /* v0.3.36 #2: hover bg alpha 0.78/0.55 → 0.62/0.38 (-25% 跟 base 同步), 跟 v0.3.24 #9 baseline 减路径保持同步. */
     background: linear-gradient(
       135deg,
-      rgba(255, 255, 255, 0.78) 0%,
-      rgba(255, 255, 255, 0.55) 100%
+      rgba(255, 255, 255, 0.62) 0%,
+      rgba(255, 255, 255, 0.38) 100%
     );
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.95),
