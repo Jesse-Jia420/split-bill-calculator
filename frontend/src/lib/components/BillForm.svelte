@@ -786,7 +786,7 @@
                 {/if}
               </span>
               <span class="ppt-avatar" class:dim={!st?.included} aria-hidden="true"
-                style="background: {st?.included ? avatarGradient(i) : 'rgba(160,160,160,0.25)'};">
+                style={st?.included ? avatarGradient(i) : 'background: rgba(160,160,160,0.25)'}>
                 {avatarInitial(m.display_name)}
               </span>
               <span class="ppt-name">{m.display_name}</span>
