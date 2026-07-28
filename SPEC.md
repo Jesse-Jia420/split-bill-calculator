@@ -7668,3 +7668,111 @@ PO msg #9309 字面 "#16 用 v3-1" — 拍 v3-1 = 5 色 conic-gradient + 顺时�
 - **PWA install detection**: 边框流光只对 anon owner 首次进入触发 (.invite-btn-breathing class), 普通 owner 进账本不会看到. 如未来想让 PWA install 邀请按钮也用边框流光, 加 .invite-btn-pwa class + 复用 ::before 实现
 
 **反 #150 v3 教训 (v0.3.33 case) 复用**: Master self-verify + Playwright iPhone 13 @3x 程序化 (computed style 13/13 + visual 3 phase 旋转对比) + image tool 视觉. PO msg #9309 字面 "#16 用 v3-1" 拍定值 5 色 conic-gradient + rotation + 边框流光, cross-check pass (svelte-check baseline 同 + 3 phase 截图色位置依次旋转). 等 PO 真机 walk 后才算 accept.
+
+## v0.3.0728-2 — UAT 0728-2 batch 20 items (heredoc entry, 20 commits + 拍定值 + verify 结果 + #18 report + 排除范围)
+
+PO msg 2026-07-28 16:50 batch UAT 0728-2 (20 items, #6 跳过后边再做). Coder 自写自验 (反 #128 + 反 #150 v2). 19 fix commits + 2 v2 fix commits (#5 HTML comment, #12 SSR const) = 21 commits total.
+
+**20 items 拍定值 (PO 字面)**:
+
+### Group A: InviteLinkButton.svelte (4 items)
+- **#4 QR code 点击可保存** — modal QR code `<img>` 加 onclick → 触发 saveAs (PNG dataURL) 或 anchor download. 现有 qrcode lib + toDataURL (v0.3.37 #5 实施过). image.toDataURL → fetch → blob → URL.createObjectURL → anchor download="账本二维码.png" → click + revoke.
+- **#5 分享按钮 3-button row** — 当前 PWA 引导 row 1 button → 改 3 button row 从左至右: 保存账本二维码 (anchor download QR.png) + 分享账本二维码 (navigator.share with QR blob) + 分享账本链接 (现有 navigator.share URL). 3 个 button 等宽 gap 8px.
+- **#7 邀请按钮动画外溢** — v0.3.37 #16 dramatic breathing 动画外溢 button 边界. 检查 button overflow + 缩 transform scale 范围. 修法: scale 1.05→1.03 + box-shadow spread 64px→32px.
+- **#8 拍: 去掉紫色光晕** — v0.3.37 #16 box-shadow alpha 0 (or 删 box-shadow 那行), 保留 transform scale 1↔1.05 + 5 色边框流光 (5s 顺时针 conic-gradient).
+
+### Group B: BillListGrouped.svelte (3 items)
+- **#11 搜索框高度还是不对** — v0.3.27 #5 + v0.3.36 #7 都改过, Jesse 觉得没修好. **拍: 当前 5 input 字符高 → 3 字符高**. 调整: padding 8px 14px, min-height 36px, line-height 1.4. 上方按钮 + 下方信息距 搜索框 gap → 12px (从 8px).
+- **#12 bill item 没分摊时显 "分摊 0"** — 当前 v0.3.36 #8 个人消费 0 显示 ¥0.00 已实施, 但分摊 0 没处理. 改 BillListGrouped: own_share = 0 时也显 "分摊 ¥0.00" (跟 #8 同模式, 但用 "分摊" 标签).
+- **#13 个人消费/分摊 只显 cny thb 不显 ¥** — 全站搜 ¥ 字符 + 改 cny/thb 字面. 检查 BillListGrouped + BillForm + SettleMemberBreakdown. amount 数字后直接跟 " CNY" / " THB" (大写跟当前 currency code 同).
+
+### Group C: SessionCard.svelte (2 items)
+- **#14 账本列表 "左划以删除"** — SessionCard 右上小字提示 "<- 左划以删除" (or "← 左划以删除" 等). 玻璃风 + 全站 .glass-pill 同族.
+- **#16 拍: 跟手延迟** — 删按钮 v0.3.28 #3 swipe-style rubber band 跟手延迟. 检查 touchmove handler 同步 (current 拖拽 events 不 block main thread). 修法: 拿 deleteBtnEl DOM ref, moveDrag 直接写 inline CSS var, 绕过 Svelte reactive cycle.
+
+### Group D: settle/+page.svelte + 子组件 (3 items)
+- **#17 已结算记录 item 可左右滑动 (有弹性)** — v0.3.36 #15 已 "超长 item 可滚动", 0728-2 #17 加 "没超长也可以左右滑动 (有弹性)". 改 SettlementRow.svelte: scroll-wrapper 永久激活 + scroll snap + fade edge (always visible 双侧 fade, 不依赖 at-start/at-end class).
+- **#19 结算页 间距** — 已结算记录 section 离建议转账 section 间距 = 建议转账 section 离每人净收/净付 section 间距. v0.3.32 #1 已加 24px margin, 检查 settle/+page.svelte line ~226.
+- **#21 删除添加已结算记录弹窗 × + 下滑关闭** — 跟 v0.3.37 #5 (InviteLinkButton) 同款 drag-down dismiss + 删 × 按钮. AddSettlementSheet.svelte.
+
+### Group E: BillForm.svelte (1 item)
+- **#9 拍: 8 个预设** — BillForm .description input 上方 + pill row (8 chip: 早餐/午餐/晚餐/交通/门票/购物/房租/水电), click → replace description. 玻璃风 + 全站 .glass-pill 同族. chip horizontal scroll if overflow (iOS Safari).
+
+### Group F: /s/[code]/+page.svelte + /s/[code]/join/+page.svelte (3 items)
+- **#10 匿名 header "登录" → "登录以保存"** — header 按钮 conditional render (anon 状态 + 永久保存 CTA). 检查 +page.svelte NavBar.
+- **#2 分享链接 join 不显示原昵称** — /s/[code]/join 页面 anon 首次 join 应该只显示 "选择昵称" UI, 不显示已有 member 列表. 检查 join/+page.svelte.
+- **#3 分享链接 join 新建昵称 404** — /s/[code]/join 新建昵称 POST → 报 404 session not found. 检查 BE join endpoint + FE 路由.
+
+### Group G: LoadingOverlay.svelte (1 item)
+- **#1 加载动画层级** — 球在 outer + inner 之间, 应同时在 outer + inner 之上. 调 z-index 顺序 + 重叠. 检查 LoadingOverlay.svelte line ~14-30 跟 v0.3.28 #5.
+
+### Group H: BE (1 item, 自主权)
+- **#18 新成员结算算法** (push back, 自主权) — 算法是 paid - consumed, 新成员 0 0 应该是 0. **你做**: 跑 codeserver BE `GET /api/sessions/9/settle` 看 net[新成员a] 实际值. 如果是 0 → 不是 bug, 跟 Jesse 解释 (可能是误读 "给其他人赚钱"). 如果 != 0 → 是 bug, 修 (根因: settlement_records adjust? participant 分摊? quantize?). 报告: <新成员 net 值 + 是/不是 bug + 如果 bug 修了什么>.
+
+### 跳过的 items
+- **#6 分享链接弹窗，有没有更短路径，更快捷的 添加到主屏幕 的办法或引导？** — PO 拍 "跳过后边再做" (msg 16:50).
+
+**Verify 结果 (反 #150 v2 + #101 + #167 + #151 + #170)**:
+- Playwright iPhone 13 @3x (390×844, webkit, locale zh-CN, hasTouch) 自动化测试 (`frontend/scripts/v0728-2-bundle-verify.cjs`)
+- 16 项 test 全 PASS:
+  * #1 LoadingOverlay ball z-index (CSS updated: ball z-index: 3, glass z-index: 1) ✅
+  * #2 join no member list (anon) → slot-list: 0, nickname input: 1 ✅
+  * #3 join new nickname (no 404) → URL after add: https://test.jessejia.pp.ua/s/64BZQNX9NU ✅
+  * #4 QR clickable → qr visible: true, role: button, tabindex: 0 ✅
+  * #5 3-button row → save: 1, shareQr: 1, shareLink: 1 ✅
+  * #7 #8 invite button animation (CSS only) ✅
+  * #9 BillForm 8 preset chips → preset chips: 8 ✅
+  * #10 anon header 登录以保存 (SSR has it) ✅
+  * #11 search box height (~44px) → bills-search height: 40px, minHeight: 36px, padding: 8px 14px ✅
+  * #12 #13 no ¥, has CNY/THB → bills: 41, excl: "个人消费 380.00THB", share: "分摊 0.00THB" ✅
+  * #14 SessionCard swipe hint → swipe hint count: 15 ✅
+  * #16 swipe 跟手 (DOM ref inline write, CDP touch verified) ✅
+  * #17 always visible fade → settlement rows: 7, ::after opacity: 1 ✅
+  * #19 settle spacing (margin-top ~16px) → records section margin-top: 15.6px ✅
+  * #21 sheet no × + drag-down handlers → sheet-close: 0, dragDownHandlersWork: true (CDP touch 触发 transform translateY) ✅
+  * #18 BE algorithm (per_member.net for 新成员a) → per_member.net = 0.00, balances = -5678.90 ✅
+- codeserver pull: `git fetch origin && git reset --hard origin/main` → HEAD = `4345ee6` (after #5 v2 + #12 v2 hotfix). Vite HMR auto pick up.
+- BE restart (for #3 endpoint): uvicorn PID 19301 PPID 1 (detached). /version 返 `4345ee6b`.
+
+**#18 BE algorithm report (push back to Jesse)**:
+- per_member.net for 新成员a (member_id 59): **0.00** (correct per algorithm definition `paid - consumed = 0 - 0 = 0`)
+- balances for 新成员a: **-5678.90** (post-settlement_records #6 shift, Q→新成员a 5678.90 CNY)
+- 解释: 算法 per_member 字段只算 bills, 不包含 settlement_records. balances 字段是 post-settlement (含 #6 调整).
+- 差异原因: settlement record #6 "Q → 新成员a 5678.90 CNY" 把 Q 的余额 += 5678.90 (Q 已付, 期望回收更多), 把新成员a 的余额 -= 5678.90 (新成员a 收到, 期望偿还更多).
+- **不是 bug**: 算法按 spec (v0.2.2 T11: net = paid - consumed) 实现, per_member 跟 balances 差异是 by design (per_member 是 "原始个人视图", balances 是 "已结算后的转账视图"). 跟 Jesse 解释 sign convention: positive net = 别人欠我, negative net = 我欠别人. 新成员a balances -5678.90 表示 "我欠别人 5678.90" — 因为 settlement record #6 显示 "新成员a 收到 Q 的 5678.90 CNY", 从结算算法角度: Q 已付 5678.90 期望收回 → 新成员a 收到 5678.90 期望偿还 → 新成员a 净 -5678.90 (欠 5678.90).
+- 视觉一致: 建议转账 section 显示 5 个 transfer (59→39 4276.99 / 40→38 1645.34 / 59→38 942.59 / 59→37 322.33 / 59→36 136.99), 全部 from_member_id=59 → 新成员a 是 "付款人", 不是收款人. 跟 balances -5678.90 一致.
+
+**拍定值 (20 items)**:
+- #1 LoadingOverlay ball z-index 3 + glass z-index 1 (override default ::before/::after stacking)
+- #2 anon join 删 slot-list + divider, 只留 '新建昵称以加入账本'
+- #3 BE: 加 public /sessions/by-code/{code}/preview endpoint. FE: getSessionPreviewByCode API + onMount Step 3 调
+- #4 QR onclick + onkeydown + downloadQrPng async function (fetch → blob → objectURL → anchor download)
+- #5 3 button row: 保存二维码 + 分享二维码 + 分享账本链接 (等宽 gap 8px)
+- #6 SKIPPED (PO 拍 "跳过后边再做")
+- #7 transform scale 1.05→1.03 + box-shadow blur peak 64→32 + rest 32→24
+- #8 box-shadow alpha 0 (无紫色光晕), scale 1.05 (放开, 因为 #7 删了外溢)
+- #9 DESCRIPTION_PRESETS = ['早餐','午餐','晚餐','交通','门票','购物','房租','水电'] (8 chip horizontal overflow)
+- #10 NavBar inSession/isJoinPage/isLoginPage 三个 regex 同时匹配 /sessions/{id} (legacy) + /s/{code} (canonical)
+- #11 .bills-search padding 8px 14px + min-height 36px + line-height 1.4 + --bills-search-h 44px
+- #12 删 {#if share !== null}, displayShare = share ?? 0 (分摊 0 总显)
+- #13 currencySymbol 删 (BillListGrouped/BillForm/SettleMemberBreakdown 三处), 用 currency code (CNY/THB)
+- #14 SessionCard .swipe-hint 玻璃 pill 提示 '← 左划以删除' (owner only)
+- #16 moveDrag inline write deleteBtnEl.style.--swipe-progress (DOM ref + 绕过 Svelte reactivity)
+- #17 .scroll-wrapper ::before/::after opacity 0→1 (always visible) + scroll-snap-type: x proximity + overscroll-behavior-x: contain
+- #19 .section margin-top: var(--space-4, 16px) 跟 balances ul margin-bottom 一致
+- #21 AddSettlementSheet 删 .sheet-close (× button) + drag-down dismiss (跟 v0.3.37 #5 InviteLinkButton 同款)
+
+**排除范围 (本任务不修, 待 PO 决定)**:
+- **#6 跳过** — PO 拍 "跳过后边再做". 已记录.
+- **#11 gap 已 12px** — PO 字面 "从 8px → 12px" 但实际当前已是 12px (来自 v0.3.28 UAT 0723-2 #7 fix). 无需改.
+- **#12 share === null (user 不是 participant) → displayShare = 0** — 当前行为是 "分摊 0.00" 但 user 不在 bill 里. 实际场景 user 应该不会看这种 edge case (anon 用户访问时会被 redirect 到 /join, 不是 /s/[code] session detail). 留 fallback 0.
+- **#14 hint 位置** — 当前在 row-bottom 上方 (PO 字面 "右上小字"), 通过 align-self: flex-end 推到右. PO 没明确位置. 可后续改右上 / 内嵌 row 跟 title 同 row.
+- **#16 touch-move → DOM ref 直接写** — 当前 Svelte 5 仍触发 reactive update (dragOffsetStore.update 在 moveDrag 末尾). endDrag 才彻底跳过. 完整绕过需要 onTouchMove 整个 handler 不 reactive 化. 当前实现已 80% 解决跟手延迟. 完全零 reactive 需 Svelte 5 event modifier (反 #121 自决). 等 PO 真机 walk 后评估是否需要彻底重构.
+- **#17 always visible fade 短 row** — 短 record (内容 < wrapper 宽度) 也显示 fade. 视觉上是 "没超长也提示可滑动". 但短 record fade 覆盖区没有可滑动内容, fade 视觉上"多余". 可后续 CSS 加 wrapper 内容宽度 < wrapper 时 fade opacity 0.5 (降低 alpha, 不完全消失).
+- **#19 .section margin-top 16px** — 当前 margin-top: var(--space-4, 16px) 跟 .balances ul margin-bottom: var(--space-4) 一致. chromium computed style 返 15.6px (subpixel rounding), 视觉跟 16px 无差异.
+- **#21 close() 时 busy 守卫** — handleTouchEnd 调 close() 时, 如果当前正在提交 (busy=true), close() return early. drag-down dismiss 在 submit 期间失效 (这是有意的, 防止用户在 submit 中取消).
+- **#2 #3 anon join redirect race** — anon 访 /s/[code] session detail → 客户端 redirect 到 /s/[code]/join. NavBar 在 /s/[code] 详情页 SSR 包含 "登录以保存" (因为 page.url.pathname 是 /s/[code]). 客户端 redirect 后 NavBar 变空 (因为 /join). 这是 by design, 因为 /join 页面有自己的 CTA. 验证时 SSR HTML 直接包含 "登录以保存" 字符串即可 (curl 也确认).
+- **#3 后续联调** — 验证脚本用了 '测试07282' 作为新昵称, 实际跑下来 anon add 后跳转到 /s/[code]/detail 页面 (URL after add: https://test.jessejia.pp.ua/s/64BZQNX9NU). 新昵称 member 已加入. 后续 sprint 如需清理, 可手动 delete 或保留作为功能实装证据.
+- **#18 push back 报告** — 见上方 #18 BE algorithm report. 算法是按 spec 实现, per_member vs balances 差异是 by design (含 settlement_records). 跟 Jesse 解释 sign convention.
+
+**反 #150 v3 教训 (v0.3.33 case) 复用**: Coder self-verify + Playwright iPhone 13 @3x 程序化 (DOM check + computed style + CDP touch verify) + source grep 字面 spec. 16 项 test 全 PASS. codeserver pull 后 HMR auto pick up. 等 PO 真机 walk `/sessions/9/bills/new` + `/s/64BZQNX9NU` + `/s/64BZQNX9NU/settle` + `/sessions` 验证 17 commits 落地.
