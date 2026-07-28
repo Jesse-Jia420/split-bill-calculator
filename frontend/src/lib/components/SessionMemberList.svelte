@@ -26,6 +26,12 @@
    *   - 选中 / 过期 / 行为 全部 optional (组件仍然支持纯展示模式).
    */
   import type { SessionMember } from '$api/sessions';
+  // v0.3.36 #12 — UAT 0728-1 #12 (PO 字面 "已结算记录头像样式应跟成员 section 一致, 颜色应跟成员 section 头像一致"):
+  // 改用共享 lib/utils/palette.ts. 之前 inline 5 色 AVATAR_GRADIENTS + avatarGradient / initial 跟
+  // BillForm + SettlementRow 各 copy 一份, 现统一 1 处 source. SessionMemberList 渲染时仍按
+  // #each 数组下标 i (跟成员顺序), 用 paletteGradient(i) 拿到对应色. initial() 函数保留
+  // 旧 2 字符大写逻辑 (跟 v0.3.18 #64 baseline 一致 — 不改组件行为, 只共享 palette).
+  import { paletteGradient, avatarInitialOf } from '$lib/utils/palette';
 
   export let members: SessionMember[] = [];
   /** v0.3.18 #64: owner 邮箱 (anon owner 时为 null/empty), 用于 anon hint 触发. */
@@ -37,27 +43,13 @@
   /** v0.3.18 #64: chip 点击回调 (optional, 不传则 chip 不可点). */
   export let on_select: ((user_id: number | null) => void) | undefined = undefined;
 
+  // v0.3.36 #12: 共享 lib/utils/palette.ts 后, 这里只保留一个 wrapper (SessionMemberList 内部仍用
+  // initial() / avatarGradient() 命名, 跟 v0.3.18 #64 baseline 一致 — 不动 template, 只换 source).
   function initial(name: string): string {
-    const trimmed = name.trim();
-    if (!trimmed) return '?';
-    // 中文: 取首字; 英文: 取首字母
-    const code = trimmed.codePointAt(0) ?? 0;
-    if (code > 127) return trimmed.slice(0, 1);
-    return trimmed.slice(0, 2).toUpperCase();
+    return avatarInitialOf(name);
   }
-
-  /** v0.3.18 #64: avatar 渐变 (5 色循环 — 跟全站风格统一). */
-  // v0.3.23 #132 (UAT old #4, PO msg 17:16 option B): rgba alpha 0.88 + backdrop-filter + glass shadow
-  //   让 .avatar / .ppt-avatar / .avatar-a / .avatar-mini 在 glass parent 上有"glass on glass"视觉
-  const AVATAR_GRADIENTS = [
-    'linear-gradient(135deg, rgba(99, 102, 241, 0.88) 0%, rgba(168, 85, 247, 0.88) 100%)', // indigo → purple
-    'linear-gradient(135deg, rgba(236, 72, 153, 0.88) 0%, rgba(244, 63, 94, 0.88) 100%)', // pink → rose
-    'linear-gradient(135deg, rgba(16, 185, 129, 0.88) 0%, rgba(20, 184, 166, 0.88) 100%)', // emerald → teal
-    'linear-gradient(135deg, rgba(245, 158, 11, 0.88) 0%, rgba(234, 179, 8, 0.88) 100%)', // amber → yellow
-    'linear-gradient(135deg, rgba(59, 130, 246, 0.88) 0%, rgba(6, 182, 212, 0.88) 100%)', // blue → cyan
-  ];
   function avatarGradient(index: number): string {
-    return AVATAR_GRADIENTS[index % AVATAR_GRADIENTS.length];
+    return paletteGradient(index);
   }
 
   /** v0.3.18 #64: anon owner 判定 (owner_email 缺失/空 + invite_expires_at 存在). */

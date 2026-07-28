@@ -21,7 +21,11 @@
   import { currencySymbol } from '$lib/utils/currency';
   import { ApiError } from '$api/client';
   import { toast } from '$stores/toast';
-    import AmountCalculatorInput from './AmountCalculatorInput.svelte';
+  // v0.3.36 #12 — UAT 0728-1 #12 (PO 字面 "已结算记录头像样式应跟成员 section 一致"):
+  // 改用共享 lib/utils/palette.ts (跟 SessionMemberList + SettlementRow + SettleTransferPath 4 处统一 source).
+  // 之前 BillForm 内联 AVATAR_GRADIENTS + avatarGradient + avatarInitial 跟 SessionMemberList inline copy.
+  import { paletteGradient, avatarInitialOf } from '$lib/utils/palette';
+  import AmountCalculatorInput from './AmountCalculatorInput.svelte';
 
   /**
    * v0.1.2 (PO 2026-07-01 fix #3): edit-page support.
@@ -101,29 +105,16 @@
     participantState[m.id] = { included: true, exclusive: false, amount: '0' };
   }
 
-  /** v0.3.20 #91 (PO msg 03:06 #7375): avatar palette — 5 色循环复用 SessionMemberList 渐变. */
-  // v0.3.23 #132 (UAT old #4, PO msg 17:16 option B): rgba alpha 0.88 + backdrop-filter + glass shadow
-  //   让 .ppt-avatar / .avatar / .avatar-a / .avatar-mini 在 glass parent 上有"glass on glass"视觉
-  const AVATAR_GRADIENTS = [
-    'linear-gradient(135deg, rgba(99, 102, 241, 0.88) 0%, rgba(168, 85, 247, 0.88) 100%)', // indigo → purple
-    'linear-gradient(135deg, rgba(236, 72, 153, 0.88) 0%, rgba(244, 63, 94, 0.88) 100%)', // pink → rose
-    'linear-gradient(135deg, rgba(16, 185, 129, 0.88) 0%, rgba(20, 184, 166, 0.88) 100%)', // emerald → teal
-    'linear-gradient(135deg, rgba(245, 158, 11, 0.88) 0%, rgba(234, 179, 8, 0.88) 100%)', // amber → yellow
-    'linear-gradient(135deg, rgba(59, 130, 246, 0.88) 0%, rgba(6, 182, 212, 0.88) 100%)', // blue → cyan
-  ];
+  // v0.3.36 #12: 共享 lib/utils/palette.ts — 上面 import 完毕, 这里只留 wrapper.
   function avatarGradient(index: number): string {
-    return AVATAR_GRADIENTS[index % AVATAR_GRADIENTS.length];
+    return paletteGradient(index);
   }
   /**
    * v0.3.20 #91: avatar 首字符 — 英文 1 字母大写, 中文 1 字.
    * (mockup 用 2 字母 "Ju/Ca", 按 PO 拍板改为 1 字母 "J/C".)
    */
   function avatarInitial(name: string): string {
-    const trimmed = name.trim();
-    if (!trimmed) return '?';
-    const code = trimmed.codePointAt(0) ?? 0;
-    if (code > 127) return trimmed.slice(0, 1);
-    return trimmed.slice(0, 1).toUpperCase();
+    return avatarInitialOf(name);
   }
 
   /**
