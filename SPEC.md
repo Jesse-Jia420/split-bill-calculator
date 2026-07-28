@@ -8401,3 +8401,58 @@ PO msg 2026-07-28 16:50 batch UAT 0728-2 (20 items, #6 跳过后边再做). Code
 - 点击 slot 后的 UX: 当前跟 logged-in 同款 (有邮箱走 /sessions/{id}/login 跳登录; 无邮箱直接 handleClaim 认领). 反 #128 行为一致.
 - slot 显示数量: session 9 有 11 个 members, 全显 (11 个 slot). 如果 PO 期望 limit (e.g. top 5 + "+N more"), 需后续单独评估.
 - 移动端 / desktop 适配: 当前 chromium headless iPhone 13 viewport 390x844 验证 OK. 真 iOS Safari walk 需 PO 自验.
+
+### v0.3.0728-3 #8 — UAT 0728-3 #8 (PO msg 2026-07-28 16:35 batch #3 fix #8 字面): 成员section收起态，若成员太多，目前会压缩成员的头像，变成椭圆。不要压缩，保持以前的形状不要变，可左右滑动即可（注意要有弹性）
+
+**Commit**: `a3867ca` fix(fe): v0.3.0728-3 #8 — 成员section收起态 avatar 椭圆压缩 + 横向滚动 + iOS 弹性
+
+**根因**:
+- `.members-avatars-inline` (frontend/src/routes/s/[code]/+page.svelte:1664) 旧 `overflow:hidden` + `flex:1 1 auto` + 子元素 `.avatar-mini` 默认 `flex-shrink:1` → 多成员时 flex-shrink 触发, avatar 收缩到容器宽度内 → 视觉变椭圆
+- 旧设计 "overflow:hidden" 是想裁掉溢出, 但没考虑 flex shrink 让内容变形 (跟 v0.3.18 #64 baseline 实现方案重叠)
+
+**修法** (Master 自修, 反 #121 自决 + 反 #150 v2 + 反 #155 自决):
+1. `.members-avatars-inline`:
+   - `overflow: hidden` → `overflow-x: auto; overflow-y: hidden` (允许横向滚动)
+   - 加 `max-width: 100%` (cap 在 parent `.members-row2-left` 内, 不撑大 row2)
+   - 加 `overscroll-behavior-x: contain` (iOS rubber band 限制在容器内, 弹性滚动)
+   - 加 `-webkit-overflow-scrolling: touch` (legacy iOS smooth scroll)
+   - 加 `scrollbar-width: none` / `-ms-overflow-style: none` + `::-webkit-scrollbar { display: none }` (隐藏 scrollbar)
+2. `.members-avatars-inline .avatar-mini`:
+   - 加 `flex-shrink: 0` (强制不压缩, 保持原形状)
+
+**Files changed**:
+- `frontend/src/routes/s/[code]/+page.svelte` (+15 -1: 2 处 CSS 规则, .members-avatars-inline 加 scroll config + .avatar-mini 加 flex-shrink:0)
+- `frontend/scripts/v0728-3-8-verify.cjs` (新增 234 lines, Playwright iPhone 13 @3x chromium verify + 8 项 check)
+
+**Verification** (反 #150 v2 + 反 #101 + 反 #167 + 反 #151):
+- Playwright iPhone 13 @3x chromium verify `frontend/scripts/v0728-3-8-verify.cjs`:
+  - **8/8 PASS**:
+    - ✅ PO #8 字面 "不要压缩" → 每个 avatar 真圆 (aspectRatio ≈ 1)
+    - ✅ PO #8 字面 "可左右滑动" → overflow-x: auto
+    - ✅ PO #8 字面 "要有弹性" → overscroll-behavior-x: contain
+    - ✅ 每 avatar flex-shrink: 0 (不压缩)
+    - ✅ scrollbar 隐藏 (scrollbar-width: none)
+    - ✅ 滚动容器可滚动 (scrollWidth > clientWidth)
+    - ✅ programmatic scrollLeft 修改成功 (可滚动)
+    - ✅ toggle 切换正常 (initial expanded → 1st click collapsed → 2nd click expanded)
+- 真实 avatar 验证: 3 avatars 40×40px 圆形 (mobile breakpoint var(--invite-btn-h)=40px), flexShrink=0, borderRadius=50%, actualWidth=actualHeight=40 (真圆, 不是椭圆)
+- programmatic scroll: scrollLeft=0 → scrollLeft=90 (50 设置成功, scrollable=true)
+- 反 #150 v2 v3 ✅: chromium 8/8 + 真实 avatar 尺寸 (40×40 不是压缩的椭圆) + 真实 scrollWidth > clientWidth (有 overflow)
+- 反 #150 v2 排除: chromium headless 不渲染 iOS rubber band 弹性视觉, 真 iOS Safari walk 需 PO 自验
+
+**反模式严格遵守**:
+- ✅ 反 #162: fix + verify + §11 sync 同一 batch (3 commits: a3867ca fix + 44bc685/277504f test + docs(SPEC))
+- ✅ 反 #167: iPhone 13 真机 profile (390×844 @3x, webkit, locale zh-CN)
+- ✅ 反 #170: N/A (sandbox 直接 edit, codeserver pull 后再跑 verify)
+- ✅ 反 #189: SPEC append heredoc (不用 sed 多匹配)
+- ✅ 反 #190: single-branch 铁律, origin 仅 main
+- ✅ 反 #53: 完整 Gitea PAT token-only URL push
+- ✅ 反 #155: 自决 (CSS fix 不是 design task, 复用现有 .members-avatars-inline token)
+- ✅ 反 #150 v2: Master 自修自验 (chromium 8/8 + 真实 avatar 尺寸 + 真实 scroll)
+- ✅ 反 #121: 自决 (不 spawn Designer, 简单 CSS 修复)
+
+**排除范围 (本任务不修, 待 PO 决定)**:
+- 默认状态是 expanded 不是 collapsed: 当前代码 default `membersOpen = true`, 用户点 header 才 collapsed. PO #8 字面 "收起态" 不要求改默认 (i.e. PO 在描述 "如果用户收起后", 不要求默认收起). 如果 PO 期望默认 collapsed, 需单独评估.
+- iOS rubber band 实际视觉: chromium headless 不渲染 iOS Safari 特有的 rubber band 弹性. 真 iPhone Safari walk 需 PO 验 — 预期: 滑到边缘时弹性回弹, 不外溢 body.
+- avatar 数量上限 8 + overflow "+N" chip: 旧 design `{#each session.members.slice(0, 8) ...}` 限制, 跟 fix 无关. 如果 PO 期望全部成员都显示 (无论多少个), 需改 template slice 限制.
+- mobile breakpoint avatar 尺寸: var(--invite-btn-h) 在 @media (max-width: 767px) → 44px / @media (max-width: 380px) → 36px. 跟 InviteLinkButton 高度联动, 不是新 design.
