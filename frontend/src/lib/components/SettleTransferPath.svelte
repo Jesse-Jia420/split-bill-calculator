@@ -29,6 +29,11 @@
   import { toast } from '$stores/toast';
   import type { SettleResponse } from '$api/settle';
   import type { SessionDetail } from '$api/sessions';
+  // v0.3.36 #13 — UAT 0728-1 #13 (PO 字面 "建议转账头像样式也应跟成员 section 中的一样, 颜色应符合成员 section 头像"):
+  // 改用共享 lib/utils/palette.ts (跟 SessionMemberList + BillForm + SettlementRow 4 处统一 source).
+  // 之前 SettleTransferPath .avatar 用纯色 rgba(59, 130, 246, 0.88) 实色蓝, 跟其他 3 处 5 色渐变 palette 不同 —
+  // 现在改 paletteGradient + paletteIndexFromMemberId (基于 memberId hash 稳定颜色, 跟 SettlementRow 一致).
+  import { paletteGradient, paletteIndexFromMemberId, avatarInitialOf } from '$lib/utils/palette';
 
   export let session: SessionDetail;
   /** map SessionMember.id -> display_name for friendly output */
@@ -81,9 +86,13 @@
     return memberIdToName[id] ?? ('#' + id);
   }
 
+  // v0.3.36 #13: 共享 lib/utils/palette.ts — 上面 import 完毕, 这里只留 wrapper.
   function avatarLetter(name: string): string {
-    const trimmed = (name ?? '').trim();
-    return trimmed ? trimmed.charAt(0).toUpperCase() : '?';
+    return avatarInitialOf(name);
+  }
+  /** v0.3.36 #13: 拿到 member id → palette 颜色 (跟成员 section 一致). */
+  function avatarBgForMemberId(memberId: number): string {
+    return paletteGradient(paletteIndexFromMemberId(memberId));
   }
 
 </script>
@@ -131,7 +140,9 @@
             >
               <!-- 付款方 -->
               <div class="transfer-party">
-                <div class="avatar" aria-hidden="true">{avatarLetter(fromName)}</div>
+                <!-- v0.3.36 #13: 头像 bg 用 palette (跟成员 section 一致), 通过 inline style 把 from_member_id
+                     哈希后映射到 5 色循环 (跟 SessionMemberList / BillForm / SettlementRow 字段级同). -->
+                <div class="avatar" aria-hidden="true" style="background: {avatarBgForMemberId(t.from_member_id)};">{avatarLetter(fromName)}</div>
                 <span class="transfer-name">{fromName}</span>
               </div>
 
@@ -143,7 +154,8 @@
 
               <!-- 收款方 -->
               <div class="transfer-party">
-                <div class="avatar" aria-hidden="true">{avatarLetter(toName)}</div>
+                <!-- v0.3.36 #13: 跟付款方同源 — 头像 bg 用 palette, to_member_id 哈希映射. -->
+                <div class="avatar" aria-hidden="true" style="background: {avatarBgForMemberId(t.to_member_id)};">{avatarLetter(toName)}</div>
                 <span class="transfer-name">{toName}</span>
               </div>
             </div>
@@ -263,20 +275,24 @@
   }
   /* v0.3.23 #132 (UAT old #4): 玻璃质感增强 — Option B (rgba 0.88 半透明 + backdrop-filter + 4-layer glass shadow),
      跟 .avatar-a / .avatar-mini 统一语言. */
+  /* v0.3.36 #13 — UAT 0728-1 #13: 改用 lib/utils/palette.ts 共享 5 色 palette (跟成员 section 一致).
+     之前 .avatar background 硬编码 rgba(59, 130, 246, 0.88) 实色蓝, 跟 SessionMemberList 等 5 色循环不一致.
+     现在 background 由 inline style 传 paletteGradient(paletteIndexFromMemberId(memberId)) 提供,
+     每个 member 的颜色跟他在 SessionMemberList / BillForm / SettlementRow 出现的颜色一致 (memberId 哈希稳定).
+     CSS 这里只保留 layout + 玻璃语言, 不再设 background (但给 fallback rgba(255,255,255,0.6) 防止 palette inline
+     style 加载前 SSR 阶段漏色). */
   .avatar {
     flex: 0 0 auto;
     width: 32px;
     height: 32px;
     border-radius: 50%;
-    /* var(--accent-500) = #3b82f6, alpha 0.88 让 backdrop-filter 在 glass parent 上有 glass on glass 效果 */
-    background: rgba(59, 130, 246, 0.88);
     color: #fff;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     font-weight: 600;
     font-size: var(--font-size-sm);
-    border: 1.5px solid #fff;
+    border: 1.5px solid rgba(255, 255, 255, 0.7);
     backdrop-filter: blur(4px) saturate(180%);
     -webkit-backdrop-filter: blur(4px) saturate(180%);
     box-shadow:
