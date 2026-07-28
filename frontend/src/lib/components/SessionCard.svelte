@@ -683,14 +683,14 @@
 
   .session-card {
     position: relative;
-    /* v0.3.36 #2 — UAT 0728-1 #2 (PO 字面 "账本 item 透明度再增加一些, 让背景图片的纹理隐约可见"):
-       bg alpha 0.62/0.38 → 0.48/0.24 (-25% / -37%), 让背景纹理更透出来.
-       跟 v0.3.24 #9 玻璃更透路径延续 (0.75/0.50 → 0.62/0.38 → 0.48/0.24).
-       backdrop-filter 仍 saturate(200%) blur(28px) brightness(1.05) — 玻璃语言保持, 只是透明度再降. */
+    /* v0.3.36 #2 re-fix — UAT 0728-1 #2 验收不通过 (0.48/0.24 仍不够透):
+       bg alpha 0.48/0.24 → 0.30/0.15 (-38% / -38%), 让背景纹理明显可见.
+       路径延续: 0.75/0.50 → 0.62/0.38 → 0.48/0.24 → 0.30/0.15.
+       backdrop-filter 仍 saturate(200%) blur(28px) brightness(1.05) — 玻璃语言保持, 只再降透明度. */
     background: linear-gradient(
       135deg,
-      rgba(255, 255, 255, 0.48) 0%,
-      rgba(255, 255, 255, 0.24) 100%
+      rgba(255, 255, 255, 0.30) 0%,
+      rgba(255, 255, 255, 0.15) 100%
     );
     backdrop-filter: saturate(200%) blur(28px) brightness(1.05);
     -webkit-backdrop-filter: saturate(200%) blur(28px) brightness(1.05);
