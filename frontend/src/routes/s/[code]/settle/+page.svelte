@@ -440,7 +440,7 @@
       transfers={[]}
       currentMemberId={currentMember.id}
       onAdded={handleRecordAdded}
-      onclose={() => (addSheetOpen = false)}
+      on:close={() => (addSheetOpen = false)}
     />
   {/if}
 </section>

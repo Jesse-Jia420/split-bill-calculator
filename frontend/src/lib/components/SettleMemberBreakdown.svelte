@@ -1469,11 +1469,12 @@
        h4 视觉压在搜索框上方 (跟 iOS native section header 行为一致). */
   .bills-section-search {
     position: sticky;
-    /* top: 32px = .bills-section-head sticky h4 高度 (padding 8 + 内容 ~16 + padding 8 = 32px).
-       h4 margin-bottom 8px + search margin-top 0 = h4 底部到 search 顶部 8px 视觉间距.
-       实测 chromium computed h4 height 32px 字段级精确. */
-    top: 32px;
-    z-index: 12; /* v0.3.0729-1 #9 re-fix: 9 → 12 (above .section-header z=10), iOS Safari WebKit 滚动时 search 不再被 header 遮住 */
+    /* v0.3.0729-2 #9: top 跟 glass-chip 实际高度对齐.
+       chip = padding 20+20 + 16px 字 + min-height 60 → 实测常 ~64-72px (含 gap/icon).
+       旧 top:32/60 仍会被 header 挡住; 现 top:76px 保证 search 整条露在 chip 下沿之下. */
+    top: 76px;
+    /* search 在 header 之下 (z < header), 正确堆叠: items → search(9) → header(10). */
+    z-index: 9;
     display: flex;
     align-items: center;
     gap: var(--space-2, 8px);

@@ -202,7 +202,8 @@
 
   function handleTouchEnd() {
     if (!dragging || !sheetEl) return;
-    const threshold = sheetHeight * 0.3;
+    // v0.3.0729-2 #3: 阈值 30% → 15% (或 80px), 真机下滑更容易触发关闭.
+    const threshold = Math.min(sheetHeight * 0.15, 80);
     if (dragDeltaY > threshold) {
       close();
     } else {
@@ -490,9 +491,12 @@
   <div class="sheet-handle" aria-hidden="true"></div>
   <header class="sheet-head">
     <h3 class="sheet-title">{modalTitle}</h3>
-    <!-- v0.3.0728-2 #4 — UAT 0728-1 #4 (PO 字面 "币种弹窗可通过下滑关闭, 同邀请链接弹窗一致").
-         删 .sheet-close × button (跟 v0.3.37 #5 InviteLinkButton sheet-close 删除同款), 改用
-         drag-down dismiss (sheet-head 仅保留居中 title, 跟 AddSettlementSheet v0.3.0728-2 #21 同模式). -->
+    <!-- v0.3.0729-2 #3: 恢复 × 关闭按钮. 仅靠 drag-down / backdrop 在真机上
+         经常关不掉 (PO: "币种设置弹窗目前无法正常关闭"). 保留 drag-down 作
+         为辅助关闭路径. -->
+    <button class="sheet-close" type="button" aria-label="关闭" onclick={close} data-testid="currency-sheet-close">
+      <XIcon size={16} strokeWidth={2.4} color="currentColor" />
+    </button>
   </header>
 
   <div class="sheet-body">
@@ -715,7 +719,8 @@
     background: rgba(15, 23, 42, 0.40);
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
-    z-index: 50;
+    /* v0.3.0729-2 #3: backdrop 提到 sheet(1000) 正下方, 保证可点. */
+    z-index: 999;
     animation: backdropFadeIn 160ms ease;
   }
 
@@ -775,22 +780,38 @@
     border-radius: 100px;
     margin: 0 auto 12px;
   }
-  /* v0.3.0728-2 #4 re-fix: 删 .sheet-close × button 后 (UAT 0728-1 #4 验收不通过:
-     "币种弹窗可通过下滑关闭, 同邀请链接弹窗一致"), sheet-head 从 grid 3 列 (1fr auto 1fr spacer)
-     改回 flex + justify-content: center 让 title 真正居中 (跟 AddSettlementSheet + InviteLinkButton
-     v0.3.37 #5 #1 sheet-head 模式一致). .sheet-close CSS 整块删 (sheet 仅通过 drag-down dismiss). */
+  /* v0.3.0729-2 #3: 恢复 × 后 sheet-head 回到 grid 3 列 (1fr auto 1fr),
+     title 居中 + close 贴右. 保留 drag-down dismiss 作辅助关闭. */
   .sheet-head {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    justify-content: center;
     padding: 0 4px 12px;
   }
   .sheet-title {
+    grid-column: 2;
     font-size: 17px;
     font-weight: 600;
     color: #171717;
     letter-spacing: -0.01em;
+    justify-self: center;
   }
+  .sheet-close {
+    grid-column: 3;
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    justify-self: end;
+    border-radius: 50%;
+    background: rgba(15, 23, 42, 0.10);
+    color: #525252;
+    border: 0;
+    cursor: pointer;
+    transition: background 150ms ease;
+  }
+  .sheet-close:hover { background: rgba(15, 23, 42, 0.12); }
   .sheet-body {
     flex: 1;
     display: flex;
