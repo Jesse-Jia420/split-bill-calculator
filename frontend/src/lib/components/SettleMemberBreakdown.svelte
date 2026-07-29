@@ -966,7 +966,7 @@
      保留 max padding 给桌面, 不引新 design token. */
   /* v0.3.18 #44 (PO msg 17:43 #6401 拍板, 反 #41 不彻底): hero→chip 视觉间距 ~30px → ≤8px 真修.
      v0.3.17 #41 commit message 声称 '.hero margin-bottom 12px → 4px' 但实际漏了 (df974be diff
-     只改了 .glass-sheet), 所以现 hero mb 还是 12px. 这次 v     V�2 多处微调叠加:
+     只改了 .glass-sheet), 所以现 hero mb 还是 12px. 这次 vV�2 多处微调叠加:
      - .hero padding 16px → 8px (上下各砍 8px, 紧凑 hero 内部)
      - .hero margin-bottom 12px → 0 (跟 .glass-sheet margin-top 一起 collapse, 不堆叠空白)
      - .glass-sheet margin-top 14px → 0 (同上, hero 跟 sheet 之间无 margin gap)
