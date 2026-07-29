@@ -310,7 +310,12 @@
       // iOS Safari: 三次重试 scrollIntoView (rAF 立即 + 350ms + 700ms), 等 keyboard
       // 异步起来后再调一次. block:'nearest' 最小滚动避免 input 被推到 main 中部反而
       // 越过 viewport. 配合 .pill-input { scroll-margin-bottom: 280px } + form
-      // .stack { padding-bottom: 200px } (#7: 减 80px, 改靠 visualViewport 监听
+      // .stack {
+    /* v0.3.0729-1 #8 re-fix: 200px → 96px (-52%). 旧 200px 留太多空白在最后一个参与者下方
+       (PO 16:35 UAT 字面 '你觉得合适吗?'). iOS keyboard 仍通过 .pill-input scroll-margin-bottom: 96px
+       + visualViewport 滚动保 100% 兼容, 不用 padding-bottom 200 撑. */
+    padding-bottom: 96px;
+  } (#7: 减 80px, 改靠 visualViewport 监听
       // 动态算) 给 input 底部留足够空间.
       //
       // v0.3.28 UAT 0724-1 #8: 进一步加 visualViewport.resize 监听. iOS Safari
