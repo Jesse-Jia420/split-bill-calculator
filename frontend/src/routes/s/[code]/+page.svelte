@@ -2108,6 +2108,14 @@
       background: rgba(249, 250, 251, 0.95);
     }
   }
+  @media (min-width: 960px) {
+    .bills-search {
+      margin-left: calc(-1 * var(--space-6));
+      margin-right: calc(-1 * var(--space-6));
+      padding-left: calc(var(--space-6) + 14px);
+      padding-right: calc(var(--space-6) + 14px);
+    }
+  }
   .bills-search-input {
     flex: 1;
     border: 0;
