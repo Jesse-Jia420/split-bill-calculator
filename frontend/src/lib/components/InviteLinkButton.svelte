@@ -345,14 +345,14 @@
     // 优先 Web Share API 带附件 (mobile 主流浏览器支持 files)
     if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
       // @ts-ignore — navigator.canShare 是非标准但主流浏览器都支持
-      const file = new File([qrBlob], '账本二维码.png', { type: 'image/png' });
+      const file = new File([qrBlob], buildQrFilename(sessionName), { type: 'image/png' });
       // @ts-ignore — navigator.canShare 同上
       if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
         try {
           // @ts-ignore
           await navigator.share({
-            title: '账本链接二维码',
-            text: '扫一扫加入账本',
+            title: `${buildQrFilename(sessionName).replace(/\.png$/i, '')}`,
+            text: '随时随地记账，AA不再烦恼',
             files: [file],
           });
           dispatch('copy');
@@ -383,8 +383,8 @@
     if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
       try {
         await navigator.share({
-          title: '账本链接',
-          text: '邀请你加入账本',
+          title: `SplitIt-快来加入我的${sessionName || ''}账本！`,
+          text: '随时随地记账，AA不再烦恼',
           url: inviteUrl,
         });
         dispatch('copy');
@@ -547,10 +547,7 @@
     ontouchcancel={handleTouchEnd}
   >
     <div class="sheet-handle" aria-hidden="true"></div>
-    <!-- v0.3.37 #5 #1: 删 sheet-close (× button), sheet-head 仅保留居中 title -->
-    <div class="sheet-head">
-      <span class="sheet-title" data-testid="invite-sheet-title">账本链接</span>
-    </div>
+    <!-- v0.3.0729-4 #6: 去除最上方「账本链接」标题 -->
     <!-- v0.3.36 #5 success-card: 中心 column, gap 14px -->
     <div class="sheet-body">
       <div class="check-hero" aria-hidden="true">
@@ -638,21 +635,7 @@
             <span>{pwaHint}</span>
           </div>
           <div class="pwa-actions" data-testid="invite-pwa-actions">
-            <button
-              type="button"
-              class="pwa-btn"
-              onclick={async () => {
-                const ok = await downloadQrPng();
-                if (ok) toast.success('二维码已保存');
-                else toast.error('保存失败,请长按图片手动保存');
-              }}
-              data-testid="invite-pwa-save-qr"
-              aria-label="保存账本二维码"
-              title="保存账本二维码"
-            >
-              <svelte:component this={Download} size={14} strokeWidth={2.2} color="currentColor" />
-              <span>保存二维码</span>
-            </button>
+            <!-- v0.3.0729-4 #6: 去除「保存二维码」按钮；「分享二维码」→「分享账本二维码」 -->
             <button
               type="button"
               class="pwa-btn"
@@ -662,7 +645,7 @@
               title="分享账本二维码"
             >
               <svelte:component this={Share2} size={14} strokeWidth={2.2} color="currentColor" />
-              <span>分享二维码</span>
+              <span>分享账本二维码</span>
             </button>
             <button
               type="button"
@@ -785,13 +768,14 @@
    * v0.3.36 #17 — UAT 0728-1 #17 (PO 字面 "复制弹窗背景跟汇率弹窗完全一致"):
    * .invite-sheet-backdrop 跟 CurrencyAddModal .sheet-backdrop 字段级同.
    * ============================================================ */
+  /* v0.3.0729-4 #16: backdrop 与 AddSettlementSheet 对齐 */
   .invite-sheet-backdrop {
     position: fixed;
     inset: 0;
     background: rgba(15, 23, 42, 0.40);
-    backdrop-filter: blur(4px) saturate(180%);
-    -webkit-backdrop-filter: blur(4px) saturate(180%);
-    z-index: 50;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 999;
     animation: backdropFadeIn 200ms ease-out;
   }
 
@@ -819,7 +803,9 @@
     padding: 8px 16px 0;
     box-shadow:
       0 -8px 32px rgba(15, 23, 42, 0.12),
-      inset 0 1px 0 rgba(255, 255, 255, 0.85);
+      inset 0 1px 0 rgba(255, 255, 255, 0.85),
+      /* v0.3.0729-4 #14: 上拉橡皮筋时底部白色延伸，避免与页面底部分离 */
+      0 50vh 0 0 rgba(255, 255, 255, 0.96);
     z-index: 1000;
     animation: inviteSheetUp 280ms cubic-bezier(0.32, 0.72, 0, 1);
     display: flex;

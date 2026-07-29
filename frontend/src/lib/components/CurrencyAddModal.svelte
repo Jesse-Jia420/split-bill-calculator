@@ -763,7 +763,9 @@
     padding: 8px 16px 0;
     box-shadow:
       0 -8px 32px rgba(15, 23, 42, 0.12),
-      inset 0 1px 0 rgba(255, 255, 255, 0.85);
+      inset 0 1px 0 rgba(255, 255, 255, 0.85),
+      /* v0.3.0729-4 #14: 上拉橡皮筋时底部白色延伸，避免与页面底部分离 */
+      0 50vh 0 0 rgba(255, 255, 255, 0.96);
     z-index: 1000;
     animation: slideUp 280ms cubic-bezier(0.32, 0.72, 0, 1);
     display: flex;
@@ -1056,10 +1058,10 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.30);
   }
 
-  /* v0.3.19 #85 PO #7731 (#2): 去掉 fadeIn (backdrop 透明无 opacity 变化). */
+  /* v0.3.0729-4 #15: 从底部滑出，与 AddSettlementSheet 一致 */
   @keyframes slideUp {
-    from { opacity: 0; transform: translateY(8px) scale(0.98); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
   }
   @keyframes slideDown {
     to { transform: translateY(100%); opacity: 0; }

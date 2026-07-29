@@ -461,6 +461,7 @@
      - onRowTap 关 swipe (点 card 内容, 不是点删除按钮) -->
 <div
   class="session-swipe-wrap"
+  class:dragging={!!$isDraggingStore[session.id]}
   data-testid="swipe-trigger"
   bind:this={wrapEl}
   ontouchstart={onTouchStart}
@@ -1030,6 +1031,10 @@
     white-space: nowrap;
     box-sizing: border-box;
     opacity: var(--swipe-progress, 0);
+  }
+  /* v0.3.0729-4 #9: 拖动期间关掉 transition，删除按钮跟手即时跟随 */
+  .session-swipe-wrap.dragging .delete-btn {
+    transition: none;
   }
   /* v0.3.28: 阈值 (>= 1) 才允许点击, 避免 0~80px 之间误触 (跟 BillListGrouped 同款) */
   .delete-btn[aria-hidden="false"] {

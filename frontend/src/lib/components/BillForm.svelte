@@ -1282,6 +1282,21 @@
     padding-inline: 10px; /* v0.3.37 #2: symmetric 10px, 原 12px 16px → 10px 省 8px */
     font-size: 14px; /* v0.3.37 #2: 降 1px 跟其余 input 一致 */
     letter-spacing: -0.01em;
+    /* v0.3.0729-4 #3: 时间文字垂直居中 */
+    height: 40px;
+    line-height: 1.2;
+    display: flex;
+    align-items: center;
+  }
+  input[type="datetime-local"]#occurredAt::-webkit-datetime-edit,
+  input[type="datetime-local"]#occurredAt::-webkit-datetime-edit-fields-wrapper {
+    display: flex;
+    align-items: center;
+    height: 100%;
+    padding: 0;
+  }
+  input[type="datetime-local"]#occurredAt::-webkit-calendar-picker-indicator {
+    align-self: center;
   }
 
   /* v0.3.29 — UAT 0725-1 #6: 时间 input 独立整行, full-width container 让 iOS Safari

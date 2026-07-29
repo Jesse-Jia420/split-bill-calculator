@@ -1400,7 +1400,7 @@
        滚过 chip 时几乎贴脸穿透. bg 0.10 → 0.55 (× 5.5 浓液化),
        blur 20 → 24 (+20%), 保留 saturate 200% (玻璃质感).
        inset highlight / 外阴影同步略提 (玻璃感保留). */
-    background: rgba(255, 255, 255, 0.55);
+    background: rgba(255, 255, 255, 0.42);
     backdrop-filter: saturate(200%) blur(24px);
     -webkit-backdrop-filter: saturate(200%) blur(24px);
     border-radius: 9999px;
@@ -1482,7 +1482,8 @@
        (避免跟 h4 视觉间距 8px + h4 margin-bottom 8px 叠加 16px). */
     margin: 0 0 var(--space-2, 8px);
     padding: 8px var(--space-2, 8px);
-    background: rgba(255, 255, 255, 0.55);
+    /* v0.3.0729-4 #12: 与账单列表日期 header 同透明度 (0.42) */
+    background: rgba(255, 255, 255, 0.42);
     backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
     border: 1px solid var(--color-border, #e5e7eb);
