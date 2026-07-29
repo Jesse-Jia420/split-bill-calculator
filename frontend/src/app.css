@@ -625,7 +625,7 @@ button.glass-pill.invite-btn.invite-btn-breathing,
   /* v0.3.0729-2 UAT #3 v2: 边框全环 conic 流光 (mask 切环), 去掉白底 ::after 盖层. */
   position: relative;
   isolation: isolate;
-  overflow: visible;
+  overflow: hidden; /* 防止流光环溢出到 button 外侧 */
   border: 1.5px solid transparent;
   background: linear-gradient(
     135deg,
@@ -643,7 +643,6 @@ button.glass-pill.invite-btn.invite-btn-breathing,
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  padding: 1.5px;
   background: conic-gradient(
     from 0deg,
     #6366f1 0deg,    #a855f7 18deg,   #ec4899 36deg,   #f59e0b 54deg,   #10b981 72deg,
@@ -652,14 +651,18 @@ button.glass-pill.invite-btn.invite-btn-breathing,
     #6366f1 270deg,  #a855f7 288deg,  #ec4899 306deg,  #f59e0b 324deg,  #10b981 342deg,
     #6366f1 360deg
   );
-  -webkit-mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  mask-composite: exclude;
+  /* 精确只显示边框 1.5px 环形区域（避免 iOS mask-composite
+     导致“中间发白/缺色/断裂”的问题）。 */
+  -webkit-mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 1.5px),
+    #000 calc(100% - 1.5px)
+  );
+  mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 1.5px),
+    #000 calc(100% - 1.5px)
+  );
   animation: invite-border-flow 5s linear infinite;
   pointer-events: none;
   z-index: 1;
