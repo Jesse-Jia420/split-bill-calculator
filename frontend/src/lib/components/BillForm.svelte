@@ -309,13 +309,8 @@
       input.select();
       // iOS Safari: 三次重试 scrollIntoView (rAF 立即 + 350ms + 700ms), 等 keyboard
       // 异步起来后再调一次. block:'nearest' 最小滚动避免 input 被推到 main 中部反而
-      // 越过 viewport. 配合 .pill-input { scroll-margin-bottom: 280px } + form
-      // .stack {
-    /* v0.3.0729-1 #8 re-fix: 200px → 96px (-52%). 旧 200px 留太多空白在最后一个参与者下方
-       (PO 16:35 UAT 字面 '你觉得合适吗?'). iOS keyboard 仍通过 .pill-input scroll-margin-bottom: 96px
-       + visualViewport 滚动保 100% 兼容, 不用 padding-bottom 200 撑. */
-    padding-bottom: 96px;
-  } (#7: 减 80px, 改靠 visualViewport 监听
+      // 越过 viewport. 配合 .pill-input { scroll-margin-bottom: 56px } + form
+      // .stack { padding-bottom: 56px } (v0.3.0729-2 #8: 200→56, 靠 visualViewport 监听
       // 动态算) 给 input 底部留足够空间.
       //
       // v0.3.28 UAT 0724-1 #8: 进一步加 visualViewport.resize 监听. iOS Safari
@@ -798,9 +793,7 @@
             </button>
             {#if st?.exclusive}
               <!-- v0.3.20 #92 (PO msg 07:13 #7409): exclusive 实态: ¥ + input, accent 玻璃, 102×32 钉死.
-                   v0.3.0728-2 #13 (UAT 0728-2 #13): pill-currency 内 currencySymbol (¥/$) → currency code (CNY/THB).
-                   pill 32px 高保留, text 缩小到 11px (原 ~14px font-weight 600), 仍居中.
-                   pill-currency width: auto (原 32px 固定, 改 auto 让 CNY/THB 三字符 fit). -->
+                   v0.3.0729-3 #1: focus/unfocus 一律 currencySymbol (¥/$), 不再显 CNY/THB code. -->
               <div
                 class="excl-pill excl-pill-exclusive"
                 role="group"
@@ -813,7 +806,7 @@
                   class="pill-currency"
                   onclick={() => exitExclusiveMode(m.id)}
                   aria-label={`退出 ${m.display_name} 的个人消费`}
-                >{currency}</button>
+                >{currencySymbol(currency)}</button>
                 <input
                   type="number"
                   min="0"
@@ -829,9 +822,8 @@
               </div>
             {:else}
               <!-- shared 虚态: "¥ 个人消费" ghost 玻璃 (currency 在前, label 在后), 点 → 进 exclusive.
-                   v0.3.21 #115 (PO msg 11:35): 货币符号应在前, 个人消费字样在后 (货币语义在前更直接).
-                   v0.3.0728-2 #13 (UAT 0728-2 #13): currencySymbol (¥/$) → currency code (CNY/THB).
-                   pill 内 CNY/THB 显示 11px font 500 tabular-nums. -->
+                   v0.3.21 #115 (PO msg 11:35): 货币符号应在前, 个人消费字样在后.
+                   v0.3.0729-3 #1: 与 exclusive 态一致, 一律 currencySymbol (¥/$). -->
               <button
                 type="button"
                 class="excl-pill excl-pill-shared"
@@ -1042,12 +1034,12 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.50),
       inset 0 -1px 0 rgba(0, 0, 0, 0.03),
       0 2px 8px rgba(99, 102, 241, 0.06);
-    /* v0.3.0729-1 #7 re-fix: 0 12px gap 6px space-between → 0 14px gap 8px center.
-       旧 space-between 让 $ 和 个人消费 拉到两端 (102px pill 12px+12px padding 内 78px, 两元素贴边).
-       改 center + gap 8px 让两元素居中, 视觉平衡. */
-    padding: 0 14px;
-    gap: 8px;
-    justify-content: center;
+    /* v0.3.0729-2 #7: shared 跟 exclusive 同左对齐节奏 (flex-start + gap 4 + pad 10).
+       旧 space-between 拉两端; center 在钉死 102px 里光学仍偏 (窄 $ vs 宽「个人消费」).
+       左起 "$ 个人消费" 与 exclusive 态 "¥ 金额" 同一起点. */
+    padding: 0 10px;
+    gap: 4px;
+    justify-content: flex-start;
     color: var(--gray-700, #334155);
   }
   .excl-pill-shared:hover {
@@ -1065,12 +1057,14 @@
   .pill-label {
     font-size: 13px;
     font-weight: 500;
+    line-height: 1;
     color: var(--gray-700, #334155);
     letter-spacing: -0.01em;
   }
   .excl-pill-shared .pill-currency {
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 500;
+    line-height: 1;
     color: var(--gray-400, #94a3b8);
     letter-spacing: -0.01em;
   }
@@ -1109,14 +1103,11 @@
       background: rgba(99, 102, 241, 0.32);
     }
   }
-  /* v0.3.0728-2 #13 — UAT 0728-2 #13 pill-currency 改显 CNY/THB (currency code).
-       原 ¥/三字符 ¥¥¥ → CNY/THB 三字符, 字号缩 11px tabular-nums + padding 4px 让三字符 fit.
-       width: auto (原 0 0 auto, 实际因为 currencySymbol 是单字符跟 .pill-input 一起能 fit,
-       现改成 width auto 让三字符 自己决定 width, 不跟 input 冲突). */
+  /* v0.3.0729-3 #1: pill-currency 显 ¥/$ (currencySymbol), 单字符; width auto + 13px. */
   .pill-currency {
     flex: 0 0 auto;
     width: auto;
-    min-width: 28px;
+    min-width: 0;
     background: transparent;
     border: 0;
     padding: 0 2px;
@@ -1161,10 +1152,10 @@
     -moz-appearance: textfield;
     appearance: textfield;
     /* v0.3.25 Top #2 (PO msg 16:35 UAT line): iOS Safari keyboard 起来时,
-       scrollIntoView 计算 input 位置会预留 280px 底部缓冲. iPhone 13 keyboard
-       ~295px, 余量 15px 安全不遮. 配合 .stack { padding-bottom: 280px } 给
-       main 容器足够滚动距离. */
-    scroll-margin-bottom: 280px;
+       scrollIntoView 计算 input 位置会预留底部缓冲. iPhone 13 keyboard
+       ~295px; 配合 visualViewport resize 监听, 静态缓冲缩到 56px 即可
+       (v0.3.0729-2 #8, 跟 .stack padding-bottom 同步). */
+    scroll-margin-bottom: 56px;
   }
   .pill-input::-webkit-outer-spin-button,
   .pill-input::-webkit-inner-spin-button {
@@ -1244,14 +1235,11 @@
      让最下边成员 input focus + keyboard 起来时, scrollIntoView 能把 input 顶到
      keyboard 上方. iPhone 13 keyboard ~295px, 余量 15px 安全. */
   .stack {
-    /* v0.3.28 UAT 0724-1 #7: padding-bottom 280 → 200 (-80px).
-     * 原 280px 是 v0.3.25 Top #2 配合 iOS keyboard ~295px 减 15px 余量给
-     * .pill-input scroll-margin-bottom: 280px 用. 但 280px 在 form 没填到
-     * 最下边时 (短账单列表 / 短描述) 视觉下方空白太多. 减到 200px 给
-     * #8 (iOS keyboard 修法用 visualViewport resize listener, 不再依赖
-     * 280px 静态 padding) 留足滚动距离. Android 不受影响 (chrome 自动
-     * scrollIntoView 已经正确处理 keyboard). */
-    padding-bottom: 200px;
+    /* v0.3.0729-2 #8: padding-bottom 200 → 56.
+     * 旧 200/96 仍在最后参与者下方留太多空白 (PO 反复挂).
+     * FAB 避让改靠页面层 fab 自身; keyboard 靠 .pill-input scroll-margin-bottom
+     * + visualViewport resize, 不再靠大 padding 撑空白. */
+    padding-bottom: 56px;
   }
 
   /* v0.3.21 #110 (PO msg 18:46): <input type="datetime-local"> 在 iOS Safari
@@ -1294,6 +1282,21 @@
     padding-inline: 10px; /* v0.3.37 #2: symmetric 10px, 原 12px 16px → 10px 省 8px */
     font-size: 14px; /* v0.3.37 #2: 降 1px 跟其余 input 一致 */
     letter-spacing: -0.01em;
+    /* v0.3.0729-4 #3: 时间文字垂直居中 */
+    height: 40px;
+    line-height: 1.2;
+    display: flex;
+    align-items: center;
+  }
+  input[type="datetime-local"]#occurredAt::-webkit-datetime-edit,
+  input[type="datetime-local"]#occurredAt::-webkit-datetime-edit-fields-wrapper {
+    display: flex;
+    align-items: center;
+    height: 100%;
+    padding: 0;
+  }
+  input[type="datetime-local"]#occurredAt::-webkit-calendar-picker-indicator {
+    align-self: center;
   }
 
   /* v0.3.29 — UAT 0725-1 #6: 时间 input 独立整行, full-width container 让 iOS Safari

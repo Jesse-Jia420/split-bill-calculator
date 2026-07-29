@@ -69,6 +69,9 @@
   // v0.2.1 T05 (PRD §3.6.4): session 内账单 description 模糊搜索。
   // 不搜金额/付款人 (避免搜索结果飘忽)。空 query 全显示。
   let billsSearchQuery = $state('');
+  /** true when .bills-search has scrolled into sticky position (sentinel left viewport). */
+  let billsSearchStuck = $state(false);
+  let billsSearchSentinel: HTMLDivElement | undefined = $state();
 
   /**
    * v0.2.1 T04: 删除撤回。
@@ -183,7 +186,7 @@
     const main = document.querySelector('main');
     const el = document.querySelector('.bills-search');
     if (!(main instanceof HTMLElement) || !(el instanceof HTMLElement)) return;
-    const STICKY_OFFSET = 8;  // 跟 .bills-search { top: var(--space-2) } 对齐
+    const STICKY_OFFSET = 8; // var(--space-2), 跟 .bills-search { top } 对齐（非 stuck 态）
     // offsetTop 累加到 main
     let target: HTMLElement | null = el;
     let top = 0;
@@ -199,6 +202,45 @@
       main.scrollTop = targetScroll;
     }
   }
+
+  function updateBillsSearchStuckBleed() {
+    if (!billsSearchStuck || typeof document === 'undefined') return;
+    const search = document.querySelector('.bills-search');
+    const nav = document.querySelector('.navbar');
+    if (!(search instanceof HTMLElement)) return;
+    if (nav instanceof HTMLElement) {
+      const gap = Math.max(0, search.getBoundingClientRect().top - nav.getBoundingClientRect().bottom);
+      search.style.setProperty('--bills-search-stuck-bleed', `${gap}px`);
+    }
+  }
+
+  $effect(() => {
+    if (!browser || bills.length === 0 || !billsSearchSentinel) {
+      billsSearchStuck = false;
+      return;
+    }
+    const main = document.querySelector('main');
+    if (!(main instanceof HTMLElement)) return;
+
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        billsSearchStuck = entry ? !entry.isIntersecting : false;
+        requestAnimationFrame(updateBillsSearchStuckBleed);
+      },
+      { root: main, rootMargin: '-8px 0px 0px 0px', threshold: 0 }
+    );
+    io.observe(billsSearchSentinel);
+
+    const onScroll = () => requestAnimationFrame(updateBillsSearchStuckBleed);
+    main.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+
+    return () => {
+      io.disconnect();
+      main.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+    };
+  });
 
   // v0.1.4 round 2 改动 1: 重新加回 members 折叠 toggle。
   // 默认展开; 用户折叠后按 sessionId 持久化到 localStorage。
@@ -246,6 +288,8 @@
       if (isAnonOwner && !sessionActioned) {
         showBreathing = true;
         showAnonHint = true;
+        // v0.3.0729-3 #2: 显示未登录提示时，成员 section 强制展开
+        membersOpen = true;
       }
     }
   });
@@ -276,8 +320,10 @@
       // 所以 modal 点击事件会冒泡到 header 的 onclick → 触发 toggle (user 反馈 #3).
       // 用 closest() 排除: 邀请按钮 + modal 区域 + 过期 CTA link.
       // 其他区域 (chevron, title, avatar, 空 row2 区域) 维持原有 toggle 行为.
-      if (target?.closest('.invite-row, .invite-modal-backdrop, .expiry-cta-link')) return;
+      if (target?.closest('.invite-row, .invite-modal-backdrop, .expiry-cta-link, .expiry-anon-a')) return;
     }
+    // v0.3.0729-4 #1: 展示「当前未登录…」提示时，成员 section 禁止折叠
+    if (showAnonHint && membersOpen) return;
     membersOpen = !membersOpen;
     try {
       localStorage.setItem(membersStorageKey(sessionId), String(membersOpen));
@@ -689,8 +735,21 @@
              用 space-between + right margin-left: auto, 折叠时 [avatars | invite],
              展开时 [空 | invite] 自然 right-align, 任何状态都能调 invite -->
         <div class="members-head-row2">
+          <!-- v0.3.0729-4 #2: 未登录提示左边与成员 section 左边对齐（正常 padding）;
+               与邀请按钮仍同行：提示在左、邀请在右。 -->
           <div class="members-row2-left">
-            {#if !membersOpen && session.members.length > 0}
+            {#if showAnonHint}
+              <span class="expiry-anon-a" data-testid="invite-anon-hint">
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+                <span class="anon-hint-text">
+                  <span class="line-1">当前未登录 请收藏此链接</span>
+                  <span class="line-2">这是您回到此账本的唯一密钥。</span>
+                </span>
+              </span>
+            {:else if !membersOpen && session.members.length > 0}
               <div class="members-avatars-inline" aria-hidden="true">
                 {#each session.members.slice(0, 8) as m, i (m.id)}
                   <div class="avatar-mini palette-{i % 10}" title={m.display_name}>
@@ -711,7 +770,6 @@
               {isOwner}
               breathing={showBreathing}
               on:copy={() => {
-                // v0.3.36 #16 (UAT 0727-1): copy 成功 -> 写 sbc-invite-actioned + 停 breathing
                 if (browser) {
                   sessionStorage.setItem(`sbc-invite-actioned-${session?.id ?? ''}`, '1');
                 }
@@ -719,7 +777,6 @@
                 showAnonHint = false;
               }}
               on:open={() => {
-                // v0.3.36 #16 (UAT 0727-1): modal 打开 -> 同上 stop 路径
                 if (browser) {
                   sessionStorage.setItem(`sbc-invite-actioned-${session?.id ?? ''}`, '1');
                 }
@@ -727,27 +784,6 @@
                 showAnonHint = false;
               }}
             />
-            <!-- v0.3.31 #2 (UAT 0725-2 #2, PO 字面 "下方的提示改为"当前未登录,请收藏此链接,这是您回到此账本的唯一密钥！"):
-                 仅匿名 owner + 首次进入账单页时渲染, 替代原 amber pill "邀请朋友加入,开始分摊第一笔账单吧".
-                 视觉: 红色玻璃 pill (跟 expiry-inline-a 同族), 1px border + backdrop-filter blur(8px).
-                 位置: 邀请按钮正下方, 跟 .members-row2-right 一起 align-items: flex-end 右对齐.
-                 二次访问 sessionStorage 有标记 → 不渲染 (PO 明确 "首次进入").
-                 v0.3.36 #15 — UAT 0728-1 #15 (PO 字面 "把提示分成两行 放在当前的 pill 里。第一行是 当前未登录 请收藏此链接, 第二行是 这是您回到此账本的唯一密钥。"):
-                 文案从一行变两行, pill 内文字保留原字号/颜色, 但 text 拆成 <span class="line-1"> + <br /> + <span class="line-2">.
-                 CSS .line-1 / .line-2 各自 display: block 让两行垂直堆叠 (跟 PO 字面 "分成两行" 一致). -->
-            {#if showAnonHint}
-              <span class="expiry-anon-a" data-testid="invite-anon-hint">
-                <!-- Lucide `lock` 11×11 -->
-                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                </svg>
-                <span class="anon-hint-text">
-                  <span class="line-1">当前未登录 请收藏此链接</span>
-                  <span class="line-2">这是您回到此账本的唯一密钥。</span>
-                </span>
-              </span>
-            {/if}
           </div>
         </div>
 
@@ -938,7 +974,8 @@
         />
       {:else}
         <!-- v0.2.1 T05: 搜索 input (session 内账单 description 模糊匹配)。 -->
-        <div class="bills-search">
+        <div class="bills-search-sentinel" bind:this={billsSearchSentinel} aria-hidden="true"></div>
+        <div class="bills-search" class:is-stuck={billsSearchStuck}>
           <Search size={16} aria-hidden="true" />
           <!-- v0.3.21 #118 (PO msg 11:35 #7838 Bug 1 + Bug 4, #116 续): onfocus 调
                scrollSearchToSticky 把 search 预置到 sticky top: 8px, oninput 不调.
@@ -1074,6 +1111,7 @@
       has_bills={bills.length > 0}
       exchange_rates={session.exchange_rates ?? []}
       onAdded={() => window.location.reload()}
+      dismiss={() => (addCurrencyOpen = false)}
       on:close={() => (addCurrencyOpen = false)}
     />
   {/if}
@@ -1134,10 +1172,11 @@
      (6) net 字号 13px / font-weight 700 / 首位
      (7) 1-member 紧凑 CTA banner
      (8) 768px 2-column grid */
+  /* v0.3.0729-4 #13: 成员 section 背景与账单 section (.card = white) 一致 */
   .members-card {
-    background: rgba(255, 255, 255, 0.55);
-    backdrop-filter: saturate(180%) blur(20px);
-    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    background: white;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     border-radius: 16px;
     /* v0.3.21 #110 (PO msg 18:46): padding 16 → 12.
        PO 反馈 section 垂直高度太高 + "查看 N 人" 离 section 底部太远.
@@ -1241,24 +1280,15 @@
     min-width: 0;
   }
   .members-row2-right {
-    /* v0.3.31 #2 (UAT 0725-2 #2): 加 display: flex + flex-direction: column + align-items: flex-end
-       让 InviteLinkButton + .expiry-anon-a (匿名 hint pill) 纵向堆叠 + 跟原 invite-btn 一样右对齐.
-       原 layout 是块状, pill 加进来后默认占满整行 + 左对齐 → 不符 .members-row2-right 右对齐.
-       margin-left: auto 让整个 right 区域靠 section 右边.
-
-       v0.3.34 #5 (UAT 0726-1 #4): PO 反馈 "邀请按钮 + 红色玻璃 pill 都超出 members section 右边框".
-       根因: column flex 0 0 auto (content-based) + .expiry-anon-a max-width:100% 是相对被撑大的 parent
-       → pill 文字 ~398px 撑大 column, 超过 .members-head-row2 内容区 ~326px, button + pill 同时溢出 card border.
-       修法: column 加 max-width:100% + min-width:0 → column 宽 = min(content, container), pill max-width:100%
-       跟随 column 收缩 + white-space:normal 让长文案 wrap 到多行, button 仍在 column 内右对齐. */
+    /* v0.3.0729-4 #2: 提示已挪到 .members-row2-left 左对齐；右侧只放邀请按钮。 */
     display: flex;
-    flex-direction: column;
-    align-items: flex-end;
+    flex-direction: row;
+    align-items: center;
     gap: var(--space-2);
     flex: 0 0 auto;
     margin-left: auto;
-    max-width: 100%;
     min-width: 0;
+    justify-content: flex-end;
   }
   /* v0.3.20 #94 Fix 6 (PO msg 02:13 #7455): "查看 N 人" 放分割线之下.
      之前 chevron + "查看 N 人" 直接挨在 row2 (avatar + invite) 下面, 没视觉分隔,
@@ -1386,10 +1416,10 @@
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     text-align: left;
-    /* 跟邀请按钮纵向 + 横向都右对齐 (跟 .members-row2-right 同 align-items).
-       flex-end 让长文案 wrap 时不溢出右边 (iPhone 13 = 390 - 32 padding = 358 内容区,
-       pill 不超 200 字符宽, 安全). */
-    align-self: flex-end;
+    /* v0.3.0729-3 #2: 横向排列时 shrink 允许，避免撑出 row 宽度 */
+    flex-shrink: 1;
+    min-width: 0;
+    /* v0.3.0729-4 #2: 与成员 section 左缘对齐，不再限宽 200px */
     max-width: 100%;
   }
   .expiry-anon-a svg {
@@ -1837,11 +1867,11 @@
     justify-content: space-between;
     gap: var(--space-3);
     flex-wrap: wrap;
-    /* v0.3.0729-1 0728-1-#7-re: margin-bottom 12→16px (var(--space-3) → var(--space-4)).
-       之前 0b44c3f 调 padding 12px 还是不够, chromium 跟 iOS 像素应一致; 实测真机 search 跟
-       card-head gap 视觉太紧 (24px), PO 拍 "多留一点". 顶部 margin +4px 给 search 让出呼吸. */
-    margin-bottom: var(--space-4);
-    padding: 0;
+    /* v0.3.0729-2 #4: 用 padding-bottom 代替 margin-bottom, 避免跟 .bills-search
+       margin-top 发生 margin-collapse (旧 collapse 后视觉 gap ≈16px, PO 要 ~32px).
+       padding 不 collapse → 16px padding + 16px search margin = 32px 视觉间距. */
+    margin-bottom: 0;
+    padding: 0 0 var(--space-4);
     background: none;
     border: none;
     opacity: 1;
@@ -1980,11 +2010,19 @@
      同步 --bills-search-h 60px → 54px (search 实际高度 -6px, region 同步减 6px 保持
      day-header sticky offset 一致). */
   .bills-card {
-    /* v0.3.0728-2 #11 — --bills-search-h 56px → 44px (-12px 跟 .bills-search padding 12px→8px
-       同步减, 3 字符高). BillListGrouped day-header sticky top 偏移跟着 -12px.
-       注: v0.3.36 #7 是 48→56, v0.3.29 是 60→54, 现在 v0.3.0728-2 #11 是 56→44 (3 字符高). */
+    /* v0.3.0729-4 #11: 日期 header 透明度进一步降低 (0.68 → 0.42) */
+    --bills-sticky-glass-bg: rgba(255, 255, 255, 0.42);
+    --bills-sticky-glass-filter: saturate(200%) blur(24px);
     --bills-search-h: 48px;
     padding-bottom: 96px;
+  }
+
+  .bills-search-sentinel {
+    height: 1px;
+    margin: 0;
+    padding: 0;
+    pointer-events: none;
+    visibility: hidden;
   }
 
   .btn-sm {
@@ -2012,54 +2050,25 @@
     position: sticky;
     top: var(--space-2);
     z-index: 20;
+    isolation: isolate;
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    /* v0.3.0729-1 0728-1-#7-re: margin-top 0 → var(--space-2) (8px).
-       配合 .bills-card-head margin-bottom 12→16px, 视觉 gap 24px → 32px (PO 拍 "多留一点").
-       chromium 跟 iOS Safari WebKit margin collapse 行为一致 (BFC 内不 collapse), 实测可用. */
-    margin-top: var(--space-2);
-    /* v0.3.20 #98 (PO msg 13:36 #7532 #1): padding 上下对称.
-       原 18px var(--space-3) var(--space-2) (18 top + 8 bottom) 让 content area
-       偏 search box 顶部 ~5px (input 22px 填满 content area, flex 居中在
-       content area 内, 但 content area 不在 search box 中央). PO 反馈
-       "搜索框内文字还是没居中" — 文字在搜索框视觉上还是偏高.
-       padding 改 13px var(--space-3) 13px 让 content area 22px 精确居中在
-       search box 50px 高度里 (search top +13 + content 22 + 13 + 2 border = 50).
-       input 跟 .Search icon 都垂直居中于搜索框, placeholder 跟实际文字
-       在视觉中央. --bills-search-h 60px 不变 (那是 region 计算用, search 高度
-       仍是 50px, 实际 region 高度由 BillListGrouped 偏移自行处理).
-       v0.3.29 (UAT 0725-1 #1, PO msg 12:43): PO 字面 "没让你把搜索账单的搜索框垂直高度变大, 只让你给搜索框及其背后的区域加模糊背景". 现状 50px 太胖, 改回 ~44px (padding 11px 让 content area 22px 居中, +2 border = 44px 总高). --bills-search-h 同步收 10px (50→44, 但 sticky offset 需让出 day-header 区域, 改 44→54 让出原 10px padding 给 day-header 浮起缓冲). */
-    /* v0.3.36 #7 — UAT 0728-1 #7 (PO 字面 "搜索, 账单名称搜索框, 与上方的按钮以及下方的账单之间, 应多留一点空间"):
-         padding 8px 12px → 12px 14px (top/bottom 各加 4px = +8px 高度; 左右各加 2px = 让内部 input
-         padding 也增加, 跟 placeholder 距离两边更宽). 顶部多留 4px 跟上方 .bills-card-head 按钮
-         留视觉呼吸; 底部多留 4px 跟下方 BillListGrouped 第一行 day-header 留呼吸.
-         --bills-search-h 同步 +8px (48 → 56), BillListGrouped day-header sticky top 偏移跟着 +
-         让搜索框区域 总高 = 56px. */
-    /* v0.3.0728-2 #11 — UAT 0728-2 #11 搜索框垂直高度修复 (PO 拍 "5 字符 → 3 字符高").
-         现状 12px padding + 14px font-size + 1.4 line-height = 12*2 + 14*1.4 = 43.6 + 2 border = 45.6,
-         实际包含 padding+input+border 总高度 ~56px (5 字符高, 太胖). 拍定 8px 14px padding + 36px min-height
-         + 1.4 line-height. --bills-search-h 同步 56 → 44 (-12px, 跟 gap 8 → 12 调整一致). */
+    margin-top: var(--space-4);
     padding: 12px 14px;
     min-height: 40px;
     line-height: 1.4;
-    display: flex;
-    align-items: center;
     background: transparent;
     border: 1px solid transparent;
     border-radius: var(--radius-md, 8px);
     color: var(--gray-500);
   }
-  /* v0.3.28 (UAT 0723-2 #7 测试不通过修复): 玻璃背景移到 ::before, 负 top/bottom
-     偏移覆盖搜索框上下 padding 区域 (上方 .bills-card-head margin-bottom 12px +
-     下方 BillListGrouped 间隔). 之前 backdrop-filter 只在 .bills-search 本体内
-     生效, gap 区域透明, 内容从缝隙漏出. 现在 ::before 在 z-index:-1 占满
-     -12px 到 +height+12px 区域, 玻璃 + blur 覆盖整个 padding. */
+  /* 默认（未 sticky）：仅搜索框本体的玻璃，不盖住上方标题/按钮 */
   .bills-search::before {
     content: '';
     position: absolute;
-    top: -12px;
-    bottom: -12px;
+    top: 0;
+    bottom: 0;
     left: 0;
     right: 0;
     background: rgba(255, 255, 255, 0.55);
@@ -2067,11 +2076,45 @@
     -webkit-backdrop-filter: blur(20px) saturate(180%);
     border: 1px solid var(--color-border, #e5e7eb);
     border-radius: var(--radius-md, 8px);
+    z-index: -2;
+    pointer-events: none;
+  }
+  /* sticky 时边框固定在搜索框本体 (不随 blur 层上移) */
+  .bills-search::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md, 8px);
     z-index: -1;
+    pointer-events: none;
+    background: transparent;
+  }
+  /* v0.3.0729-2 UAT #4 v2: sticky 仅向上铺 blur, 边框留在搜索框原位 (::after). */
+  .bills-search.is-stuck::before {
+    top: calc(-1 * var(--bills-search-stuck-bleed, 0px));
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+    background: var(--bills-sticky-glass-bg);
+    backdrop-filter: var(--bills-sticky-glass-filter);
+    -webkit-backdrop-filter: var(--bills-sticky-glass-filter);
+  }
+  .bills-search.is-stuck::after {
+    border-color: var(--color-border, #e5e7eb);
   }
   @supports not (backdrop-filter: blur(1px)) {
     .bills-search {
       background: var(--color-bg, #f9fafb);
+    }
+    .bills-search::before {
+      background: rgba(249, 250, 251, 0.95);
+    }
+    .bills-search.is-stuck::before {
+      background: rgba(249, 250, 251, 0.95);
     }
   }
   .bills-search-input {

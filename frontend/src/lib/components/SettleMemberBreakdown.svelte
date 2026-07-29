@@ -966,7 +966,7 @@
      保留 max padding 给桌面, 不引新 design token. */
   /* v0.3.18 #44 (PO msg 17:43 #6401 拍板, 反 #41 不彻底): hero→chip 视觉间距 ~30px → ≤8px 真修.
      v0.3.17 #41 commit message 声称 '.hero margin-bottom 12px → 4px' 但实际漏了 (df974be diff
-     只改了 .glass-sheet), 所以现 hero mb 还是 12px. 这次 v     V�2 多处微调叠加:
+     只改了 .glass-sheet), 所以现 hero mb 还是 12px. 这次 vV�2 多处微调叠加:
      - .hero padding 16px → 8px (上下各砍 8px, 紧凑 hero 内部)
      - .hero margin-bottom 12px → 0 (跟 .glass-sheet margin-top 一起 collapse, 不堆叠空白)
      - .glass-sheet margin-top 14px → 0 (同上, hero 跟 sheet 之间无 margin gap)
@@ -1400,7 +1400,7 @@
        滚过 chip 时几乎贴脸穿透. bg 0.10 → 0.55 (× 5.5 浓液化),
        blur 20 → 24 (+20%), 保留 saturate 200% (玻璃质感).
        inset highlight / 外阴影同步略提 (玻璃感保留). */
-    background: rgba(255, 255, 255, 0.55);
+    background: rgba(255, 255, 255, 0.42);
     backdrop-filter: saturate(200%) blur(24px);
     -webkit-backdrop-filter: saturate(200%) blur(24px);
     border-radius: 9999px;
@@ -1469,11 +1469,12 @@
        h4 视觉压在搜索框上方 (跟 iOS native section header 行为一致). */
   .bills-section-search {
     position: sticky;
-    /* top: 32px = .bills-section-head sticky h4 高度 (padding 8 + 内容 ~16 + padding 8 = 32px).
-       h4 margin-bottom 8px + search margin-top 0 = h4 底部到 search 顶部 8px 视觉间距.
-       实测 chromium computed h4 height 32px 字段级精确. */
-    top: 32px;
-    z-index: 12; /* v0.3.0729-1 #9 re-fix: 9 → 12 (above .section-header z=10), iOS Safari WebKit 滚动时 search 不再被 header 遮住 */
+    /* v0.3.0729-2 #9: top 跟 glass-chip 实际高度对齐.
+       chip = padding 20+20 + 16px 字 + min-height 60 → 实测常 ~64-72px (含 gap/icon).
+       旧 top:32/60 仍会被 header 挡住; 现 top:76px 保证 search 整条露在 chip 下沿之下. */
+    top: 76px;
+    /* search 在 header 之下 (z < header), 正确堆叠: items → search(9) → header(10). */
+    z-index: 9;
     display: flex;
     align-items: center;
     gap: var(--space-2, 8px);
@@ -1481,7 +1482,8 @@
        (避免跟 h4 视觉间距 8px + h4 margin-bottom 8px 叠加 16px). */
     margin: 0 0 var(--space-2, 8px);
     padding: 8px var(--space-2, 8px);
-    background: rgba(255, 255, 255, 0.55);
+    /* v0.3.0729-4 #12: 与账单列表日期 header 同透明度 (0.42) */
+    background: rgba(255, 255, 255, 0.42);
     backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
     border: 1px solid var(--color-border, #e5e7eb);
