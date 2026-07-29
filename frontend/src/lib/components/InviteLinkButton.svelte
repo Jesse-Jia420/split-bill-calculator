@@ -253,7 +253,7 @@
   /** v0.3.0728-3 #2: 净化 QR 文件名 — 剔除非法字符 + 控制字符 + 过长截断 + 空 fallback. */
   function buildQrFilename(name: string): string {
     const cleaned = (name ?? '')
-      .replace(/[\/\:*?"<>| -]/g, '')  // 文件系统非法 + 控制字符
+      .replace(/[\/\:*?"<>|-]/g, '')  // 文件系统非法 + 控制字符
       .replace(/\s+/g, '_')                     // 空格 → 下划线
       .replace(/^[._]+|[._]+$/g, '')             // 去掉首尾 . _
       .slice(0, 32);                             // 截断 32 字符避免 macOS 255 字节限制

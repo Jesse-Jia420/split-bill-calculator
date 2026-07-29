@@ -1279,7 +1279,7 @@
      - width 公式 64px→56px, height 公式不变 (仍 top:6 bottom:6 = 高度跟 row 走)
        物理约束: progress<1 时 width<height → 视觉上是竖椭圆 (iOS Mail 同款,
        物理不可避免, 见完成消息)
-     - 基类 .glass-pill 的玻璃背景/边框/blur 全部保留 (跟全站其它玻璃按钮同语�      ��),
+     - 基类 .glass-pill 的玻璃背景/边框/blur 全部保留 (跟全站其它玻璃按钮同语� ��),
        只把 border-radius 改 50% + 删 padding (圆里没文字不需内边距)
      - 基类不重复定义 — 继承 app.css .glass-pill 的 0.10/0.08 玻璃 + accent-700 字
      - --delete / --edit 玻璃色 modifier 同 #17, 不重调 */
