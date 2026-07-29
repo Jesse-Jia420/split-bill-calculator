@@ -793,9 +793,7 @@
             </button>
             {#if st?.exclusive}
               <!-- v0.3.20 #92 (PO msg 07:13 #7409): exclusive 实态: ¥ + input, accent 玻璃, 102×32 钉死.
-                   v0.3.0728-2 #13 (UAT 0728-2 #13): pill-currency 内 currencySymbol (¥/$) → currency code (CNY/THB).
-                   pill 32px 高保留, text 缩小到 11px (原 ~14px font-weight 600), 仍居中.
-                   pill-currency width: auto (原 32px 固定, 改 auto 让 CNY/THB 三字符 fit). -->
+                   v0.3.0729-3 #1: focus/unfocus 一律 currencySymbol (¥/$), 不再显 CNY/THB code. -->
               <div
                 class="excl-pill excl-pill-exclusive"
                 role="group"
@@ -808,7 +806,7 @@
                   class="pill-currency"
                   onclick={() => exitExclusiveMode(m.id)}
                   aria-label={`退出 ${m.display_name} 的个人消费`}
-                >{currency}</button>
+                >{currencySymbol(currency)}</button>
                 <input
                   type="number"
                   min="0"
@@ -824,9 +822,8 @@
               </div>
             {:else}
               <!-- shared 虚态: "¥ 个人消费" ghost 玻璃 (currency 在前, label 在后), 点 → 进 exclusive.
-                   v0.3.21 #115 (PO msg 11:35): 货币符号应在前, 个人消费字样在后 (货币语义在前更直接).
-                   v0.3.0728-2 #13 (UAT 0728-2 #13): currencySymbol (¥/$) → currency code (CNY/THB).
-                   pill 内 CNY/THB 显示 11px font 500 tabular-nums. -->
+                   v0.3.21 #115 (PO msg 11:35): 货币符号应在前, 个人消费字样在后.
+                   v0.3.0729-3 #1: 与 exclusive 态一致, 一律 currencySymbol (¥/$). -->
               <button
                 type="button"
                 class="excl-pill excl-pill-shared"
@@ -1106,14 +1103,11 @@
       background: rgba(99, 102, 241, 0.32);
     }
   }
-  /* v0.3.0728-2 #13 — UAT 0728-2 #13 pill-currency 改显 CNY/THB (currency code).
-       原 ¥/三字符 ¥¥¥ → CNY/THB 三字符, 字号缩 11px tabular-nums + padding 4px 让三字符 fit.
-       width: auto (原 0 0 auto, 实际因为 currencySymbol 是单字符跟 .pill-input 一起能 fit,
-       现改成 width auto 让三字符 自己决定 width, 不跟 input 冲突). */
+  /* v0.3.0729-3 #1: pill-currency 显 ¥/$ (currencySymbol), 单字符; width auto + 13px. */
   .pill-currency {
     flex: 0 0 auto;
     width: auto;
-    min-width: 28px;
+    min-width: 0;
     background: transparent;
     border: 0;
     padding: 0 2px;
