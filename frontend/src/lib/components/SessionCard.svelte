@@ -683,14 +683,12 @@
 
   .session-card {
     position: relative;
-    /* v0.3.36 #2 re-fix — UAT 0728-1 #2 验收不通过 (0.48/0.24 仍不够透):
-       bg alpha 0.48/0.24 → 0.30/0.15 (-38% / -38%), 让背景纹理明显可见.
-       路径延续: 0.75/0.50 → 0.62/0.38 → 0.48/0.24 → 0.30/0.15.
-       backdrop-filter 仍 saturate(200%) blur(28px) brightness(1.05) — 玻璃语言保持, 只再降透明度. */
+    /* v0.3.0729-2 UAT #1: 再降透明度, 让背景纹理隐约透出 (0.30/0.15 → 0.22/0.10).
+       路径: 0.75/0.50 → … → 0.30/0.15 → 0.22/0.10. */
     background: linear-gradient(
       135deg,
-      rgba(255, 255, 255, 0.30) 0%,
-      rgba(255, 255, 255, 0.15) 100%
+      rgba(255, 255, 255, 0.22) 0%,
+      rgba(255, 255, 255, 0.10) 100%
     );
     backdrop-filter: saturate(200%) blur(28px) brightness(1.05);
     -webkit-backdrop-filter: saturate(200%) blur(28px) brightness(1.05);
@@ -721,8 +719,8 @@
     right: 0;
     height: 60%;
     pointer-events: none;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0) 100%);
-    opacity: 0.55;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.38) 0%, rgba(255, 255, 255, 0) 100%);
+    opacity: 0.42;
   }
 
   /* v0.3.18 #67: hover 浮起 -2px (克制) + 玻璃加深, 无紫 ring.
@@ -730,11 +728,11 @@
    * v0.3.24 #9: hover bg alpha 0.78/0.55 (mockup refined 字面值, 跟 base 0.62/0.38 同步加深). */
   .card-link:hover .session-card {
     transform: translateY(-2px);
-    /* v0.3.36 #2: hover bg alpha 0.78/0.55 → 0.62/0.38 (-25% 跟 base 同步), 跟 v0.3.24 #9 baseline 减路径保持同步. */
+    /* v0.3.0729-2 UAT #1: hover 跟 base 同步加深 (0.62/0.38 → 0.48/0.28). */
     background: linear-gradient(
       135deg,
-      rgba(255, 255, 255, 0.62) 0%,
-      rgba(255, 255, 255, 0.38) 100%
+      rgba(255, 255, 255, 0.48) 0%,
+      rgba(255, 255, 255, 0.28) 100%
     );
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.95),
