@@ -183,7 +183,9 @@
     const main = document.querySelector('main');
     const el = document.querySelector('.bills-search');
     if (!(main instanceof HTMLElement) || !(el instanceof HTMLElement)) return;
-    const STICKY_OFFSET = 8;  // 跟 .bills-search { top: var(--space-2) } 对齐
+    const nav = document.querySelector('.navbar');
+    const navH = nav instanceof HTMLElement ? nav.getBoundingClientRect().height : 56;
+    const STICKY_OFFSET = navH + 8; // navbar + var(--space-2), 跟 .bills-search sticky top 对齐
     // offsetTop 累加到 main
     let target: HTMLElement | null = el;
     let top = 0;
@@ -1981,10 +1983,15 @@
      同步 --bills-search-h 60px → 54px (search 实际高度 -6px, region 同步减 6px 保持
      day-header sticky offset 一致). */
   .bills-card {
-    /* v0.3.0728-2 #11 — --bills-search-h 56px → 44px (-12px 跟 .bills-search padding 12px→8px
-       同步减, 3 字符高). BillListGrouped day-header sticky top 偏移跟着 -12px.
-       注: v0.3.36 #7 是 48→56, v0.3.29 是 60→54, 现在 v0.3.0728-2 #11 是 56→44 (3 字符高). */
-    --bills-search-h: 48px;
+    /* Sticky 搜索 + 日期 header 共用玻璃 token (UAT: 遮挡滚过的 bill row) */
+    --bills-sticky-glass-bg: rgba(255, 255, 255, 0.68);
+    --bills-sticky-glass-filter: saturate(200%) blur(24px);
+    --bills-search-sticky-top: calc(
+      var(--navbar-h, 56px) + env(safe-area-inset-top, 0px) + var(--space-2)
+    );
+    /* 搜索框本体高度 (padding 12×2 + min-height 40); day-header sticky 在其下沿 */
+    --bills-search-body-h: 48px;
+    --bills-search-h: calc(var(--bills-search-sticky-top) + var(--bills-search-body-h));
     padding-bottom: 96px;
   }
 
@@ -2011,11 +2018,17 @@
      偏移由 --bills-search-h 推算, 不受 top 影响). */
   .bills-search {
     position: sticky;
-    top: var(--space-2);
+    top: var(--bills-search-sticky-top);
     z-index: 20;
+    isolation: isolate;
     display: flex;
     align-items: center;
     gap: var(--space-2);
+    /* 玻璃条横向铺满 page-inner (抵消 .page-inner padding) */
+    margin-left: calc(-1 * var(--space-4));
+    margin-right: calc(-1 * var(--space-4));
+    padding-left: calc(var(--space-4) + 14px);
+    padding-right: calc(var(--space-4) + 14px);
     /* v0.3.0729-2 #4: margin-top var(--space-4)=16px. 配合 .bills-card-head
        padding-bottom 16px (不 collapse) → 视觉 gap 32px. */
     margin-top: var(--space-4);
@@ -2058,23 +2071,41 @@
   /* v0.3.0729-2 #4: ::before 不再负偏移吃掉上下间距.
      旧 top/bottom:-12px 把玻璃铺进 gap, 视觉上搜索框仍贴住上方按钮/下方账单.
      玻璃只包搜索框本体; 间距交给 .bills-card-head padding-bottom + .bills-search margin-top. */
+  /* 玻璃背景: 搜索框 + sticky 时 navbar 下沿到搜索框之间的整条遮罩 (防 bill row 漏出) */
   .bills-search::before {
     content: '';
     position: absolute;
-    top: 0;
+    top: calc(-1 * var(--bills-search-sticky-top));
     bottom: 0;
     left: 0;
     right: 0;
-    background: rgba(255, 255, 255, 0.55);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    background: var(--bills-sticky-glass-bg);
+    backdrop-filter: var(--bills-sticky-glass-filter);
+    -webkit-backdrop-filter: var(--bills-sticky-glass-filter);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.45);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+    z-index: -1;
+    pointer-events: none;
+  }
+  .bills-search::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--bills-sticky-glass-bg);
+    backdrop-filter: var(--bills-sticky-glass-filter);
+    -webkit-backdrop-filter: var(--bills-sticky-glass-filter);
     border: 1px solid var(--color-border, #e5e7eb);
     border-radius: var(--radius-md, 8px);
     z-index: -1;
+    pointer-events: none;
   }
   @supports not (backdrop-filter: blur(1px)) {
     .bills-search {
-      background: var(--color-bg, #f9fafb);
+      background: rgba(249, 250, 251, 0.95);
+    }
+    .bills-search::before,
+    .bills-search::after {
+      background: rgba(249, 250, 251, 0.95);
     }
   }
   .bills-search-input {
