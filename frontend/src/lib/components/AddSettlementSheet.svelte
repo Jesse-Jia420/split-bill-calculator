@@ -26,8 +26,7 @@
 -->
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
-  // v0.3.0729-2 #6: 恢复 XIcon (× 关闭按钮) — 仅靠 drag-down 真机关不稳.
-  import { X as XIcon } from 'lucide-svelte';
+  // v0.3.0729-3 #3: 删右上 × — 关闭走 backdrop / drag-down / Escape (portal destroy 已修).
   import { portal } from '$lib/actions/portal';
   import { toast } from '$stores/toast';
   import { createSettlementRecord, type SettlementRecord } from '$api/settlements';
@@ -262,15 +261,8 @@
   <div class="sheet-handle" aria-hidden="true"></div>
   <div class="sheet-head">
     <span class="sheet-title">添加已结算记录</span>
-    <button
-      class="sheet-close"
-      type="button"
-      aria-label="关闭"
-      onclick={close}
-      data-sbc="settlement-sheet-close"
-    >
-      <XIcon size={16} strokeWidth={2.4} color="currentColor" />
-    </button>
+    <!-- v0.3.0729-3 #3: 删右上 × (PO: "添加结算弹窗，删除右上角的返回按钮").
+         关闭走 backdrop / drag-down / Escape. -->
   </div>
 
   <div class="form">
@@ -484,35 +476,17 @@
     margin: 0 auto 12px;
   }
   .sheet-head {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    display: flex;
     align-items: center;
+    justify-content: center;
     padding: 0 4px 12px;
   }
   .sheet-title {
-    grid-column: 2;
     font-size: 17px;
     font-weight: 600;
     color: #171717;
     letter-spacing: -0.01em;
-    justify-self: center;
   }
-  .sheet-close {
-    grid-column: 3;
-    width: 32px;
-    height: 32px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    justify-self: end;
-    border-radius: 50%;
-    background: rgba(15, 23, 42, 0.10);
-    color: #404040;
-    border: 0;
-    cursor: pointer;
-    transition: background 150ms ease;
-  }
-  .sheet-close:hover { background: rgba(15, 23, 42, 0.12); }
 
   /* === Form === */
   .form { padding-bottom: 8px; }
