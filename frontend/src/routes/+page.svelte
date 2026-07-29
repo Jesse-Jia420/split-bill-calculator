@@ -352,7 +352,7 @@
     font-size: 1.625rem;   /* v0.3.21 #106.3 (PO msg 18:17): 2.25rem → 1.625rem (-28%, 36→26px). 字号继续调小, 跟 wordmark / 按钮拉开 hierarchy */
     font-weight: 400;  /* v0.3.21 #106.2 (PO msg 17:43): 500 -> 400 还是太粗, 再细一档到 regular */
     color: #fff;
-    margin: 0 0 0.75rem;
+    margin: 0.5rem 0 0.75rem;
     line-height: 1.15;
     text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   }
