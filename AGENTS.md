@@ -13,3 +13,7 @@ Close wiring: pass `dismiss={() => (open = false)}` (plain prop name). Keep `on:
 ### Dev auth
 
 Passwordless login; emails in `DEV_BYPASS_EMAILS` accept any 6-digit code. Seeded Thailand session is useful for multi-currency + settle UI checks.
+
+### Feature-matrix test data
+
+When `SBC_SKIP_SEED=false`, startup seeds tagged ledgers whose **账本名称 / 账单名称** annotate the feature under test (e.g. `[单币有账·锁副币]只能CNY`). Catalog: `docs/TEST_DATA_MATRIX.md`. Re-run: `cd backend && SBC_SKIP_SEED=false .venv/bin/python -m scripts.seed_dev_data`.
