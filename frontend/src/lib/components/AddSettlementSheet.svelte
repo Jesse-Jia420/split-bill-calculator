@@ -25,8 +25,8 @@
   - amount > 0 强制, <= 0 时 disable submit.
 -->
 <script lang="ts">
-  import { onMount } from 'svelte';
-  // v0.3.0728-2 #21 #1: XIcon import 删 (× button 整个块已删, 避免 unused import 警告)
+  import { createEventDispatcher, onMount } from 'svelte';
+  // v0.3.0729-3 #3: 删右上 × — 关闭走 backdrop / drag-down / Escape (portal destroy 已修).
   import { portal } from '$lib/actions/portal';
   import { toast } from '$stores/toast';
   import { createSettlementRecord, type SettlementRecord } from '$api/settlements';
@@ -45,7 +45,12 @@
   export let currentMemberId: number | null = null;
   /** 提交成功回调. */
   export let onAdded: ((record: SettlementRecord) => void) | undefined = undefined;
-  export let onclose: (() => void) | undefined = undefined;
+
+  // v0.3.0729-2 #6: dismiss callback (故意不用 on* 名) + createEventDispatcher 双通道.
+  // 真正关不掉的根因在 portal.ts destroy 孤儿 DOM; dismiss 是父页 runes 可靠回调.
+  export let dismiss: (() => void) | undefined = undefined;
+
+  const dispatch = createEventDispatcher<{ close: void }>();
 
   // ---- 表单 state ----
   let payerId: number | null = null;
@@ -114,9 +119,17 @@
     return currencySymbol(currency) + formatMoney(n, { currency, showSymbol: false });
   }
 
+  let closing = false;
+
   function close() {
-    if (busy) return;
-    onclose?.();
+    if (busy || closing) return;
+    closing = true;
+    // Wait for CSS exit animation, then truly dismiss
+    setTimeout(() => {
+      closing = false;
+      dismiss?.();
+      dispatch('close');
+    }, 240);
   }
 
   /** v0.3.0728-2 #21 — UAT 0728-2 #21 (PO msg 16:50) 拖动下滑关闭 (跟 v0.3.37 #5 InviteLinkButton 同款):
@@ -163,7 +176,8 @@
 
   function handleTouchEnd() {
     if (!dragging || !sheetEl) return;
-    const threshold = sheetHeight * 0.3;
+    // v0.3.0729-2 #6: 阈值 30% → 15%/80px, 跟 CurrencyAddModal 一致, 下滑更易关闭.
+    const threshold = Math.min(sheetHeight * 0.15, 80);
     if (dragDeltaY > threshold) {
       close();
     } else {
@@ -208,7 +222,8 @@
       });
       toast.success(`已添加 ${nameOf(record.payer_id)} → ${nameOf(record.payee_id)} ${record.amount} ${record.currency}`);
       onAdded?.(record);
-      onclose?.();
+      dismiss?.();
+      dispatch('close');
     } catch (e: any) {
       const code = e?.code ?? e?.detail?.error ?? 'unknown';
       const msg = e?.detail?.error ?? e?.message ?? '添加失败';
@@ -230,16 +245,18 @@
 <!-- Backdrop (跟 mockup 2 / 3 一致: rgba(15,23,42,0.40) + blur(4px)) -->
 <div
   class="backdrop"
+  class:closing
   role="presentation"
   onclick={close}
   data-sbc="settlement-sheet-backdrop"
 ></div>
 
 <!-- Bottom sheet -->
-<!-- v0.3.0728-2 #21: 删右上 × button (PO 字面 "删除添加已结算记录弹窗右上方的关闭按钮") + 加 drag-down dismiss (跟 v0.3.37 #5 InviteLinkButton 同款). -->
+<!-- v0.3.0729-2 #6: 恢复 × 关闭按钮 (仅靠 drag-down 真机关不稳) + 保留 drag-down 作辅助. -->
 <div
   class="sheet"
   class:dragging
+  class:closing
   role="dialog"
   aria-modal="true"
   aria-label="添加已结算记录"
@@ -253,7 +270,8 @@
   <div class="sheet-handle" aria-hidden="true"></div>
   <div class="sheet-head">
     <span class="sheet-title">添加已结算记录</span>
-    <!-- v0.3.0728-2 #21 #1: 删 × button (跟 v0.3.37 #5 #1 InviteLinkButton 同款, sheet-head 仅保留居中 title) -->
+    <!-- v0.3.0729-3 #3: 删右上 × (PO: "添加结算弹窗，删除右上角的返回按钮").
+         关闭走 backdrop / drag-down / Escape. -->
   </div>
 
   <div class="form">
@@ -403,7 +421,7 @@
     </button>
   </div>
 
-  <div class="home-indicator" aria-hidden="true"></div>
+  <!-- v0.3.0729-2 #6: 删 home-indicator 占位 (黑 bar 早删, 30px 空 spacer 也多余). -->
 </div>
 </div>
 
@@ -415,7 +433,8 @@
     background: rgba(15, 23, 42, 0.40);
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
-    z-index: 50;
+    /* v0.3.0729-2 #6: backdrop z 跟 sheet 配套升高 (sheet=1000). */
+    z-index: 999;
   }
 
   /* === Bottom Sheet (modal) === */
@@ -435,9 +454,13 @@
     border-bottom: 0;
     box-shadow:
       0 -8px 32px rgba(15, 23, 42, 0.12),
-      inset 0 1px 0 rgba(255, 255, 255, 0.85);
-    z-index: 60;
-    padding: 8px 16px 0;
+      inset 0 1px 0 rgba(255, 255, 255, 0.85),
+      /* v0.3.0729-4 #14: 上拉橡皮筋时底部白色延伸，避免与页面底部分离 */
+      0 50vh 0 0 rgba(255, 255, 255, 0.96);
+    /* v0.3.0729-2 #6: z-index 60 → 1000, 跟 CurrencyAddModal 对齐,
+       避免被 VersionBadge (z=200) / NavBar (z=100) 盖住交互. */
+    z-index: 1000;
+    padding: 8px 16px 16px;
     animation: slideUp 280ms cubic-bezier(0.32, 0.72, 0, 1);
     max-height: 92vh;
     overflow-y: auto;
@@ -456,6 +479,18 @@
     from { transform: translateY(100%); }
     to { transform: translateY(0); }
   }
+  @keyframes slideDown {
+    to { transform: translateY(100%); opacity: 0; }
+  }
+  @keyframes fadeOut {
+    to { opacity: 0; }
+  }
+  .sheet.closing {
+    animation: slideDown 240ms ease-in forwards;
+  }
+  .backdrop.closing {
+    animation: fadeOut 240ms ease-in forwards;
+  }
   .sheet-handle {
     width: 36px;
     height: 4px;
@@ -466,7 +501,6 @@
   .sheet-head {
     display: flex;
     align-items: center;
-    /* v0.3.0728-2 #21 #1: 删 × button 后 title 居中 (不补 dummy spacer, 视觉对齐靠 text-align center) */
     justify-content: center;
     padding: 0 4px 12px;
   }
@@ -476,7 +510,6 @@
     color: #171717;
     letter-spacing: -0.01em;
   }
-  /* v0.3.0728-2 #21 #1: 删 .sheet-close 整个块 (跟 v0.3.37 #5 #1 InviteLinkButton 同款, sheet-head 仅保留居中 title) */
 
   /* === Form === */
   .form { padding-bottom: 8px; }
@@ -671,16 +704,5 @@
     color: rgba(15, 23, 42, 0.40);
     box-shadow: none;
     cursor: not-allowed;
-  }
-
-  /* v0.3.0728-2 #21 re-fix: 删 .home-indicator::after 黑色 bar (PO 字面 "下边的黑色bar是什么鬼, 谁说需要这个的").
-     iOS-style home indicator 是系统 UI, app 内不应该画一个假的.
-     保留 .home-indicator div 作为 spacing placeholder (height 30px), 删 ::after black bar. */
-  .home-indicator {
-    height: 30px;
-    display: flex;
-    justify-content: center;
-    align-items: flex-end;
-    padding-bottom: 8px;
   }
 </style>

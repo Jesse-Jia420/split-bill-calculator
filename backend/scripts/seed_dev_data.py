@@ -112,7 +112,9 @@ THAILAND_MEMBERS: list[tuple[str, str, str]] = [
 # module docstring history. Only THAILAND2 remains as the canonical
 # multi-bill / multi-currency test session.)
 
-PERSONAL_SESSION_NAME = "个人测试"
+PERSONAL_SESSION_NAME = "[空·单币]个人测试"
+# Legacy name kept for rename migration in seed_feature_matrix.
+PERSONAL_SESSION_NAME_LEGACY = "个人测试"
 
 
 # --------------------------------------------------------------------------- #
@@ -445,7 +447,11 @@ def _maybe_backfill_thailand_rates(
 def _ensure_personal_session(
     db: OrmSession, owner: User, now: datetime
 ) -> BillSession:
-    """Find-or-create the empty personal session owned by ``owner``."""
+    """Find-or-create the empty personal session owned by ``owner``.
+
+    Accepts legacy name ``个人测试`` and renames to tagged
+    ``[空·单币]个人测试`` so /sessions browsing is self-explanatory.
+    """
     existing = (
         db.query(BillSession)
         .filter(
@@ -454,6 +460,20 @@ def _ensure_personal_session(
         )
         .first()
     )
+    if existing is None:
+        legacy = (
+            db.query(BillSession)
+            .filter(
+                BillSession.name == PERSONAL_SESSION_NAME_LEGACY,
+                BillSession.owner_user_id == owner.id,
+            )
+            .first()
+        )
+        if legacy is not None:
+            legacy.name = PERSONAL_SESSION_NAME
+            db.flush()
+            return legacy
+
     if existing is not None:
         return existing
 
@@ -726,7 +746,8 @@ def seed_dev_data(db: OrmSession | None = None) -> dict[str, Any]:
         thailand2, thailand2_members = _ensure_thailand2_session(db, xinhua, now)
         bills_created_v2 = _seed_thailand2_bills(db, thailand2, thailand2_members, now)
 
-        # 3. Personal session (1 owner-member, no bills).
+        # 3. Personal session (1 owner-member, no bills). Tagged name
+        #    ``[空·单币]个人测试`` (legacy ``个人测试`` auto-renamed).
         personal = _ensure_personal_session(db, xinhua, now)
 
         # 4. v0.2.2 (T12): re-apply the snapshot backfill now that the
@@ -737,6 +758,12 @@ def seed_dev_data(db: OrmSession | None = None) -> dict[str, Any]:
         #    already-populated rows alone when the rate still matches.
         _backfill_bill_snapshots(db, thailand2.id)
 
+        # 5. Feature-matrix fixtures — ledger/bill names annotate QA paths.
+        #    Catalog: docs/TEST_DATA_MATRIX.md
+        from scripts.seed_feature_matrix import seed_feature_matrix
+
+        matrix = seed_feature_matrix(db, xinhua, now)
+
         db.commit()
         return {
             "xinhua_user_id": xinhua.id,
@@ -744,6 +771,7 @@ def seed_dev_data(db: OrmSession | None = None) -> dict[str, Any]:
             "personal_session_id": personal.id,
             "thailand2_bills_created": bills_created_v2,
             "thailand2_bill_count_target": len(THAILAND2_BILLS),
+            "feature_matrix": matrix,
         }
     except Exception:
         db.rollback()

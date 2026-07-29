@@ -39,7 +39,8 @@
   // v0.3.21 #111 (PO msg 02:46): tagline 纯文本「好用的分账工具」，
   // 不再有 brand-emphasis span (v0.3.21 #106 「撕不裂」emphasis 整段删).
   // SUB 不动。
-  const SUB = '旅行、合租、聚餐 — 随时随地，AA 不再烦恼';
+  /* v0.3.0729-4 #8 */
+  const SUB = '旅行、合租、聚餐 — 随时随地记账，AA 不再烦恼';
 
   let busy = false;
   let error: string | null = null;
@@ -411,8 +412,9 @@
     color: #FFFFF0; /* v0.3.20 #100 ivory white text */
     background: rgba(255, 255, 255, 0.20);
     border: 1px solid rgba(255, 255, 255, 0.45);
-    backdrop-filter: saturate(200%) blur(20px);
-    -webkit-backdrop-filter: saturate(200%) blur(20px);
+    /* v0.3.0729-4 #17: landing 按钮降低 blur */
+    backdrop-filter: saturate(180%) blur(8px);
+    -webkit-backdrop-filter: saturate(180%) blur(8px);
     color: #fff;
     font-size: 1rem;
     font-weight: 600;
@@ -473,8 +475,9 @@
       rgba(255, 255, 255, 0.14) 100%
     );
     border: 1.5px solid rgba(255, 255, 255, 0.45);
-    backdrop-filter: saturate(180%) blur(16px);
-    -webkit-backdrop-filter: saturate(180%) blur(16px);
+    /* v0.3.0729-4 #17: landing ghost 按钮降低 blur */
+    backdrop-filter: saturate(160%) blur(6px);
+    -webkit-backdrop-filter: saturate(160%) blur(6px);
     color: #fff;
     font-size: 0.9375rem;
     font-weight: 500;
@@ -539,8 +542,9 @@
   .logout-link {
     background: rgba(255, 255, 255, 0.20);
     border: 1px solid rgba(255, 255, 255, 0.45);
-    backdrop-filter: saturate(180%) blur(16px);
-    -webkit-backdrop-filter: saturate(180%) blur(16px);
+    /* v0.3.0729-4 #17: landing ghost 按钮降低 blur */
+    backdrop-filter: saturate(160%) blur(6px);
+    -webkit-backdrop-filter: saturate(160%) blur(6px);
     color: #FFFFF0;
     font-size: 0.8125rem;
     font-weight: 500;

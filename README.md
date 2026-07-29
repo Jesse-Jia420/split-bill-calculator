@@ -66,6 +66,8 @@ npm run dev -- --host 0.0.0.0 --port 8448
 
 打开 `http://localhost:8448`, 邮箱填任意 + 验证码 6 位任意数字 (dev 环境不发真邮件).
 
+**手机同 Wi‑Fi 真机调试:** Mac 上查局域网 IP (`ipconfig getifaddr en0`), 手机浏览器打开 `http://<该IP>:8448`。需前后端都用 `--host 0.0.0.0`；若页面显示 “host is not allowed”, 拉最新代码（dev 下 `allowedHosts: true`）。仍连不上时检查 macOS 防火墙是否放行 node。
+
 **dev / 启动模板 / 反向代理** 详见 `skills/dev-workflow/SKILL.md` 和 `skills/sbc/SKILL.md`.
 
 ---

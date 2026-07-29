@@ -49,7 +49,7 @@
 -->
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
-  import { Lock, X as XIcon, Check } from 'lucide-svelte';
+  import { Lock, Check } from 'lucide-svelte';
   import { toast } from '$stores/toast';
   import { ApiError } from '$api/client';
   import { portal } from '$lib/actions/portal';
@@ -87,6 +87,12 @@
     session: SessionDetail;
     rates: SessionExchangeRate[];
   }) => void) | undefined = undefined;
+
+  // v0.3.0729-2 #3: dismiss callback (故意不用 on*/onClose 名).
+  // Svelte 5 对 on* prop 有 event-callback 特殊处理; 父页 runes `$state`
+  // 经 onClose={() => addCurrencyOpen=false} 调用后 state 不翻转 → 弹窗关不掉。
+  // 普通 prop 名 dismiss 可可靠调用。
+  export let dismiss: (() => void) | undefined = undefined;
 
   const dispatch = createEventDispatcher<{ close: void }>();
 
@@ -158,9 +164,16 @@
           : rateValid && !busy
         : false;
 
+  let closing = false;
+
   function close() {
-    if (busy) return;
-    dispatch('close');
+    if (busy || closing) return;
+    closing = true;
+    setTimeout(() => {
+      closing = false;
+      dismiss?.();
+      dispatch('close');
+    }, 240);
   }
 
   /** v0.3.0728-2 #4 — UAT 0728-1 #4 (PO 字面 "币种弹窗可通过下滑关闭, 同邀请链接弹窗一致"):
@@ -202,7 +215,8 @@
 
   function handleTouchEnd() {
     if (!dragging || !sheetEl) return;
-    const threshold = sheetHeight * 0.3;
+    // v0.3.0729-2 #3: 阈值 30% → 15% (或 80px), 真机下滑更容易触发关闭.
+    const threshold = Math.min(sheetHeight * 0.15, 80);
     if (dragDeltaY > threshold) {
       close();
     } else {
@@ -340,6 +354,7 @@
           `已添加 ${secondary}, 汇率 ${rate} ${secondary}/${primary_currency}`
         );
         onAdded?.({ session: updated, rates });
+        dismiss?.();
         dispatch('close');
       } else if (secondary === '') {
         // v0.3.21 #108 (PO msg 17:54): multi + 「—」→ 切换单币种, 真调 DELETE
@@ -349,6 +364,7 @@
         const removed = await deleteSessionCurrency(session_id, originalSecondary);
         toast.success(`已移除 ${originalSecondary}, 账本回到单币种 (${primary_currency})`);
         onAdded?.({ session: removed, rates: removed.exchange_rates ?? [] });
+        dismiss?.();
         dispatch('close');
       } else if (secondary === originalSecondary) {
         // multi + existing secondary: PATCH 现有汇率 (唯一一条 forward + reciprocal 自动同步)
@@ -374,6 +390,7 @@
             : `币种设置已更新, 汇率 ${rate} ${secondary}/${primary}`
         );
         onAdded?.({ session: stubSession, rates });
+        dismiss?.();
         dispatch('close');
       } else {
         // v0.3.21 #108 (PO msg 17:54): multi + 任意其他币种 → REPLACE 流程
@@ -416,6 +433,7 @@
         // 用 addSessionCurrency 返回的 SessionDetail (含最新 currencies + exchange_rates)
         void afterDelete; // 告诉 TS / 读者 afterDelete 仅用于中间状态跳转语义, 最终 payload 用 afterAdd + newRates
         onAdded?.({ session: afterAdd, rates: newRates });
+        dismiss?.();
         dispatch('close');
       }
     } catch (e: any) {
@@ -430,6 +448,7 @@
         e?.detail?.detail?.error === 'currency_already_in_session'
       ) {
         toast.info('该币种已在账本中');
+        dismiss?.();
         dispatch('close');
       } else {
         toast.error(msg);
@@ -469,12 +488,14 @@
 <div use:portal data-testid="currency-add-modal-host">
 <div
   class="sheet-backdrop"
+  class:closing
   role="presentation"
   onclick={close}
 ></div>
 <div
   class="sheet"
   class:dragging
+  class:closing
   role="dialog"
   aria-modal="true"
   aria-label={modalTitle}
@@ -490,9 +511,8 @@
   <div class="sheet-handle" aria-hidden="true"></div>
   <header class="sheet-head">
     <h3 class="sheet-title">{modalTitle}</h3>
-    <!-- v0.3.0728-2 #4 — UAT 0728-1 #4 (PO 字面 "币种弹窗可通过下滑关闭, 同邀请链接弹窗一致").
-         删 .sheet-close × button (跟 v0.3.37 #5 InviteLinkButton sheet-close 删除同款), 改用
-         drag-down dismiss (sheet-head 仅保留居中 title, 跟 AddSettlementSheet v0.3.0728-2 #21 同模式). -->
+    <!-- v0.3.0729-3 #2: 删右上 × (PO: "删除右上角的返回按钮").
+         关闭走 backdrop 点击 + drag-down + Escape (portal destroy 已修, 可关). -->
   </header>
 
   <div class="sheet-body">
@@ -715,7 +735,8 @@
     background: rgba(15, 23, 42, 0.40);
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
-    z-index: 50;
+    /* v0.3.0729-2 #3: backdrop 提到 sheet(1000) 正下方, 保证可点. */
+    z-index: 999;
     animation: backdropFadeIn 160ms ease;
   }
 
@@ -742,7 +763,9 @@
     padding: 8px 16px 0;
     box-shadow:
       0 -8px 32px rgba(15, 23, 42, 0.12),
-      inset 0 1px 0 rgba(255, 255, 255, 0.85);
+      inset 0 1px 0 rgba(255, 255, 255, 0.85),
+      /* v0.3.0729-4 #14: 上拉橡皮筋时底部白色延伸，避免与页面底部分离 */
+      0 50vh 0 0 rgba(255, 255, 255, 0.96);
     z-index: 1000;
     animation: slideUp 280ms cubic-bezier(0.32, 0.72, 0, 1);
     display: flex;
@@ -775,10 +798,8 @@
     border-radius: 100px;
     margin: 0 auto 12px;
   }
-  /* v0.3.0728-2 #4 re-fix: 删 .sheet-close × button 后 (UAT 0728-1 #4 验收不通过:
-     "币种弹窗可通过下滑关闭, 同邀请链接弹窗一致"), sheet-head 从 grid 3 列 (1fr auto 1fr spacer)
-     改回 flex + justify-content: center 让 title 真正居中 (跟 AddSettlementSheet + InviteLinkButton
-     v0.3.37 #5 #1 sheet-head 模式一致). .sheet-close CSS 整块删 (sheet 仅通过 drag-down dismiss). */
+  /* v0.3.0729-3 #2: 删 × 后 sheet-head 回 flex 居中 title (跟 InviteLinkButton 同款).
+     关闭仅靠 backdrop / drag-down / Escape. */
   .sheet-head {
     display: flex;
     align-items: center;
@@ -1037,9 +1058,21 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.30);
   }
 
-  /* v0.3.19 #85 PO #7731 (#2): 去掉 fadeIn (backdrop 透明无 opacity 变化). */
+  /* v0.3.0729-4 #15: 从底部滑出，与 AddSettlementSheet 一致 */
   @keyframes slideUp {
-    from { opacity: 0; transform: translateY(8px) scale(0.98); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+  @keyframes slideDown {
+    to { transform: translateY(100%); opacity: 0; }
+  }
+  @keyframes fadeOutBackdrop {
+    to { opacity: 0; }
+  }
+  .sheet.closing {
+    animation: slideDown 240ms ease-in forwards;
+  }
+  .sheet-backdrop.closing {
+    animation: fadeOutBackdrop 240ms ease-in forwards;
   }
 </style>

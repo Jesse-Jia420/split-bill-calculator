@@ -95,6 +95,8 @@
     display: flex;
     align-items: center;
     gap: var(--space-3);
+    min-width: 0;
+    overflow-x: clip; /* 窄屏时防止右侧按钮/用户名发生横向溢出 */
     /* v0.3.17 #30 (PO msg 14:28): 加 env(safe-area-inset-top) — iOS 全面屏
        刘海/灵动岛区域不挡 brand 文字。body 已 lock 外层滚 (见 app.css),
        v0.3.20 #99-fix4 (PO msg 14:26 #7585): 升 fixed (从 flex layout 第一项 → 浮在所有
@@ -129,12 +131,17 @@
       inset 0 -1px 0 rgba(0, 0, 0, 0.04);
     border-bottom: 1px solid rgba(255, 255, 255, 0.2);
     flex-wrap: wrap;
+    justify-content: space-between; /* 让 right 按空间收缩/换行，而不是撑出视口 */
   }
   .brand {
     font-weight: 600;
     font-size: var(--font-size-lg);
     color: var(--color-text);
     text-decoration: none;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   /* v0.3.20 #100 (PO msg 14:37): hover 象牙白替代蓝色. 象牙白 #FFFFF0 在白纸上 = 低对比 = logo hover 时视觉 'fade' — PO 原话 "象牙白色，不要现在的蓝色". */
   /* UAT v0.3.23 #131: hover 颜色不变 (PO brief "hover 颜色不变, 还是黑色"). Default .brand color = var(--color-text) 已黑色, hover 不再覆盖. */
@@ -143,6 +150,10 @@
     align-items: center;
     gap: var(--space-2);
     margin-left: auto; /* v0.3.17 #28.5 #8: .links 隐藏时 (例如 /sessions/new wizard) 也贴右 */
+    min-width: 0;
+    flex: 1 1 auto;
+    flex-wrap: wrap; /* 窄屏下按钮/用户名换行，而不是溢出 */
+    justify-content: flex-end;
   }
   .email {
     color: var(--color-text-muted);
@@ -229,5 +240,20 @@
       background: rgba(255, 255, 255, 0.85);
     }
     .ghost { background: rgba(255, 255, 255, 0.55); }
+  }
+
+  /* v0.3.29 (UAT): NavBar 窄屏溢出防护
+   * - 收紧左右 padding
+   * - 让 right 的内容尽量在一行内可读，放不下时换行
+   * - 仍保持按钮 touch target min-height 不变 */
+  @media (max-width: 380px) {
+    .navbar {
+      gap: var(--space-2);
+      padding-left: var(--space-3);
+      padding-right: var(--space-3);
+    }
+    .right { gap: var(--space-1); }
+    .btn-sm { padding-left: var(--space-2); padding-right: var(--space-2); }
+    .email { max-width: 10ch; }
   }
 </style>

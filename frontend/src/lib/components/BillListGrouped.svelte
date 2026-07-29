@@ -392,6 +392,24 @@
       if (next > 300) next = 300;
       if (next < -300) next = -300;
 
+    // v0.3.0729-4 #9: 拖动期间直接写按钮 CSS var，避免 store 重渲延迟
+    if (typeof document !== 'undefined') {
+      const wrap = document.querySelector(`.bill-swipe-wrap[data-bill-id="${billId}"]`);
+      if (wrap) {
+        const leftP = next > 0 ? rubberBandProgress(next) : 0;
+        const rightP = next < 0 ? rubberBandProgress(-next) : 0;
+        const leftBtn = wrap.querySelector('.bill-swipe-action-left') as HTMLElement | null;
+        const rightBtn = wrap.querySelector('.bill-swipe-action-right') as HTMLElement | null;
+        const info = wrap.querySelector('.bill-info-layer') as HTMLElement | null;
+        if (leftBtn) leftBtn.style.setProperty('--swipe-progress', String(leftP));
+        if (rightBtn) rightBtn.style.setProperty('--swipe-progress', String(rightP));
+        if (info) {
+          info.style.setProperty('--swipe-clip-left', String(leftP));
+          info.style.setProperty('--swipe-clip-right', String(rightP));
+        }
+      }
+    }
+
     dragOffsetStore.update((o) => ({ ...o, [billId]: next }));
   }
 
@@ -564,6 +582,24 @@
     saveCollapsedState();
   }
 
+  // v0.3.0729-4 #4: 搜索命中时，自动展开所有有结果的日期 header
+  let prevFiltering = false;
+  $: {
+    const isFiltering = totalBills > 0 && bills.length > 0 && bills.length < totalBills;
+    if (isFiltering) {
+      const next = { ...collapsed };
+      let changed = false;
+      for (const g of groups) {
+        if (next[g.date] !== false) {
+          next[g.date] = false;
+          changed = true;
+        }
+      }
+      if (changed || !prevFiltering) collapsed = next;
+    }
+    prevFiltering = isFiltering;
+  }
+
   onMount(() => {
     // T7: freeze defaultOpenDates(在 onMount 后不再重算,切 session 也不会动)。
     defaultOpenDates = computeDefaultOpenDates(bills);
@@ -628,8 +664,13 @@
          右对齐 (align-self: flex-end), 12.5px font, 6px padding, 8px radius.
          pointer-events: none (不抢 click, swipe 仍能透过触发 delete/edit).
          aria-label: 账单列表左右划手势提示 (屏幕阅读器可读). -->
-    <div class="bill-swipe-hint" data-testid="bill-swipe-hint" aria-label="左滑删除账单, 右滑编辑账单">
-      左划以删除账本, 右划以编辑账本
+    <!-- v0.3.0729-2 UAT #2: 文案改「账单」+ 样式跟 sessions .list-top-hint 一致; 删除红/编辑蓝. -->
+    <div class="bill-swipe-hint" data-testid="bill-swipe-hint" aria-label="左滑以删除账单，右滑以编辑账单">
+      <span class="swipe-arrow" aria-hidden="true">←</span>
+      <span>
+        左滑以<span class="hint-delete">删除</span>账单，右滑以<span class="hint-edit">编辑</span>账单
+      </span>
+      <span class="swipe-arrow swipe-arrow--right" aria-hidden="true">→</span>
     </div>
     <ul class="day-list" style="list-style: none; padding: 0; margin: 0;">
       {#each groups as g, gi (g.date)}
@@ -761,6 +802,7 @@
                          整体展开动画。 -->
                     <li
                       class="bill-swipe-wrap"
+                      data-bill-id={b.id}
                       in:fade={{ duration: 80 }}
                     >
                       {#if onDelete}
@@ -923,20 +965,41 @@
     flex-direction: column;
     gap: var(--space-2);
   }
+  /* v0.3.0729-2 UAT #2: 跟 sessions/+page .list-top-hint 同款灰色描边弱化样式. */
   .bill-swipe-hint {
     align-self: flex-end;
-    background: rgba(99, 102, 241, 0.10);
-    border: 1px solid rgba(99, 102, 241, 0.18);
-    padding: 4px 10px;
-    font-size: 12px;
-    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    background: transparent;
+    border: 1px solid rgba(15, 23, 42, 0.14);
+    padding: 2px 8px;
+    font-size: 11px;
+    border-radius: 9999px;
     pointer-events: none;
+    color: var(--gray-500, #737373);
+    font-weight: 400;
+    line-height: 1.4;
+    letter-spacing: -0.005em;
+    white-space: nowrap;
+    /* v0.3.0729-4 #5: 与上方搜索框拉开距离 */
+    margin-top: var(--space-4, 16px);
+  }
+  .bill-swipe-hint .swipe-arrow {
+    font-weight: 500;
+    font-size: 11px;
+    color: var(--gray-400, #a3a3a3);
+  }
+  .bill-swipe-hint .swipe-arrow--right {
+    margin-left: 1px;
+  }
+  .bill-swipe-hint .hint-delete {
+    color: var(--error-700, #be123c);
+    font-weight: 500;
+  }
+  .bill-swipe-hint .hint-edit {
     color: var(--accent-700, #4338ca);
     font-weight: 500;
-    line-height: 1.4;
-    /* v0.3.20 #93 兼容: hint 排在 .bills-search 之下, day-header sticky 之上,
-       sticky top: var(--bills-search-h, 50px) + .bills-search ~46px = ~96px,
-       hint 在这区间内 ~visible, 不被 sticky header 盖 */
   }
   /* v0.3.24 #18 (PO msg 16:35 UAT line #18 字面 "账单列表搜索框，当无搜索结果时，提示的 没有匹配的账单，换个关键词试试 ，出现的位置不对，被搜索框挡住了。应下移一些"):
      原 .muted (app.css 全局类, 仅 color: gray-500) 无 padding, placeholder 紧贴 .bills-search bottom (跟 day-group 头一行同 y 位置), 视觉跟 search box "拼"在一起 — 用户感受是 "被搜索框挡".
@@ -1032,11 +1095,17 @@
     position: sticky;
     top: var(--bills-search-h, 50px);
     z-index: 9;
-    /* v0.3.28 UAT 0724-2 #16: 0.65→0.50, 进一步降低透明度保证可读性 */
-    background: rgba(255, 255, 255, 0.50);
-    backdrop-filter: saturate(180%) blur(20px);
-    -webkit-backdrop-filter: saturate(180%) blur(20px);
-    border-bottom: 1px solid var(--gray-200);
+    /* UAT: 与 .bills-search 玻璃同浓度, 滚过 bill row 时不穿透 */
+    background: var(--bills-sticky-glass-bg, rgba(255, 255, 255, 0.68));
+    backdrop-filter: var(--bills-sticky-glass-filter, saturate(200%) blur(24px));
+    -webkit-backdrop-filter: var(--bills-sticky-glass-filter, saturate(200%) blur(24px));
+    border-bottom: 1px solid rgba(255, 255, 255, 0.35);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  }
+  @supports not (backdrop-filter: blur(1px)) {
+    .section-header {
+      background: rgba(249, 250, 251, 0.95);
+    }
   }
 
   /* === v0.3.18 #68: Row 1 = [+ toggle] [日期] ... [总笔数 badge] === */
@@ -1279,7 +1348,7 @@
      - width 公式 64px→56px, height 公式不变 (仍 top:6 bottom:6 = 高度跟 row 走)
        物理约束: progress<1 时 width<height → 视觉上是竖椭圆 (iOS Mail 同款,
        物理不可避免, 见完成消息)
-     - 基类 .glass-pill 的玻璃背景/边框/blur 全部保留 (跟全站其它玻璃按钮同语�      ��),
+     - 基类 .glass-pill 的玻璃背景/边框/blur 全部保留 (跟全站其它玻璃按钮同语� ��),
        只把 border-radius 改 50% + 删 padding (圆里没文字不需内边距)
      - 基类不重复定义 — 继承 app.css .glass-pill 的 0.10/0.08 玻璃 + accent-700 字
      - --delete / --edit 玻璃色 modifier 同 #17, 不重调 */
@@ -1357,8 +1426,9 @@
     padding: 0;
     font-family: inherit;
     /* v0.3.17 #18 hotfix: 删 font-weight/font-size (圆里没文字) */
-    /* opacity 跟随 --swipe-progress 同步淡入 */
-    opacity: var(--swipe-progress, 0);
+    /* opacity 跟随 --swipe-progress 同步淡入；
+       v0.3.0729-4+: 满显再乘 0.7，整体略降透明度 */
+    opacity: calc(var(--swipe-progress, 0) * 0.7);
     /* v0.3.17 #17: 跟全站 .glass-pill hover/active 同步加 transform 反馈 —
        translateY(-1px) (hover) + scale(0.97) (active).
        但 swipe 期间不能 transform (按钮 absolute 跟 row 不动), 只在非 swiping
@@ -1380,6 +1450,10 @@
     overflow: hidden;
     white-space: nowrap;
     box-sizing: border-box;
+  }
+  /* v0.3.0729-4 #9: 拖动期间关掉 width/opacity transition，按钮跟手即时跟随 */
+  .bill-swipe-wrap:has(.bill-info-layer.swiping) .bill-swipe-action {
+    transition: none;
   }
   /* 阈值 (≥ 1) 才允许点击, 避免 0~80px 之间误触 */
   .bill-swipe-action[aria-hidden="false"] {
@@ -1422,7 +1496,8 @@
          自然胜出, !important 不再需要.
        - pointer-events / cursor / filter 保持不变 (交互层仍 inert). */
   .bill-swipe-action.disabled {
-    opacity: calc(var(--swipe-progress, 0) * 0.4);
+    /* 相对满显 0.7 再降到约 0.28，保持「可滑出但不能点」的灰态 */
+    opacity: calc(var(--swipe-progress, 0) * 0.28);
     cursor: not-allowed;
     pointer-events: none;
     filter: grayscale(40%);

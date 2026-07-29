@@ -48,11 +48,11 @@ function resolveTarget(target: string | undefined): Element | null {
 }
 
 /** portal(node, target?) — 把 node 移到 target (默认 document.body).
- *  destroy 时把 node 从 target 移回原 parent (cleanup)。
- *  cleanup-on-destroy 也是 Svelte 5 在组件 unmount 时会自动跑的 contract. */
+ *  destroy 时直接从当前 parent 移除 (通常是 body), 不搬回原位.
+ *  v0.3.0729-2: 旧实现 insertBack 到 origParent — 但父用 {#if} + runes `$state`
+ *  关弹窗时, Svelte 已把原挂载点拆掉, 再搬回去会把 modal 孤儿挂在 <section>
+ *  上, 表现为 "dismiss 回调跑了 / state=false 但弹窗关不掉". */
 export const portal: Action<HTMLElement, string | undefined> = (node, target) => {
-  const origParent = node.parentNode;
-  const origNextSibling = node.nextSibling;
   const dest = resolveTarget(target);
   if (!dest) {
     // 不抛错 (会在 SSR 或初次 render 时失败), 留 log 让 dev 看到.
@@ -64,13 +64,8 @@ export const portal: Action<HTMLElement, string | undefined> = (node, target) =>
   dest.appendChild(node);
   return {
     destroy() {
-      // 还原: 把 node 移回 original parent 的原位置 (保持 Svelte 期望的位置)
-      if (origParent && node.parentNode === dest) {
-        if (origNextSibling && origNextSibling.parentNode === origParent) {
-          origParent.insertBefore(node, origNextSibling);
-        } else {
-          origParent.appendChild(node);
-        }
+      if (node.parentNode) {
+        node.parentNode.removeChild(node);
       }
     },
   };
