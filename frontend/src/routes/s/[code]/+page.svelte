@@ -288,6 +288,8 @@
       if (isAnonOwner && !sessionActioned) {
         showBreathing = true;
         showAnonHint = true;
+        // v0.3.0729-3 #2: 显示未登录提示时，成员 section 强制展开
+        membersOpen = true;
       }
     }
   });
@@ -745,41 +747,10 @@
               </div>
             {/if}
           </div>
+          <!-- v0.3.0729-3 #2: 提示放邀请按钮同行左边 -->
           <div class="members-row2-right">
-            <InviteLinkButton
-              sessionId={session.id}
-              sessionCode={session?.session_code ?? ""}
-              sessionName={session?.name ?? ""}
-              {isOwner}
-              breathing={showBreathing}
-              on:copy={() => {
-                // v0.3.36 #16 (UAT 0727-1): copy 成功 -> 写 sbc-invite-actioned + 停 breathing
-                if (browser) {
-                  sessionStorage.setItem(`sbc-invite-actioned-${session?.id ?? ''}`, '1');
-                }
-                showBreathing = false;
-                showAnonHint = false;
-              }}
-              on:open={() => {
-                // v0.3.36 #16 (UAT 0727-1): modal 打开 -> 同上 stop 路径
-                if (browser) {
-                  sessionStorage.setItem(`sbc-invite-actioned-${session?.id ?? ''}`, '1');
-                }
-                showBreathing = false;
-                showAnonHint = false;
-              }}
-            />
-            <!-- v0.3.31 #2 (UAT 0725-2 #2, PO 字面 "下方的提示改为"当前未登录,请收藏此链接,这是您回到此账本的唯一密钥！"):
-                 仅匿名 owner + 首次进入账单页时渲染, 替代原 amber pill "邀请朋友加入,开始分摊第一笔账单吧".
-                 视觉: 红色玻璃 pill (跟 expiry-inline-a 同族), 1px border + backdrop-filter blur(8px).
-                 位置: 邀请按钮正下方, 跟 .members-row2-right 一起 align-items: flex-end 右对齐.
-                 二次访问 sessionStorage 有标记 → 不渲染 (PO 明确 "首次进入").
-                 v0.3.36 #15 — UAT 0728-1 #15 (PO 字面 "把提示分成两行 放在当前的 pill 里。第一行是 当前未登录 请收藏此链接, 第二行是 这是您回到此账本的唯一密钥。"):
-                 文案从一行变两行, pill 内文字保留原字号/颜色, 但 text 拆成 <span class="line-1"> + <br /> + <span class="line-2">.
-                 CSS .line-1 / .line-2 各自 display: block 让两行垂直堆叠 (跟 PO 字面 "分成两行" 一致). -->
             {#if showAnonHint}
               <span class="expiry-anon-a" data-testid="invite-anon-hint">
-                <!-- Lucide `lock` 11×11 -->
                 <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                   <path d="M7 11V7a5 5 0 0 1 10 0v4" />
@@ -790,6 +761,27 @@
                 </span>
               </span>
             {/if}
+            <InviteLinkButton
+              sessionId={session.id}
+              sessionCode={session?.session_code ?? ""}
+              sessionName={session?.name ?? ""}
+              {isOwner}
+              breathing={showBreathing}
+              on:copy={() => {
+                if (browser) {
+                  sessionStorage.setItem(`sbc-invite-actioned-${session?.id ?? ''}`, '1');
+                }
+                showBreathing = false;
+                showAnonHint = false;
+              }}
+              on:open={() => {
+                if (browser) {
+                  sessionStorage.setItem(`sbc-invite-actioned-${session?.id ?? ''}`, '1');
+                }
+                showBreathing = false;
+                showAnonHint = false;
+              }}
+            />
           </div>
         </div>
 
@@ -1285,24 +1277,16 @@
     min-width: 0;
   }
   .members-row2-right {
-    /* v0.3.31 #2 (UAT 0725-2 #2): 加 display: flex + flex-direction: column + align-items: flex-end
-       让 InviteLinkButton + .expiry-anon-a (匿名 hint pill) 纵向堆叠 + 跟原 invite-btn 一样右对齐.
-       原 layout 是块状, pill 加进来后默认占满整行 + 左对齐 → 不符 .members-row2-right 右对齐.
-       margin-left: auto 让整个 right 区域靠 section 右边.
-
-       v0.3.34 #5 (UAT 0726-1 #4): PO 反馈 "邀请按钮 + 红色玻璃 pill 都超出 members section 右边框".
-       根因: column flex 0 0 auto (content-based) + .expiry-anon-a max-width:100% 是相对被撑大的 parent
-       → pill 文字 ~398px 撑大 column, 超过 .members-head-row2 内容区 ~326px, button + pill 同时溢出 card border.
-       修法: column 加 max-width:100% + min-width:0 → column 宽 = min(content, container), pill max-width:100%
-       跟随 column 收缩 + white-space:normal 让长文案 wrap 到多行, button 仍在 column 内右对齐. */
+    /* v0.3.0729-3 #2: 提示 + 邀请按钮横向排列（提示左，按钮右）。
+       row (非 column): align-items center 垂直居中, gap 8px, margin-left auto 靠右. */
     display: flex;
-    flex-direction: column;
-    align-items: flex-end;
+    flex-direction: row;
+    align-items: center;
     gap: var(--space-2);
-    flex: 0 0 auto;
-    margin-left: auto;
-    max-width: 100%;
+    flex: 1 1 auto;
+    margin-left: 0;
     min-width: 0;
+    justify-content: flex-end;
   }
   /* v0.3.20 #94 Fix 6 (PO msg 02:13 #7455): "查看 N 人" 放分割线之下.
      之前 chevron + "查看 N 人" 直接挨在 row2 (avatar + invite) 下面, 没视觉分隔,
@@ -1430,11 +1414,10 @@
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     text-align: left;
-    /* 跟邀请按钮纵向 + 横向都右对齐 (跟 .members-row2-right 同 align-items).
-       flex-end 让长文案 wrap 时不溢出右边 (iPhone 13 = 390 - 32 padding = 358 内容区,
-       pill 不超 200 字符宽, 安全). */
-    align-self: flex-end;
-    max-width: 100%;
+    /* v0.3.0729-3 #2: 横向排列时 shrink 允许，避免撑出 row 宽度 */
+    flex-shrink: 1;
+    min-width: 0;
+    max-width: 200px;
   }
   .expiry-anon-a svg {
     flex-shrink: 0;

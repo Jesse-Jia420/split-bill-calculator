@@ -119,10 +119,17 @@
     return currencySymbol(currency) + formatMoney(n, { currency, showSymbol: false });
   }
 
+  let closing = $state(false);
+
   function close() {
-    if (busy) return;
-    dismiss?.();
-    dispatch('close');
+    if (busy || closing) return;
+    closing = true;
+    // Wait for CSS exit animation, then truly dismiss
+    setTimeout(() => {
+      closing = false;
+      dismiss?.();
+      dispatch('close');
+    }, 240);
   }
 
   /** v0.3.0728-2 #21 — UAT 0728-2 #21 (PO msg 16:50) 拖动下滑关闭 (跟 v0.3.37 #5 InviteLinkButton 同款):
@@ -238,6 +245,7 @@
 <!-- Backdrop (跟 mockup 2 / 3 一致: rgba(15,23,42,0.40) + blur(4px)) -->
 <div
   class="backdrop"
+  class:closing
   role="presentation"
   onclick={close}
   data-sbc="settlement-sheet-backdrop"
@@ -248,6 +256,7 @@
 <div
   class="sheet"
   class:dragging
+  class:closing
   role="dialog"
   aria-modal="true"
   aria-label="添加已结算记录"
@@ -467,6 +476,18 @@
   @keyframes slideUp {
     from { transform: translateY(100%); }
     to { transform: translateY(0); }
+  }
+  @keyframes slideDown {
+    to { transform: translateY(100%); opacity: 0; }
+  }
+  @keyframes fadeOut {
+    to { opacity: 0; }
+  }
+  .sheet.closing {
+    animation: slideDown 240ms ease-in forwards;
+  }
+  .backdrop.closing {
+    animation: fadeOut 240ms ease-in forwards;
   }
   .sheet-handle {
     width: 36px;

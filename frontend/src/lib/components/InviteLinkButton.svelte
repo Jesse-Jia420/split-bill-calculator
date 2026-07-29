@@ -408,11 +408,18 @@
     }
   }
 
+  let modalClosing = false;
+
   /** v0.3.24 #14: manual close (知道了 / Esc / backdrop click). */
   function closeModal() {
-    modalOpen = false;
-    dragDeltaY = 0;
-    dragging = false;
+    if (modalClosing) return;
+    modalClosing = true;
+    setTimeout(() => {
+      modalOpen = false;
+      modalClosing = false;
+      dragDeltaY = 0;
+      dragging = false;
+    }, 240);
   }
 
   /** v0.3.24 #14: Esc 关闭 modal. */
@@ -520,6 +527,7 @@
 {#if modalOpen}
   <div
     class="invite-sheet-backdrop"
+    class:closing={modalClosing}
     role="presentation"
     onclick={handleBackdropClick}
     data-testid="invite-sheet-backdrop"
@@ -527,6 +535,7 @@
   <div
     class="invite-sheet"
     class:dragging
+    class:closing={modalClosing}
     role="dialog"
     aria-modal="true"
     aria-label="账本链接已复制"
@@ -1101,6 +1110,18 @@
   @keyframes backdropFadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
+  }
+  @keyframes sheetSlideDown {
+    to { transform: translateY(100%); opacity: 0; }
+  }
+  @keyframes backdropFadeOut {
+    to { opacity: 0; }
+  }
+  .invite-sheet.closing {
+    animation: sheetSlideDown 240ms ease-in forwards;
+  }
+  .invite-sheet-backdrop.closing {
+    animation: backdropFadeOut 240ms ease-in forwards;
   }
 
   /* === 移动端 375px: 紧凑 padding === */

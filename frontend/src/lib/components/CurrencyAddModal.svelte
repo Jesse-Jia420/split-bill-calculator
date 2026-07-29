@@ -164,10 +164,16 @@
           : rateValid && !busy
         : false;
 
+  let closing = $state(false);
+
   function close() {
-    if (busy) return;
-    dismiss?.();
-    dispatch('close');
+    if (busy || closing) return;
+    closing = true;
+    setTimeout(() => {
+      closing = false;
+      dismiss?.();
+      dispatch('close');
+    }, 240);
   }
 
   /** v0.3.0728-2 #4 — UAT 0728-1 #4 (PO 字面 "币种弹窗可通过下滑关闭, 同邀请链接弹窗一致"):
@@ -482,12 +488,14 @@
 <div use:portal data-testid="currency-add-modal-host">
 <div
   class="sheet-backdrop"
+  class:closing
   role="presentation"
   onclick={close}
 ></div>
 <div
   class="sheet"
   class:dragging
+  class:closing
   role="dialog"
   aria-modal="true"
   aria-label={modalTitle}
@@ -1052,5 +1060,17 @@
   @keyframes slideUp {
     from { opacity: 0; transform: translateY(8px) scale(0.98); }
     to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes slideDown {
+    to { transform: translateY(100%); opacity: 0; }
+  }
+  @keyframes fadeOutBackdrop {
+    to { opacity: 0; }
+  }
+  .sheet.closing {
+    animation: slideDown 240ms ease-in forwards;
+  }
+  .sheet-backdrop.closing {
+    animation: fadeOutBackdrop 240ms ease-in forwards;
   }
 </style>
