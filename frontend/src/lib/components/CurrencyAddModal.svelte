@@ -49,7 +49,7 @@
 -->
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
-  import { Lock, X as XIcon, Check } from 'lucide-svelte';
+  import { Lock, Check } from 'lucide-svelte';
   import { toast } from '$stores/toast';
   import { ApiError } from '$api/client';
   import { portal } from '$lib/actions/portal';
@@ -503,12 +503,8 @@
   <div class="sheet-handle" aria-hidden="true"></div>
   <header class="sheet-head">
     <h3 class="sheet-title">{modalTitle}</h3>
-    <!-- v0.3.0729-2 #3: 恢复 × 关闭按钮. 仅靠 drag-down / backdrop 在真机上
-         经常关不掉 (PO: "币种设置弹窗目前无法正常关闭"). 保留 drag-down 作
-         为辅助关闭路径. -->
-    <button class="sheet-close" type="button" aria-label="关闭" onclick={close} data-testid="currency-sheet-close">
-      <XIcon size={16} strokeWidth={2.4} color="currentColor" />
-    </button>
+    <!-- v0.3.0729-3 #2: 删右上 × (PO: "删除右上角的返回按钮").
+         关闭走 backdrop 点击 + drag-down + Escape (portal destroy 已修, 可关). -->
   </header>
 
   <div class="sheet-body">
@@ -792,38 +788,20 @@
     border-radius: 100px;
     margin: 0 auto 12px;
   }
-  /* v0.3.0729-2 #3: 恢复 × 后 sheet-head 回到 grid 3 列 (1fr auto 1fr),
-     title 居中 + close 贴右. 保留 drag-down dismiss 作辅助关闭. */
+  /* v0.3.0729-3 #2: 删 × 后 sheet-head 回 flex 居中 title (跟 InviteLinkButton 同款).
+     关闭仅靠 backdrop / drag-down / Escape. */
   .sheet-head {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    display: flex;
     align-items: center;
+    justify-content: center;
     padding: 0 4px 12px;
   }
   .sheet-title {
-    grid-column: 2;
     font-size: 17px;
     font-weight: 600;
     color: #171717;
     letter-spacing: -0.01em;
-    justify-self: center;
   }
-  .sheet-close {
-    grid-column: 3;
-    width: 32px;
-    height: 32px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    justify-self: end;
-    border-radius: 50%;
-    background: rgba(15, 23, 42, 0.10);
-    color: #404040;
-    border: 0;
-    cursor: pointer;
-    transition: background 150ms ease;
-  }
-  .sheet-close:hover { background: rgba(15, 23, 42, 0.12); }
   .sheet-body {
     flex: 1;
     display: flex;
