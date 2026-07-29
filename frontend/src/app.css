@@ -620,56 +620,24 @@ button.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
   to { transform: rotate(360deg); }
 }
 
-/* v0.3.0729-2 UAT #3 v5: 流光边框 — border-image 方案.
-   按钮本体保持 glass-pill 单色透明玻璃 (不改背景/backdrop-filter).
-   只用 CSS border-image 把 border 换成旋转 conic-gradient.
-   ::before 放一个跟按钮一样大的 conic 旋转层, 再用 mask 切出边框环.
-   
-   实际方案: ::before 铺 conic + overflow:hidden 限制在按钮内,
-   按钮 bg 盖在 ::before 上面 (z-index 正常流 > ::before z:0),
-   按钮文字 z 更高. */
+/* v0.3.0729-2 UAT #3 v6: iOS Safari 兼容流光边框.
+   改用 box-shadow 动画 — 多层叠色模拟彩色流动边框.
+   box-shadow 不需要 mask/z-index/伪元素, iOS Safari 全版本支持.
+   先用 outline 占位 1.5px 空间, 再用 box-shadow 颜色动画. */
+@keyframes invite-border-color {
+  0%   { box-shadow: 0 0 0 1.5px #6366f1, inset 0 1px 0 rgba(255,255,255,0.45); }
+  20%  { box-shadow: 0 0 0 1.5px #a855f7, inset 0 1px 0 rgba(255,255,255,0.45); }
+  40%  { box-shadow: 0 0 0 1.5px #ec4899, inset 0 1px 0 rgba(255,255,255,0.45); }
+  60%  { box-shadow: 0 0 0 1.5px #f59e0b, inset 0 1px 0 rgba(255,255,255,0.45); }
+  80%  { box-shadow: 0 0 0 1.5px #10b981, inset 0 1px 0 rgba(255,255,255,0.45); }
+  100% { box-shadow: 0 0 0 1.5px #6366f1, inset 0 1px 0 rgba(255,255,255,0.45); }
+}
 button.glass-pill.invite-btn.invite-btn-breathing,
 .invite-btn.invite-btn-breathing {
-  position: relative;
-  overflow: hidden;
-  /* 让 border 区域变透明, 交给 ::before 流光填充 */
-  border: 1.5px solid transparent !important;
+  border: none;
+  animation: invite-border-color 3s linear infinite;
 }
-.invite-btn-breathing::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  /* 1.5px 宽的流光边框 — 用 padding + mask 切出环形 */
-  padding: 1.5px;
-  background: conic-gradient(
-    from 0deg,
-    #6366f1 0deg,    #a855f7 18deg,   #ec4899 36deg,   #f59e0b 54deg,   #10b981 72deg,
-    #6366f1 90deg,   #a855f7 108deg,  #ec4899 126deg,  #f59e0b 144deg,  #10b981 162deg,
-    #6366f1 180deg,  #a855f7 198deg,  #ec4899 216deg,  #f59e0b 234deg,  #10b981 252deg,
-    #6366f1 270deg,  #a855f7 288deg,  #ec4899 306deg,  #f59e0b 324deg,  #10b981 342deg,
-    #6366f1 360deg
-  );
-  -webkit-mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  mask-composite: exclude;
-  animation: invite-border-flow 5s linear infinite;
-  pointer-events: none;
-}
+.invite-btn-breathing::before,
 .invite-btn-breathing::after {
   display: none;
-}
-/* 不支持 conic-gradient 的浏览器降级到 solid indigo 边框 */
-@supports not (background: conic-gradient(red, blue)) {
-  .invite-btn-breathing {
-    border-color: rgba(99, 102, 241, 0.65) !important;
-  }
-  .invite-btn-breathing::before {
-    display: none;
-  }
 }
