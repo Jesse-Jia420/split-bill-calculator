@@ -47,8 +47,17 @@
 </script>
 
 <section style="padding-bottom: 120px;">
-  <div class="row between" style="margin-bottom: var(--space-4);">
+  <!-- v0.3.0729-2 #1+#2: hint 跟「我的账本」标题同一行 (右对齐) + 灰色描边弱化样式.
+       旧版单独一行 + indigo 玻璃 pill 太显眼 (PO: "应该和账本标题文字在同一行" /
+       "应更换边框的灰色文字展示，不应该像现在这么显眼"). -->
+  <div class="row between sessions-title-row">
     <h2>我的账本</h2>
+    {#if !loading && $sessions.length > 0 && hasOwnedSession}
+      <div class="list-top-hint" data-testid="list-top-hint-delete" aria-label="左划以删除账本">
+        <span class="swipe-arrow" aria-hidden="true">←</span>
+        <span>左划以删除账本</span>
+      </div>
+    {/if}
   </div>
 
   {#if loading}
@@ -64,18 +73,6 @@
       description="创建一个账本开始记账,或者接受朋友的邀请加入。"
     />
   {:else}
-    <!-- v0.3.0728-3 #3 — reverse v0.3.0728-2 #14: single list-top hint (不是 per-item).
-         PO msg 2026-07-28 batch #3: "在我的账本页, 整个列表的右上方添加提示文字'左划以删除账本'.
-         目前你在每个账本item内加的提示, 不对". 挪到 list 顶部, owner-only 条件 (有 owner session 才显示).
-         玻璃 pill 跟原 per-item hint 同族 (rgba(99,102,241,0.10) bg + 1px border + 8px 12px padding + 11px font + 6px radius).
-         align-self: flex-end 在 .stack flex parent 内右对齐; margin-left: auto 兜底 fallback.
-         pointer-events: none (不抢 click, swipe 仍能透过触发 delete). -->
-    {#if hasOwnedSession}
-      <div class="list-top-hint" data-testid="list-top-hint-delete" aria-label="左划以删除账本">
-        <span class="swipe-arrow" aria-hidden="true">←</span>
-        <span>左划以删除账本</span>
-      </div>
-    {/if}
     <div class="stack">
       {#each $sessions as s (s.id)}
         <!-- v0.3.36 #1: 传 swipedId prop + on:swipechange 事件 (Svelte 4 syntax, SessionCard 内部
@@ -157,38 +154,38 @@
     }
   }
 
-  /* v0.3.0728-3 #3 — list-top hint 玻璃 pill (跟原 SessionCard per-item .swipe-hint 同族:
-     rgba(99,102,241,0.10) bg + 1px rgba(99,102,241,0.18) border + 8px 12px padding + 11px font + 6px radius).
-     位置: list 顶部右上方 (margin-left: auto 兜底右对齐, align-self: flex-end 在 .stack flex column 内右对齐).
-     pointer-events: none (不抢 click, swipe 仍能透过触发 delete).
-     reverse v0.3.0728-2 #14 per-item hint: 删 SessionCard.svelte 内的 per-item hint + dead CSS,
-     挪到 list 顶部 (single hint 替代 per-item, 跟 PO 字面 "整个列表的右上方" 一致). */
-  /* v0.3.0728-3 #3 v3 — 改 block-level + auto margin 右对齐.
-     v0.3.0728-3 #3 v2 用 display:inline-flex + align-self:flex-end 在 .stack (block parent) 里没效果
-     (align-self 仅在 flex/grid parent 内有效). 改 display:flex (block-level) + width:fit-content
-     (shrink to content) + margin-left:auto (block-level auto margin 推到右边). 视觉效果一致. */
-  .list-top-hint {
-    display: flex;
+  .sessions-title-row {
+    margin-bottom: var(--space-4);
     align-items: center;
-    gap: 4px;
-    width: fit-content;
-    margin: 0 0 8px auto;
-    padding: 3px 8px;
-    background: rgba(99, 102, 241, 0.10);
-    border: 1px solid rgba(99, 102, 241, 0.18);
-    border-radius: 6px;
-    color: var(--accent-700, #4338ca);
+    gap: var(--space-3);
+  }
+  .sessions-title-row h2 {
+    margin: 0;
+    min-width: 0;
+  }
+  /* v0.3.0729-2 #1+#2: 跟标题同行的灰色描边 hint (弱化, 不抢视觉).
+     旧 indigo 玻璃 pill (accent-700 + rgba(99,102,241,*) bg) 太显眼. */
+  .list-top-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    flex: 0 0 auto;
+    margin: 0;
+    padding: 2px 8px;
+    background: transparent;
+    border: 1px solid rgba(15, 23, 42, 0.14);
+    border-radius: 9999px;
+    color: var(--gray-500, #737373);
     font-size: 11px;
-    font-weight: 500;
+    font-weight: 400;
     line-height: 1.4;
     letter-spacing: -0.005em;
     pointer-events: none;
-    font-variant-numeric: tabular-nums;
-    backdrop-filter: blur(4px) saturate(180%);
-    -webkit-backdrop-filter: blur(4px) saturate(180%);
+    white-space: nowrap;
   }
   .list-top-hint .swipe-arrow {
-    font-weight: 600;
-    font-size: 12px;
+    font-weight: 500;
+    font-size: 11px;
+    color: var(--gray-400, #a3a3a3);
   }
 </style>

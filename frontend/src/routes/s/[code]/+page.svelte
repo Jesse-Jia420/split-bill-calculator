@@ -1837,11 +1837,11 @@
     justify-content: space-between;
     gap: var(--space-3);
     flex-wrap: wrap;
-    /* v0.3.0729-1 0728-1-#7-re: margin-bottom 12→16px (var(--space-3) → var(--space-4)).
-       之前 0b44c3f 调 padding 12px 还是不够, chromium 跟 iOS 像素应一致; 实测真机 search 跟
-       card-head gap 视觉太紧 (24px), PO 拍 "多留一点". 顶部 margin +4px 给 search 让出呼吸. */
-    margin-bottom: var(--space-4);
-    padding: 0;
+    /* v0.3.0729-2 #4: 用 padding-bottom 代替 margin-bottom, 避免跟 .bills-search
+       margin-top 发生 margin-collapse (旧 collapse 后视觉 gap ≈16px, PO 要 ~32px).
+       padding 不 collapse → 16px padding + 16px search margin = 32px 视觉间距. */
+    margin-bottom: 0;
+    padding: 0 0 var(--space-4);
     background: none;
     border: none;
     opacity: 1;
@@ -2015,10 +2015,9 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    /* v0.3.0729-1 0728-1-#7-re: margin-top 0 → var(--space-2) (8px).
-       配合 .bills-card-head margin-bottom 12→16px, 视觉 gap 24px → 32px (PO 拍 "多留一点").
-       chromium 跟 iOS Safari WebKit margin collapse 行为一致 (BFC 内不 collapse), 实测可用. */
-    margin-top: var(--space-2);
+    /* v0.3.0729-2 #4: margin-top var(--space-4)=16px. 配合 .bills-card-head
+       padding-bottom 16px (不 collapse) → 视觉 gap 32px. */
+    margin-top: var(--space-4);
     /* v0.3.20 #98 (PO msg 13:36 #7532 #1): padding 上下对称.
        原 18px var(--space-3) var(--space-2) (18 top + 8 bottom) 让 content area
        偏 search box 顶部 ~5px (input 22px 填满 content area, flex 居中在
@@ -2055,11 +2054,14 @@
      下方 BillListGrouped 间隔). 之前 backdrop-filter 只在 .bills-search 本体内
      生效, gap 区域透明, 内容从缝隙漏出. 现在 ::before 在 z-index:-1 占满
      -12px 到 +height+12px 区域, 玻璃 + blur 覆盖整个 padding. */
+  /* v0.3.0729-2 #4: ::before 不再负偏移吃掉上下间距.
+     旧 top/bottom:-12px 把玻璃铺进 gap, 视觉上搜索框仍贴住上方按钮/下方账单.
+     玻璃只包搜索框本体; 间距交给 .bills-card-head padding-bottom + .bills-search margin-top. */
   .bills-search::before {
     content: '';
     position: absolute;
-    top: -12px;
-    bottom: -12px;
+    top: 0;
+    bottom: 0;
     left: 0;
     right: 0;
     background: rgba(255, 255, 255, 0.55);
