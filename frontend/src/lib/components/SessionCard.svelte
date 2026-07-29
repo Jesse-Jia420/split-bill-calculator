@@ -687,14 +687,14 @@
        bg 0.22/0.10 → 0.08/0.03（透明度回滚到刚刚版本），本次移除 blur 以便更清晰透出纹理。 */
     background: linear-gradient(
       135deg,
-      rgba(255, 255, 255, 0.08) 0%,
-      rgba(255, 255, 255, 0.03) 100%
+      rgba(255, 255, 255, 0.28) 0%,
+      rgba(255, 255, 255, 0.16) 100%
     );
-    /* 移除 blur：只保留透明底色与边框，让纹理更清晰可见 */
+    /* no blur — 纹理仍可透出 */
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
 
-    border: 1px solid rgba(255, 255, 255, 0.38);
+    border: 1px solid rgba(255, 255, 255, 0.55);
     border-radius: 18px;
     padding: 18px;
 
