@@ -628,8 +628,12 @@
          右对齐 (align-self: flex-end), 12.5px font, 6px padding, 8px radius.
          pointer-events: none (不抢 click, swipe 仍能透过触发 delete/edit).
          aria-label: 账单列表左右划手势提示 (屏幕阅读器可读). -->
-    <div class="bill-swipe-hint" data-testid="bill-swipe-hint" aria-label="左滑删除账单, 右滑编辑账单">
-      左划以删除账本, 右划以编辑账本
+    <!-- v0.3.0729-2 UAT #2: 文案改「账单」+ 样式跟 sessions .list-top-hint 一致; 删除红/编辑蓝. -->
+    <div class="bill-swipe-hint" data-testid="bill-swipe-hint" aria-label="左滑以删除账单，右滑以编辑账单">
+      <span class="swipe-arrow" aria-hidden="true">←</span>
+      <span>
+        左滑以<span class="hint-delete">删除</span>账单，右滑以<span class="hint-edit">编辑</span>账单
+      </span>
     </div>
     <ul class="day-list" style="list-style: none; padding: 0; margin: 0;">
       {#each groups as g, gi (g.date)}
@@ -923,20 +927,39 @@
     flex-direction: column;
     gap: var(--space-2);
   }
+  /* v0.3.0729-2 UAT #2: 跟 sessions/+page .list-top-hint 同款灰色描边弱化样式. */
   .bill-swipe-hint {
     align-self: flex-end;
-    background: rgba(99, 102, 241, 0.10);
-    border: 1px solid rgba(99, 102, 241, 0.18);
-    padding: 4px 10px;
-    font-size: 12px;
-    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    background: transparent;
+    border: 1px solid rgba(15, 23, 42, 0.14);
+    padding: 2px 8px;
+    font-size: 11px;
+    border-radius: 9999px;
     pointer-events: none;
-    color: var(--accent-700, #4338ca);
-    font-weight: 500;
+    color: var(--gray-500, #737373);
+    font-weight: 400;
     line-height: 1.4;
+    letter-spacing: -0.005em;
+    white-space: nowrap;
     /* v0.3.20 #93 兼容: hint 排在 .bills-search 之下, day-header sticky 之上,
        sticky top: var(--bills-search-h, 50px) + .bills-search ~46px = ~96px,
        hint 在这区间内 ~visible, 不被 sticky header 盖 */
+  }
+  .bill-swipe-hint .swipe-arrow {
+    font-weight: 500;
+    font-size: 11px;
+    color: var(--gray-400, #a3a3a3);
+  }
+  .bill-swipe-hint .hint-delete {
+    color: var(--error-700, #be123c);
+    font-weight: 500;
+  }
+  .bill-swipe-hint .hint-edit {
+    color: var(--accent-700, #4338ca);
+    font-weight: 500;
   }
   /* v0.3.24 #18 (PO msg 16:35 UAT line #18 字面 "账单列表搜索框，当无搜索结果时，提示的 没有匹配的账单，换个关键词试试 ，出现的位置不对，被搜索框挡住了。应下移一些"):
      原 .muted (app.css 全局类, 仅 color: gray-500) 无 padding, placeholder 紧贴 .bills-search bottom (跟 day-group 头一行同 y 位置), 视觉跟 search box "拼"在一起 — 用户感受是 "被搜索框挡".

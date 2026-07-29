@@ -2093,22 +2093,16 @@
     z-index: -1;
     pointer-events: none;
   }
-  /* sticky 时：向上延伸玻璃条，填满 NavBar 下沿与搜索框之间的空隙 */
-  .bills-search.is-stuck {
-    margin-left: calc(-1 * var(--space-4));
-    margin-right: calc(-1 * var(--space-4));
-    padding-left: calc(var(--space-4) + 14px);
-    padding-right: calc(var(--space-4) + 14px);
-  }
+  /* v0.3.0729-2 UAT #4: sticky 只向上延伸玻璃, 横向宽度与未 sticky 一致 (不拉满 card). */
   .bills-search.is-stuck::before {
     top: calc(-1 * var(--bills-search-stuck-bleed, 0px));
-    left: calc(-1 * var(--space-4));
-    right: calc(-1 * var(--space-4));
+    left: 0;
+    right: 0;
     background: var(--bills-sticky-glass-bg);
     backdrop-filter: var(--bills-sticky-glass-filter);
     -webkit-backdrop-filter: var(--bills-sticky-glass-filter);
-    border-radius: 0 0 var(--radius-md, 8px) var(--radius-md, 8px);
-    border-top: none;
+    border-radius: var(--radius-md, 8px);
+    border-top: 1px solid var(--color-border, #e5e7eb);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
   }
   @supports not (backdrop-filter: blur(1px)) {
@@ -2117,18 +2111,6 @@
     }
     .bills-search.is-stuck::before {
       background: rgba(249, 250, 251, 0.95);
-    }
-  }
-  @media (min-width: 960px) {
-    .bills-search.is-stuck {
-      margin-left: calc(-1 * var(--space-6));
-      margin-right: calc(-1 * var(--space-6));
-      padding-left: calc(var(--space-6) + 14px);
-      padding-right: calc(var(--space-6) + 14px);
-    }
-    .bills-search.is-stuck::before {
-      left: calc(-1 * var(--space-6));
-      right: calc(-1 * var(--space-6));
     }
   }
   .bills-search-input {

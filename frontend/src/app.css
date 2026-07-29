@@ -606,15 +606,13 @@ button.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
    (PO 字面 "v3-1" 拍定值, 跟 mockup v3-1 / v3-2 / v3-3 比较后 PO 选 v3-1). */
 @keyframes invite-breath {
   0%, 100% {
-    /* v0.3.0728-2 #8 — UAT 0728-2 #8 拍定: 去掉紫色光晕, 保留 scale 1↔1.05 + 5 色边框流光 (v0.3.37 #16 独立). 
-       修法: box-shadow 0→alpha (无 glow, 只保留 border-flow 5 色 conic 流转). 
-       box-shadow 仍写 0 0 0 transparent 是为了兼容 Safari 老版本 (无 box-shadow 不出 transition). */
-    box-shadow: 0 0 0 rgba(99, 102, 241, 0);          /* v0.3.0728-2 #8 改: alpha 0.55→0, 去紫色光晕 */
-    transform: scale(1);
+    /* v0.3.0728-2 #8: 去紫色光晕, 只保留边框流光.
+       v0.3.0729-2 UAT #3: 去掉 transform scale — scale(1.05) + overflow:hidden
+       会在呼吸峰值裁切 ::before 流光边框, 真机上看成边框断续/抖动. */
+    box-shadow: 0 0 0 rgba(99, 102, 241, 0);
   }
   50% {
-    box-shadow: 0 0 0 rgba(168, 85, 247, 0);          /* v0.3.0728-2 #8 改: alpha 0.75→0, 去紫色光晕 */
-    transform: scale(1.05);                             /* v0.3.0728-2 #8 恢复: 1.03→1.05 (#7 缩完, 现在 #8 把光晕去掉, scale 可以放开). 边框流光不依赖 scale. */
+    box-shadow: 0 0 0 rgba(168, 85, 247, 0);
   }
 }
 /* v0.3.37 #16: 5 色 conic-gradient 边框流光 (PO 拍 v3-1 = RECOMMENDED) */
@@ -624,8 +622,8 @@ button.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
 
 button.glass-pill.invite-btn.invite-btn-breathing,
 .invite-btn.invite-btn-breathing {
-  animation: invite-breath 1.5s ease-in-out infinite;
-  position: relative;          /* v0.3.37 #16: 让 ::before absolute 定位生效 */
+  /* v0.3.0729-2 UAT #3: 呼吸只靠 ::before 边框流光 (invite-border-flow), 不再 scale 按钮本体. */
+  position: relative;
   /* v0.3.0728-2-anim-fix: isolation: isolate 创建独立 stacking context,
      让 ::before/::after z-index 0/1 子元素不 escape 到父 stacking context (iOS Safari WebKit z-index:-1 escape bug).
      overflow: hidden 双保险, 把 pseudo-element 视觉 clip 在 border-box 内,
@@ -653,7 +651,7 @@ button.glass-pill.invite-btn.invite-btn-breathing,
 .invite-btn-breathing::before {
   content: '';
   position: absolute;
-  inset: 0;
+  inset: -1px;
   border-radius: inherit;
   /* v0.3.0729-1 #16-followup (PO msg 02:05 字面 "动画要一直布满整个border, 而非现在这样
      一会儿大片空白, 一会儿满"): 5 色 stops 密度提高 (5 色重复 4 圈 = 20 段 × 18°/段),
@@ -675,7 +673,8 @@ button.glass-pill.invite-btn.invite-btn-breathing,
 .invite-btn-breathing::after {
   content: '';
   position: absolute;
-  inset: 2px;                   /* 比 button 小 2px → 留 2px ring 给 ::before 流光显示 */
+  /* v0.3.0729-2 UAT #3: inset 跟 ::before -1px 对齐, 留 1.5px 均匀流光环 (原 2px 在 pill 上略厚且跟 border 不对齐). */
+  inset: 1.5px;
   border-radius: inherit;
   /* v0.3.0728-2-anim-fix-followup (chromium 验证): ::after 玻璃 opacity 0.92 → 1.0.
      0.92 留 8% transparent 让 ::before 的 5 色 conic 在中心透出, 形成淡彩洗干扰文字.
