@@ -683,25 +683,25 @@
 
   .session-card {
     position: relative;
-    /* v0.3.0729-2 UAT #1: 再降透明度, 让背景纹理隐约透出 (0.30/0.15 → 0.22/0.10).
-       路径: 0.75/0.50 → … → 0.30/0.15 → 0.22/0.10. */
+    /* v0.3.0729-2 UAT #1 v2: 仍看不到 paper 纹理 → 大幅降白底 + 减 sheen/高光/brightness.
+       bg 0.22/0.10 → 0.08/0.03; 靠 backdrop blur 保留可读性. */
     background: linear-gradient(
       135deg,
-      rgba(255, 255, 255, 0.22) 0%,
-      rgba(255, 255, 255, 0.10) 100%
+      rgba(255, 255, 255, 0.08) 0%,
+      rgba(255, 255, 255, 0.03) 100%
     );
-    backdrop-filter: saturate(200%) blur(28px) brightness(1.05);
-    -webkit-backdrop-filter: saturate(200%) blur(28px) brightness(1.05);
+    backdrop-filter: saturate(180%) blur(16px);
+    -webkit-backdrop-filter: saturate(180%) blur(16px);
 
-    border: 1.5px solid rgba(255, 255, 255, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.38);
     border-radius: 18px;
     padding: 18px;
 
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.88),
-      inset 0 -1px 0 rgba(15, 23, 42, 0.04),
-      0 1px 2px rgba(15, 23, 42, 0.05),
-      0 8px 22px rgba(15, 23, 42, 0.07);
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      inset 0 -1px 0 rgba(15, 23, 42, 0.03),
+      0 1px 2px rgba(15, 23, 42, 0.04),
+      0 6px 16px rgba(15, 23, 42, 0.05);
 
     transition:
       transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1),
@@ -717,10 +717,10 @@
     top: 0;
     left: 0;
     right: 0;
-    height: 60%;
+    height: 50%;
     pointer-events: none;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.38) 0%, rgba(255, 255, 255, 0) 100%);
-    opacity: 0.42;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0) 100%);
+    opacity: 0.25;
   }
 
   /* v0.3.18 #67: hover 浮起 -2px (克制) + 玻璃加深, 无紫 ring.
@@ -728,17 +728,17 @@
    * v0.3.24 #9: hover bg alpha 0.78/0.55 (mockup refined 字面值, 跟 base 0.62/0.38 同步加深). */
   .card-link:hover .session-card {
     transform: translateY(-2px);
-    /* v0.3.0729-2 UAT #1: hover 跟 base 同步加深 (0.62/0.38 → 0.48/0.28). */
+    /* v0.3.0729-2 UAT #1 v2: hover 略加深但仍透纹理 (0.48/0.28 → 0.18/0.10). */
     background: linear-gradient(
       135deg,
-      rgba(255, 255, 255, 0.48) 0%,
-      rgba(255, 255, 255, 0.28) 100%
+      rgba(255, 255, 255, 0.18) 0%,
+      rgba(255, 255, 255, 0.10) 100%
     );
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.95),
-      inset 0 -1px 0 rgba(15, 23, 42, 0.05),
+      inset 0 1px 0 rgba(255, 255, 255, 0.45),
+      inset 0 -1px 0 rgba(15, 23, 42, 0.04),
       0 2px 4px rgba(15, 23, 42, 0.05),
-      0 14px 32px rgba(15, 23, 42, 0.09);
+      0 10px 24px rgba(15, 23, 42, 0.07);
   }
 
   /* v0.3.18 #67: title 16px / 600 / gray-900 (回 v0318-62 拍板, 跟全站克制感对齐).
