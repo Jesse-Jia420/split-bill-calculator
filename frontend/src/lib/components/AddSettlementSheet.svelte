@@ -119,7 +119,7 @@
     return currencySymbol(currency) + formatMoney(n, { currency, showSymbol: false });
   }
 
-  let closing = $state(false);
+  let closing = false;
 
   function close() {
     if (busy || closing) return;

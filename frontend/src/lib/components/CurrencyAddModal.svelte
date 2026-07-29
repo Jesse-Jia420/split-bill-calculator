@@ -90,8 +90,8 @@
 
   // v0.3.0729-2 #3: dismiss callback (故意不用 on*/onClose 名).
   // Svelte 5 对 on* prop 有 event-callback 特殊处理; 父页 runes `$state`
-  // 经 onClose={() => addCurrencyOpen=false} 调用后 state 不翻转 → 弹窗关不掉.
-  // 普通 prop 名 dismiss 可可靠调用.
+  // 经 onClose={() => addCurrencyOpen=false} 调用后 state 不翻转 → 弹窗关不掉。
+  // 普通 prop 名 dismiss 可可靠调用。
   export let dismiss: (() => void) | undefined = undefined;
 
   const dispatch = createEventDispatcher<{ close: void }>();
@@ -164,7 +164,7 @@
           : rateValid && !busy
         : false;
 
-  let closing = $state(false);
+  let closing = false;
 
   function close() {
     if (busy || closing) return;

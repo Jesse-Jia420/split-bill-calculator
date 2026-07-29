@@ -44,16 +44,35 @@
   function goHome() {
     goto('/sessions', { replaceState: true });
   }
+
+  $: statusLabel =
+    status === 401
+      ? '正在跳转到登录…'
+      : status === 404
+        ? '页面不存在'
+        : status === 500
+          ? '服务器出错'
+          : '出错';
+
+  $: heroText = statusLabel;
 </script>
 
-<section class="error-page">
-  <div class="error-card">
-    <h1>出错了 ({status})</h1>
+<section class="error-page" data-status={status}>
+  <div class="error-hero">
+    <div class="glass-ring" aria-hidden="true"></div>
+    <div class="error-pill" aria-hidden="true">
+      <span class="pill-text">{heroText}</span>
+    </div>
+  </div>
+
+  <div class="error-card" role="region" aria-label={`错误页 ${status}`}>
+    <h1>出错了（{status}）</h1>
     <p class="muted">{errorMessage}</p>
+
     {#if status === 401}
       <p class="muted">正在跳转到登录…</p>
     {:else}
-      <button type="button" class="primary" onclick={goHome}>返回首页</button>
+      <button type="button" class="btn btn-primary" onclick={goHome}>返回首页</button>
     {/if}
   </div>
 </section>
@@ -61,45 +80,189 @@
 <style>
   .error-page {
     min-height: 100vh;
-    display: grid;
-    place-items: center;
     padding: var(--space-6);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-5);
   }
+
+  .error-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-3);
+    animation: errorHeroIn 360ms ease-out both;
+  }
+
   .error-card {
-    max-width: 400px;
+    width: 100%;
+    max-width: 480px;
     text-align: center;
-    background: white;
-    border: 1px solid var(--color-border, #e5e7eb);
-    border-radius: var(--radius-md, 8px);
+    border-radius: var(--radius-md, 10px);
     padding: var(--space-6);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    backdrop-filter: saturate(180%) blur(18px);
+    -webkit-backdrop-filter: saturate(180%) blur(18px);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      0 18px 60px rgba(15, 23, 42, 0.08);
+    animation: errorCardIn 420ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
   }
+
   .error-card h1 {
     margin: 0 0 var(--space-3);
     font-size: 20px;
     color: var(--gray-900);
+    letter-spacing: -0.01em;
+    font-weight: 650;
   }
-  .error-card p {
+
+  .error-card .muted,
+  .muted {
     margin: 0 0 var(--space-3);
     color: var(--gray-500);
   }
-  .error-card .primary {
-    margin-top: var(--space-3);
-    background: var(--accent-500);
-    color: #fff;
-    border: 0;
+
+  .error-pill {
+    background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.78) 0%,
+      rgba(255, 255, 255, 0.62) 100%
+    );
+    backdrop-filter: blur(20px) saturate(200%);
+    -webkit-backdrop-filter: blur(20px) saturate(200%);
+    border: 1px solid rgba(255, 255, 255, 0.78);
     border-radius: 999px;
-    padding: 8px 20px;
+    padding: 10px 18px;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      0 4px 16px rgba(15, 23, 42, 0.06);
+    animation: errorCardBreathe 2.4s ease-in-out infinite;
+    user-select: none;
+  }
+
+  .pill-text {
     font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background-color 150ms ease;
+    font-weight: 600;
+    color: #4338ca;
+    letter-spacing: -0.005em;
   }
-  .error-card .primary:hover {
-    background: var(--accent-700);
+
+  /* LoadingOverlay 同源 glass ring（仅展示动画，不引入 overlay） */
+  .glass-ring {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: transparent;
+    box-shadow:
+      inset 0 0 0 4px rgba(99, 102, 241, 0.18),
+      inset 0 1px 0 4px rgba(255, 255, 255, 0.55),
+      inset 0 -1px 0 4px rgba(99, 102, 241, 0.08),
+      0 0 0 0.5px rgba(99, 102, 241, 0.35),
+      0 8px 24px rgba(99, 102, 241, 0.18),
+      0 1px 2px rgba(99, 102, 241, 0.10);
+    animation: errorRingRotate 900ms cubic-bezier(0.45, 0, 0.55, 1) infinite;
+    flex-shrink: 0;
   }
-  .error-card .primary:focus-visible {
-    outline: 2px solid #fff;
-    outline-offset: 2px;
-    box-shadow: 0 0 0 4px var(--accent-500);
+
+  .glass-ring::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: radial-gradient(
+      circle at 30% 30%,
+      #818cf8 0%,
+      #4f46e5 60%,
+      #3730a3 100%
+    );
+    box-shadow:
+      0 0 8px rgba(99, 102, 241, 0.6),
+      0 0 16px rgba(99, 102, 241, 0.4);
+    z-index: 3;
+  }
+
+  .glass-ring::after {
+    content: "";
+    position: absolute;
+    inset: 4px;
+    border-radius: 50%;
+    background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.55) 0%,
+      rgba(165, 180, 252, 0.18) 100%
+    );
+    backdrop-filter: blur(4px) saturate(220%);
+    -webkit-backdrop-filter: blur(4px) saturate(220%);
+    z-index: 1;
+  }
+
+  @keyframes errorRingRotate {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes errorCardBreathe {
+    0%,
+    100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.03);
+    }
+  }
+
+  @keyframes errorHeroIn {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes errorCardIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .glass-ring {
+      animation: none;
+    }
+    .error-pill {
+      animation: none;
+    }
+    .error-card,
+    .error-hero {
+      animation: none;
+    }
+  }
+
+  @supports not (backdrop-filter: blur(1px)) {
+    .error-card {
+      background: rgba(255, 255, 255, 0.85);
+      border-color: rgba(229, 231, 235, 0.8);
+    }
   }
 </style>
