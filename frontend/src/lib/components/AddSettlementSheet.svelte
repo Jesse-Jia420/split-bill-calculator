@@ -454,7 +454,9 @@
     border-bottom: 0;
     box-shadow:
       0 -8px 32px rgba(15, 23, 42, 0.12),
-      inset 0 1px 0 rgba(255, 255, 255, 0.85);
+      inset 0 1px 0 rgba(255, 255, 255, 0.85),
+      /* v0.3.0729-4 #14: 上拉橡皮筋时底部白色延伸，避免与页面底部分离 */
+      0 50vh 0 0 rgba(255, 255, 255, 0.96);
     /* v0.3.0729-2 #6: z-index 60 → 1000, 跟 CurrencyAddModal 对齐,
        避免被 VersionBadge (z=200) / NavBar (z=100) 盖住交互. */
     z-index: 1000;

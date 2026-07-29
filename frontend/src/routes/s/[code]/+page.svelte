@@ -320,8 +320,10 @@
       // 所以 modal 点击事件会冒泡到 header 的 onclick → 触发 toggle (user 反馈 #3).
       // 用 closest() 排除: 邀请按钮 + modal 区域 + 过期 CTA link.
       // 其他区域 (chevron, title, avatar, 空 row2 区域) 维持原有 toggle 行为.
-      if (target?.closest('.invite-row, .invite-modal-backdrop, .expiry-cta-link')) return;
+      if (target?.closest('.invite-row, .invite-modal-backdrop, .expiry-cta-link, .expiry-anon-a')) return;
     }
+    // v0.3.0729-4 #1: 展示「当前未登录…」提示时，成员 section 禁止折叠
+    if (showAnonHint && membersOpen) return;
     membersOpen = !membersOpen;
     try {
       localStorage.setItem(membersStorageKey(sessionId), String(membersOpen));
@@ -733,8 +735,21 @@
              用 space-between + right margin-left: auto, 折叠时 [avatars | invite],
              展开时 [空 | invite] 自然 right-align, 任何状态都能调 invite -->
         <div class="members-head-row2">
+          <!-- v0.3.0729-4 #2: 未登录提示左边与成员 section 左边对齐（正常 padding）;
+               与邀请按钮仍同行：提示在左、邀请在右。 -->
           <div class="members-row2-left">
-            {#if !membersOpen && session.members.length > 0}
+            {#if showAnonHint}
+              <span class="expiry-anon-a" data-testid="invite-anon-hint">
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+                <span class="anon-hint-text">
+                  <span class="line-1">当前未登录 请收藏此链接</span>
+                  <span class="line-2">这是您回到此账本的唯一密钥。</span>
+                </span>
+              </span>
+            {:else if !membersOpen && session.members.length > 0}
               <div class="members-avatars-inline" aria-hidden="true">
                 {#each session.members.slice(0, 8) as m, i (m.id)}
                   <div class="avatar-mini palette-{i % 10}" title={m.display_name}>
@@ -747,20 +762,7 @@
               </div>
             {/if}
           </div>
-          <!-- v0.3.0729-3 #2: 提示放邀请按钮同行左边 -->
           <div class="members-row2-right">
-            {#if showAnonHint}
-              <span class="expiry-anon-a" data-testid="invite-anon-hint">
-                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                </svg>
-                <span class="anon-hint-text">
-                  <span class="line-1">当前未登录 请收藏此链接</span>
-                  <span class="line-2">这是您回到此账本的唯一密钥。</span>
-                </span>
-              </span>
-            {/if}
             <InviteLinkButton
               sessionId={session.id}
               sessionCode={session?.session_code ?? ""}
@@ -1170,10 +1172,11 @@
      (6) net 字号 13px / font-weight 700 / 首位
      (7) 1-member 紧凑 CTA banner
      (8) 768px 2-column grid */
+  /* v0.3.0729-4 #13: 成员 section 背景与账单 section (.card = white) 一致 */
   .members-card {
-    background: rgba(255, 255, 255, 0.55);
-    backdrop-filter: saturate(180%) blur(20px);
-    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    background: white;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     border-radius: 16px;
     /* v0.3.21 #110 (PO msg 18:46): padding 16 → 12.
        PO 反馈 section 垂直高度太高 + "查看 N 人" 离 section 底部太远.
@@ -1277,14 +1280,13 @@
     min-width: 0;
   }
   .members-row2-right {
-    /* v0.3.0729-3 #2: 提示 + 邀请按钮横向排列（提示左，按钮右）。
-       row (非 column): align-items center 垂直居中, gap 8px, margin-left auto 靠右. */
+    /* v0.3.0729-4 #2: 提示已挪到 .members-row2-left 左对齐；右侧只放邀请按钮。 */
     display: flex;
     flex-direction: row;
     align-items: center;
     gap: var(--space-2);
-    flex: 1 1 auto;
-    margin-left: 0;
+    flex: 0 0 auto;
+    margin-left: auto;
     min-width: 0;
     justify-content: flex-end;
   }
@@ -1417,7 +1419,8 @@
     /* v0.3.0729-3 #2: 横向排列时 shrink 允许，避免撑出 row 宽度 */
     flex-shrink: 1;
     min-width: 0;
-    max-width: 200px;
+    /* v0.3.0729-4 #2: 与成员 section 左缘对齐，不再限宽 200px */
+    max-width: 100%;
   }
   .expiry-anon-a svg {
     flex-shrink: 0;
@@ -2007,8 +2010,8 @@
      同步 --bills-search-h 60px → 54px (search 实际高度 -6px, region 同步减 6px 保持
      day-header sticky offset 一致). */
   .bills-card {
-    /* 搜索 sticky 时与日期 header 共用玻璃浓度 */
-    --bills-sticky-glass-bg: rgba(255, 255, 255, 0.68);
+    /* v0.3.0729-4 #11: 日期 header 透明度进一步降低 (0.68 → 0.42) */
+    --bills-sticky-glass-bg: rgba(255, 255, 255, 0.42);
     --bills-sticky-glass-filter: saturate(200%) blur(24px);
     --bills-search-h: 48px;
     padding-bottom: 96px;

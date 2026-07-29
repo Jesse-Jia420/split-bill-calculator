@@ -392,6 +392,24 @@
       if (next > 300) next = 300;
       if (next < -300) next = -300;
 
+    // v0.3.0729-4 #9: 拖动期间直接写按钮 CSS var，避免 store 重渲延迟
+    if (typeof document !== 'undefined') {
+      const wrap = document.querySelector(`.bill-swipe-wrap[data-bill-id="${billId}"]`);
+      if (wrap) {
+        const leftP = next > 0 ? rubberBandProgress(next) : 0;
+        const rightP = next < 0 ? rubberBandProgress(-next) : 0;
+        const leftBtn = wrap.querySelector('.bill-swipe-action-left') as HTMLElement | null;
+        const rightBtn = wrap.querySelector('.bill-swipe-action-right') as HTMLElement | null;
+        const info = wrap.querySelector('.bill-info-layer') as HTMLElement | null;
+        if (leftBtn) leftBtn.style.setProperty('--swipe-progress', String(leftP));
+        if (rightBtn) rightBtn.style.setProperty('--swipe-progress', String(rightP));
+        if (info) {
+          info.style.setProperty('--swipe-clip-left', String(leftP));
+          info.style.setProperty('--swipe-clip-right', String(rightP));
+        }
+      }
+    }
+
     dragOffsetStore.update((o) => ({ ...o, [billId]: next }));
   }
 
@@ -562,6 +580,24 @@
     if (chevron) chevron.classList.toggle('open', isOpenNow);
     collapsed = { ...collapsed, [date]: !isOpenNow };
     saveCollapsedState();
+  }
+
+  // v0.3.0729-4 #4: 搜索命中时，自动展开所有有结果的日期 header
+  let prevFiltering = false;
+  $: {
+    const isFiltering = totalBills > 0 && bills.length > 0 && bills.length < totalBills;
+    if (isFiltering) {
+      const next = { ...collapsed };
+      let changed = false;
+      for (const g of groups) {
+        if (next[g.date] !== false) {
+          next[g.date] = false;
+          changed = true;
+        }
+      }
+      if (changed || !prevFiltering) collapsed = next;
+    }
+    prevFiltering = isFiltering;
   }
 
   onMount(() => {
@@ -766,6 +802,7 @@
                          整体展开动画。 -->
                     <li
                       class="bill-swipe-wrap"
+                      data-bill-id={b.id}
                       in:fade={{ duration: 80 }}
                     >
                       {#if onDelete}
@@ -945,9 +982,8 @@
     line-height: 1.4;
     letter-spacing: -0.005em;
     white-space: nowrap;
-    /* v0.3.20 #93 兼容: hint 排在 .bills-search 之下, day-header sticky 之上,
-       sticky top: var(--bills-search-h, 50px) + .bills-search ~46px = ~96px,
-       hint 在这区间内 ~visible, 不被 sticky header 盖 */
+    /* v0.3.0729-4 #5: 与上方搜索框拉开距离 */
+    margin-top: var(--space-4, 16px);
   }
   .bill-swipe-hint .swipe-arrow {
     font-weight: 500;
@@ -1413,6 +1449,10 @@
     overflow: hidden;
     white-space: nowrap;
     box-sizing: border-box;
+  }
+  /* v0.3.0729-4 #9: 拖动期间关掉 width/opacity transition，按钮跟手即时跟随 */
+  .bill-swipe-wrap:has(.bill-info-layer.swiping) .bill-swipe-action {
+    transition: none;
   }
   /* 阈值 (≥ 1) 才允许点击, 避免 0~80px 之间误触 */
   .bill-swipe-action[aria-hidden="false"] {
