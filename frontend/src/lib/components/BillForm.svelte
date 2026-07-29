@@ -1042,9 +1042,12 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.50),
       inset 0 -1px 0 rgba(0, 0, 0, 0.03),
       0 2px 8px rgba(99, 102, 241, 0.06);
-    padding: 0 12px;
-    gap: 6px;
-    justify-content: space-between;
+    /* v0.3.0729-1 #7 re-fix: 0 12px gap 6px space-between → 0 14px gap 8px center.
+       旧 space-between 让 $ 和 个人消费 拉到两端 (102px pill 12px+12px padding 内 78px, 两元素贴边).
+       改 center + gap 8px 让两元素居中, 视觉平衡. */
+    padding: 0 14px;
+    gap: 8px;
+    justify-content: center;
     color: var(--gray-700, #334155);
   }
   .excl-pill-shared:hover {
