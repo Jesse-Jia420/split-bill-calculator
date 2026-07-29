@@ -209,7 +209,16 @@
     const nav = document.querySelector('.navbar');
     if (!(search instanceof HTMLElement)) return;
     if (nav instanceof HTMLElement) {
-      const gap = Math.max(0, search.getBoundingClientRect().top - nav.getBoundingClientRect().bottom);
+      // v0.3.0729-5 #6: clamp bleed. 持续下拉/rubber-band 时 search.top 会异常变大,
+      // 旧逻辑无上限 → ::before 白玻璃铺满整屏. 正常 stuck 时 gap 仅是 sticky top
+      // 与 navbar 之间的空隙 (~8–24px); 硬顶 32px 防穿帮.
+      const gap = Math.max(
+        0,
+        Math.min(
+          32,
+          search.getBoundingClientRect().top - nav.getBoundingClientRect().bottom
+        )
+      );
       search.style.setProperty('--bills-search-stuck-bleed', `${gap}px`);
     }
   }
@@ -408,7 +417,7 @@
       } catch {
         // ignore
       }
-      bills = await listBills(sessionId);
+      bills = await listBills(sessionId, code);
       currentMemberId = currentMember?.id ?? null;
 
       // v0.3.27 (UAT 0723-2 #19): owner登录即可永久保存账本的逻辑，改为「任一成员登录即可永久保存账本」.
@@ -525,7 +534,7 @@
     toast.show(deleteLabel, 'info', 5000);
 
     try {
-      await deleteBill(sessionId, billId);
+      await deleteBill(sessionId, billId, code);
       // DELETE 成功 — 解锁撤销按钮。
       undoQueue = undoQueue.map((u) =>
         u.id === undoEntry.id ? { ...u, deleting: false } : u
@@ -563,7 +572,7 @@
         occurred_at: snapshot.rawBill.occurred_at,
         currency: snapshot.rawBill.currency,
         participants: snapshot.participants,
-      });
+      }, code);
       // Push the recreated bill back into the list. Insert by occurred_at
       // to preserve chronological position.
       const next = [...bills, recreated];
@@ -1350,8 +1359,9 @@
   /* v0.3.19 #83 (PO #7300): 成员 · N人 + users icon 14×14 gray-500 内联 */
   .members-title-a {
     margin: 0;
-    font-size: 14px;
-    font-weight: 700;
+    /* v0.3.0729-5 #4: 与结算页 section-header glass-chip 同档 (16px / 600) */
+    font-size: var(--font-size-md, 16px);
+    font-weight: 600;
     color: var(--gray-900);
     letter-spacing: -0.005em;
     display: inline-flex;
@@ -1885,9 +1895,9 @@
   }
   .bills-card-title {
     margin: 0;
-    /* v0.3.25 (UAT 0723 batch #10): 与 members-title-a 14px/700 对齐. */
-    font-size: 14px;
-    font-weight: 700;
+    /* v0.3.0729-5 #4: 与结算页 section-header / members-title-a 同档 (16px / 600). */
+    font-size: var(--font-size-md, 16px);
+    font-weight: 600;
     color: var(--gray-900, #171717);
     letter-spacing: -0.005em;
     /* v0.3.28 (UAT 0723 batch #9): 加 inline icon 后改 flex 排版 — 跟 members-title-a 一致. */

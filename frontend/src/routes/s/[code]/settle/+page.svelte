@@ -222,7 +222,7 @@
       }
       // v0.3.19 #85: 并行加载 bills 决定 has_bills. 即便失败也降级 false, 不阻塞主流程.
       try {
-        bills = await listBills(sessionId);
+        bills = await listBills(sessionId, code);
       } catch {
         bills = [];
       } finally {

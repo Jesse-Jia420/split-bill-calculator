@@ -105,11 +105,10 @@
   let paidExpanded = true;
   let consumedExpanded = true;
 
-  // === v0.3.24 #12 (PO msg 16:35 UAT file line 12): 付款明细 + 消费明细 搜索框 ===
+  // === v0.3.0729-5 #2: 付款明细 + 消费明细 共用一个搜索框 (放在付款明细上方).
   // 跟 BillListGrouped.svelte 的 .bills-search 同款 (玻璃风 placeholder "搜索账单名称"),
   // 实时 filter b.description 包含关键词 (case-insensitive, 中文/英文都按 substring match).
-  let paidSearchQuery = '';
-  let consumedSearchQuery = '';
+  let billsSearchQuery = '';
 
   /** T6: 金额统一改用 formatMoney (千分位 + 2dp)。 */
   function fmt(n: number): string {
@@ -194,7 +193,7 @@
   $: perCurrencyAgg = aggregatePerCurrency(selectedMember);
   $: perCurrencyKeys = Object.keys(perCurrencyAgg);
 
-  // === v0.3.24 #12: 付款明细 + 消费明细 search filter derived.
+  // === v0.3.0729-5 #2: 共用 searchQuery filter 付款 + 消费两段.
   // filter 规则: b.description 包含 query (case-insensitive). 空 query 不过滤.
   // 中文按 substring match (默认 includes 对 CJK 字符串 OK, 跟 BillListGrouped
   // 行为一致). ===
@@ -205,11 +204,14 @@
     return desc.includes(q);
   }
   $: filteredPaidBills = selectedMember
-    ? (selectedMember.paid_bills ?? []).filter((b) => matchesSearch(b, paidSearchQuery))
+    ? (selectedMember.paid_bills ?? []).filter((b) => matchesSearch(b, billsSearchQuery))
     : [];
   $: filteredConsumedBills = selectedMember
-    ? (selectedMember.consumed_bills ?? []).filter((b) => matchesSearch(b, consumedSearchQuery))
+    ? (selectedMember.consumed_bills ?? []).filter((b) => matchesSearch(b, billsSearchQuery))
     : [];
+  $: hasAnyBillsForSearch = selectedMember
+    ? ((selectedMember.paid_bills?.length ?? 0) + (selectedMember.consumed_bills?.length ?? 0)) > 0
+    : false;
 
   $: meMemberId = (() => {
     if (currentUserId === null || currentUserId === undefined) return null;
@@ -506,6 +508,28 @@
             </div>
           </div>
 
+          <!-- v0.3.0729-5 #2: 共用搜索框 — 放在付款明细上方, 同时过滤付款+消费 -->
+          {#if hasAnyBillsForSearch}
+            <div class="bills-section-search bills-section-search--shared">
+              <Search size={14} aria-hidden="true" />
+              <input
+                type="search"
+                bind:value={billsSearchQuery}
+                placeholder="搜索账单名称"
+                aria-label="搜索付款与消费明细"
+                class="bills-section-search-input"
+              />
+              {#if billsSearchQuery}
+                <button
+                  type="button"
+                  class="bills-section-search-clear"
+                  aria-label="清除搜索"
+                  onclick={() => (billsSearchQuery = '')}
+                ><X size={12} /></button>
+              {/if}
+            </div>
+          {/if}
+
           <!-- T10: 付款明细 section with sticky header -->
           <div class="bills-section bills-section-paid glass-sheet">
             <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
@@ -527,30 +551,6 @@
               <span class="bills-section-count muted">({selectedMember.paid_bills.length})</span>
               <span class="collapse-icon" aria-hidden="true">{paidExpanded ? '▼' : '▶'}</span>
             </h4>
-            <!-- v0.3.24 #12 (PO msg 16:35 UAT file line 12): 付款明细 搜索框
-                 跟 BillListGrouped.svelte .bills-search 同款玻璃风格.
-                 只在 paid_bills.length > 0 时 render (空 section 不显示 search,
-                 否则用户搜什么都没有显得无意义). -->
-            {#if selectedMember.paid_bills.length > 0}
-              <div class="bills-section-search">
-                <Search size={14} aria-hidden="true" />
-                <input
-                  type="search"
-                  bind:value={paidSearchQuery}
-                  placeholder="搜索账单名称"
-                  aria-label="搜索付款明细"
-                  class="bills-section-search-input"
-                />
-                {#if paidSearchQuery}
-                  <button
-                    type="button"
-                    class="bills-section-search-clear"
-                    aria-label="清除搜索"
-                    onclick={() => (paidSearchQuery = '')}
-                  ><X size={12} /></button>
-                {/if}
-              </div>
-            {/if}
             {#if selectedMember.paid_bills.length === 0}
               <p class="muted empty-hint">没有付过账单</p>
             {:else if filteredPaidBills.length === 0}
@@ -632,29 +632,6 @@
               <span class="bills-section-count muted">({selectedMember.consumed_bills.length})</span>
               <span class="collapse-icon" aria-hidden="true">{consumedExpanded ? '▼' : '▶'}</span>
             </h4>
-            <!-- v0.3.24 #12 (PO msg 16:35 UAT file line 12): 消费明细 搜索框
-                 跟 付款明细 search 同款, filter consumed_bills.
-                 只在 consumed_bills.length > 0 时 render. -->
-            {#if selectedMember.consumed_bills.length > 0}
-              <div class="bills-section-search">
-                <Search size={14} aria-hidden="true" />
-                <input
-                  type="search"
-                  bind:value={consumedSearchQuery}
-                  placeholder="搜索账单名称"
-                  aria-label="搜索消费明细"
-                  class="bills-section-search-input"
-                />
-                {#if consumedSearchQuery}
-                  <button
-                    type="button"
-                    class="bills-section-search-clear"
-                    aria-label="清除搜索"
-                    onclick={() => (consumedSearchQuery = '')}
-                  ><X size={12} /></button>
-                {/if}
-              </div>
-            {/if}
             {#if selectedMember.consumed_bills.length === 0}
               <p class="muted empty-hint">没有被分摊的账单</p>
             {:else if filteredConsumedBills.length === 0}
@@ -810,10 +787,11 @@
     text-align: left;
     color: var(--gray-700);
     font: inherit;
-    /* v0.3.18 #50: inset highlight 0.95 → 0.18 + 外阴影 0.16 → 0.04 indigo */
+    /* v0.3.0729-5 #3: 未选中 member item 加强阴影, 与选中态区分更清晰 */
     box-shadow:
-      inset 0 1px 0 rgba(255,255,255,0.18),
-      0 4px 12px rgba(99,102,241,0.04);
+      inset 0 1px 0 rgba(255,255,255,0.28),
+      0 2px 6px rgba(15, 23, 42, 0.08),
+      0 8px 20px rgba(99, 102, 241, 0.12);
     /* v0.3.18 #49 保留: chip 文字白色微晕 (低对比玻璃上唯一可读性补偿) */
     text-shadow: 0 1px 3px rgba(255,255,255,0.8);
     transition:
@@ -1467,6 +1445,13 @@
        堆叠 (从底到顶): bill items (z-index auto) → 搜索框 (z-index 9) → section h4
        sticky header (z-index 10). 搜索框 z-index 9 < h4 z-index 10, 滚到 h4 重叠时
        h4 视觉压在搜索框上方 (跟 iOS native section header 行为一致). */
+  /* v0.3.0729-5 #2: 共用搜索在付款明细 section 之上, sticky 贴 member hero/tabs 下方 */
+  .bills-section-search--shared {
+    position: sticky;
+    top: 0;
+    z-index: 11;
+    margin: 0 0 var(--space-3, 12px);
+  }
   .bills-section-search {
     position: sticky;
     /* v0.3.0729-2 #9: top 跟 glass-chip 实际高度对齐.

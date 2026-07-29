@@ -2,8 +2,8 @@
   import { onMount } from 'svelte';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import { getSessionByCode } from '$api/sessions';
-  import { createBill, listBills } from '$api/bills';
+  import { getSessionByCode, getSessionWithSecret } from '$api/sessions';
+  import { createBill } from '$api/bills';
   import type { SessionDetail } from '$api/sessions';
   import { loadUser } from '$stores/user';
   // v0.3.15 (PRD §3.15.2 #6 v2, PO msg #4752+#4763): 圆形 FAB 替代 sticky bar。
@@ -31,7 +31,8 @@
 
   // v0.1.2 (T19): pass this into BillForm so the payer dropdown
   // defaults to the caller's own SessionMember.id in this session.
-  let defaultPayerMemberId: number | null = null;
+  // v0.3.0729-5 #7: must be $state so BillForm sees anon/logged-in default.
+  let defaultPayerMemberId: number | null = $state(null);
 
   // v0.3.20 #93 (PO msg 00:04 #7450, Fix 1): removed existingBillsCount tracking (smart-date chips deleted).
 
@@ -48,14 +49,31 @@
       const result = await getSessionByCode(code);
       session = result;
       sessionId = result.id;
+      // v0.3.0729-5 #7: sync code-keyed anon secret → id-keyed so createBill finds it.
+      if (typeof window !== 'undefined' && code) {
+        const codeSecret = localStorage.getItem('sbc.actingAs.' + code);
+        if (codeSecret) {
+          localStorage.setItem('sbc.actingAs.' + result.id, codeSecret);
+        }
+      }
       // Find the SessionMember that maps to the current user. If the
       // caller isn't yet a member (shouldn't happen in normal flow but
       // be defensive), `defaultPayerMemberId` stays null and the user
-      // picks manually. For anon callers, BE 端 verify 通过 X-SBC-Member-ID 头.
+      // picks manually. For anon callers, use actingAsMemberId from secret.
       const u = await loadUser();
       if (u && session) {
         const me = session.members.find((m) => m.user_id === u.user_id);
         if (me) defaultPayerMemberId = me.id;
+      }
+      if (defaultPayerMemberId == null) {
+        try {
+          const withSecret = await getSessionWithSecret(result.id);
+          if (withSecret.actingAsMemberId) {
+            defaultPayerMemberId = withSecret.actingAsMemberId;
+          }
+        } catch {
+          // anon secret missing / invalid — user picks payer manually
+        }
       }
       // v0.3.20 #93 (Fix 1): removed existingBillsCount tally.
     } catch (e: any) {
@@ -67,7 +85,8 @@
   });
 
   async function handleSubmit(payload: any) {
-    await createBill(sessionId, payload);
+    // v0.3.0729-5 #7: pass session code so anonHeaders can resolve code-keyed secret.
+    await createBill(sessionId, payload, code);
     // v0.3.36: 用 URL `code` 直接, 已在此 /s/{code}/bills/new 页, /s/{code} 即 session 主页.
     await goto('/s/' + code);
   }

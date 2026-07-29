@@ -63,20 +63,31 @@ export interface CreateBillInput {
  * Prior to v0.3.x this was open-coded in each function and `createBill`
  * was missing it, causing 403 "not a session member" on real iPhone UAT.
  */
-function anonHeaders(sessionId: number): Record<string, string> {
+/**
+ * v0.3.0729-5 #7: also accept optional sessionCode. Wizard/join may store the
+ * anon secret under `sbc.actingAs.{code}` while bill APIs historically only
+ * looked up the numeric sessionId key — page load via getSessionByCode worked
+ * but createBill/updateBill returned 403 "not a session member".
+ */
+function anonHeaders(sessionId: number, sessionCode?: string): Record<string, string> {
   const h: Record<string, string> = {};
   if (typeof window !== "undefined") {
-    const secret = localStorage.getItem("sbc.actingAs." + sessionId);
+    let secret = localStorage.getItem("sbc.actingAs." + sessionId);
+    if (!secret && sessionCode) {
+      secret = localStorage.getItem("sbc.actingAs." + sessionCode);
+      // Sync code → id so subsequent id-only lookups keep working.
+      if (secret) localStorage.setItem("sbc.actingAs." + sessionId, secret);
+    }
     if (secret) h["X-Nickname-Secret"] = secret;
   }
   return h;
 }
 
-export const listBills = (sessionId: number) => {
+export const listBills = (sessionId: number, sessionCode?: string) => {
   const url = "/sessions/" + sessionId + "/bills";
   // Routed through apiFetch so 401/403 redirect logic kicks in
   // consistently (raw fetch bypassed it before).
-  return apiFetch<Bill[]>(url, { headers: anonHeaders(sessionId) });
+  return apiFetch<Bill[]>(url, { headers: anonHeaders(sessionId, sessionCode) });
 };
 
 /**
@@ -89,8 +100,12 @@ export const listBills = (sessionId: number) => {
  * small and avoiding a new BE route for what's effectively a
  * client-side lookup.
  */
-export const getBill = async (sessionId: number, billId: number): Promise<Bill> => {
-  const all = await listBills(sessionId);
+export const getBill = async (
+  sessionId: number,
+  billId: number,
+  sessionCode?: string
+): Promise<Bill> => {
+  const all = await listBills(sessionId, sessionCode);
   const found = all.find((b) => b.id === billId);
   if (!found) {
     const err: any = new Error("账单不存在");
@@ -101,33 +116,42 @@ export const getBill = async (sessionId: number, billId: number): Promise<Bill> 
   return found;
 };
 
-export const createBill = (sessionId: number, body: CreateBillInput) => {
+export const createBill = (
+  sessionId: number,
+  body: CreateBillInput,
+  sessionCode?: string
+) => {
   const url = "/sessions/" + sessionId + "/bills";
   return apiFetch<Bill>(url, {
     method: "POST",
     body: JSON.stringify(body),
-    headers: anonHeaders(sessionId),
+    headers: anonHeaders(sessionId, sessionCode),
   });
 };
 
 export const updateBill = (
   sessionId: number,
   billId: number,
-  body: Partial<CreateBillInput>
+  body: Partial<CreateBillInput>,
+  sessionCode?: string
 ) => {
   const url = "/sessions/" + sessionId + "/bills/" + billId;
   return apiFetch<Bill>(url, {
     method: "PATCH",
     body: JSON.stringify(body),
-    headers: anonHeaders(sessionId),
+    headers: anonHeaders(sessionId, sessionCode),
   });
 };
 
-export const deleteBill = (sessionId: number, billId: number) => {
+export const deleteBill = (
+  sessionId: number,
+  billId: number,
+  sessionCode?: string
+) => {
   const url = "/sessions/" + sessionId + "/bills/" + billId;
   return apiFetch<void>(url, {
     method: "DELETE",
-    headers: anonHeaders(sessionId),
+    headers: anonHeaders(sessionId, sessionCode),
   });
 };
 

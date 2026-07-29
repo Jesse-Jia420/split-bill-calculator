@@ -461,10 +461,18 @@
     // `description` field — sending `description=null` (even null) was
     // rejected with 422 by Pydantic. The description is immutable (PO
     // T17) so we never need to send it again on PATCH.
+    // v0.3.0729-5 #7: coerce payer (HTML <select> may bind string) + guard invalid date.
+    const payerId = Number(payerMemberId);
+    const occurred = new Date(occurredAt);
+    if (!occurredAt || Number.isNaN(occurred.getTime())) {
+      throw Object.assign(new Error('请填写有效的账单时间'), {
+        detail: { error: '请填写有效的账单时间' },
+      });
+    }
     const payload: any = {
       amount: amount ?? 0,
-      payer_member_id: payerMemberId ?? 0,
-      occurred_at: new Date(occurredAt).toISOString(),
+      payer_member_id: Number.isFinite(payerId) ? payerId : 0,
+      occurred_at: occurred.toISOString(),
       currency: currency || 'CNY',
       participants,
       amount_expression: expr,
@@ -519,9 +527,11 @@
   /** v0.3.35 #4: BE 业务错误码 (err.detail.error) → 中文映射. 未知名 fallback '保存失败'. */
   const BILL_ERROR_CODE_ZH: Record<string, string> = {
     currency_mismatch: '账单币种不在账本币种中',
+    currency_not_in_session: '账单币种不在账本币种中',
     rate_missing: '币种之间缺少汇率记录',
     session_locked: '账本已锁定无法修改',
     permission_denied: '当前用户无权操作',
+    not_a_session_member: '当前身份无权记账，请重新加入账本',
     bill_not_found: '账单不存在',
   };
   function humanizeApiError(err: any): string {
@@ -577,7 +587,6 @@
       return;
     }
     descriptionError = false;
-    const p = buildPayload();
     // v0.3.36 #12 — UAT 0727-1 #12 (c 完全同款): amount validation 触发红框玻璃.
     if (amount == null || !Number.isFinite(amount) || amount <= 0) {
       amountError = true;
@@ -585,16 +594,17 @@
       return;
     }
     amountError = false;
-    if (!p.payer_member_id) {
-      toast.error('请选择付款人');
-      return;
-    }
-    if (!p.participants.length) {
-      toast.error('至少勾选一个参与者');
-      return;
-    }
     submitting = true;
     try {
+      const p = buildPayload();
+      if (!p.payer_member_id) {
+        toast.error('请选择付款人');
+        return;
+      }
+      if (!p.participants.length) {
+        toast.error('至少勾选一个参与者');
+        return;
+      }
       if (onSubmit) await onSubmit(p);
     } catch (err: any) {
       // v0.3.15 (PO #4807): 错误统一走 Toast. humanizeApiError 把

@@ -1281,10 +1281,11 @@
      包装 day-bills 的两层 div: 外层做 grid 高度过渡,内层装内容做 overflow:hidden。
      Chrome 117+ / Safari 17.4+ / Firefox 127+ 全部支持;
      老浏览器降级到 <details> 默认的瞬时展开。 === */
+  /* v0.3.0729-5 #5: 展开/收起滑动过渡 — 加长时长 + ease-out, 视觉更跟手 */
   .day-body-wrap {
     display: grid;
     grid-template-rows: 0fr;
-    transition: grid-template-rows 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    transition: grid-template-rows 320ms cubic-bezier(0.22, 1, 0.36, 1);
   }
   details[open] .day-body-wrap {
     grid-template-rows: 1fr;
@@ -1292,6 +1293,15 @@
   .day-body {
     overflow: hidden;
     min-height: 0;
+    opacity: 0;
+    transform: translateY(-6px);
+    transition:
+      opacity 220ms ease,
+      transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  details[open] .day-body {
+    opacity: 1;
+    transform: translateY(0);
   }
 
   /* === v0.3.18 #46-A (PO msg 18:15 拍板): 玻璃 hairline 分隔 (方案 B) ===

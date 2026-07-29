@@ -47,7 +47,12 @@
       const result = await getSessionByCode(code);
       session = result;
       sessionId = result.id;
-      bill = await getBill(sessionId, billId);
+      // v0.3.0729-5 #7: sync code-keyed anon secret → id-keyed for bill APIs.
+      if (typeof window !== 'undefined' && code) {
+        const codeSecret = localStorage.getItem('sbc.actingAs.' + code);
+        if (codeSecret) localStorage.setItem('sbc.actingAs.' + result.id, codeSecret);
+      }
+      bill = await getBill(sessionId, billId, code);
     } catch (e: any) {
       // v0.3.15 (PO #4807): 错误统一走 Toast. 401 handled by auth middleware; 403/404 land here.
       toast.error(e?.message ?? '加载失败');
@@ -57,7 +62,7 @@
   });
 
   async function handleSubmit(payload: any) {
-    await updateBill(sessionId, billId, payload);
+    await updateBill(sessionId, billId, payload, code);
     // v0.3.36: 用 URL `code` 直接.
     await goto('/s/' + code);
   }
