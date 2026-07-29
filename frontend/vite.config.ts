@@ -34,18 +34,30 @@ function gitVersionPlugin() {
   };
 }
 
+const tunnelHost = process.env.SBC_TUNNEL_HOST?.trim() || "";
+
 export default defineConfig({
   plugins: [gitVersionPlugin(), sveltekit()],
   server: {
     port: 8448,
     strictPort: true,
     host: "0.0.0.0",
-    allowedHosts: ["test.jessejia.pp.ua", "localhost", "127.0.0.1"],
-    hmr: {
-      // 反向代理 HTTPS — HMR WebSocket 用 wss + 代理 host
-      protocol: "wss",
-      host: "test.jessejia.pp.ua"
-    },
+    // Mobile / tunnel QA: allow loca.lt + trycloudflare quick tunnels (suffix match).
+    allowedHosts: [
+      "test.jessejia.pp.ua",
+      "localhost",
+      "127.0.0.1",
+      ".loca.lt",
+      ".trycloudflare.com",
+      ...(tunnelHost ? [tunnelHost] : []),
+    ],
+    // Prod/staging uses wss HMR; tunnel/mobile QA disables HMR (phone doesn't need HMR).
+    hmr: tunnelHost
+      ? false
+      : {
+          protocol: "wss",
+          host: "test.jessejia.pp.ua",
+        },
     proxy: {
       // Standard API prefix (canonical path used by client.ts).
       "/api": {
