@@ -1032,11 +1032,17 @@
     position: sticky;
     top: var(--bills-search-h, 50px);
     z-index: 9;
-    /* v0.3.28 UAT 0724-2 #16: 0.65→0.50, 进一步降低透明度保证可读性 */
-    background: rgba(255, 255, 255, 0.50);
-    backdrop-filter: saturate(180%) blur(20px);
-    -webkit-backdrop-filter: saturate(180%) blur(20px);
-    border-bottom: 1px solid var(--gray-200);
+    /* UAT: 与 .bills-search 玻璃同浓度, 滚过 bill row 时不穿透 */
+    background: var(--bills-sticky-glass-bg, rgba(255, 255, 255, 0.68));
+    backdrop-filter: var(--bills-sticky-glass-filter, saturate(200%) blur(24px));
+    -webkit-backdrop-filter: var(--bills-sticky-glass-filter, saturate(200%) blur(24px));
+    border-bottom: 1px solid rgba(255, 255, 255, 0.35);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  }
+  @supports not (backdrop-filter: blur(1px)) {
+    .section-header {
+      background: rgba(249, 250, 251, 0.95);
+    }
   }
 
   /* === v0.3.18 #68: Row 1 = [+ toggle] [日期] ... [总笔数 badge] === */
