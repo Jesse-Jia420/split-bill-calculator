@@ -18,7 +18,14 @@ Passwordless login; emails in `DEV_BYPASS_EMAILS` accept any 6-digit code. Seede
 
 `127.0.0.1:8448` on a **phone** is the phone itself — it will **not** reach the Cloud VM. Services in the VM listen on `0.0.0.0:8448` / `0.0.0.0:8449` (tmux `sbc-frontend`, `sbc-backend`).
 
-**Phone testing (recommended):** run a public tunnel, then open the HTTPS URL on the phone:
+**Cursor port forward (common):** On Mac, `lsof -nP -iTCP:8448 -sTCP:LISTEN` may show `Cursor … TCP 127.0.0.1:8448` — not `node`/`vite` on `*:8448`. That means only **Mac localhost** works; `http://192.168.10.194:8448` and phone LAN access will **fail** even on the Mac. This is expected.
+
+| Goal | What to do |
+|------|------------|
+| Phone test, keep Cloud Agent dev | `bash scripts/mobile-dev-tunnel.sh` → open `https://xxxx.trycloudflare.com` on phone |
+| Phone on same Wi‑Fi via LAN IP | Run `uvicorn` + `npm run dev` **natively on the Mac** (not via Cursor forward); confirm `lsof` shows `node` on `*:8448` |
+
+**Phone testing (Cloud VM tunnel):**
 
 ```bash
 bash scripts/mobile-dev-tunnel.sh
@@ -27,7 +34,7 @@ bash scripts/mobile-dev-tunnel.sh
 
 `frontend/vite.config.ts` allows `.trycloudflare.com` and `.loca.lt` hosts. API calls go through the Vite proxy (same origin), so CORS changes are usually unnecessary.
 
-**Desktop in Cursor:** use **Ports / Desktop pane** port forwarding for `8448`, then open `http://127.0.0.1:8448` on the **same machine** that runs Cursor — not on the phone.
+**Desktop in Cursor:** use **Ports / Desktop pane** port forwarding for `8448`, then open `http://127.0.0.1:8448` on the **same Mac** — LAN IP will not work while only Cursor holds `127.0.0.1:8448`.
 
 **Local Mac dev (not Cloud VM):** phone and Mac on same Wi‑Fi → `http://<Mac-LAN-IP>:8448`.
 
