@@ -35,6 +35,12 @@ function gitVersionPlugin() {
 }
 
 const tunnelHost = process.env.SBC_TUNNEL_HOST?.trim() || "";
+const lanHost = process.env.SBC_LAN_HOST?.trim() || "";
+
+// Vite 5 blocks unknown Host headers. LAN IP (192.168.x.x) is not localhost — use true in dev
+// so phones on the same Wi‑Fi can open http://<Mac-LAN-IP>:8448. Set SBC_DEV_STRICT_HOSTS=1
+// to restore the explicit list (staging tunnel hostnames only).
+const strictHosts = process.env.SBC_DEV_STRICT_HOSTS === "1";
 
 export default defineConfig({
   plugins: [gitVersionPlugin(), sveltekit()],
@@ -42,22 +48,26 @@ export default defineConfig({
     port: 8448,
     strictPort: true,
     host: "0.0.0.0",
-    // Mobile / tunnel QA: allow loca.lt + trycloudflare quick tunnels (suffix match).
-    allowedHosts: [
-      "test.jessejia.pp.ua",
-      "localhost",
-      "127.0.0.1",
-      ".loca.lt",
-      ".trycloudflare.com",
-      ...(tunnelHost ? [tunnelHost] : []),
-    ],
-    // Prod/staging uses wss HMR; tunnel/mobile QA disables HMR (phone doesn't need HMR).
+    allowedHosts: strictHosts
+      ? [
+          "test.jessejia.pp.ua",
+          "localhost",
+          "127.0.0.1",
+          ".loca.lt",
+          ".trycloudflare.com",
+          ...(tunnelHost ? [tunnelHost] : []),
+          ...(lanHost ? [lanHost] : []),
+        ]
+      : true,
+    // Staging: wss HMR. LAN phone QA: optional SBC_LAN_HOST ws. Tunnel: off.
     hmr: tunnelHost
       ? false
-      : {
-          protocol: "wss",
-          host: "test.jessejia.pp.ua",
-        },
+      : lanHost
+        ? { host: lanHost, port: 8448, protocol: "ws" }
+        : {
+            protocol: "wss",
+            host: "test.jessejia.pp.ua",
+          },
     proxy: {
       // Standard API prefix (canonical path used by client.ts).
       "/api": {

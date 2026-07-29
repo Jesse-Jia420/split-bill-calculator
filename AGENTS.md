@@ -29,7 +29,12 @@ bash scripts/mobile-dev-tunnel.sh
 
 **Desktop in Cursor:** use **Ports / Desktop pane** port forwarding for `8448`, then open `http://127.0.0.1:8448` on the **same machine** that runs Cursor — not on the phone.
 
-**Local Mac dev (not Cloud VM):** phone and Mac on same Wi‑Fi → `http://<Mac-LAN-IP>:8448` with `npm run dev -- --host 0.0.0.0`.
+**Local Mac dev (not Cloud VM):** phone and Mac on same Wi‑Fi → `http://<Mac-LAN-IP>:8448`.
+
+1. Frontend must listen on all interfaces: `cd frontend && npm run dev` (vite.config already sets `host: 0.0.0.0`).
+2. Backend on same Mac: `cd backend && .venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8449`.
+3. `allowedHosts` defaults to `true` in dev so `192.168.x.x` works. Optional: `SBC_LAN_HOST=192.168.10.194 npm run dev` for HMR over LAN.
+4. If still refused: confirm Mac IP (`ipconfig getifaddr en0`), disable guest-network AP isolation, allow **node** in macOS Firewall.
 
 ### Feature-matrix test data
 
