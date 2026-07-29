@@ -1473,7 +1473,7 @@
        h4 margin-bottom 8px + search margin-top 0 = h4 底部到 search 顶部 8px 视觉间距.
        实测 chromium computed h4 height 32px 字段级精确. */
     top: 32px;
-    z-index: 9; /* < h4 sticky 10, > bill items 0 (auto) */
+    z-index: 12; /* v0.3.0729-1 #9 re-fix: 9 → 12 (above .section-header z=10), iOS Safari WebKit 滚动时 search 不再被 header 遮住 */
     display: flex;
     align-items: center;
     gap: var(--space-2, 8px);
