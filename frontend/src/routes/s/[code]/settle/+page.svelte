@@ -418,6 +418,7 @@
       has_bills={billsLoaded && bills.length > 0}
       exchange_rates={session.exchange_rates ?? []}
       onAdded={() => window.location.reload()}
+      dismiss={() => (addCurrencyOpen = false)}
       on:close={() => (addCurrencyOpen = false)}
     />
   {/if}
@@ -440,6 +441,7 @@
       transfers={[]}
       currentMemberId={currentMember.id}
       onAdded={handleRecordAdded}
+      dismiss={() => (addSheetOpen = false)}
       on:close={() => (addSheetOpen = false)}
     />
   {/if}

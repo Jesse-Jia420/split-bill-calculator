@@ -47,8 +47,10 @@
   /** 提交成功回调. */
   export let onAdded: ((record: SettlementRecord) => void) | undefined = undefined;
 
-  // v0.3.0729-2 #6: 跟 CurrencyAddModal 同款 createEventDispatcher('close').
-  // Svelte 5 把父组件 onclose={fn} 当 DOM close 事件监听, export let onclose 收不到 → 关不掉.
+  // v0.3.0729-2 #6: dismiss callback (故意不用 on* 名) + createEventDispatcher 双通道.
+  // 真正关不掉的根因在 portal.ts destroy 孤儿 DOM; dismiss 是父页 runes 可靠回调.
+  export let dismiss: (() => void) | undefined = undefined;
+
   const dispatch = createEventDispatcher<{ close: void }>();
 
   // ---- 表单 state ----
@@ -120,6 +122,7 @@
 
   function close() {
     if (busy) return;
+    dismiss?.();
     dispatch('close');
   }
 
@@ -213,6 +216,7 @@
       });
       toast.success(`已添加 ${nameOf(record.payer_id)} → ${nameOf(record.payee_id)} ${record.amount} ${record.currency}`);
       onAdded?.(record);
+      dismiss?.();
       dispatch('close');
     } catch (e: any) {
       const code = e?.code ?? e?.detail?.error ?? 'unknown';
