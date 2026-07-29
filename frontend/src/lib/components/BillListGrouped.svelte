@@ -634,6 +634,7 @@
       <span>
         左滑以<span class="hint-delete">删除</span>账单，右滑以<span class="hint-edit">编辑</span>账单
       </span>
+      <span class="swipe-arrow swipe-arrow--right" aria-hidden="true">→</span>
     </div>
     <ul class="day-list" style="list-style: none; padding: 0; margin: 0;">
       {#each groups as g, gi (g.date)}
@@ -952,6 +953,9 @@
     font-weight: 500;
     font-size: 11px;
     color: var(--gray-400, #a3a3a3);
+  }
+  .bill-swipe-hint .swipe-arrow--right {
+    margin-left: 1px;
   }
   .bill-swipe-hint .hint-delete {
     color: var(--error-700, #be123c);

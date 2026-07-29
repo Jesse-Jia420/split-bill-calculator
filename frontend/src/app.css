@@ -622,42 +622,28 @@ button.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
 
 button.glass-pill.invite-btn.invite-btn-breathing,
 .invite-btn.invite-btn-breathing {
-  /* v0.3.0729-2 UAT #3: 呼吸只靠 ::before 边框流光 (invite-border-flow), 不再 scale 按钮本体. */
+  /* v0.3.0729-2 UAT #3 v2: 边框全环 conic 流光 (mask 切环), 去掉白底 ::after 盖层. */
   position: relative;
-  /* v0.3.0728-2-anim-fix: isolation: isolate 创建独立 stacking context,
-     让 ::before/::after z-index 0/1 子元素不 escape 到父 stacking context (iOS Safari WebKit z-index:-1 escape bug).
-     overflow: hidden 双保险, 把 pseudo-element 视觉 clip 在 border-box 内,
-     即使 z-index 计算异常视觉也不会漏到 button 外. */
   isolation: isolate;
-  overflow: hidden;
-  /* v0.3.37 #16: 边框让位给 conic 流光层 (transparent 让 ::before 显示).
-     specificity (0,3,0) 跟 button.glass-pill (0,2,0) 拉开避免被覆盖 */
+  overflow: visible;
   border: 1.5px solid transparent;
-  background-clip: padding-box; /* 让 background 不溢出到 border 区域 */
+  background: linear-gradient(
+    135deg,
+    rgba(99, 102, 241, 0.04) 0%,
+    rgba(59, 130, 246, 0.02) 100%
+  );
+  background-clip: padding-box;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.02),
+    0 1px 4px rgba(99, 102, 241, 0.05);
 }
-/* v0.3.0728-2-anim-fix (PO msg 20:29 iOS Safari 真机截图, 5 色彩虹 + 白玻璃全漏 button 外面).
-   cb3aedf 的 z-index: -1 + ::before(conic) + ::after(glass) 在 iOS Safari WebKit 上 z-index: -1 子元素
-   会 escape 父 stacking context, conic-gradient 跟 ::after 白玻璃都漏到 button bounding box 外,
-   拖出紫色到绿色椭圆光晕 + 白雾 halo (跟 PO 截图 "噢噢噢" / "呃呃呃" 1-member session 完全对得上).
-   修法核心: 让 pseudo-elements 留在 button 自己的 stacking context 内, 不要 z-index:-1 escape, 加 overflow clip 双保险.
-   - button 加 `isolation: isolate` 创建独立 stacking context (CSS Containment Module 1, cross-browser stable)
-   - button 加 `overflow: hidden` 兜底, 任何 z-index 视觉 leak 都被 clip 到 padding-box 内
-   - ::before z-index 从 -1 改 0 (在 stacking context 内最底层, button bg 之上, text 内容之下)
-   - ::after z-index 从 -1 改 1 (在 stacking context 内覆盖 ::before 中间, 留 2px 露出 ::before, button text 之上)
-   - DOM order (::before → ::after → text) + z-index 层叠确保 text 仍在最顶层
-   Playwright iPhone 13 @3x chromium verify 主验证 computed style, 真 iOS Safari 视觉验证仍需 PO 真机 walk
-   (chromium 不重现 iOS Safari WebKit z-index escape bug, 但 fix 改用 isolation: isolate + z-index:0/1 是标准 CSS,
-    iOS Safari WebKit 2018+ 完全支持, 不依赖任何 mask-composite / -webkit-mask 渲染 quirks). */
 .invite-btn-breathing::before {
   content: '';
   position: absolute;
-  inset: -1px;
+  inset: 0;
   border-radius: inherit;
-  /* v0.3.0729-1 #16-followup (PO msg 02:05 字面 "动画要一直布满整个border, 而非现在这样
-     一会儿大片空白, 一会儿满"): 5 色 stops 密度提高 (5 色重复 4 圈 = 20 段 × 18°/段),
-     ring 任何角度都被一种颜色覆盖, rotate 5s 期间颜色段密集位移, 视觉上"一直满".
-     原 5 段 72°/段在 ring 2px 上色段过于稀疏, rotate 时某些瞬间 ring 位置采样到色段
-     过渡区 (颜色相近 → 看着像空白). 加 density 4x 后 ring 始终有颜色. */
+  padding: 1.5px;
   background: conic-gradient(
     from 0deg,
     #6366f1 0deg,    #a855f7 18deg,   #ec4899 36deg,   #f59e0b 54deg,   #10b981 72deg,
@@ -666,26 +652,21 @@ button.glass-pill.invite-btn.invite-btn-breathing,
     #6366f1 270deg,  #a855f7 288deg,  #ec4899 306deg,  #f59e0b 324deg,  #10b981 342deg,
     #6366f1 360deg
   );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
   animation: invite-border-flow 5s linear infinite;
-  pointer-events: none;         /* 让 click 穿透到底层 button */
-  z-index: 0;                   /* FIX (was -1): 留在 isolation: isolate stacking context 内 */
+  pointer-events: none;
+  z-index: 1;
 }
+/* v0.3.0729-2 UAT #3 v2: 不再用白底 ::after 盖中心 — 全边框由 ::before mask 环承担. */
 .invite-btn-breathing::after {
-  content: '';
-  position: absolute;
-  /* v0.3.0729-2 UAT #3: inset 跟 ::before -1px 对齐, 留 1.5px 均匀流光环 (原 2px 在 pill 上略厚且跟 border 不对齐). */
-  inset: 1.5px;
-  border-radius: inherit;
-  /* v0.3.0728-2-anim-fix-followup (chromium 验证): ::after 玻璃 opacity 0.92 → 1.0.
-     0.92 留 8% transparent 让 ::before 的 5 色 conic 在中心透出, 形成淡彩洗干扰文字.
-     妥协: opacity 1.0 彻底纯白覆盖中心 (牺牲中心 glass 透明感换干净视觉).
-     视觉: 白底按钮中心 + 5 色 conic 2px 外圈 ring + 文字 (text z-index:3 在最上).
-     (iOS Safari WebKit 兼容: 不依赖 mask-composite / -webkit-mask, 走纯 background + z-index 隔离) */
-  background: rgba(255, 255, 255, 1);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-          backdrop-filter: blur(20px) saturate(180%);
-  pointer-events: none;         /* 让 click 穿透到底层 button */
-  z-index: 1;                   /* 覆盖 ::before, button text 之上 (text z:3) */
+  display: none;
 }
 /* 不支持 conic-gradient 的浏览器降级到 solid indigo 边框 (v0.3.37 #16 fallback, 去掉 mask 条件) */
 @supports not (background: conic-gradient(red, blue)) {
