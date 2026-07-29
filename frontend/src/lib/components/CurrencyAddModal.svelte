@@ -88,6 +88,12 @@
     rates: SessionExchangeRate[];
   }) => void) | undefined = undefined;
 
+  // v0.3.0729-2 #3: dismiss callback (故意不用 on*/onClose 名).
+  // Svelte 5 对 on* prop 有 event-callback 特殊处理; 父页 runes `$state`
+  // 经 onClose={() => addCurrencyOpen=false} 调用后 state 不翻转 → 弹窗关不掉.
+  // 普通 prop 名 dismiss 可可靠调用.
+  export let dismiss: (() => void) | undefined = undefined;
+
   const dispatch = createEventDispatcher<{ close: void }>();
 
   // ---- 表单状态 (single 模式用 secondary + rate, multi 模式用 primary + secondary + rate) ----
@@ -160,6 +166,7 @@
 
   function close() {
     if (busy) return;
+    dismiss?.();
     dispatch('close');
   }
 
@@ -341,6 +348,7 @@
           `已添加 ${secondary}, 汇率 ${rate} ${secondary}/${primary_currency}`
         );
         onAdded?.({ session: updated, rates });
+        dismiss?.();
         dispatch('close');
       } else if (secondary === '') {
         // v0.3.21 #108 (PO msg 17:54): multi + 「—」→ 切换单币种, 真调 DELETE
@@ -350,6 +358,7 @@
         const removed = await deleteSessionCurrency(session_id, originalSecondary);
         toast.success(`已移除 ${originalSecondary}, 账本回到单币种 (${primary_currency})`);
         onAdded?.({ session: removed, rates: removed.exchange_rates ?? [] });
+        dismiss?.();
         dispatch('close');
       } else if (secondary === originalSecondary) {
         // multi + existing secondary: PATCH 现有汇率 (唯一一条 forward + reciprocal 自动同步)
@@ -375,6 +384,7 @@
             : `币种设置已更新, 汇率 ${rate} ${secondary}/${primary}`
         );
         onAdded?.({ session: stubSession, rates });
+        dismiss?.();
         dispatch('close');
       } else {
         // v0.3.21 #108 (PO msg 17:54): multi + 任意其他币种 → REPLACE 流程
@@ -417,6 +427,7 @@
         // 用 addSessionCurrency 返回的 SessionDetail (含最新 currencies + exchange_rates)
         void afterDelete; // 告诉 TS / 读者 afterDelete 仅用于中间状态跳转语义, 最终 payload 用 afterAdd + newRates
         onAdded?.({ session: afterAdd, rates: newRates });
+        dismiss?.();
         dispatch('close');
       }
     } catch (e: any) {
@@ -431,6 +442,7 @@
         e?.detail?.detail?.error === 'currency_already_in_session'
       ) {
         toast.info('该币种已在账本中');
+        dismiss?.();
         dispatch('close');
       } else {
         toast.error(msg);
