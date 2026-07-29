@@ -620,25 +620,28 @@ button.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
   to { transform: rotate(360deg); }
 }
 
-/* v0.3.0729-2 UAT #3 v4: 流光边框最终版.
-   原理: 按钮本身是单色透明玻璃 (glass-pill 原样).
-   border: 1.5px solid transparent + background-clip:padding-box
-   → border 区域本身透明.
-   ::before 铺 conic-gradient (inset:-1.5px, z-index:-1, overflow:hidden 裁住)
-   → 只有 border 环形区域透出 conic 流光, 内部完全是按钮原本的玻璃背景.
-   不用 mask, 不用 ::after 盖层. */
+/* v0.3.0729-2 UAT #3 v5: 流光边框 — border-image 方案.
+   按钮本体保持 glass-pill 单色透明玻璃 (不改背景/backdrop-filter).
+   只用 CSS border-image 把 border 换成旋转 conic-gradient.
+   ::before 放一个跟按钮一样大的 conic 旋转层, 再用 mask 切出边框环.
+   
+   实际方案: ::before 铺 conic + overflow:hidden 限制在按钮内,
+   按钮 bg 盖在 ::before 上面 (z-index 正常流 > ::before z:0),
+   按钮文字 z 更高. */
 button.glass-pill.invite-btn.invite-btn-breathing,
 .invite-btn.invite-btn-breathing {
   position: relative;
   overflow: hidden;
-  border: 1.5px solid transparent;
-  background-clip: padding-box;
+  /* 让 border 区域变透明, 交给 ::before 流光填充 */
+  border: 1.5px solid transparent !important;
 }
 .invite-btn-breathing::before {
   content: '';
   position: absolute;
-  inset: -1.5px;
+  inset: 0;
   border-radius: inherit;
+  /* 1.5px 宽的流光边框 — 用 padding + mask 切出环形 */
+  padding: 1.5px;
   background: conic-gradient(
     from 0deg,
     #6366f1 0deg,    #a855f7 18deg,   #ec4899 36deg,   #f59e0b 54deg,   #10b981 72deg,
@@ -647,9 +650,16 @@ button.glass-pill.invite-btn.invite-btn-breathing,
     #6366f1 270deg,  #a855f7 288deg,  #ec4899 306deg,  #f59e0b 324deg,  #10b981 342deg,
     #6366f1 360deg
   );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
   animation: invite-border-flow 5s linear infinite;
   pointer-events: none;
-  z-index: -1;
 }
 .invite-btn-breathing::after {
   display: none;
@@ -657,12 +667,10 @@ button.glass-pill.invite-btn.invite-btn-breathing,
 /* 不支持 conic-gradient 的浏览器降级到 solid indigo 边框 */
 @supports not (background: conic-gradient(red, blue)) {
   .invite-btn-breathing {
-    border-color: rgba(99, 102, 241, 0.65);
+    border-color: rgba(99, 102, 241, 0.65) !important;
   }
   .invite-btn-breathing::before {
     display: none;
   }
-  .invite-btn-breathing::after {
-    display: none;
-  }
+}
 }
