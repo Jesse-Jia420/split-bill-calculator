@@ -69,6 +69,9 @@
   // v0.2.1 T05 (PRD §3.6.4): session 内账单 description 模糊搜索。
   // 不搜金额/付款人 (避免搜索结果飘忽)。空 query 全显示。
   let billsSearchQuery = $state('');
+  /** true when .bills-search has scrolled into sticky position (sentinel left viewport). */
+  let billsSearchStuck = $state(false);
+  let billsSearchSentinel: HTMLDivElement | undefined = $state();
 
   /**
    * v0.2.1 T04: 删除撤回。
@@ -183,9 +186,7 @@
     const main = document.querySelector('main');
     const el = document.querySelector('.bills-search');
     if (!(main instanceof HTMLElement) || !(el instanceof HTMLElement)) return;
-    const nav = document.querySelector('.navbar');
-    const navH = nav instanceof HTMLElement ? nav.getBoundingClientRect().height : 56;
-    const STICKY_OFFSET = navH + 8; // navbar + var(--space-2), 跟 .bills-search sticky top 对齐
+    const STICKY_OFFSET = 8; // var(--space-2), 跟 .bills-search { top } 对齐（非 stuck 态）
     // offsetTop 累加到 main
     let target: HTMLElement | null = el;
     let top = 0;
@@ -201,6 +202,45 @@
       main.scrollTop = targetScroll;
     }
   }
+
+  function updateBillsSearchStuckBleed() {
+    if (!billsSearchStuck || typeof document === 'undefined') return;
+    const search = document.querySelector('.bills-search');
+    const nav = document.querySelector('.navbar');
+    if (!(search instanceof HTMLElement)) return;
+    if (nav instanceof HTMLElement) {
+      const gap = Math.max(0, search.getBoundingClientRect().top - nav.getBoundingClientRect().bottom);
+      search.style.setProperty('--bills-search-stuck-bleed', `${gap}px`);
+    }
+  }
+
+  $effect(() => {
+    if (!browser || bills.length === 0 || !billsSearchSentinel) {
+      billsSearchStuck = false;
+      return;
+    }
+    const main = document.querySelector('main');
+    if (!(main instanceof HTMLElement)) return;
+
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        billsSearchStuck = entry ? !entry.isIntersecting : false;
+        requestAnimationFrame(updateBillsSearchStuckBleed);
+      },
+      { root: main, rootMargin: '-8px 0px 0px 0px', threshold: 0 }
+    );
+    io.observe(billsSearchSentinel);
+
+    const onScroll = () => requestAnimationFrame(updateBillsSearchStuckBleed);
+    main.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+
+    return () => {
+      io.disconnect();
+      main.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+    };
+  });
 
   // v0.1.4 round 2 改动 1: 重新加回 members 折叠 toggle。
   // 默认展开; 用户折叠后按 sessionId 持久化到 localStorage。
@@ -940,7 +980,8 @@
         />
       {:else}
         <!-- v0.2.1 T05: 搜索 input (session 内账单 description 模糊匹配)。 -->
-        <div class="bills-search">
+        <div class="bills-search-sentinel" bind:this={billsSearchSentinel} aria-hidden="true"></div>
+        <div class="bills-search" class:is-stuck={billsSearchStuck}>
           <Search size={16} aria-hidden="true" />
           <!-- v0.3.21 #118 (PO msg 11:35 #7838 Bug 1 + Bug 4, #116 续): onfocus 调
                scrollSearchToSticky 把 search 预置到 sticky top: 8px, oninput 不调.
@@ -1983,16 +2024,19 @@
      同步 --bills-search-h 60px → 54px (search 实际高度 -6px, region 同步减 6px 保持
      day-header sticky offset 一致). */
   .bills-card {
-    /* Sticky 搜索 + 日期 header 共用玻璃 token (UAT: 遮挡滚过的 bill row) */
+    /* 搜索 sticky 时与日期 header 共用玻璃浓度 */
     --bills-sticky-glass-bg: rgba(255, 255, 255, 0.68);
     --bills-sticky-glass-filter: saturate(200%) blur(24px);
-    --bills-search-sticky-top: calc(
-      var(--navbar-h, 56px) + env(safe-area-inset-top, 0px) + var(--space-2)
-    );
-    /* 搜索框本体高度 (padding 12×2 + min-height 40); day-header sticky 在其下沿 */
-    --bills-search-body-h: 48px;
-    --bills-search-h: calc(var(--bills-search-sticky-top) + var(--bills-search-body-h));
+    --bills-search-h: 48px;
     padding-bottom: 96px;
+  }
+
+  .bills-search-sentinel {
+    height: 1px;
+    margin: 0;
+    padding: 0;
+    pointer-events: none;
+    visibility: hidden;
   }
 
   .btn-sm {
@@ -2018,102 +2062,73 @@
      偏移由 --bills-search-h 推算, 不受 top 影响). */
   .bills-search {
     position: sticky;
-    top: var(--bills-search-sticky-top);
+    top: var(--space-2);
     z-index: 20;
     isolation: isolate;
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    /* 玻璃条横向铺满 page-inner (抵消 .page-inner padding) */
-    margin-left: calc(-1 * var(--space-4));
-    margin-right: calc(-1 * var(--space-4));
-    padding-left: calc(var(--space-4) + 14px);
-    padding-right: calc(var(--space-4) + 14px);
-    /* v0.3.0729-2 #4: margin-top var(--space-4)=16px. 配合 .bills-card-head
-       padding-bottom 16px (不 collapse) → 视觉 gap 32px. */
     margin-top: var(--space-4);
-    /* v0.3.20 #98 (PO msg 13:36 #7532 #1): padding 上下对称.
-       原 18px var(--space-3) var(--space-2) (18 top + 8 bottom) 让 content area
-       偏 search box 顶部 ~5px (input 22px 填满 content area, flex 居中在
-       content area 内, 但 content area 不在 search box 中央). PO 反馈
-       "搜索框内文字还是没居中" — 文字在搜索框视觉上还是偏高.
-       padding 改 13px var(--space-3) 13px 让 content area 22px 精确居中在
-       search box 50px 高度里 (search top +13 + content 22 + 13 + 2 border = 50).
-       input 跟 .Search icon 都垂直居中于搜索框, placeholder 跟实际文字
-       在视觉中央. --bills-search-h 60px 不变 (那是 region 计算用, search 高度
-       仍是 50px, 实际 region 高度由 BillListGrouped 偏移自行处理).
-       v0.3.29 (UAT 0725-1 #1, PO msg 12:43): PO 字面 "没让你把搜索账单的搜索框垂直高度变大, 只让你给搜索框及其背后的区域加模糊背景". 现状 50px 太胖, 改回 ~44px (padding 11px 让 content area 22px 居中, +2 border = 44px 总高). --bills-search-h 同步收 10px (50→44, 但 sticky offset 需让出 day-header 区域, 改 44→54 让出原 10px padding 给 day-header 浮起缓冲). */
-    /* v0.3.36 #7 — UAT 0728-1 #7 (PO 字面 "搜索, 账单名称搜索框, 与上方的按钮以及下方的账单之间, 应多留一点空间"):
-         padding 8px 12px → 12px 14px (top/bottom 各加 4px = +8px 高度; 左右各加 2px = 让内部 input
-         padding 也增加, 跟 placeholder 距离两边更宽). 顶部多留 4px 跟上方 .bills-card-head 按钮
-         留视觉呼吸; 底部多留 4px 跟下方 BillListGrouped 第一行 day-header 留呼吸.
-         --bills-search-h 同步 +8px (48 → 56), BillListGrouped day-header sticky top 偏移跟着 +
-         让搜索框区域 总高 = 56px. */
-    /* v0.3.0728-2 #11 — UAT 0728-2 #11 搜索框垂直高度修复 (PO 拍 "5 字符 → 3 字符高").
-         现状 12px padding + 14px font-size + 1.4 line-height = 12*2 + 14*1.4 = 43.6 + 2 border = 45.6,
-         实际包含 padding+input+border 总高度 ~56px (5 字符高, 太胖). 拍定 8px 14px padding + 36px min-height
-         + 1.4 line-height. --bills-search-h 同步 56 → 44 (-12px, 跟 gap 8 → 12 调整一致). */
     padding: 12px 14px;
     min-height: 40px;
     line-height: 1.4;
-    display: flex;
-    align-items: center;
     background: transparent;
     border: 1px solid transparent;
     border-radius: var(--radius-md, 8px);
     color: var(--gray-500);
   }
-  /* v0.3.28 (UAT 0723-2 #7 测试不通过修复): 玻璃背景移到 ::before, 负 top/bottom
-     偏移覆盖搜索框上下 padding 区域 (上方 .bills-card-head margin-bottom 12px +
-     下方 BillListGrouped 间隔). 之前 backdrop-filter 只在 .bills-search 本体内
-     生效, gap 区域透明, 内容从缝隙漏出. 现在 ::before 在 z-index:-1 占满
-     -12px 到 +height+12px 区域, 玻璃 + blur 覆盖整个 padding. */
-  /* v0.3.0729-2 #4: ::before 不再负偏移吃掉上下间距.
-     旧 top/bottom:-12px 把玻璃铺进 gap, 视觉上搜索框仍贴住上方按钮/下方账单.
-     玻璃只包搜索框本体; 间距交给 .bills-card-head padding-bottom + .bills-search margin-top. */
-  /* 玻璃背景: 搜索框 + sticky 时 navbar 下沿到搜索框之间的整条遮罩 (防 bill row 漏出) */
+  /* 默认（未 sticky）：仅搜索框本体的玻璃，不盖住上方标题/按钮 */
   .bills-search::before {
     content: '';
     position: absolute;
-    top: calc(-1 * var(--bills-search-sticky-top));
+    top: 0;
     bottom: 0;
     left: 0;
     right: 0;
-    background: var(--bills-sticky-glass-bg);
-    backdrop-filter: var(--bills-sticky-glass-filter);
-    -webkit-backdrop-filter: var(--bills-sticky-glass-filter);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.45);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
-    z-index: -1;
-    pointer-events: none;
-  }
-  .bills-search::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: var(--bills-sticky-glass-bg);
-    backdrop-filter: var(--bills-sticky-glass-filter);
-    -webkit-backdrop-filter: var(--bills-sticky-glass-filter);
+    background: rgba(255, 255, 255, 0.55);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
     border: 1px solid var(--color-border, #e5e7eb);
     border-radius: var(--radius-md, 8px);
     z-index: -1;
     pointer-events: none;
   }
+  /* sticky 时：向上延伸玻璃条，填满 NavBar 下沿与搜索框之间的空隙 */
+  .bills-search.is-stuck {
+    margin-left: calc(-1 * var(--space-4));
+    margin-right: calc(-1 * var(--space-4));
+    padding-left: calc(var(--space-4) + 14px);
+    padding-right: calc(var(--space-4) + 14px);
+  }
+  .bills-search.is-stuck::before {
+    top: calc(-1 * var(--bills-search-stuck-bleed, 0px));
+    left: calc(-1 * var(--space-4));
+    right: calc(-1 * var(--space-4));
+    background: var(--bills-sticky-glass-bg);
+    backdrop-filter: var(--bills-sticky-glass-filter);
+    -webkit-backdrop-filter: var(--bills-sticky-glass-filter);
+    border-radius: 0 0 var(--radius-md, 8px) var(--radius-md, 8px);
+    border-top: none;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  }
   @supports not (backdrop-filter: blur(1px)) {
     .bills-search {
-      background: rgba(249, 250, 251, 0.95);
+      background: var(--color-bg, #f9fafb);
     }
-    .bills-search::before,
-    .bills-search::after {
+    .bills-search.is-stuck::before {
       background: rgba(249, 250, 251, 0.95);
     }
   }
   @media (min-width: 960px) {
-    .bills-search {
+    .bills-search.is-stuck {
       margin-left: calc(-1 * var(--space-6));
       margin-right: calc(-1 * var(--space-6));
       padding-left: calc(var(--space-6) + 14px);
       padding-right: calc(var(--space-6) + 14px);
+    }
+    .bills-search.is-stuck::before {
+      left: calc(-1 * var(--space-6));
+      right: calc(-1 * var(--space-6));
     }
   }
   .bills-search-input {
