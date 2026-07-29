@@ -1030,7 +1030,8 @@
     overflow: hidden;
     white-space: nowrap;
     box-sizing: border-box;
-    opacity: var(--swipe-progress, 0);
+    /* v0.3.0729-4+: 满显再乘 0.7，整体略降透明度 */
+    opacity: calc(var(--swipe-progress, 0) * 0.7);
   }
   /* v0.3.0729-4 #9: 拖动期间关掉 transition，删除按钮跟手即时跟随 */
   .session-swipe-wrap.dragging .delete-btn {

@@ -1426,8 +1426,9 @@
     padding: 0;
     font-family: inherit;
     /* v0.3.17 #18 hotfix: 删 font-weight/font-size (圆里没文字) */
-    /* opacity 跟随 --swipe-progress 同步淡入 */
-    opacity: var(--swipe-progress, 0);
+    /* opacity 跟随 --swipe-progress 同步淡入；
+       v0.3.0729-4+: 满显再乘 0.7，整体略降透明度 */
+    opacity: calc(var(--swipe-progress, 0) * 0.7);
     /* v0.3.17 #17: 跟全站 .glass-pill hover/active 同步加 transform 反馈 —
        translateY(-1px) (hover) + scale(0.97) (active).
        但 swipe 期间不能 transform (按钮 absolute 跟 row 不动), 只在非 swiping
@@ -1495,7 +1496,8 @@
          自然胜出, !important 不再需要.
        - pointer-events / cursor / filter 保持不变 (交互层仍 inert). */
   .bill-swipe-action.disabled {
-    opacity: calc(var(--swipe-progress, 0) * 0.4);
+    /* 相对满显 0.7 再降到约 0.28，保持「可滑出但不能点」的灰态 */
+    opacity: calc(var(--swipe-progress, 0) * 0.28);
     cursor: not-allowed;
     pointer-events: none;
     filter: grayscale(40%);

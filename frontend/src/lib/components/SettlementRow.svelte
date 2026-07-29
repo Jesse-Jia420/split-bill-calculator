@@ -404,7 +404,8 @@
     font-family: inherit;
     pointer-events: none;
     overflow: hidden;
-    opacity: var(--swipe-progress, 0);
+    /* v0.3.0729-4+: 满显再乘 0.7，整体略降透明度 */
+    opacity: calc(var(--swipe-progress, 0) * 0.7);
   }
   .settlement-swipe-wrap.dragging .delete-btn {
     transition: none;
