@@ -818,7 +818,7 @@
     justify-self: end;
     border-radius: 50%;
     background: rgba(15, 23, 42, 0.10);
-    color: #525252;
+    color: #404040;
     border: 0;
     cursor: pointer;
     transition: background 150ms ease;
