@@ -41,6 +41,7 @@
   import { Search, X } from 'lucide-svelte';
   import InviteLinkButton from '$components/InviteLinkButton.svelte';
   import BillListGrouped from '$components/BillListGrouped.svelte';
+  import BillSheet from '$components/BillSheet.svelte';
   import EmptyState from '$components/EmptyState.svelte';
   import SessionCurrencyBadge from '$components/SessionCurrencyBadge.svelte';
   import CurrencyAddModal from '$components/CurrencyAddModal.svelte';
@@ -59,6 +60,9 @@
   // v0.3.18 #53: open/close state for the CurrencyAddModal (triggered by
   // SessionCurrencyBadge single-pill + icon when owner).
   let addCurrencyOpen = $state(false);
+  /** Bill bottom sheet: null = closed. */
+  let billSheetMode = $state<'create' | 'edit' | null>(null);
+  let editingBill = $state<Bill | null>(null);
 
   let memberIdToName = $state<Record<number, string>>({});
   let memberIdToNet = $state<Record<number, number>>({});
@@ -247,6 +251,15 @@
   let membersOpen = $state(true);
   const membersStorageKey = (sid: number) => `sbc.membersOpen.${sid}`;
 
+  // Reload when the public code in the URL changes (SvelteKit may reuse this page).
+  let lastLoadedCode = $state('');
+  let pageReady = $state(false);
+  $effect(() => {
+    if (!browser || !pageReady || !code || code === lastLoadedCode) return;
+    lastLoadedCode = code;
+    void load();
+  });
+
   onMount(async () => {
     // Bug fix (PO 14:01 报 "登录态 email 这里还是没有正常显示"):
     // detail page 之前**不**调 loadUser, $user store 永远 null, member list fallback
@@ -263,6 +276,27 @@
     }
 
     await load();
+    lastLoadedCode = code;
+    pageReady = true;
+
+    // Deep links from legacy /bills/new and /bills/{id}/edit.
+    if (browser && session) {
+      const billNew = page.url.searchParams.get('bill');
+      const editId = page.url.searchParams.get('editBill');
+      if (billNew === 'new') {
+        editingBill = null;
+        billSheetMode = 'create';
+        void goto(`/s/${code}`, { replaceState: true, noScroll: true });
+      } else if (editId) {
+        const id = Number(editId);
+        const found = bills.find((b) => b.id === id) ?? null;
+        if (found) {
+          editingBill = found;
+          billSheetMode = 'edit';
+        }
+        void goto(`/s/${code}`, { replaceState: true, noScroll: true });
+      }
+    }
 
     // v0.3.31 #2 (UAT 0725-2 #2, PO msg ~20:03 字面):
     //   "匿名用户创建账本,首次进入账单页时,邀请链接按钮高亮呼吸。
@@ -386,16 +420,22 @@
   async function load() {
     if (!code) return;
     loading = true;
+    // Clear prior ledger state so a route reuse never flashes another session's bills
+    // with unmatched payer ids (UI shows "#id 付" —「不知道是谁」).
+    bills = [];
+    memberIdToName = {};
+    memberIdToNet = {};
+    actingAsMemberId = null;
+    currentMemberId = null;
     try {
       const result = await getSessionByCode(code);
-      session = result;  // getSessionByCode returns SessionDetail directly (not wrapped)
-      sessionId = result.id;  // 回填 numeric id, 后续 BE 调用用
-      // 注: getSessionByCode 不返 actingAsMemberId (member 由 X-Nickname-Secret BE 端识别).
-      // actingAsMemberId 在 v0.3.36 改为 sessions.page_url 的 session_member 检查,
-      // 当前路由不再需要 (member 列表 + isMe 计算够用).
+      session = result.session;
+      sessionId = result.session.id;
+      actingAsMemberId = result.actingAsMemberId;
       for (const m of session.members) {
         memberIdToName[m.id] = m.display_name;
       }
+      memberIdToName = { ...memberIdToName };
       try {
         const settle = await getSettle(sessionId);
         const nets: Record<number, number> = {};
@@ -409,21 +449,26 @@
         // ignore
       }
       bills = await listBills(sessionId);
-      currentMemberId = currentMember?.id ?? null;
+      // Resolve「我」from cookie user or anon X-SBC-Member-ID (do not rely on
+      // $derived flush timing right after assigning actingAsMemberId).
+      currentMemberId =
+        ($user?.user_id != null
+          ? session.members.find((m) => m.user_id === $user.user_id)?.id
+          : null) ??
+        result.actingAsMemberId ??
+        null;
 
-      // v0.3.27 (UAT 0723-2 #19): owner登录即可永久保存账本的逻辑，改为「任一成员登录即可永久保存账本」.
-      // 之前: 只有 creator (role=owner) 登录后才能触发 /claim, FE 从来不自动调 claimSession() (要 URL 带 ?claim=1),
-      //       导致 expiry CTA 完全失效, session 永远 7 天过期. 现在: 任何已登录成员访问本页面 + session.owner_email==NULL,
-      //       自动调 claimSession() 让 session 永久. 该成员成为 owner_user_id (BE /claim 设计为 first-claimant-wins).
+      // Product B/E: only the owner-role seat may claim session ownership.
+      // Other logged-in members permanently save via user_id bind (no claim).
       try {
-        if ($user && !session.owner_email) {
-          // 静默 try — 任何 error (403 / 409 / 已 non-member) 不打断 UI
+        const isOwnerSeat = currentMember?.role === 'owner';
+        if ($user && !session.owner_email && isOwnerSeat) {
           const updated = await claimSession(sessionId);
           session = updated;
-          console.info('[v0.3.27 #19] session auto-claimed by logged-in member, owner_email set');
+          console.info('[owner-claim] session claimed by owner-seat member');
         }
       } catch (claimErr) {
-        // 非 member → 忽略. 其他错误也不护栏, session 照常加载.
+        // non-owner / already claimed → ignore
       }
     } catch (e: any) {
       const c = e?.code ?? '';
@@ -746,7 +791,7 @@
                 </svg>
                 <span class="anon-hint-text">
                   <span class="line-1">当前未登录 请收藏此链接</span>
-                  <span class="line-2">这是您回到此账本的唯一密钥。</span>
+                  <span class="line-2">这是回到账本的唯一密钥</span>
                 </span>
               </span>
             {:else if !membersOpen && session.members.length > 0}
@@ -1009,6 +1054,14 @@
           memberIdToName={memberIdToName}
           currentUserMemberId={currentMemberId}
           onDelete={requestDeleteBill}
+          onEdit={(bill) => {
+            editingBill = bill;
+            billSheetMode = 'edit';
+          }}
+          onCreate={() => {
+            editingBill = null;
+            billSheetMode = 'create';
+          }}
           loading={loading}
           primaryCurrency={session.primary_currency}
           currencies={session.currencies}
@@ -1084,16 +1137,44 @@
       </div>
     {/if}
 
-    <!-- FAB: 200ms 后从下方 60px 飞入
-         v0.3.16 #8 (PO msg 19:26): 加 .glass-pill 玻璃化 (保留 50% 圆形 + 白色 + icon) -->
-    <!-- v0.3.x (UAT #0723-3 #3): /s/{session_code}/bills/new unguessable 格式 -->
-    <a
+    <!-- FAB opens create bill sheet (no separate route). -->
+    <button
+      type="button"
       class="fab glass-pill"
-      href="/s/{session.session_code || String(session.id)}/bills/new"
       title="新建账单"
       aria-label="新建账单"
+      onclick={() => {
+        editingBill = null;
+        billSheetMode = 'create';
+      }}
       in:fly={{ y: 60, duration: 400, delay: 200 }}
-    >+</a>
+    >+</button>
+  {/if}
+
+  {#if billSheetMode && session}
+    <BillSheet
+      {session}
+      mode={billSheetMode}
+      existingBill={editingBill}
+      defaultPayerMemberId={currentMemberId}
+      onSaved={async () => {
+        try {
+          bills = await listBills(session.id);
+        } catch {
+          /* keep existing list; toast already shown on save */
+        }
+        billSheetMode = null;
+        editingBill = null;
+      }}
+      dismiss={() => {
+        billSheetMode = null;
+        editingBill = null;
+      }}
+      on:close={() => {
+        billSheetMode = null;
+        editingBill = null;
+      }}
+    />
   {/if}
 
   <!-- v0.3.18 #53 + v0.3.19 #85: owner-driven modal.
@@ -1261,16 +1342,16 @@
     justify-content: space-between;
     gap: 8px;
     min-height: 36px;
-    --invite-btn-h: 40px;
+    --invite-btn-h: 44px;
   }
   @media (max-width: 767px) {
     .members-head-row2 {
-      --invite-btn-h: 40px;
+      --invite-btn-h: 44px;
     }
   }
   @media (max-width: 380px) {
     .members-head-row2 {
-      --invite-btn-h: 32px;
+      --invite-btn-h: 36px;
     }
   }
   .members-row2-left {
@@ -1403,44 +1484,53 @@
   .expiry-anon-a {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    font-size: 13px;
+    gap: 5px;
+    /* Match InviteLinkButton height in the same row */
+    height: var(--invite-btn-h, 40px);
+    box-sizing: border-box;
+    font-size: 11px;
     color: var(--red-700, #b91c1c);
     background: rgba(239, 68, 68, 0.10);
     border: 1px solid rgba(239, 68, 68, 0.25);
     border-radius: 999px;
-    padding: 6px 14px;
+    padding: 0 10px;
     font-weight: 500;
-    line-height: 1.4;
-    white-space: normal;
+    line-height: 1.15;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     text-align: left;
-    /* v0.3.0729-3 #2: 横向排列时 shrink 允许，避免撑出 row 宽度 */
     flex-shrink: 1;
     min-width: 0;
-    /* v0.3.0729-4 #2: 与成员 section 左缘对齐，不再限宽 200px */
     max-width: 100%;
   }
   .expiry-anon-a svg {
     flex-shrink: 0;
     opacity: 0.95;
+    width: 10px;
+    height: 10px;
   }
-  /* v0.3.36 #15 — UAT 0728-1 #15: 匿名 hint 文案两行 (PO 字面 "第一行 当前未登录 请收藏此链接, 第二行 这是您回到此账本的唯一密钥。")
-     — 拆成 .line-1 + .line-2, 各自 display:block 垂直堆叠. pill 保留原 13px font-size + color + padding, 只调整内部 layout.
-     .anon-hint-text 容器 inline-flex item 跟 svg 同行水平 baseline, 内部两行垂直堆叠.
-     因为 .expiry-anon-a 是 inline-flex align-items: center, .anon-hint-text 仍按一行对待 (高度是 line-1 + line-2),
-     svg 在 align-items center 中垂直居中 (跟两行整体中点对齐). */
+  /* Exactly two lines — each line nowrap so line-1 never wraps into a 3rd line. */
   .expiry-anon-a .anon-hint-text {
     display: inline-flex;
     flex-direction: column;
-    line-height: 1.4;
+    justify-content: center;
+    gap: 1px;
+    min-width: 0;
+    line-height: 1.15;
   }
-  .expiry-anon-a .anon-hint-text .line-1 {
-    display: block;
-  }
+  .expiry-anon-a .anon-hint-text .line-1,
   .expiry-anon-a .anon-hint-text .line-2 {
     display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  @media (max-width: 380px) {
+    .expiry-anon-a {
+      font-size: 10px;
+      padding: 0 8px;
+      gap: 4px;
+    }
   }
   /* v0.3.28 (UAT 0723-3 #9): "已永久保存" 绿色版 — 跟 .expiry-inline-a 视觉同族 (pill shape + font-size 11px + gap 4px + border-radius 999px + flex-shrink 0), 配色改 emerald 系 (跟 .is-me ring / 已登录状态色系区分, 表示「已成功认领」). */
   .expiry-saved-a {

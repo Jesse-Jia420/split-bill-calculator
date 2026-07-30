@@ -36,13 +36,23 @@ export interface InvitePublicView {
 /** GET /sessions/{id}/invite -- any session member can read. */
 export const getSessionInvite = (sessionId: number) => {
   const url = '/sessions/' + sessionId + '/invite';
-  return apiFetch<SessionInvite>(url);
+  const headers: Record<string, string> = {};
+  if (typeof window !== 'undefined') {
+    const secret = localStorage.getItem('sbc.actingAs.' + sessionId);
+    if (secret) headers['X-Nickname-Secret'] = secret;
+  }
+  return apiFetch<SessionInvite>(url, { headers });
 };
 
 /** POST /sessions/{id}/invite/rotate -- owner only. */
 export const rotateSessionInvite = (sessionId: number) => {
   const url = '/sessions/' + sessionId + '/invite/rotate';
-  return apiFetch<SessionInvite>(url, { method: 'POST' });
+  const headers: Record<string, string> = {};
+  if (typeof window !== 'undefined') {
+    const secret = localStorage.getItem('sbc.actingAs.' + sessionId);
+    if (secret) headers['X-Nickname-Secret'] = secret;
+  }
+  return apiFetch<SessionInvite>(url, { method: 'POST', headers });
 };
 
 /** GET /invites/{token} -- public preview (no auth). */

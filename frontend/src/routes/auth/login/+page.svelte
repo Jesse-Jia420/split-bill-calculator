@@ -3,7 +3,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { sendCode, verifyCode } from '$api/auth';
-  import { bindActingMember, getSessionPreview } from '$api/sessions';
+  import { bindActingMember, getSessionPreview, getSessionPreviewByCode } from '$api/sessions';
   import { loadUser } from '$stores/user';
   import { toast } from '$stores/toast';
 
@@ -13,8 +13,10 @@
   let busy = false;
   // §3.11.13 决策 α/β/γ/δ/ε/ζ — 根据 returnTo + actingAs 上下文动态切换.
   // 默认 = "登录"; 场景 A (从 join 页点 logged-in slot 来) → "嗨 X，请登录";
-  // 场景 C (在 session 内 + 有 secret, 非 join) → "嗨 X，完成登录即可永久保存 session".
+  // 场景 C (在 session 内 + 有 secret, 非 join) → "登录以保存 {账本名} 账单".
   let pageTitle = '登录';
+  /** True when coming from ledger "登录以保存" — hide landing anon CTA. */
+  let isSaveLedgerFlow = false;
 
   /**
    * Safe returnTo (post-login redirect target).
@@ -47,6 +49,7 @@
       // 安全过滤: 1-50 字符, 允许中文/英文/数字/下划线/空格
       if (useName.length >= 1 && useName.length <= 50 && /^[\w\s\u4e00-\u9fa5]+$/.test(useName)) {
         pageTitle = `请登录以使用 ${useName}`;
+        isSaveLedgerFlow = true; // also hide "直接开始使用"
       }
     }
 
@@ -82,36 +85,69 @@
   }
 
   /**
-   * §3.11.13: 根据 returnTo + localStorage actingAs secret + BE preview
-   * 推导登录页 H2 文案. 失败或场景不匹配 → 保持默认 '登录'.
+   * Derive login H2 from returnTo.
+   * - /s/{code} or /sessions/{id} (ledger save): 「登录以保存 {name} 账单」+ hide anon CTA
+   * - join flow: 「嗨 X，请登录」
+   * - landing / no returnTo: keep 「登录」+ show 「直接开始使用」
    */
   async function deriveLoginContext() {
-    if (!returnTo) return; // 场景 B (无 returnTo): 保持 '登录'
+    if (!returnTo) return;
 
-    const m = returnTo.match(/^\/sessions\/(\d+)(\/|$)/);
-    if (!m) return; // 非 session 路由: 保持默认
-    const sid = parseInt(m[1], 10);
-    const isJoinFlow = returnTo.includes(`/sessions/${sid}/join`);
+    const codeMatch = returnTo.match(/^\/s\/([^/?#]+)(\/|$)/);
+    const idMatch = returnTo.match(/^\/sessions\/(\d+)(\/|$)/);
+    const isJoinFlow =
+      /\/join(\/|$|\?)/.test(returnTo) ||
+      (codeMatch != null && returnTo.includes('/join')) ||
+      (idMatch != null && returnTo.includes('/join'));
 
-    // localStorage 只在浏览器端可用
-    const secret = typeof localStorage !== 'undefined'
-      ? localStorage.getItem(`sbc.actingAs.${sid}`)
-      : null;
-    if (!secret) return; // 场景 C 需要 secret, 没 secret → 降级到默认
-
-    let preview;
-    try {
-      preview = await getSessionPreview(sid);
-    } catch {
-      return; // 失败降级到默认
+    // Any ledger returnTo (detail / settle / join) hides landing "直接开始使用".
+    if (codeMatch || idMatch) {
+      isSaveLedgerFlow = true;
     }
-    const me = preview.members.find((x) => x.nickname_secret === secret);
-    if (!me || !me.display_name) return; // 找不到对应 slot → 默认
 
-    if (isJoinFlow) {
-      pageTitle = `嗨 ${me.display_name}，请登录`;
-    } else {
-      pageTitle = `嗨 ${me.display_name}，完成登录即可永久保存账本`;
+    try {
+      if (codeMatch) {
+        const code = decodeURIComponent(codeMatch[1]);
+        const preview = await getSessionPreviewByCode(code);
+        if (isJoinFlow) {
+          const sid = preview.id;
+          const secret =
+            typeof localStorage !== 'undefined'
+              ? localStorage.getItem(`sbc.actingAs.${sid}`) ??
+                localStorage.getItem(`sbc.actingAs.${code}`)
+              : null;
+          const me = secret
+            ? preview.members.find((x) => x.nickname_secret === secret)
+            : null;
+          if (me?.display_name) {
+            pageTitle = `嗨 ${me.display_name}，请登录`;
+          }
+        } else if (preview.name) {
+          pageTitle = `登录以保存 ${preview.name} 账单`;
+        }
+        return;
+      }
+
+      if (idMatch) {
+        const sid = parseInt(idMatch[1], 10);
+        const preview = await getSessionPreview(sid);
+        if (isJoinFlow) {
+          const secret =
+            typeof localStorage !== 'undefined'
+              ? localStorage.getItem(`sbc.actingAs.${sid}`)
+              : null;
+          const me = secret
+            ? preview.members.find((x) => x.nickname_secret === secret)
+            : null;
+          if (me?.display_name) {
+            pageTitle = `嗨 ${me.display_name}，请登录`;
+          }
+        } else if (preview.name) {
+          pageTitle = `登录以保存 ${preview.name} 账单`;
+        }
+      }
+    } catch {
+      // Keep default / previously set title
     }
   }
 
@@ -147,20 +183,49 @@
   /**
    * §3.11.14: After verify_code 200, try to bind the anon-acting localStorage
    * secret to the now-logged-in user. Silent on failure (slot already bound /
-   * rotated by β / session expired) — the user still falls back to anon-acting
-   * inside the session via the localStorage secret.
+   * rotated by β / session expired).
+   *
+   * On success the BE clears nickname_secret (invite link / session_code stay
+   * stable). FE must drop localStorage secrets so old devices/links cannot
+   * keep impersonating with the stale anon key.
    */
   async function tryBindActingMember() {
     if (!returnTo) return;
-    const m = returnTo.match(/^\/sessions\/(\d+)(\/|$)/);
-    if (!m) return;
-    const sid = parseInt(m[1], 10);
-    const secret = typeof localStorage !== 'undefined'
-      ? localStorage.getItem(`sbc.actingAs.${sid}`)
-      : null;
-    if (!secret) return;
+    // Product G: support both /sessions/{id} and /s/{code} returnTo.
+    let sid: number | null = null;
+    let codeKey: string | null = null;
+    let secret: string | null = null;
+    const idMatch = returnTo.match(/^\/sessions\/(\d+)(\/|$)/);
+    const codeMatch = returnTo.match(/^\/s\/([^/?#]+)(\/|$)/);
+    if (idMatch) {
+      sid = parseInt(idMatch[1], 10);
+      secret = typeof localStorage !== 'undefined'
+        ? localStorage.getItem(`sbc.actingAs.${sid}`)
+        : null;
+    } else if (codeMatch) {
+      const code = decodeURIComponent(codeMatch[1]);
+      codeKey = code;
+      secret = typeof localStorage !== 'undefined'
+        ? (localStorage.getItem(`sbc.actingAs.${code}`) ?? null)
+        : null;
+      try {
+        const preview = await getSessionPreviewByCode(code);
+        sid = preview.id;
+        if (!secret && typeof localStorage !== 'undefined') {
+          secret = localStorage.getItem(`sbc.actingAs.${sid}`);
+        }
+      } catch {
+        return;
+      }
+    }
+    if (!sid || !secret) return;
     try {
       await bindActingMember(sid, { nickname_secret: secret });
+      // Product: invalidate anon device secret after login bind (not invite URL).
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem(`sbc.actingAs.${sid}`);
+        if (codeKey) localStorage.removeItem(`sbc.actingAs.${codeKey}`);
+      }
     } catch {
       // 静默吞掉: slot 已被 β 轮换 / 已绑 user_id / session 过期
     }
@@ -221,13 +286,15 @@
       <button class="btn btn-primary" onclick={handleSend} disabled={busy}>
         {busy ? '发送中…' : '发送验证码'}
       </button>
-      <div class="or-divider">
-        <span>或</span>
-      </div>
-      <p class="anon-hint">不想登录？</p>
-      <button class="glass-pill anon-start" onclick={handleAnonStart}>
-        直接开始使用
-      </button>
+      {#if !isSaveLedgerFlow}
+        <div class="or-divider">
+          <span>或</span>
+        </div>
+        <p class="anon-hint">不想登录？</p>
+        <button class="glass-pill anon-start" onclick={handleAnonStart}>
+          直接开始使用
+        </button>
+      {/if}
     {:else}
       <div>
         <label class="label" for="code">验证码</label>
