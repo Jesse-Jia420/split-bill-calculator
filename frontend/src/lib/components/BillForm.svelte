@@ -667,19 +667,20 @@
       </div>
     </div>
 
-    <div class="field">
-      <label class="label" for="occurredAt">时间</label>
-      <input id="occurredAt" type="datetime-local" bind:value={occurredAt} />
-    </div>
-
-    <div class="field">
-      <label class="label" for="payer">付款人</label>
-      <select id="payer" bind:value={payerMemberId}>
-        <option value={null}>— 选择 —</option>
-        {#each session.members as m (m.id)}
-          <option value={m.id}>{m.display_name}</option>
-        {/each}
-      </select>
+    <div class="field-grid field-grid-time-payer">
+      <div class="field field-time">
+        <label class="label" for="occurredAt">时间</label>
+        <input id="occurredAt" type="datetime-local" bind:value={occurredAt} />
+      </div>
+      <div class="field field-payer">
+        <label class="label" for="payer">付款人</label>
+        <select id="payer" bind:value={payerMemberId}>
+          <option value={null}>— 选择 —</option>
+          {#each session.members as m (m.id)}
+            <option value={m.id}>{m.display_name}</option>
+          {/each}
+        </select>
+      </div>
     </div>
   {:else}
   <div class="row" style="gap: var(--space-3); align-items: flex-start;">
@@ -1292,6 +1293,14 @@
     grid-template-columns: 1fr auto;
     gap: 10px;
     align-items: end;
+  }
+  .sheet-layout .field-grid-time-payer {
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    align-items: end;
+  }
+  .sheet-layout .field-time,
+  .sheet-layout .field-payer {
+    min-width: 0;
   }
   .sheet-layout .field-currency {
     min-width: 72px;

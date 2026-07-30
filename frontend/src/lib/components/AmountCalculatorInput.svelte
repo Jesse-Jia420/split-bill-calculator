@@ -46,6 +46,10 @@
   let showKeypad: boolean = false;
   let preEqualsResult: number | null = null;
   let prefillDone: boolean = false;
+  /** Only true after user presses `=` on an invalid expression. */
+  let equalsError: boolean = false;
+
+  const BINARY_OPS = new Set(['+', '-', '*', '/']);
 
   // Reactive prefill from initialValue
   $: if (!prefillDone && initialValue) {
@@ -76,57 +80,77 @@
     }
   });
 
-  // Parser - pure function
+  function isIncompleteExpr(cleaned: string): boolean {
+    if (!cleaned) return false;
+    const last = cleaned[cleaned.length - 1];
+    if (BINARY_OPS.has(last)) return true;
+    if (last === '.') return true;
+    // trailing op after `=` e.g. `60=/` → postEquals is `/`
+    const eqIndex = cleaned.indexOf('=');
+    if (eqIndex >= 0) {
+      const post = cleaned.slice(eqIndex + 1);
+      if (post && BINARY_OPS.has(post[post.length - 1])) return true;
+      if (post.endsWith('.')) return true;
+    }
+    return false;
+  }
+
+  // Parser - pure function. Never marks typing-incomplete exprs as error;
+  // equalsError (UI) is set only in pressEquals.
   function parseInput(input: string, preEq: number | null): {
     displayExpr: string;
     currentValue: number | null;
-    isError: boolean;
   } {
-    if (!input) return { displayExpr: '', currentValue: null, isError: false };
+    if (!input) return { displayExpr: '', currentValue: null };
     const cleaned = input.replace(/\s+/g, '');
-    if (!cleaned) return { displayExpr: '', currentValue: null, isError: false };
+    if (!cleaned) return { displayExpr: '', currentValue: null };
 
     const eqIndex = cleaned.indexOf('=');
     if (eqIndex === -1) {
-      const result = evaluateExpression(cleaned);
-      if (result === null) {
-        return { displayExpr: cleaned, currentValue: null, isError: true };
+      if (isIncompleteExpr(cleaned)) {
+        return { displayExpr: cleaned, currentValue: null };
       }
-      return { displayExpr: cleaned, currentValue: result, isError: false };
+      const result = evaluateExpression(cleaned);
+      // Invalid complete expr while typing → no value, but no error pill yet
+      return { displayExpr: cleaned, currentValue: result };
     }
 
     const preEquals = cleaned.slice(0, eqIndex);
     const postEquals = cleaned.slice(eqIndex + 1);
 
     if (!preEquals || preEq === null) {
-      return { displayExpr: '', currentValue: null, isError: true };
+      return { displayExpr: cleaned, currentValue: null };
     }
 
     if (!postEquals) {
       return {
         displayExpr: `(${preEquals})`,
         currentValue: preEq,
-        isError: false,
+      };
+    }
+
+    if (isIncompleteExpr(cleaned)) {
+      return {
+        displayExpr: `(${preEquals})${postEquals}`,
+        currentValue: null,
       };
     }
 
     const displayExpr = `(${preEquals})${postEquals}`;
     const exprToEval = `${preEq}${postEquals}`;
     const result = evaluateExpression(exprToEval);
-    if (result === null) {
-      return { displayExpr, currentValue: null, isError: true };
-    }
-    return { displayExpr, currentValue: result, isError: false };
+    return { displayExpr, currentValue: result };
   }
 
   // Reactive: derived from _internalValue + preEqualsResult
   $: parsed = parseInput(_internalValue, preEqualsResult);
   $: displayExpr = parsed.displayExpr;
   $: currentValue = parsed.currentValue;
-  $: isError = parsed.isError;
-  $: showConfirm = _internalValue.includes('=') && !isError && currentValue !== null;
+  $: isError = equalsError;
+  // Confirm for: plain number OR expression after `=` that evaluates.
+  $: showConfirm = !equalsError && currentValue !== null;
   $: sheetPreviewText = (() => {
-    if (isError) return '表达式错误';
+    if (equalsError) return '表达式错误';
     if (currentValue === null) return '';
     const formatted = currentValue.toLocaleString('zh-CN', {
       minimumFractionDigits: 2,
@@ -166,6 +190,7 @@
 
   function pressChar(ch: string) {
     if (disabled) return;
+    equalsError = false;
     _internalValue = _internalValue + ch;
     value = _internalValue;
     dispatch('change', _internalValue);
@@ -181,6 +206,7 @@
 
   function pressBackspace() {
     if (disabled) return;
+    equalsError = false;
     if (_internalValue.endsWith('=')) {
       preEqualsResult = null;
     }
@@ -199,6 +225,7 @@
 
   function pressClear() {
     if (disabled) return;
+    equalsError = false;
     _internalValue = '';
     preEqualsResult = null;
     evaluated = null;
@@ -211,7 +238,12 @@
     if (disabled) return;
     if (_internalValue === '' || _internalValue.includes('=')) return;
     const result = evaluateExpression(_internalValue);
-    if (result === null) return;
+    if (result === null) {
+      // Only show error when user explicitly presses `=` on a bad expression.
+      equalsError = true;
+      return;
+    }
+    equalsError = false;
     preEqualsResult = result;
     _internalValue = _internalValue + '=';
     value = _internalValue;
@@ -222,21 +254,21 @@
 
   async function pressConfirm() {
     if (disabled) return;
-    if (currentValue === null || isError) return;
-    if (!_internalValue.includes('=')) return;
+    if (currentValue === null || equalsError) return;
     const confirmedValue = currentValue;
-    const confirmedExpression = _internalValue;
+    // Plain number: store as the number string; after `=` keep expression.
+    const confirmedExpression = _internalValue.includes('=')
+      ? _internalValue
+      : String(confirmedValue);
     amount = confirmedValue;
     evaluated = confirmedValue;
     dispatch('amountChange', confirmedValue);
     dispatch('confirm', { value: confirmedValue, expression: confirmedExpression });
-    // Close keypad first
     showKeypad = false;
-    // Wait for next tick to ensure DOM updates with hidden sheet,
-    // then reset state so reopen starts fresh.
     await tick();
     _internalValue = '';
     preEqualsResult = null;
+    equalsError = false;
     value = '';
   }
 </script>
@@ -304,7 +336,7 @@
           type="button"
           class="confirm-btn"
           class:disabled={!showConfirm}
-          class:hidden={!_internalValue.includes('=')}
+          class:hidden={!showConfirm}
           onclick={pressConfirm}
           disabled={disabled || !showConfirm}
           aria-label="确认金额, 填入表单"
