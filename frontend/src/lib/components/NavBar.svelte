@@ -456,8 +456,8 @@
     aspect-ratio: 1 / 1;
     flex: 0 0 36px;
     border-radius: 50%;
-    border: 1px solid rgba(99, 102, 241, 0.28);
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.92) 0%, rgba(59, 130, 246, 0.88) 100%);
+    border: 1px solid rgba(40, 40, 40, 0.28);
+    background: linear-gradient(135deg, rgba(40, 40, 40, 0.92) 0%, rgba(58, 58, 58, 0.88) 100%);
     color: #fff;
     display: inline-flex;
     align-items: center;
@@ -469,11 +469,11 @@
     overflow: hidden;
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.35),
-      0 2px 8px rgba(99, 102, 241, 0.28);
+      0 2px 8px rgba(40, 40, 40, 0.28);
     transition: transform 120ms ease, box-shadow 150ms ease;
   }
   .avatar-btn.anon {
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.14) 0%, rgba(59, 130, 246, 0.10) 100%);
+    background: linear-gradient(135deg, rgba(40, 40, 40, 0.14) 0%, rgba(58, 58, 58, 0.10) 100%);
     color: var(--btn-label, var(--logo-ink, #1a1a1a));
   }
   .avatar-btn:hover {
@@ -551,7 +551,7 @@
     text-align: left;
   }
   .menu-item:hover {
-    background: rgba(99, 102, 241, 0.08);
+    background: rgba(40, 40, 40, 0.08);
     color: var(--btn-label, var(--logo-ink, #1a1a1a));
     text-decoration: none;
   }
@@ -567,11 +567,11 @@
     min-height: var(--touch-target);
     padding: var(--space-2) var(--space-3);
     border-radius: var(--radius-full, 999px);
-    border: 1px solid rgba(99, 102, 241, 0.25);
+    border: 1px solid rgba(40, 40, 40, 0.25);
     background: linear-gradient(
       135deg,
-      rgba(99, 102, 241, 0.04) 0%,
-      rgba(59, 130, 246, 0.02) 100%
+      rgba(40, 40, 40, 0.04) 0%,
+      rgba(58, 58, 58, 0.02) 100%
     );
     backdrop-filter: saturate(180%) blur(16px);
     -webkit-backdrop-filter: saturate(180%) blur(16px);
@@ -592,8 +592,8 @@
   .btn-sm:hover {
     background: linear-gradient(
       135deg,
-      rgba(99, 102, 241, 0.10) 0%,
-      rgba(59, 130, 246, 0.06) 100%
+      rgba(40, 40, 40, 0.10) 0%,
+      rgba(58, 58, 58, 0.06) 100%
     );
     text-decoration: none;
   }
@@ -603,7 +603,7 @@
       rgba(255, 255, 255, 0.20) 0%,
       rgba(255, 255, 255, 0.10) 100%
     );
-    border-color: rgba(99, 102, 241, 0.20);
+    border-color: rgba(40, 40, 40, 0.20);
     color: var(--gray-700);
     box-shadow: none;
   }
@@ -616,7 +616,7 @@
     color: var(--btn-label, var(--logo-ink, #1a1a1a));
   }
   @supports not (backdrop-filter: blur(1px)) {
-    .btn-sm { background: rgba(99, 102, 241, 0.08); }
+    .btn-sm { background: rgba(40, 40, 40, 0.08); }
     .navbar {
       background: rgba(255, 255, 255, 0.85);
     }

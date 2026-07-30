@@ -550,12 +550,12 @@
     -webkit-tap-highlight-color: transparent;
   }
   .currency-pill:hover:not(:disabled) {
-    border-color: rgba(99, 102, 241, 0.5);
+    border-color: rgba(40, 40, 40, 0.5);
   }
   .currency-pill.active {
-    background: #6366f1;
+    background: #2c2c2c;
     color: white;
-    border-color: #6366f1;
+    border-color: #2c2c2c;
   }
   .currency-pill:disabled {
     opacity: 0.5;
@@ -577,10 +577,10 @@
     font-size: 14px;
   }
   .field-control.focused {
-    border-color: rgba(99, 102, 241, 0.55);
+    border-color: rgba(40, 40, 40, 0.55);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.8),
-      0 0 0 3px rgba(99, 102, 241, 0.12),
+      0 0 0 3px rgba(40, 40, 40, 0.12),
       0 1px 2px rgba(15, 23, 42, 0.03);
   }
   select.field-control {
@@ -728,14 +728,14 @@
     width: 100%;
     height: 50px;
     border-radius: 14px;
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.95) 0%, rgba(168, 85, 247, 0.95) 100%);
+    background: linear-gradient(135deg, rgba(40, 40, 40, 0.95) 0%, rgba(28, 28, 28, 0.95) 100%);
     color: #fff;
     font-size: 16px;
     font-weight: 600;
     border: 0;
     cursor: pointer;
     box-shadow:
-      0 4px 12px rgba(99, 102, 241, 0.30),
+      0 4px 12px rgba(40, 40, 40, 0.30),
       inset 0 1px 0 rgba(255, 255, 255, 0.25);
     letter-spacing: 0.01em;
   }

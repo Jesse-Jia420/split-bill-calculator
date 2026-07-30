@@ -813,7 +813,7 @@
     /* v0.3.18 #50: inset highlight 0.95 → 0.18 + 外阴影 0.16 → 0.04 indigo */
     box-shadow:
       inset 0 1px 0 rgba(255,255,255,0.18),
-      0 4px 12px rgba(99,102,241,0.04);
+      0 4px 12px rgba(40, 40, 40,0.04);
     /* v0.3.18 #49 保留: chip 文字白色微晕 (低对比玻璃上唯一可读性补偿) */
     text-shadow: 0 1px 3px rgba(255,255,255,0.8);
     transition:
@@ -862,7 +862,7 @@
   }
   /* T9 me double ring (kept even though me badge text removed) */
   .member-chip.me .chip-avatar {
-    box-shadow: 0 0 0 2px var(--accent-700), 0 0 0 4px rgba(59, 130, 246, 0.25);
+    box-shadow: 0 0 0 2px var(--accent-700), 0 0 0 4px rgba(58, 58, 58, 0.25);
   }
   /* selected + me: inner ring adapts to white bg of active chip */
   .member-chip.selected.me .chip-avatar {
@@ -1099,7 +1099,7 @@
      shorthand "0" 临到 .bills-section-paid / -consumed 时只覆盖 color, width 还是 .bills-section
      原 3px). 这样 sheet 是极透明玻璃 + 颜色竖条极淡, 设计锚点保留, 存在感大降. */
   .bills-section-paid { border-left-color: rgba(34, 197, 94, 0.45); }
-  .bills-section-consumed { border-left-color: rgba(99, 102, 241, 0.45); }
+  .bills-section-consumed { border-left-color: rgba(40, 40, 40, 0.45); }
   .bills-section-head {
     margin: 0 0 var(--space-2, 8px);
     /* === v0.3.16 #2: extend sticky bg past container's padding-left (PO msg 14:54) === */
@@ -1434,9 +1434,9 @@
     /* v0.3.18 #50: chip inset highlight 1.0 → 0.30 + 外阴影大幅降级. */
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.30),
-      0 1px 2px rgba(99, 102, 241, 0.04),
-      0 4px 12px rgba(99, 102, 241, 0.06),
-      0 8px 24px rgba(99, 102, 241, 0.04);
+      0 1px 2px rgba(40, 40, 40, 0.04),
+      0 4px 12px rgba(40, 40, 40, 0.06),
+      0 8px 24px rgba(40, 40, 40, 0.04);
     /* v0.3.18 #49 保留: 文字白色微晕 (低对比玻璃上唯一可读性补偿) */
     text-shadow: 0 1px 3px rgba(255, 255, 255, 0.85);
   }

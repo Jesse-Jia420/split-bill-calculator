@@ -968,7 +968,7 @@
     width: 100%;
     padding: 8px 14px;
     background: rgba(255, 255, 255, 0.55);
-    border: 1px solid rgba(99, 102, 241, 0.22);
+    border: 1px solid rgba(40, 40, 40, 0.22);
     border-radius: 999px;
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-semibold);
@@ -981,7 +981,7 @@
     transition: background 150ms ease, border-color 150ms ease;
   }
   .currency-pair-item:focus-visible {
-    outline: 2px solid var(--accent-500, #6366f1);
+    outline: 2px solid var(--accent-500, #2c2c2c);
     outline-offset: 2px;
   }
   .currency-pair-item--locked {
@@ -1143,25 +1143,25 @@
     width: 100%;
     height: 50px;
     border-radius: 14px;
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.95) 0%, rgba(168, 85, 247, 0.95) 100%);
+    background: linear-gradient(135deg, rgba(40, 40, 40, 0.95) 0%, rgba(28, 28, 28, 0.95) 100%);
     color: #fff;
     font-size: 16px;
     font-weight: 600;
     border: 0;
     cursor: pointer;
     box-shadow:
-      0 4px 12px rgba(99, 102, 241, 0.30),
+      0 4px 12px rgba(40, 40, 40, 0.30),
       inset 0 1px 0 rgba(255, 255, 255, 0.25);
     letter-spacing: 0.01em;
   }
   .btn-primary:hover:not(:disabled) {
-    background: linear-gradient(135deg, rgba(99, 102, 241, 1) 0%, rgba(59, 130, 246, 1) 100%);
+    background: linear-gradient(135deg, rgba(40, 40, 40, 1) 0%, rgba(58, 58, 58, 1) 100%);
   }
   .btn-primary:active:not(:disabled) {
     transform: scale(0.97);
   }
   .btn-primary:focus-visible {
-    outline: 2px solid var(--accent-500, #6366f1);
+    outline: 2px solid var(--accent-500, #2c2c2c);
     outline-offset: 2px;
   }
   .btn-primary:disabled {

@@ -817,7 +817,7 @@
             >
               <!-- v0.3.29 UAT 0725-1 #11: 玻璃选框 (替代 emoji ☑☐, 跟全站玻璃语言同源)
                    18x18 square, 半透明白底 + backdrop-filter blur(8px) saturate(180%) + 1px 白边 + inset highlight
-                   .included: 填充 indigo 玻璃 (跟主按钮同源 rgba(99,102,241,0.55) bg + border 0.85)
+                   .included: 填充 indigo 玻璃 (跟主按钮同源 rgba(40, 40, 40,0.55) bg + border 0.85)
                    .not-included: 0.45 alpha 白玻璃 + 0.18 蓝边 (空态淡) -->
               <span class="ppt-check-icon" class:included={st?.included} aria-hidden="true">
                 {#if st?.included}
@@ -907,7 +907,7 @@
   .link-btn {
     background: none;
     border: none;
-    color: var(--accent-500, #3b82f6);
+    color: var(--accent-500, #2c2c2c);
     font-size: var(--font-size-sm, 13px);
     font-weight: 500;
     cursor: pointer;
@@ -957,7 +957,7 @@
   /* v0.3.29 UAT 0725-1 #11: 玻璃选框 (跟 v0.3.23 #132 avatar Option B 玻璃语言同源)
      18x18 square + 半透明白底 + backdrop-filter blur(8px) saturate(180%) + 1px 蓝白边 + glass shadow.
      .not-included (空态): 白玻璃 0.45 alpha, 蓝边 0.18
-     .included (亮态): indigo 玻璃 rgba(99,102,241,0.55) bg, 蓝边 0.85, 实心 ✓ */
+     .included (亮态): indigo 玻璃 rgba(40, 40, 40,0.55) bg, 蓝边 0.85, 实心 ✓ */
   .ppt-check-icon {
     flex: 0 0 18px;
     width: 18px;
@@ -969,7 +969,7 @@
     background: rgba(255, 255, 255, 0.45);
     backdrop-filter: blur(8px) saturate(180%);
     -webkit-backdrop-filter: blur(8px) saturate(180%);
-    border: 1px solid rgba(99, 102, 241, 0.18);
+    border: 1px solid rgba(40, 40, 40, 0.18);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.50),
       inset 0 -1px 0 rgba(0, 0, 0, 0.04),
@@ -978,13 +978,13 @@
     transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
   }
   .ppt-check-icon.included {
-    background: rgba(99, 102, 241, 0.55);
-    border-color: rgba(99, 102, 241, 0.85);
+    background: rgba(40, 40, 40, 0.55);
+    border-color: rgba(40, 40, 40, 0.85);
     color: #ffffff;
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.40),
-      inset 0 -1px 0 rgba(67, 56, 202, 0.18),
-      0 1px 3px rgba(99, 102, 241, 0.18);
+      inset 0 -1px 0 rgba(26, 26, 26, 0.18),
+      0 1px 3px rgba(40, 40, 40, 0.18);
   }
   /* v0.3.20 #91 (PO msg 03:06 #7375): 头像 — 36×36 圆形 + 5 色 palette + 1 字符首字母.
      复用 SessionMemberList 的 5 色 AVATAR_GRADIENTS, 尺寸放大到 36×36 (比 chip 28px 大)
@@ -1068,11 +1068,11 @@
     background: rgba(255, 255, 255, 0.55);
     backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border: 1px solid rgba(99, 102, 241, 0.18);
+    border: 1px solid rgba(40, 40, 40, 0.18);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.50),
       inset 0 -1px 0 rgba(0, 0, 0, 0.03),
-      0 2px 8px rgba(99, 102, 241, 0.06);
+      0 2px 8px rgba(40, 40, 40, 0.06);
     /* v0.3.0729-2 #7: shared 跟 exclusive 同左对齐节奏 (flex-start + gap 4 + pad 10).
        旧 space-between 拉两端; center 在钉死 102px 里光学仍偏 (窄 $ vs 宽「个人消费」).
        左起 "$ 个人消费" 与 exclusive 态 "¥ 金额" 同一起点. */
@@ -1083,10 +1083,10 @@
   }
   .excl-pill-shared:hover {
     background: rgba(255, 255, 255, 0.70);
-    border-color: rgba(99, 102, 241, 0.30);
+    border-color: rgba(40, 40, 40, 0.30);
   }
   .excl-pill-shared:active {
-    background: rgba(99, 102, 241, 0.10);
+    background: rgba(40, 40, 40, 0.10);
   }
   @supports not (backdrop-filter: blur(1px)) {
     .excl-pill-shared {
@@ -1113,23 +1113,23 @@
      v0.3.20 #93 (Fix 2): add backdrop-filter glass, same blur(20px) saturate(180%) as shared pill.
      Exclusive visually stronger (bg 0.18 + border 0.55 + 12% outer shadow) to emphasise "实" feel. */
   .excl-pill-exclusive {
-    background: rgba(99, 102, 241, 0.18);
+    background: rgba(40, 40, 40, 0.18);
     backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border: 1px solid rgba(99, 102, 241, 0.55);
+    border: 1px solid rgba(40, 40, 40, 0.55);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.50),
       inset 0 -1px 0 rgba(0, 0, 0, 0.04),
-      0 2px 8px rgba(99, 102, 241, 0.12);
+      0 2px 8px rgba(40, 40, 40, 0.12);
     padding: 0 10px;
     gap: 4px;
     cursor: default;
   }
   .excl-pill-exclusive:focus-within {
-    border-color: var(--accent-700, #4338ca);
+    border-color: var(--accent-700, #1a1a1a);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.55),
-      0 0 0 2px rgba(99, 102, 241, 0.20);
+      0 0 0 2px rgba(40, 40, 40, 0.20);
   }
   .pill-currency:focus-visible {
     outline: 0;
@@ -1139,7 +1139,7 @@
   }
   @supports not (backdrop-filter: blur(1px)) {
     .excl-pill-exclusive {
-      background: rgba(99, 102, 241, 0.32);
+      background: rgba(40, 40, 40, 0.32);
     }
   }
   /* v0.3.0729-3 #1: pill-currency 显 ¥/$ (currencySymbol), 单字符; width auto + 13px. */
@@ -1202,7 +1202,7 @@
     margin: 0;
   }
   .pill-input::placeholder {
-    color: rgba(99, 102, 241, 0.35);
+    color: rgba(40, 40, 40, 0.35);
     font-weight: 500;
   }
   /* v0.3.20 #92 (PO msg 07:13 #7409): 删 .pill-stepper / .pill-step / .pill-step:hover / .pill-step:active
@@ -1238,12 +1238,12 @@
     transition: background 0.12s ease, border-color 0.12s ease;
   }
   .currency-pill:hover:not(.disabled):not(:disabled) {
-    border-color: rgba(99, 102, 241, 0.5);
+    border-color: rgba(40, 40, 40, 0.5);
   }
   .currency-pill.active {
-    background: #6366f1;
+    background: #2c2c2c;
     color: white;
-    border-color: #6366f1;
+    border-color: #2c2c2c;
   }
   .currency-pill:disabled,
   .currency-pill.disabled {
@@ -1351,7 +1351,7 @@
     letter-spacing: 0.02em;
     color: rgba(26, 26, 26, 0.55);
     background: rgba(255, 255, 255, 0.12);
-    border: 0.5px solid rgba(99, 102, 241, 0.28);
+    border: 0.5px solid rgba(40, 40, 40, 0.28);
     box-shadow:
       inset 0 1px 2px rgba(0, 0, 0, 0.04),
       inset 0 -1px 0 rgba(255, 255, 255, 0.95);

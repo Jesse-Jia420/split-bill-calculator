@@ -476,7 +476,7 @@
     position: relative;
   }
   .amount-row:focus-visible {
-    outline: 2px solid var(--accent-500, #3b82f6);
+    outline: 2px solid var(--accent-500, #2c2c2c);
     outline-offset: 2px;
   }
   .amount-row:active {
@@ -541,7 +541,7 @@
     backdrop-filter: blur(12px) saturate(180%);
     -webkit-backdrop-filter: blur(12px) saturate(180%);
     border-radius: 16px;
-    border: 1px solid rgba(99, 102, 241, 0.18);
+    border: 1px solid rgba(40, 40, 40, 0.18);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.75),
       inset 0 -1px 0 rgba(15, 23, 42, 0.03);
@@ -612,7 +612,7 @@
     height: 44px;
     min-width: 44px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    background: linear-gradient(135deg, #2c2c2c 0%, #262626 100%);
     color: white;
     display: flex;
     align-items: center;
@@ -621,9 +621,9 @@
     border: 1px solid rgba(255, 255, 255, 0.22);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.42),
-      inset 0 -1px 0 rgba(67, 56, 202, 0.18),
-      0 4px 14px rgba(99, 102, 241, 0.38),
-      0 1px 3px rgba(99, 102, 241, 0.22);
+      inset 0 -1px 0 rgba(26, 26, 26, 0.18),
+      0 4px 14px rgba(40, 40, 40, 0.38),
+      0 1px 3px rgba(40, 40, 40, 0.22);
     transition: transform 80ms ease, box-shadow 120ms ease;
     -webkit-tap-highlight-color: transparent;
   }
@@ -631,7 +631,7 @@
     transform: scale(0.95);
   }
   .confirm-btn:focus-visible {
-    outline: 2px solid var(--accent-500, #3b82f6);
+    outline: 2px solid var(--accent-500, #2c2c2c);
     outline-offset: 2px;
   }
   .confirm-btn.hidden {
@@ -672,12 +672,12 @@
     transform: scale(0.97);
   }
   .key.op {
-    background: var(--accent-500, #3b82f6);
+    background: var(--accent-500, #2c2c2c);
     color: #fff;
-    border-color: var(--accent-500, #3b82f6);
+    border-color: var(--accent-500, #2c2c2c);
   }
   .key.op:active {
-    background: var(--accent-700, #1d4ed8);
+    background: var(--accent-700, #1a1a1a);
   }
   .key.ctrl {
     background: var(--gray-100, #f3f4f6);

@@ -121,8 +121,8 @@
     width: 80px;
     height: 80px;
     border-radius: 50%;
-    background: linear-gradient(135deg, rgba(99,102,241,0.04) 0%, rgba(59,130,246,0.02) 100%);
-    border: 1px solid rgba(99,102,241,0.18);
+    background: linear-gradient(135deg, rgba(40, 40, 40,0.04) 0%, rgba(58, 58, 58,0.02) 100%);
+    border: 1px solid rgba(40, 40, 40,0.18);
     font-size: 36px;
     font-weight: 300;
     line-height: 1;
@@ -141,10 +141,10 @@
   .fab.emphasized {
     background: linear-gradient(
       135deg,
-      rgba(99, 102, 241, 0.32) 0%,
-      rgba(59, 130, 246, 0.26) 100%
+      rgba(40, 40, 40, 0.32) 0%,
+      rgba(58, 58, 58, 0.26) 100%
     );
-    border: 1px solid rgba(99, 102, 241, 0.50);
+    border: 1px solid rgba(40, 40, 40, 0.50);
   }
   @media (max-width: 600px) {
     .fab {
@@ -163,7 +163,7 @@
     min-width: 0;
   }
   /* v0.3.0729-2 #1+#2: 跟标题同行的灰色描边 hint (弱化, 不抢视觉).
-     旧 indigo 玻璃 pill (accent-700 + rgba(99,102,241,*) bg) 太显眼. */
+     旧 indigo 玻璃 pill (accent-700 + rgba(40, 40, 40,*) bg) 太显眼. */
   .list-top-hint {
     display: inline-flex;
     align-items: center;

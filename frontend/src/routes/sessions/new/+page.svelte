@@ -457,7 +457,7 @@
     display: grid;
     place-items: center;
     cursor: pointer;
-    border: 0.5px solid rgba(99, 102, 241, 0.25);
+    border: 0.5px solid rgba(40, 40, 40, 0.25);
     padding: 0;
     transition: transform 150ms ease, box-shadow 150ms ease;
   }
@@ -467,13 +467,13 @@
     color: var(--btn-label, var(--logo-ink, #1a1a1a));
   }
   .fab-wiz.primary {
-    background: linear-gradient(135deg, #6366f1, #818cf8);
+    background: linear-gradient(135deg, #2c2c2c, #525252);
     color: white;
     border-color: rgba(255, 255, 255, 0.5);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.6),
-      0 6px 14px -3px rgba(99, 102, 241, 0.4),
-      0 2px 4px -1px rgba(99, 102, 241, 0.15);
+      0 6px 14px -3px rgba(40, 40, 40, 0.4),
+      0 2px 4px -1px rgba(40, 40, 40, 0.15);
   }
   .fab-wiz svg {
     width: 28px;
@@ -512,30 +512,30 @@
   }
   @media (hover: hover) {
     .count-btn:not(:disabled):hover {
-      background: linear-gradient(135deg, rgba(99, 102, 241, 0.18) 0%, rgba(59, 130, 246, 0.15) 100%) !important;
-      border-color: rgba(99, 102, 241, 0.22) !important;
+      background: linear-gradient(135deg, rgba(40, 40, 40, 0.18) 0%, rgba(58, 58, 58, 0.15) 100%) !important;
+      border-color: rgba(40, 40, 40, 0.22) !important;
       transform: translateY(-1px);
     }
   }
   /* touch 设备: idle 时强制背景回默认, 不被 .glass-pill:hover 全局规则覆盖 */
   @media (hover: none) {
     .count-btn:not(:disabled):not(:active) {
-      background: linear-gradient(135deg, rgba(99, 102, 241, 0.10) 0%, rgba(59, 130, 246, 0.08) 100%) !important;
-      border-color: rgba(99, 102, 241, 0.15) !important;
+      background: linear-gradient(135deg, rgba(40, 40, 40, 0.10) 0%, rgba(58, 58, 58, 0.08) 100%) !important;
+      border-color: rgba(40, 40, 40, 0.15) !important;
       transform: none !important;
     }
   }
   .count-btn:not(:disabled):active {
     transform: scale(0.94);
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.28) 0%, rgba(59, 130, 246, 0.25) 100%) !important;
-    border-color: rgba(99, 102, 241, 0.4) !important;
+    background: linear-gradient(135deg, rgba(40, 40, 40, 0.28) 0%, rgba(58, 58, 58, 0.25) 100%) !important;
+    border-color: rgba(40, 40, 40, 0.4) !important;
   }
   .count-btn:disabled {
     opacity: 0.4;
     cursor: not-allowed;
     transform: none !important;
     background: rgba(255, 255, 255, 0.55) !important;
-    border-color: rgba(99, 102, 241, 0.18) !important;
+    border-color: rgba(40, 40, 40, 0.18) !important;
   }
   .count-display { font-size: var(--font-size-3xl); font-weight: 700; color: #171717; min-width: 3rem; text-align: center; line-height: 1; }
   .count-hint { text-align: center; font-size: var(--font-size-base); color: #737373; margin: 0; }

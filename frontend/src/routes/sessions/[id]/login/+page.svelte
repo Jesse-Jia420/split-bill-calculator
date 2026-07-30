@@ -13,14 +13,14 @@
    *
    * 设计语言 (PO v4 字面 + 配套 mockup v4-3-login.html):
    * - Header row (高 ~56-64px):
-   *   左: 圆形 back FAB (settle 同款 56×56, rgba(99,102,241,0.16) 玻璃)
+   *   左: 圆形 back FAB (settle 同款 56×56, rgba(40, 40, 40,0.16) 玻璃)
    *   右: pill "登录 →" 按钮 (半透明白 18px 圆角玻璃)
    * - 副标题区: "登录 {nickname}({emailMasked})以回到账本" (15px muted)
-   *   nickname 用 indigo #4f46e5 高亮 + font-weight 600
+   *   nickname 用 indigo #262626 高亮 + font-weight 600
    *   email 用更浅 muted gray
    * - "清迈" 副副标题 (13px 更浅)
    * - 表单: 邮箱 + 验证码 (空 value, placeholder, 不 pre-fill 真邮箱)
-   * - 主 CTA: 全宽 "登录并回到账本" (indigo 渐变 #6366f1→#4f46e5)
+   * - 主 CTA: 全宽 "登录并回到账本" (indigo 渐变 #2c2c2c→#262626)
    *
    * 反模式 (PO v4 强调):
    * - ❌ pre-fill 真邮箱到 input (让用户手填验证身份)
@@ -280,23 +280,23 @@
     width: 56px;
     height: 52px;
     border-radius: 50%;
-    background: rgba(99, 102, 241, 0.12);
+    background: rgba(40, 40, 40, 0.12);
     backdrop-filter: saturate(180%) blur(20px);
     -webkit-backdrop-filter: saturate(180%) blur(20px);
     border: 1.5px solid rgba(255, 255, 255, 0.5);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.6),
-      0 4px 10px rgba(99, 102, 241, 0.14);
+      0 4px 10px rgba(40, 40, 40, 0.14);
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     transition: transform 0.18s ease-out, background 0.18s ease-out;
-    color: #4f46e5;
+    color: #262626;
   }
   .login-back-fab:active {
     transform: scale(0.96);
-    background: rgba(99, 102, 241, 0.20);
+    background: rgba(40, 40, 40, 0.20);
   }
 
   /* v0.3.33 — UAT 0725-3 #1: header pill 删了 (PO 字面「取消」), .login-pill-btn CSS 同步清理. */
@@ -312,7 +312,7 @@
     word-break: break-word;
   }
   .page-title .nickname {
-    color: #4f46e5;
+    color: #262626;
     font-weight: 600;
   }
   .page-title .email-wrap {
@@ -365,7 +365,7 @@
     background: rgba(255, 255, 255, 0.62);
     backdrop-filter: saturate(180%) blur(20px);
     -webkit-backdrop-filter: saturate(180%) blur(20px);
-    border: 1px solid rgba(99, 102, 241, 0.10);
+    border: 1px solid rgba(40, 40, 40, 0.10);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.5),
       0 1px 3px rgba(15, 23, 42, 0.05);
@@ -392,8 +392,8 @@
     background: rgba(255, 255, 255, 0.62);
     backdrop-filter: saturate(180%) blur(20px);
     -webkit-backdrop-filter: saturate(180%) blur(20px);
-    border: 1px solid rgba(99, 102, 241, 0.20);
-    color: #6366f1;
+    border: 1px solid rgba(40, 40, 40, 0.20);
+    color: #2c2c2c;
     font-size: 14px;
     font-weight: 600;
     cursor: pointer;
@@ -425,19 +425,19 @@
     height: 52px;
     padding: 0 20px;
     border-radius: 999px;
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.95) 0%, rgba(168, 85, 247, 0.95) 100%);
+    background: linear-gradient(135deg, rgba(40, 40, 40, 0.95) 0%, rgba(28, 28, 28, 0.95) 100%);
     color: white;
     font-size: 16px;
     font-weight: 600;
     border: none;
     cursor: pointer;
     box-shadow:
-      0 4px 12px rgba(99, 102, 241, 0.30),
+      0 4px 12px rgba(40, 40, 40, 0.30),
       inset 0 1px 0 rgba(255, 255, 255, 0.25);
     letter-spacing: 0.01em;
   }
   .btn-primary:active {
-    background: linear-gradient(135deg, rgba(99, 102, 241, 1) 0%, rgba(168, 85, 247, 1) 100%);
+    background: linear-gradient(135deg, rgba(40, 40, 40, 1) 0%, rgba(28, 28, 28, 1) 100%);
   }
   .btn-primary:disabled {
     opacity: 0.6;

@@ -1302,8 +1302,8 @@
     transition: border-color 0.15s, color 0.15s, background 0.15s;
   }
   .owner-logout-btn:hover:not(:disabled) {
-    border-color: var(--color-accent, #3b82f6);
-    color: var(--color-accent, #3b82f6);
+    border-color: var(--color-accent, #2c2c2c);
+    color: var(--color-accent, #2c2c2c);
   }
   .owner-logout-btn:disabled {
     opacity: 0.55;
@@ -1383,7 +1383,7 @@
      但 hover 时不应该把整块变紫; 视觉反馈靠 cursor:pointer + aria-expanded 就够了).
      保留 .members-head:focus-visible (a11y focus ring 不能去掉). */
   .members-head:focus-visible {
-    outline: 2px solid var(--accent-500, #3b82f6);
+    outline: 2px solid var(--accent-500, #2c2c2c);
     outline-offset: 2px;
   }
   .members-head-row1 {
@@ -1632,7 +1632,7 @@
     text-decoration: underline;
   }
   .expiry-cta-link:focus-visible {
-    outline: 2px solid var(--accent-500, #3b82f6);
+    outline: 2px solid var(--accent-500, #2c2c2c);
     outline-offset: 2px;
     border-radius: 4px;
   }
@@ -1667,12 +1667,12 @@
      "成员 row hover 没意义, 整块颜色变化只是干扰". 删除该规则,
      member-row-a 在 hover 时保持默认背景. */
   .member-row-a.is-owner {
-    background: linear-gradient(90deg, rgba(168, 85, 247, 0.04) 0%, transparent 60%);
+    background: linear-gradient(90deg, rgba(28, 28, 28, 0.04) 0%, transparent 60%);
     border-radius: 10px;
   }
 
   .member-row-a.is-me {
-    background: rgba(59, 130, 246, 0.04);
+    background: rgba(58, 58, 58, 0.04);
     border-radius: 10px;
     padding-bottom: 12px; /* room for avatar-bottom me badge */
   }
@@ -1750,10 +1750,10 @@
     background: linear-gradient(135deg, rgba(249, 115, 22, 0.88) 0%, rgba(239, 68, 68, 0.88) 100%);
   }
   .avatar-a.is-owner {
-    box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(168, 85, 247, 0.55);
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(28, 28, 28, 0.55);
   }
   .avatar-a.is-me {
-    box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(59, 130, 246, 0.55);
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(58, 58, 58, 0.55);
   }
 
   /* Member info — name + meta row */
@@ -1788,7 +1788,7 @@
     font-weight: 600;
     padding: 2px 8px;
     border-radius: 999px;
-    background: linear-gradient(135deg, rgba(168, 85, 247, 0.14), rgba(99, 102, 241, 0.14));
+    background: linear-gradient(135deg, rgba(28, 28, 28, 0.14), rgba(40, 40, 40, 0.14));
     color: #6d28d9;
     line-height: 1.3;
   }
@@ -1805,7 +1805,7 @@
     letter-spacing: 0.02em;
     padding: 2px 5px;
     border-radius: 999px;
-    background: #3b82f6;
+    background: #2c2c2c;
     color: #fff;
     box-shadow:
       0 0 0 2px #fff,
@@ -2106,7 +2106,7 @@
      v0.3.16 #8 (PO msg 19:26): 加 .glass-pill 玻璃化 — bg/box-shadow/border 由
        .glass-pill 提供。
      v0.3.16 #10 (PO msg 20:38): FAB icon 改主题色 — 删 color: #fff (`+` 白色在浅紫
-       玻璃上看不清),改由 .glass-pill 提供 var(--accent-700, #4338ca) 深紫主题色
+       玻璃上看不清),改由 .glass-pill 提供 var(--accent-700, #1a1a1a) 深紫主题色
        (跟 bills/new/edit/settle 的 .fab 一致)。 */
   .fab {
     position: fixed;
@@ -2117,9 +2117,9 @@
     border-radius: 50%;        /* 圆形覆盖 .glass-pill 的 999px */
     /* v0.3.27-#17 (PO 0723-3 续): FAB bg 条件化 — 有 bills 浅色 (v0.3.17 原值),
        0 bills 深色 (.emphasized 状态). 取消箭头改走颜色引导路径. */
-    background: linear-gradient(135deg, rgba(99,102,241,0.04) 0%, rgba(59,130,246,0.02) 100%);
-    border: 1px solid rgba(99,102,241,0.18);
-    /* 删 color: #fff — 由 .glass-pill 提供 var(--accent-700, #4338ca) 深紫主题色 */
+    background: linear-gradient(135deg, rgba(40, 40, 40,0.04) 0%, rgba(58, 58, 58,0.02) 100%);
+    border: 1px solid rgba(40, 40, 40,0.18);
+    /* 删 color: #fff — 由 .glass-pill 提供 var(--accent-700, #1a1a1a) 深紫主题色 */
     font-size: 36px;
     font-weight: 300;
     line-height: 1;
@@ -2140,8 +2140,8 @@
   /* v0.3.27-#17 (PO 0723-3 续): 0 bills 状态 — FAB 颜色更深以引导创建.
      跟 .fab 默认浅色对比: bg alpha 0.04/0.02 → 0.18/0.14 (+0.14), border 1px 0.18 → 1.5px 0.35. */
   .fab.emphasized {
-    background: linear-gradient(135deg, rgba(99,102,241,0.18) 0%, rgba(59,130,246,0.14) 100%);
-    border: 1.5px solid rgba(99,102,241,0.35);
+    background: linear-gradient(135deg, rgba(40, 40, 40,0.18) 0%, rgba(58, 58, 58,0.14) 100%);
+    border: 1.5px solid rgba(40, 40, 40,0.35);
   }
   .fab:active {
     transform: scale(0.96);
@@ -2385,7 +2385,7 @@
   }
   .undo-btn {
     appearance: none;
-    background: var(--accent-500, #3b82f6);
+    background: var(--accent-500, #2c2c2c);
     color: #fff;
     border: 0;
     border-radius: 999px;
@@ -2397,7 +2397,7 @@
     transition: background-color 150ms ease;
   }
   .undo-btn:hover {
-    background: var(--accent-700, #1d4ed8);
+    background: var(--accent-700, #1a1a1a);
   }
   .undo-btn:active {
     transform: scale(0.97);

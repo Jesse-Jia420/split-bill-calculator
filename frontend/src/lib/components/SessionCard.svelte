@@ -16,7 +16,7 @@
    *     紫色光晕.
    *   - hover shadow: 更重 + 紫色 ring + translateY(-3px) 浮起.
    *   - transition 240ms ease-out (box-shadow / transform / border-color).
-   *   - title 17px / 700 / var(--accent-700) (#1d4ed8) — PO 拍板蓝色意图保留.
+   *   - title 17px / 700 / var(--accent-700) (#1a1a1a) — PO 拍板蓝色意图保留.
    *   - owner pill: 渐变 indigo→blue 玻璃 + white text + 紫色 outer shadow.
    *   - member pill: white/0.5 + gray-500 (对比 owner 更克制).
    *   - meta 13px / gray-500.
@@ -39,11 +39,11 @@
    *   - hover shadow: 紫阴影 + 紫 ring → 灰阴影 (无紫 ring).
    *   - transition: 240ms ease-out → 200ms cubic-bezier(0.34, 1.56, 0.64, 1) spring +
    *       background 200ms ease (#62 同款 spring).
-   *   - title: 17px / 700 / var(--accent-700) (#1d4ed8) → 16px / 600 / var(--gray-900)
+   *   - title: 17px / 700 / var(--accent-700) (#1a1a1a) → 16px / 600 / var(--gray-900)
    *       (跟全站克制感对齐, PO 反馈蓝色太鲜艳).
    *   - owner pill: 渐变 indigo→blue 0.85 + white text + 紫outer shadow →
-   *       浅 indigo 玻璃 rgba(165,180,252,0.45)→rgba(99,102,241,0.22) + indigo-700 text
-   *       + rgba(99,102,241,0.28) border + blur(8px) + inset highlight + 紫光晕
+   *       浅 indigo 玻璃 rgba(165,180,252,0.45)→rgba(40, 40, 40,0.22) + indigo-700 text
+   *       + rgba(40, 40, 40,0.28) border + blur(8px) + inset highlight + 紫光晕
    *       (回 v0318-62 拍板浅 indigo 玻璃).
    *   - owner pill padding: 4px 10px → 3px 9px / font-size: 12px → 11px.
    *   - member pill: white/0.5 + rgba(255,255,255,0.6) border → white/0.55 +
@@ -762,15 +762,15 @@
     border-radius: 999px;
     background: linear-gradient(
       135deg,
-      rgba(165, 180, 252, 0.28) 0%,
-      rgba(99, 102, 241, 0.18) 100%
+      rgba(58, 58, 58, 0.14) 0%,
+      rgba(40, 40, 40, 0.10) 100%
     );
-    border: 1px solid rgba(99, 102, 241, 0.30);
+    border: 1px solid rgba(40, 40, 40, 0.30);
     backdrop-filter: blur(8px) saturate(180%);
     -webkit-backdrop-filter: blur(8px) saturate(180%);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.55),
-      0 1px 3px rgba(99, 102, 241, 0.08);
+      0 1px 3px rgba(40, 40, 40, 0.08);
     flex-shrink: 1;
     min-width: 0;
     max-width: 240px;

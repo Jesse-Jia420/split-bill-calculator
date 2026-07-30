@@ -1058,7 +1058,7 @@
     -webkit-backdrop-filter: saturate(180%) blur(22px);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.20),  /* v0.3.18 #50: inset high light 0.95 → 0.20 大幅淡化 */
-      0 1px 4px rgba(99, 102, 241, 0.04),  /* v0.3.18 #50: 外阴影 0.16 → 0.04 section 不再"浮起" */
+      0 1px 4px rgba(40, 40, 40, 0.04),  /* v0.3.18 #50: 外阴影 0.16 → 0.04 section 不再"浮起" */
       0 1px 1px rgba(0, 0, 0, 0.02);  /* v0.3.18 #50: 黑色阴影 0.03 → 0.02 */
   }
   .day-group details {
@@ -1136,7 +1136,7 @@
     align-items: center;
     justify-content: center;
     border-radius: 50%;
-    background: rgba(99, 102, 241, 0.10);
+    background: rgba(40, 40, 40, 0.10);
     color: var(--btn-label, var(--logo-ink, #1a1a1a));
     font-size: 15px;
     font-weight: 400;
@@ -1185,13 +1185,13 @@
     gap: 1px;
     padding: 5px 11px;
     border-radius: 14px;
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.20) 0%, rgba(59, 130, 246, 0.12) 100%);
+    background: linear-gradient(135deg, rgba(40, 40, 40, 0.20) 0%, rgba(58, 58, 58, 0.12) 100%);
     backdrop-filter: saturate(180%) blur(12px);
     -webkit-backdrop-filter: saturate(180%) blur(12px);
-    border: 1px solid rgba(99, 102, 241, 0.28);
+    border: 1px solid rgba(40, 40, 40, 0.28);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.55),
-      0 1px 3px rgba(99, 102, 241, 0.10);
+      0 1px 3px rgba(40, 40, 40, 0.10);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
     flex: 0 1 auto;
@@ -1229,7 +1229,7 @@
   }
   /* 副币种 chip: teal 玻璃 (一眼分主次) */
   .cc-chip.cc-chip-secondary {
-    background: linear-gradient(135deg, rgba(20, 184, 166, 0.16) 0%, rgba(99, 102, 241, 0.10) 100%);
+    background: linear-gradient(135deg, rgba(20, 184, 166, 0.16) 0%, rgba(40, 40, 40, 0.10) 100%);
     border-color: rgba(20, 184, 166, 0.30);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.55),
@@ -1312,7 +1312,7 @@
        (rgba 0.18 → 0.24 → 0.18, 比 Designer 方案 B 略深,
         跟 sheet 玻璃边缘呼应 + PO 要求"玻璃感要更明显")
      - 加 backdrop-filter: blur(2px) (iOS separator 风格)
-     - 加 box-shadow 0 1px 1px rgba(99,102,241,0.06) (凸起感)
+     - 加 box-shadow 0 1px 1px rgba(40, 40, 40,0.06) (凸起感)
      - :last-child 隐藏最后一行 hairline
      - row padding 8px → 10px (给 hairline 视觉呼吸感)
      ===
@@ -1335,14 +1335,14 @@
     background: linear-gradient(
       90deg,
       transparent 0%,
-      rgba(99, 102, 241, 0.20) 20%,
-      rgba(99, 102, 241, 0.26) 50%,
-      rgba(99, 102, 241, 0.20) 80%,
+      rgba(40, 40, 40, 0.20) 20%,
+      rgba(40, 40, 40, 0.26) 50%,
+      rgba(40, 40, 40, 0.20) 80%,
       transparent 100%
     );
     backdrop-filter: blur(2px);
     -webkit-backdrop-filter: blur(2px);
-    box-shadow: 0 1px 1px rgba(99, 102, 241, 0.08);
+    box-shadow: 0 1px 1px rgba(40, 40, 40, 0.08);
     pointer-events: none;
   }
   .bill-swipe-wrap:last-child::after {
@@ -1388,7 +1388,7 @@
     );
     border-color: rgba(220, 38, 38, 0.30);
     color: #9f1239; /* rose-800 — 比 --error-700 更深, 跟全站 .glass-pill:hover
-                      color: var(--accent-800, #3730a3) 同样的"加深一档"模式 */
+                      color: var(--accent-800, #121212) 同样的"加深一档"模式 */
   }
 
   /* 语义色 modifier: 蓝紫玻璃 (用于编辑) — 跟基类 .glass-pill 同色,
@@ -1398,11 +1398,11 @@
   .bill-swipe-action.glass-pill.glass-pill--edit {
     /* 沿用基类 app.css .glass-pill 的渐变 (不重写) — 仅显式声明便于读 */
     color: var(--btn-label, var(--logo-ink, #1a1a1a));
-    border-color: rgba(99, 102, 241, 0.22);
+    border-color: rgba(40, 40, 40, 0.22);
   }
   .bill-swipe-action.glass-pill.glass-pill--edit:hover {
     color: var(--btn-label, var(--logo-ink, #1a1a1a));
-    border-color: rgba(99, 102, 241, 0.30);
+    border-color: rgba(40, 40, 40, 0.30);
   }
 
   .bill-swipe-action {
