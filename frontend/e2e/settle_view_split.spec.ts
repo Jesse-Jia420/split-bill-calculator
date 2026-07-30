@@ -11,7 +11,7 @@
  *
  * 反 #100 (真 prod context, 不 mock):
  *   - iPhone 13 viewport (390x844, hasTouch, isMobile)
- *   - 真 cookie: sbc_session, 走真实 dev bypass 登录 (xinhua1001@outlook.com + 任何 6 位)
+ *   - 真 cookie: sbc_session, 走真实 dev bypass 登录 (demo@example.com + 任何 6 位)
  *   - 真实 BE (localhost:8449) + Vite dev proxy (localhost:8448)
  *   - 真 DB (backend/data/sbc.db), seed_dev_data.py 启动时种 xinhua1001 用户
  *
@@ -26,7 +26,7 @@ import path from "node:path";
 import fs from "node:fs";
 
 const BASE = "http://localhost:8448";
-const LOGIN_EMAIL = "xinhua1001@outlook.com";
+const LOGIN_EMAIL = "demo@example.com";
 const VERIFY_CODE = "123456";
 const VIEWPORT = { width: 390, height: 844 };
 

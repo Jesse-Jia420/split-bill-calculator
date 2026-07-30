@@ -8,12 +8,12 @@
  * Full login flow: /auth/login → send-code → verify-code → redirected to
  * /sessions with sbc_session cookie set.
  *
- * Uses DEV_BYPASS_EMAILS: xinhua1001@outlook.com accepts any 6-digit code
+ * Uses DEV_BYPASS_EMAILS: demo@example.com accepts any 6-digit code
  * without SMTP roundtrip. No DB seeding needed.
  *
  * Pre-conditions:
  *   - Frontend running on http://localhost:8448
- *   - xinhua1001@outlook.com in DEV_BYPASS_EMAILS (already set in .env)
+ *   - demo@example.com in DEV_BYPASS_EMAILS (already set in .env)
  *   - Backend running on http://localhost:8449
  */
 import { test, expect, type BrowserContext } from "@playwright/test";
@@ -25,7 +25,7 @@ const SCREENSHOTS_DIR = path.join(process.cwd(), "e2e", "screenshots");
 const SCREENSHOT_STEP = (n: number, name: string) =>
   path.join(SCREENSHOTS_DIR, `test-001-${String(n).padStart(2, "0")}-${name}.png`);
 
-const TEST_EMAIL = "xinhua1001@outlook.com";
+const TEST_EMAIL = "demo@example.com";
 const TEST_CODE = "123456";
 
 test.beforeAll(() => {
@@ -98,7 +98,7 @@ test("TEST-001: login happy path — send → verify → /sessions", async ({
 test("TEST-001b: dev bypass accepts any 6-digit code", async ({
   browser,
 }) => {
-  // Verify that any 6-digit code works for xinhua1001@outlook.com
+  // Verify that any 6-digit code works for demo@example.com
   const ctx: BrowserContext = await browser.newContext({
     ignoreHTTPSErrors: true,
   });

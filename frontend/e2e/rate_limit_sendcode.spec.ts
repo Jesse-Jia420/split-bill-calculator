@@ -37,7 +37,7 @@ const SQLITE_PATH =
 const BASE = "http://localhost:8448";
 // Use a non-bypass email (per dev anti-pattern #44, bypass emails skip
 // rate-limit + SMTP; we want the real guard).
-const TEST_EMAIL = "ratelimit.rachel@jessejia.local";
+const TEST_EMAIL = "ratelimit.rachel@local.test";
 
 test.beforeEach(() => {
   wipeDb();

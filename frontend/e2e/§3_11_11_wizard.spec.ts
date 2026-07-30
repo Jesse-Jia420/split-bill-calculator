@@ -352,7 +352,7 @@ test("case 1 (PRD §3.11.11.4 + SPEC §5): 老用户 anon creator 点 invite lin
   );
   // 额外 seed 1 个 logged-in bound member (e.g. 之前的 session partner 已经登录),
   // 验证上半屏**全**显 (logged-in bound + anon-claimed + unclaimed 三类 slot 都展示).
-  seedLoggedInBoundMember(sid, "loggedin.partner@jessejia.local", "LoggedInPartner");
+  seedLoggedInBoundMember(sid, "loggedin.partner@local.test", "LoggedInPartner");
   await setupCtx.close();
 
   // ── PO 在同一台机器同浏览器 (清 localStorage 模拟"刚换浏览器") ──────────
@@ -446,7 +446,7 @@ test("case 2 (PRD §3.11.11.2 + SPEC §5): 新用户清 storage → invite link 
     "§3.11.11 新用户 anon session",
     ["PO_Nickname", "Slot2ForOthers"]
   );
-  seedLoggedInBoundMember(sid, "loggedin.partner2@jessejia.local", "Partner2");
+  seedLoggedInBoundMember(sid, "loggedin.partner2@local.test", "Partner2");
   await setupCtx.close();
 
   // ── 完全 fresh browser context (反 #100: 不注入 cookie, 不注入 localStorage) ──
@@ -687,7 +687,7 @@ test("case 5 (PRD §3.11.11.6 + SPEC §6): owner 邮箱登录 + claim flow → 7
   await setupCtx.close();
 
   // ── Owner 走真 /auth/login UI (plant code 跳过 SMTP, 跟 owner_email_claim 同 pattern) ──
-  const ownerEmail = "owner.claim@jessejia.local";
+  const ownerEmail = "owner.claim@local.test";
   const ctx = await browser.newContext({ ignoreHTTPSErrors: true });
   const page = await ctx.newPage();
 
@@ -774,7 +774,7 @@ test("case 6 (PRD §3.11.11.4 + SPEC §5): 单屏 wizard UI — 上半屏 + 下�
     "§3.11.11 单屏 UI 验证",
     ["Slot1Unclaimed", "Slot2Unclaimed"]
   );
-  seedLoggedInBoundMember(sid, "loggedin.user3@jessejia.local", "Slot3LoggedIn");
+  seedLoggedInBoundMember(sid, "loggedin.user3@local.test", "Slot3LoggedIn");
   await setupCtx.close();
 
   // ── Fresh anon visitor ────────────────────────────────────────────────

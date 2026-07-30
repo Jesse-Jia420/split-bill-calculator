@@ -8,13 +8,12 @@ version = "0.1.0"
 description = "Split Bill Calculator — FastAPI backend (multi-user, multi-session, SQLite)"
 readme = { text = "split-bill-calculator backend (FastAPI + SQLAlchemy + SQLite).", content-type = "text/plain" }
 requires-python = ">=3.11"
-license = { text = "Proprietary" }
+license = { text = "MIT" }
 authors = [
-    { name = "Jesse Jia", email = "jessejia1001@gmail.com" },
+    { name = "SplitIt contributors" },
 ]
-keywords = ["split-bill", "fastapi", "sqlite", "saas"]
+keywords = ["split-bill", "fastapi", "sqlite", "expense"]
 
-# NOTE: project.urls MUST be http(s) URLs — NEVER local paths.
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
@@ -38,11 +37,6 @@ dev = [
     "httpx>=0.27.0",
     "ruff>=0.6.0",
 ]
-
-[project.urls]
-Homepage = "https://gitea.jessejia.pp.ua/jessejia/split-bill-calculator"
-Repository = "https://gitea.jessejia.pp.ua/jessejia/split-bill-calculator.git"
-Issues = "https://gitea.jessejia.pp.ua/jessejia/split-bill-calculator/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]

@@ -41,8 +41,8 @@ import {
   type SeededUser,
 } from "./test-helpers";
 
-const OWNER = "redirect401.alice@jessejia.local";
-const OPENREDIRECT_USER = "redirect401.opnrdr@jessejia.local";
+const OWNER = "redirect401.alice@local.test";
+const OPENREDIRECT_USER = "redirect401.opnrdr@local.test";
 
 const SCREENSHOT_STEP = (n: number, name: string) =>
   path.join(SCREENSHOTS_DIR, `${String(n).padStart(2, "0")}-${name}.png`);

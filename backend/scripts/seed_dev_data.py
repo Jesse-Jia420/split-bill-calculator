@@ -1,56 +1,14 @@
-"""Seed split-bill-calculator with development test data.
+"""Seed SplitIt with local development fixtures.
 
-This module is imported by ``app.main`` on uvicorn startup (via lifespan
-hook) and idempotently creates the canonical test fixtures that the
-frontend / Sprint verification flow expects to see:
+Imported by ``app.main`` on uvicorn startup (unless skipped). Creates
+idempotent demo data:
 
-- 1 user (xinhua1001@outlook.com) — also matches the live test account.
-- 2 sessions owned by that user:
-    * ``泰国测试账单 2 7.25-7.28`` — 5 members + 40 bills (35 THB +
-      5 CNY) with full payer / shared consumer / exclusive consumer
-      coverage, **plus payer ≠ consumer 解耦 examples** so the FE can
-      exercise the "advanced on behalf of" UX path (PO msg 23:??
-      #8645, UAT #0723-3 #5, 2026-07-24: "你对于个人消费的理解不太
-      对"). The previous Thailand session (``6.19-6.22``) is **gone**
-      — this one supersedes it.
-    * ``个人测试`` — 1 member (the owner), 0 bills.
-- 4 helper User rows backing the Thailand session members
-  (Ju / Canyina / Q / 像汤圆一样圆.).
+- 1 user (``demo@example.com``)
+- Multi-currency Thailand demo ledger + empty personal ledger
+- Helper member accounts under ``*.local`` / ``*.test`` domains
+- Optional feature-matrix ledgers via ``seed_feature_matrix``
 
-The script is **idempotent**: if a session with the given name already
-exists for this owner, it is left untouched (no member / bill churn).
-This is what keeps test data alive across dev clones, Coder handovers,
-and any future truncate events.
-
-The script **skips entirely** when ``ENV=production`` is set in the
-environment, so a production deploy will never accidentally seed dev
-fixtures.
-
-History
--------
-- v0.1.2 / 2026-07-01: started life as ``_setup_xinhua1001.py``
-  (gitignored, xlsx-driven, never committed).
-- v0.2 / 2026-07-02 (Sprint 2 prep): moved to git-safe
-  ``scripts/seed_dev_data.py`` and hardcoded the 27 bills into Python
-  so the binary xlsx is no longer a runtime dependency. See antipattern
-  #46 in MEMORY.md.
-- v0.3.14.1 hotfix #2 / 2026-07-14: split ``_maybe_seed_thailand_rates``
-  into two functions to fix an order-of-operations bug — the new-session
-  path used to call the function before any bills existed, so the
-  ``has_foreign_bills`` guard would short-circuit and the rate rows
-  never got inserted. See Jesse's UAT feedback 2026-07-14.
-- v0.3.25 #17 / 2026-07-23: added ``泰国测试账单 2 7.25-7.28``
-  session with 40 bills (THB + CNY) and per-participant excl_amount
-  support.
-- v0.3.x / 2026-07-24 (UAT #0723-3 #5, PO msg #8645): removed the
-  legacy ``泰国测试账单 6.19-6.22`` session (PO 字面 "再建一个最新
-  的" implies supersede, not stack), redesigned THAILAND2_BILLS so
-  every member covers **payer + shared consumer + exclusive consumer**
-  and there are ≥3 **payer ≠ consumer 解耦** examples (friends paying
-  on behalf of others). Balance invariant: Σ paid = Σ consumed =
-  Σ bills (in primary CNY), with per-member nets distributed across
-  positive (overpaid, should receive) and negative (underpaid, should
-  pay) — see ``backend/scripts/_verify_seed_balance.py``.
+Skipped when ``ENV=production`` or ``SBC_SKIP_SEED=true`` (default).
 """
 from __future__ import annotations
 
@@ -86,25 +44,18 @@ from app.db.models.users import User  # noqa: E402
 
 TZ_SH = timezone(timedelta(hours=8))
 
-# Live test account. The matching ``User`` row is created on first run
-# and reused thereafter; renaming it would orphan the xinhua1001 login.
-TEST_USER_EMAIL = "xinhua1001@outlook.com"
+# Synthetic demo account (also the recommended DEV_BYPASS_EMAILS entry).
+TEST_USER_EMAIL = "demo@example.com"
 
-# Thailand session members, in display order.
-# Index 0 is the owner (xinhua1001 user); indices 1..4 are the four
-# auxiliary accounts. The member index drives payer/participant lookups
-# in THAILAND2_BILLS below (sole session since v0.3.x / UAT #0723-3 #5
-# — the legacy ``6.19-6.22`` session was retired in this commit).
+# Thailand demo members, in display order. Index 0 is the owner.
+# Display names are fictional fixtures referenced by bill descriptions below.
 THAILAND_MEMBERS: list[tuple[str, str, str]] = [
-    # (display_name, role, owner_email)
-    # When ``owner_email`` is empty, the member is owned by the test user
-    # (xinhua). Otherwise the auxiliary user identified by that email
-    # owns the member row.
-    ("Jesse",          SessionRole.OWNER.value,  ""),
-    ("Ju",             SessionRole.MEMBER.value, "ju@thailand.local"),
-    ("Canyina",        SessionRole.MEMBER.value, "canyina@thailand.local"),
-    ("Q",              SessionRole.MEMBER.value, "q@thailand.local"),
-    ("像汤圆一样圆.",   SessionRole.MEMBER.value, "rounded@thailand.local"),
+    # (display_name, role, owner_email) — empty owner_email → demo user
+    ("Jesse", SessionRole.OWNER.value, ""),
+    ("Ju", SessionRole.MEMBER.value, "ju@thailand.local"),
+    ("Canyina", SessionRole.MEMBER.value, "canyina@thailand.local"),
+    ("Q", SessionRole.MEMBER.value, "q@thailand.local"),
+    ("像汤圆一样圆.", SessionRole.MEMBER.value, "rounded@thailand.local"),
 ]
 
 # (Legacy ``THAILAND_BILLS`` + ``THAILAND_SESSION_NAME`` removed in
@@ -124,7 +75,7 @@ PERSONAL_SESSION_NAME_LEGACY = "个人测试"
 #
 # Purpose (PO msg 16:35 #17, 2026-07-23):
 #   "再建一个最新的测试账单。要求 5 人，每个人都有付款，消费，独占。4 天行程。
-#    账单名称，细节都要有。其中一个用户的邮箱是 xinhua1001@outlook.com，
+#    账单名称，细节都要有。其中一个用户的邮箱是 demo@example.com，
 #    其余随意。"
 #
 # Redesigned (PO msg 23:?? #8645, UAT #0723-3 #5, 2026-07-24):
@@ -605,7 +556,7 @@ def _ensure_thailand2_session(
     session = BillSession(
         name=THAILAND2_SESSION_NAME,
         owner_user_id=owner.id,
-        invite_token="thailand2-test-2026-07-23-xinhua",
+        invite_token=secrets.token_urlsafe(32),
         invite_expires_at=now + timedelta(days=30),
         invite_created_at=now,
         session_code=_generate_session_code(),
@@ -709,14 +660,12 @@ def seed_dev_data(db: OrmSession | None = None) -> dict[str, Any]:
          .env, default True) → skip (v0.3.13 default).
       3. Otherwise → inject.
 
-    See SPEC.md §3.13 for rationale (why the default flipped to skip:
-    uvicorn restart was re-injecting the xinhua + Thailand fixtures
-    into the dev's own SBC personal space every reload).
+    restarts should not re-inject demo fixtures into a personal DB).
     """
     if os.getenv("ENV") == "production":
         return {"skipped": "ENV=production"}
 
-    # v0.3.13 opt-out (反 #136): dev default flipped to skip so the
+    # v0.3.13 opt-out: dev default flipped to skip so the
     # dev's own SBC personal space doesn't get a 泰国测试账单 row every
     # restart. Override via SBC_SKIP_SEED=false to bring fixtures back
     # (e.g. for a sprint walk or demo).
@@ -735,20 +684,20 @@ def seed_dev_data(db: OrmSession | None = None) -> dict[str, Any]:
     try:
         now = datetime.now(TZ_SH)
 
-        # 1. Main test user (xinhua1001) — owner of all seeded sessions.
-        xinhua = _ensure_user(db, TEST_USER_EMAIL, default_name="Jesse")
+        # 1. Demo owner of seeded sessions.
+        demo = _ensure_user(db, TEST_USER_EMAIL, default_name="Jesse")
 
         # 2. v0.3.x / UAT #0723-3 #5 (PO msg #8645): Thailand #2
         #    session is the **sole** canonical multi-bill session.
         #    5 members + 40 bills (35 THB + 5 CNY) covering every
         #    member's payer + shared-consumer + exclusive-consumer
         #    roles, plus 4 payer≠consumer 解耦 examples.
-        thailand2, thailand2_members = _ensure_thailand2_session(db, xinhua, now)
+        thailand2, thailand2_members = _ensure_thailand2_session(db, demo, now)
         bills_created_v2 = _seed_thailand2_bills(db, thailand2, thailand2_members, now)
 
         # 3. Personal session (1 owner-member, no bills). Tagged name
         #    ``[空·单币]个人测试`` (legacy ``个人测试`` auto-renamed).
-        personal = _ensure_personal_session(db, xinhua, now)
+        personal = _ensure_personal_session(db, demo, now)
 
         # 4. v0.2.2 (T12): re-apply the snapshot backfill now that the
         #    rates exist, so newly seeded THB bills have a non-NULL
@@ -762,11 +711,11 @@ def seed_dev_data(db: OrmSession | None = None) -> dict[str, Any]:
         #    Catalog: docs/TEST_DATA_MATRIX.md
         from scripts.seed_feature_matrix import seed_feature_matrix
 
-        matrix = seed_feature_matrix(db, xinhua, now)
+        matrix = seed_feature_matrix(db, demo, now)
 
         db.commit()
         return {
-            "xinhua_user_id": xinhua.id,
+            "demo_user_id": demo.id,
             "thailand2_session_id": thailand2.id,
             "personal_session_id": personal.id,
             "thailand2_bills_created": bills_created_v2,

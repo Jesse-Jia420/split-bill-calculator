@@ -1,16 +1,11 @@
-# split-bill-calculator docker-compose (v1.0 release)
-# Jesse 个人 NAS 部署 split.jesdigi.com
-# 反 #160: cloudflared → sbc-frontend :8448 (--host 0.0.0.0)
-# 反 #119: dev/prod 配置分离, .env 文件管理 secrets
-# 反 #159: 启动必分次报告 + 验证 PID
+# SplitIt docker-compose (optional self-host sketch)
 #
-# 服务:
-#   - sbc-backend: Python uvicorn (port 8449 内部)
-#   - sbc-frontend: SvelteKit node (port 8448 暴露给 cloudflared)
-#   - sbc-cloudflared: cloudflared sidecar (隧道 split.jesdigi.com → frontend:8448)
+# Services:
+#   - backend / frontend share one image today (see Dockerfile + entrypoint).
+#     Prefer splitting processes before production use.
+#   - cloudflared: optional tunnel sidecar when TUNNEL_TOKEN is set.
 #
-# 数据:
-#   SQLite 持久化: ./backend/data/sbc.db (bind mount, NAS 本地盘)
+# Data: SQLite bind-mounted at ./backend/data
 
 version: "3.8"
 
@@ -23,14 +18,14 @@ services:
     container_name: sbc-backend
     command: ["/app/entrypoint.sh"]
     expose:
-      - "8449"  # 内部网络, 不暴露公网
+      - "8449"
     volumes:
-      - ./backend/data:/app/backend/data  # SQLite 持久化
-      - ./backend/.env:/app/backend/.env:ro  # 环境变量 (gitignored)
+      - ./backend/data:/app/backend/data
+      - ./backend/.env:/app/backend/.env:ro
     environment:
       - SBC_ENV=production
-      - SBC_SKIP_SEED=true  # seed 只首次启注入, 后续保持
-      - SBC_SKIP_TEST_TRUNCATE=1  # 防 pytest 擦 DB
+      - SBC_SKIP_SEED=true
+      - SBC_SKIP_TEST_TRUNCATE=1
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8449/version"]
@@ -49,11 +44,11 @@ services:
     container_name: sbc-frontend
     command: ["/app/entrypoint.sh"]
     ports:
-      - "8448:8448"  # 暴露给 cloudflared (公网通过 tunnel)
+      - "8448:8448"
     expose:
       - "8449"
     volumes:
-      - ./backend/data:/app/backend/data  # 共享 SQLite
+      - ./backend/data:/app/backend/data
       - ./backend/.env:/app/backend/.env:ro
     environment:
       - SBC_ENV=production
@@ -77,6 +72,8 @@ services:
     restart: unless-stopped
     networks:
       - sbc-net
+    profiles:
+      - tunnel
 
 networks:
   sbc-net:
