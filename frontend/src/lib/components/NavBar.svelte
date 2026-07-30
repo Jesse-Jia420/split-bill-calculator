@@ -27,6 +27,9 @@
     return /^\/sessions\/\d+(\/|$)/.test(page.url.pathname) ||
            /^\/s\/[A-Z0-9]+(\/|$)/i.test(page.url.pathname);
   }
+  function isSessionsListPage(): boolean {
+    return page.url.pathname === '/sessions';
+  }
   function isJoinPage(): boolean {
     return /^\/sessions\/\d+\/join/.test(page.url.pathname) ||
            /^\/s\/[A-Z0-9]+\/join/i.test(page.url.pathname);
@@ -129,7 +132,7 @@
                     <span class="menu-email" title={$user.email}>{$user.email}</span>
                   {/if}
                 </div>
-                {#if page.url.pathname !== '/sessions/new'}
+                {#if page.url.pathname !== '/sessions/new' && !isSessionsListPage()}
                   <a href="/sessions" class="menu-item" role="menuitem" onclick={() => (menuOpen = false)}>
                     我的账本
                   </a>
@@ -151,7 +154,7 @@
         </div>
       {:else if $user}
         <span class="email" title="{$user.email}">{$user.default_name}</span>
-        {#if page.url.pathname !== '/sessions/new'}
+        {#if page.url.pathname !== '/sessions/new' && !isSessionsListPage()}
           <a href="/sessions" class="btn-sm links-item">我的账本</a>
         {/if}
         <button class="ghost btn-sm" onclick={handleLogout}>注销登录</button>
