@@ -390,16 +390,17 @@
   let showDeleteModal = false;
   let deleting = false;
 
-  /** v0.3.28 UAT 0724-1 #3: 从 swipe-action button 调用. stopPropagation 避免冒泡
-   * 到 .card-link 触发导航 (跟原 #16 handleDeleteClick 同款), 同时关掉 swipe 状态
-   * 让卡片回到原位.
-   * v0.3.36 #1: 关 swipe 后 dispatch 'swipechange' null 让 parent swipedId 清零. */
+  /** 左滑删除: owner → 二次确认 modal; 非 owner → 置灰可点, toast 说明不可删. */
   function onSwipeDelete(e: MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
     swipeOffsetStore.update((o) => ({ ...o, [session.id]: 0 }));
     if (get(openSwipeIdStore) === session.id) openSwipeIdStore.set(null);
     dispatch('swipechange', null);
+    if (session.role !== 'owner') {
+      toast.error('只能删除自己创建的账本');
+      return;
+    }
     showDeleteModal = true;
   }
 
@@ -473,21 +474,22 @@
   role="group"
   aria-label="账本: {session.name}"
 >
-  <!-- v0.3.28 UAT 0724-1 #3: swipe 才出现的删除按钮. owner only (跟 #16 同).
-       绝对定位右边缘 (跟 .bill-swipe-action-right 同款), width/opacity 跟随 --swipe-progress
-       (rubberBandProgress(rowOffset<0 ? -rowOffset : 0) — 仅左滑显). -->
-  {#if session.role === "owner"}
+  <!-- 左滑删除按钮: 所有账本都可滑出; 非 owner 置灰, 点按 toast 报错. -->
+  {#if true}
     {@const rowOffset = $isDraggingStore[session.id] ? ($dragOffsetStore[session.id] ?? 0) : ($swipeOffsetStore[session.id] ?? 0)}
     {@const rightProgress = rowOffset < 0 ? rubberBandProgress(-rowOffset) : 0}
+    {@const canDelete = session.role === 'owner'}
     <button
       type="button"
       class="delete-btn"
+      class:disabled={!canDelete}
       data-testid="swipe-action-delete"
+      data-owner={canDelete ? 'true' : 'false'}
       bind:this={deleteBtnEl}
       style="--swipe-progress: {rightProgress}"
       tabindex={rightProgress >= 1 ? 0 : -1}
       aria-hidden={rightProgress <= 0}
-      aria-label="删除账本: {session.name}"
+      aria-label={canDelete ? `删除账本: ${session.name}` : `不可删除他人账本: ${session.name}`}
       onclick={(e) => { e.stopPropagation(); onSwipeDelete(e); }}
     >
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -1057,6 +1059,37 @@
   .delete-btn:focus-visible {
     outline: 2px solid rgba(220, 38, 38, 0.55);
     outline-offset: 2px;
+  }
+  /* 非 owner: 置灰但仍可点 (toast 报错说明原因) */
+  .delete-btn.disabled {
+    background: linear-gradient(
+      135deg,
+      rgba(148, 163, 184, 0.22) 0%,
+      rgba(148, 163, 184, 0.14) 100%
+    );
+    border-color: rgba(148, 163, 184, 0.35);
+    color: #94a3b8;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.45),
+      0 1px 2px rgba(15, 23, 42, 0.06);
+    /* keep clickable — progress gate already on [aria-hidden=false] */
+    opacity: calc(var(--swipe-progress, 0) * 0.45);
+    cursor: not-allowed;
+  }
+  .delete-btn.disabled:hover {
+    background: linear-gradient(
+      135deg,
+      rgba(148, 163, 184, 0.22) 0%,
+      rgba(148, 163, 184, 0.14) 100%
+    );
+    border-color: rgba(148, 163, 184, 0.35);
+    color: #94a3b8;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.45),
+      0 1px 2px rgba(15, 23, 42, 0.06);
+  }
+  .delete-btn.disabled:focus-visible {
+    outline: 2px solid rgba(148, 163, 184, 0.55);
   }
 
   /* v0.3.25 #16: confirm modal (跟 InviteLinkButton v0.3.24 #14 同款玻璃风格).
