@@ -127,4 +127,15 @@
   @media (min-width: 960px) {
     .page-inner { padding: var(--space-5) var(--space-6); }
   }
+
+  /* Landing is full-bleed; drop chrome padding / max-width so the stage fills the viewport. */
+  :global(body:has(.landing)) .page {
+    padding: 0;
+    max-width: none;
+    overflow: hidden;
+  }
+  :global(body:has(.landing)) .page-inner {
+    padding: 0;
+    min-height: 100%;
+  }
 </style>
