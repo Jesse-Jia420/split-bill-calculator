@@ -55,7 +55,7 @@
     {#if !loading && $sessions.length > 0 && hasOwnedSession}
       <div class="list-top-hint" data-testid="list-top-hint-delete" aria-label="左划以删除账本">
         <span class="swipe-arrow" aria-hidden="true">←</span>
-        <span>左划以删除账本</span>
+        <span>左划以<span class="hint-delete">删除</span>账本</span>
       </div>
     {/if}
   </div>
@@ -187,5 +187,10 @@
     font-weight: 500;
     font-size: 11px;
     color: var(--gray-400, #a3a3a3);
+  }
+  /* Match SessionCard .delete-btn text color */
+  .list-top-hint .hint-delete {
+    color: var(--error-700, #be123c);
+    font-weight: 500;
   }
 </style>
