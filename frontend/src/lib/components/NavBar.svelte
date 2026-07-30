@@ -192,7 +192,11 @@
 
 <style>
   :global(:root) {
-    --navbar-h: calc(2 * var(--space-3) + 24px); /* ~48px, 不含 safe-area */
+    /* Content row = touch target so full chrome (44px btn) and compact avatar
+       share the same bar height — morph must not resize the header.
+       Note: --navbar-h is owned by +layout.svelte (measured full bar height for
+       page offset) — do not use it to size .navbar itself. */
+    --navbar-content-h: var(--touch-target); /* 44px */
   }
   .navbar {
     position: fixed;
@@ -201,11 +205,16 @@
     right: 0;
     z-index: 100;
     width: 100%;
+    box-sizing: border-box;
     display: flex;
     align-items: center;
     gap: var(--space-3);
     min-width: 0;
     overflow-x: clip;
+    /* Fixed bar height (padding + 44px row) — unchanged in compact morph. */
+    height: calc(2 * var(--space-3) + var(--navbar-content-h) + env(safe-area-inset-top, 0px));
+    min-height: calc(2 * var(--space-3) + var(--navbar-content-h) + env(safe-area-inset-top, 0px));
+    max-height: calc(2 * var(--space-3) + var(--navbar-content-h) + env(safe-area-inset-top, 0px));
     padding: calc(var(--space-3) + env(safe-area-inset-top, 0px)) var(--space-4) var(--space-3);
     background: rgba(255, 255, 255, 0.02);
     backdrop-filter: saturate(130%) blur(20px);
@@ -237,6 +246,8 @@
     gap: var(--space-2);
     min-width: 0;
     flex: 0 0 auto;
+    height: var(--navbar-content-h);
+    min-height: var(--navbar-content-h);
   }
 
   .brand {
@@ -324,6 +335,8 @@
     flex-wrap: nowrap;
     justify-content: flex-end;
     position: relative;
+    height: var(--navbar-content-h);
+    min-height: var(--navbar-content-h);
   }
   .right.right-compact {
     flex-wrap: nowrap;
@@ -341,6 +354,9 @@
     flex: 0 1 auto;
     min-width: 0;
     max-width: 0;
+    height: var(--navbar-content-h);
+    display: flex;
+    align-items: center;
     opacity: 0;
     transform: translate3d(-18px, 0, 0);
     overflow: hidden;
@@ -387,6 +403,7 @@
     gap: var(--space-2);
     min-width: 0;
     flex: 0 1 auto;
+    height: var(--navbar-content-h);
     opacity: 1;
     transform: translate3d(0, 0, 0);
     transform-origin: right center;
@@ -428,7 +445,10 @@
     flex: 0 0 0;
     width: 0;
     max-width: 0;
-    height: 36px;
+    height: var(--navbar-content-h);
+    display: flex;
+    align-items: center;
+    justify-content: center;
     opacity: 0;
     visibility: hidden;
     transform: scale(0.55);
