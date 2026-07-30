@@ -589,34 +589,36 @@
 
   <div class="sheet-body sbc-bottom-sheet__body">
       {#if mode === 'single' && !has_bills}
-        <!-- ===== single + !has_bills: 添加副币种 (add flow) ===== -->
-        <section class="field">
-          <label class="field-label">主币种</label>
-          <div class="currency-pair-item currency-pair-item--locked" aria-label="主币种: {primary_currency}">
-            <span class="lock-icon" aria-hidden="true">
-              <Lock size={11} strokeWidth={2.5} />
-            </span>
-            <span class="primary-code">{primary_currency}</span>
+        <!-- ===== single + !has_bills: 添加副币种 (add flow) =====
+             UAT: 主币种 + 副币种同行并排 (跟 multi 编辑态 currency-pair-row 一致). -->
+        <section class="field currency-pair-row">
+          <div class="currency-pair-col">
+            <label class="field-label">主币种</label>
+            <div class="currency-pair-item currency-pair-item--locked" aria-label="主币种: {primary_currency}">
+              <span class="lock-icon" aria-hidden="true">
+                <Lock size={11} strokeWidth={2.5} />
+              </span>
+              <span class="primary-code">{primary_currency}</span>
+            </div>
           </div>
-        </section>
-
-        <section class="field">
-          <label class="field-label" for="sbc-secondary-currency">副币种</label>
-          <select
-            id="sbc-secondary-currency"
-            class="currency-pair-item currency-select"
-            bind:value={secondary}
-            disabled={busy}
-            data-testid="currency-add-secondary"
-          >
-            <option value="" disabled>选择币种…</option>
-            {#each secondary_options as opt}
-              <option value={opt}>{opt}</option>
-            {/each}
-          </select>
-          {#if secondary_options.length === 0}
-            <p class="hint">没有可选的副币种了 (10 个币种全在账本中)。</p>
-          {/if}
+          <div class="currency-pair-col">
+            <label class="field-label" for="sbc-secondary-currency">副币种</label>
+            <select
+              id="sbc-secondary-currency"
+              class="currency-pair-item currency-select"
+              bind:value={secondary}
+              disabled={busy}
+              data-testid="currency-add-secondary"
+            >
+              <option value="" disabled>选择币种…</option>
+              {#each secondary_options as opt}
+                <option value={opt}>{opt}</option>
+              {/each}
+            </select>
+            {#if secondary_options.length === 0}
+              <p class="hint">没有可选的副币种了 (10 个币种全在账本中)。</p>
+            {/if}
+          </div>
         </section>
 
         <section class="field">

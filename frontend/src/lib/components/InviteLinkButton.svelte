@@ -856,10 +856,18 @@
     gap: 14px;
   }
 
-  /* Checkmark hero — 64×64 绿色玻璃 disc */
+  /* Checkmark hero — 64×64 正圆绿色玻璃 disc
+     (aspect-ratio + 锁死宽高/min/max, 避免被全局 button min-height 或 flex 拉伸成椭圆) */
   .check-hero {
+    box-sizing: border-box;
     width: 64px;
     height: 64px;
+    min-width: 64px;
+    min-height: 64px;
+    max-width: 64px;
+    max-height: 64px;
+    aspect-ratio: 1 / 1;
+    flex: 0 0 64px;
     border-radius: 50%;
     background: linear-gradient(135deg, rgba(16, 185, 129, 0.20) 0%, rgba(20, 184, 166, 0.14) 100%);
     backdrop-filter: saturate(200%) blur(20px);
@@ -873,6 +881,9 @@
       inset 0 -1px 0 rgba(16, 185, 129, 0.08),
       0 4px 14px rgba(16, 185, 129, 0.18);
     margin: 6px 0 0;
+    padding: 0;
+    line-height: 0;
+    overflow: hidden;
   }
   .check-hero svg { color: #047857; }
 

@@ -28,6 +28,7 @@
   // 之前 BillForm 内联 AVATAR_GRADIENTS + avatarGradient + avatarInitial 跟 SessionMemberList inline copy.
   import { paletteGradient, avatarInitialOf } from '$lib/utils/palette';
   import AmountCalculatorInput from './AmountCalculatorInput.svelte';
+  import IosSwitch from './IosSwitch.svelte';
 
   /**
    * v0.1.2 (PO 2026-07-01 fix #3): edit-page support.
@@ -552,20 +553,19 @@
     return msg === '提交失败' ? '保存失败' : msg;
   }
 
+  /** Sheet / form 可用币种列表 (至少含当前 currency). */
+  $: currencyOptions =
+    session.currencies && session.currencies.length > 0
+      ? session.currencies
+      : [currency];
+  $: isMultiCurrency = currencyOptions.length > 1;
+
   /**
-   * v0.3.35 #6 — UAT 0725-3 #7 (PO msg #9088 batch): 单币种 session 用户点击 currency pill 引导.
-   * PO 字面 "目前单币种时,账单编辑新建页面,无法选中币种". 修法: 单币种 session 时 pill
-   * 改成可点击 + 弹 toast 提示用户当前账本只有 1 种币种, 如需添加更多币种请去账本设置
-   * (跟 Batch 5 #11 重做的 CurrencyAddModal 一致, 用户可在 session 主页 / 账本设置加币种).
-   * 跟 multi-currency session 直接 set currency = code 行为一致 (反 #121 Master 自决技术细节).
+   * 非 sheet 布局仍用 pill 行: 多币种可点切换; 单币种锁定不可选.
    */
   function handleCurrencyPillClick(code: string) {
-    if (session.currencies && session.currencies.length <= 1) {
-      // v0.3.35 #6 — single-currency session 引导
-      toast.info('当前账本只有 1 种币种, 如需添加更多币种, 请前往账本设置');
-    } else {
-      currency = code;
-    }
+    if (!isMultiCurrency) return;
+    currency = code;
   }
 
   async function handleSubmit(e: Event) {
@@ -630,44 +630,44 @@
   onkeydown={handleFormKeyDown}
 >
   <!-- Sheet layout:
-       金额: label 行右侧挂币种 pill, 金额框全宽 (多币种也不挤控制行)
-       时间+付款人: 等宽两列; 与金额区间用更大 section gap 拉开 -->
+       金额 input 右侧挂币种: 单币种锁定 chip; 双币种 = IosSwitch 左右滑二选一
+       (跟 settle「主币种汇总 / 原始数据」同款).
+       时间+付款人: 等宽两列 -->
   {#if isSheet}
     <div class="field field-amount-block">
-      <div class="amount-label-row">
-        <label class="label" for="amount">金额</label>
-        <div
-          class="currency-pills currency-pills-inline"
-          role="radiogroup"
-          aria-label="币种"
-        >
-          {#each (session.currencies && session.currencies.length > 0 ? session.currencies : [currency]) as code (code)}
-            <button
-              type="button"
-              class="currency-pill"
-              class:active={currency === code}
-              class:disabled={submitting}
-              role="radio"
-              aria-checked={currency === code}
-              disabled={submitting}
-              onclick={() => handleCurrencyPillClick(code)}
-            >{code}</button>
-          {/each}
+      <label class="label" for="amount">金额</label>
+      <div class="amount-input-row">
+        <div class="amount-input-main">
+          <AmountCalculatorInput
+            {amount}
+            initialValue={amountExpression}
+            initialAmount={amount}
+            {currency}
+            disabled={submitting}
+            error={amountError}
+            on:confirm={(e) => {
+              amount = e.detail.value;
+              amountExpression = e.detail.expression;
+              amountError = false;
+            }}
+          />
         </div>
+        {#if isMultiCurrency}
+          <div class="currency-switch-wrap" data-testid="bill-currency-switch">
+            <IosSwitch
+              ariaLabel="币种"
+              options={currencyOptions.map((code) => ({ value: code, label: code }))}
+              bind:value={currency}
+            />
+          </div>
+        {:else}
+          <span
+            class="currency-locked"
+            aria-label="币种 {currencyOptions[0] ?? currency}（单币种不可选）"
+            data-testid="bill-currency-locked"
+          >{currencyOptions[0] ?? currency}</span>
+        {/if}
       </div>
-      <AmountCalculatorInput
-        {amount}
-        initialValue={amountExpression}
-        initialAmount={amount}
-        {currency}
-        disabled={submitting}
-        error={amountError}
-        on:confirm={(e) => {
-          amount = e.detail.value;
-          amountExpression = e.detail.expression;
-          amountError = false;
-        }}
-      />
     </div>
 
     <div class="field-grid field-grid-time-payer" data-testid="bill-time-payer-row">
@@ -722,15 +722,16 @@
     <div style="flex: 1; min-width: 0;">
       <span class="label" id="currency-pills-label">币种</span>
       <div class="currency-pills" role="radiogroup" aria-labelledby="currency-pills-label">
-        {#each (session.currencies && session.currencies.length > 0 ? session.currencies : [currency]) as code (code)}
+        {#each currencyOptions as code (code)}
           <button
             type="button"
             class="currency-pill"
             class:active={currency === code}
-            class:disabled={submitting}
+            class:disabled={submitting || !isMultiCurrency}
+            class:locked={!isMultiCurrency}
             role="radio"
             aria-checked={currency === code}
-            disabled={submitting}
+            disabled={submitting || !isMultiCurrency}
             onclick={() => handleCurrencyPillClick(code)}
           >{code}</button>
         {/each}
@@ -1301,44 +1302,67 @@
     line-height: 1.2;
   }
 
-  /* 金额: 「金额」与币种 pill 同行; 金额输入独占下一行全宽 */
-  .sheet-layout .amount-label-row {
+  /* 金额: label 独占一行; input + 币种控件同行 */
+  .sheet-layout .amount-input-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 10px;
     min-width: 0;
+    width: 100%;
   }
-  .sheet-layout .amount-label-row .label {
-    flex: 0 0 auto;
+  .sheet-layout .amount-input-main {
+    flex: 1 1 auto;
+    min-width: 0;
   }
   .sheet-layout .field-amount-block :global(.amount-calc) {
     gap: 0;
   }
-  .sheet-layout .currency-pills-inline {
-    flex: 0 1 auto;
-    margin-top: 0;
-    flex-wrap: nowrap;
-    justify-content: flex-end;
-    gap: 6px;
-    max-width: 70%;
-    overflow-x: auto;
-    scrollbar-width: none;
+  /* 双币种: 压缩版 IosSwitch (跟 settle 主币种汇总/原始数据同族, 高度贴齐金额框) */
+  .sheet-layout .currency-switch-wrap {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
   }
-  .sheet-layout .currency-pills-inline::-webkit-scrollbar {
-    display: none;
+  .sheet-layout .currency-switch-wrap :global(.ios-switch) {
+    margin: 0;
+    width: fit-content;
+    max-width: 100%;
   }
-  .sheet-layout .currency-pills-inline .currency-pill {
+  .sheet-layout .currency-switch-wrap :global(.ios-switch-option) {
+    padding: 0.35rem 0.7rem;
+    font-size: 0.75rem;
+    min-height: 36px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  /* 单币种: 不可选锁定 chip */
+  .sheet-layout .currency-locked {
+    flex: 0 0 auto;
     box-sizing: border-box;
-    height: 28px;
-    min-height: 28px;
-    padding: 0 10px;
+    height: 36px;
+    min-height: 36px;
+    padding: 0 12px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 12px;
+    border-radius: 9999px;
+    font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 0.02em;
+    color: rgba(67, 56, 202, 0.55);
+    background: rgba(255, 255, 255, 0.12);
+    border: 0.5px solid rgba(99, 102, 241, 0.28);
+    box-shadow:
+      inset 0 1px 2px rgba(0, 0, 0, 0.04),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.95);
+    opacity: 0.72;
+    user-select: none;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .currency-pill.locked {
+    opacity: 0.55;
+    cursor: not-allowed;
   }
 
   /* 时间 + 付款人: 等宽两列; stack gap 已与金额区拉开 */
