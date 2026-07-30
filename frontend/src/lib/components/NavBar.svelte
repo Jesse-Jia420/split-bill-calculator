@@ -451,11 +451,13 @@
     justify-content: center;
     opacity: 0;
     visibility: hidden;
-    transform: scale(0.55);
-    transform-origin: center center;
+    /* UAT: 头像消失时从右向左退出 (负 X), 跟 chrome 按钮从右向左进入同向.
+     * 旧: scale-only + origin center → 宽变 0 后残影挂在右侧, 视觉像 L→R 消失. */
+    transform: translate3d(-20px, 0, 0) scale(0.55);
+    transform-origin: right center;
     overflow: visible;
     pointer-events: none;
-    /* Width reserved instantly when expanded — only opacity/scale tween. */
+    /* Width reserved instantly when expanded — only opacity/scale/translate tween. */
     transition:
       opacity 260ms ease,
       transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
@@ -467,7 +469,7 @@
     max-width: 36px;
     opacity: 1;
     visibility: visible;
-    transform: scale(1);
+    transform: translate3d(0, 0, 0) scale(1);
     pointer-events: auto;
     transition:
       opacity 260ms ease,
