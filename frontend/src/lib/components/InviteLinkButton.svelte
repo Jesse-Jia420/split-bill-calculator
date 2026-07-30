@@ -79,9 +79,9 @@
 -->
 <script lang="ts">
   import { X as XIcon, Share2, MoreVertical, PlusSquare, Download } from 'lucide-svelte';
-  import QRCode from 'qrcode';
   import { toast } from '$stores/toast';
   import { portal } from '$lib/actions/portal';
+  import { composeBrandedQrDataUrl } from '$lib/qr/brandedQrCard';
   import { createEventDispatcher, onMount } from 'svelte';
 
   /** v0.3.36 #16: dispatch 'copy' on successful clipboard write, 'open' on modal opens. */
@@ -194,24 +194,16 @@
         : window.location.origin + '/sessions/' + sessionId
       : '';
 
-  /** v0.3.36 #5: modal open + inviteUrl 变化时 lazy generate QR. */
+  /** modal open + inviteUrl / sessionName 变化时 lazy 生成品牌化 QR 卡片. */
   $: if (modalOpen && inviteUrl) {
-    generateQr(inviteUrl);
+    generateQr(inviteUrl, sessionName);
   }
 
-  /** v0.3.36 #5: QR 生成 — qrcode.toDataURL (canvas → base64 PNG), 200×200 + white padding 让边界清晰. */
-  async function generateQr(text: string) {
+  /** 品牌化账本二维码卡片（logo + 账本名 + 纸质玻璃装饰）；预览/下载/分享共用. */
+  async function generateQr(text: string, name: string = '') {
     qrError = null;
     try {
-      qrDataUrl = await QRCode.toDataURL(text, {
-        errorCorrectionLevel: 'M',
-        margin: 2,
-        width: 240,
-        color: {
-          dark: '#0f172a',
-          light: '#ffffff',
-        },
-      });
+      qrDataUrl = await composeBrandedQrDataUrl(text, name);
     } catch (e: any) {
       console.error('[InviteLinkButton] QR generate failed:', e);
       qrError = e?.message ?? 'QR 码生成失败';
@@ -583,20 +575,19 @@
         </button>
       {/if}
       {#if qrDataUrl}
-        <div class="qr-wrap" data-testid="invite-qr-wrap" aria-label="链接二维码">
-          <!-- v0.3.0728-2 #4: QR image 加 onclick → 触发下载 (PNG, 文件名 "账本二维码.png").
-               cursor: pointer + hover 视觉提示可在 CSS 中调整. -->
+        <div class="qr-wrap" data-testid="invite-qr-wrap" aria-label="账本邀请卡片二维码">
+          <!-- 品牌化 QR 卡片：点击保存 PNG（与分享附件同一张图） -->
           <img
             class="qr-img"
             src={qrDataUrl}
-            alt="账本链接二维码"
-            width="200"
-            height="200"
+            alt="{sessionName ? `${sessionName} · ` : ''}轻均 FairLite 账本二维码"
+            width="280"
+            height="381"
             data-testid="invite-qr-img"
             role="button"
             tabindex="0"
-            aria-label="点击保存二维码"
-            title="点击保存二维码"
+            aria-label="点击保存账本二维码卡片"
+            title="点击保存账本二维码卡片"
             onclick={async (e) => {
               e.stopPropagation();
               const ok = await downloadQrPng();
@@ -934,38 +925,37 @@
     color: var(--gray-900);
   }
 
-  /* QR code wrap */
+  /* Branded QR invite card (portrait: logo + QR + ledger name) */
   .qr-wrap {
-    width: 224px;
-    height: 224px;
-    padding: 12px;
-    border-radius: 12px;
-    background: #ffffff;
-    border: 1px solid rgba(15, 23, 42, 0.06);
+    width: min(280px, 100%);
+    padding: 0;
+    border-radius: 18px;
+    background: transparent;
+    border: none;
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.7),
-      0 4px 12px rgba(15, 23, 42, 0.06);
+      0 8px 28px rgba(15, 23, 42, 0.10),
+      0 1px 0 rgba(255, 255, 255, 0.65);
     display: flex;
     align-items: center;
     justify-content: center;
-    margin: 4px 0;
+    margin: 6px 0 2px;
+    overflow: hidden;
   }
   .qr-img {
     display: block;
-    width: 200px;
-    height: 200px;
-    border-radius: 4px;
-    image-rendering: pixelated;
-    image-rendering: -webkit-optimize-contrast;
-    /* v0.3.0728-2 #4: QR 可点击保存 — cursor pointer + 微弱 hover 高光让用户知道可交互. */
+    width: 100%;
+    height: auto;
+    aspect-ratio: 720 / 980;
+    border-radius: 18px;
+    image-rendering: auto;
     cursor: pointer;
     transition: opacity 150ms ease, transform 100ms ease;
   }
   .qr-img:hover {
-    opacity: 0.92;
+    opacity: 0.94;
   }
   .qr-img:active {
-    transform: scale(0.98);
+    transform: scale(0.985);
   }
   .qr-img:focus-visible {
     outline: 2px solid var(--accent-500, #6366f1);
@@ -974,8 +964,14 @@
   .qr-error {
     color: var(--gray-500);
     font-size: 13px;
+    width: min(280px, 100%);
+    min-height: 120px;
+    border-radius: 14px;
     background: rgba(15, 23, 42, 0.04);
-    border-style: dashed;
+    border: 1px dashed rgba(15, 23, 42, 0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   /* URL preview chip */
@@ -1135,13 +1131,7 @@
       border-radius: 16px;
     }
     .qr-wrap {
-      width: 200px;
-      height: 200px;
-      padding: 10px;
-    }
-    .qr-img {
-      width: 180px;
-      height: 180px;
+      width: min(240px, 100%);
     }
   }
 </style>
