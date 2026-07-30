@@ -696,7 +696,7 @@
       const name = (session.name ?? '').trim();
       const namePart = name ? `${name} ` : '';
       const text =
-        `「轻均 FairLite」 ${namePart}账本链接 ${url} 通过此链接可随时回到账本或邀请朋友`;
+        `「轻均分账 FairLite」 ${namePart}账本链接 ${url} 通过此链接可随时回到账本或邀请朋友`;
       try {
         await navigator.clipboard.writeText(text);
         toast.success('邀请链接已复制');

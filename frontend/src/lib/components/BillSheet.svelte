@@ -286,8 +286,13 @@
     color: #334155;
   }
   .btn-save {
-    background: linear-gradient(135deg, #2c2c2c, #8b5cf6);
+    background: linear-gradient(135deg, rgba(58, 58, 58, 0.85) 0%, rgba(40, 40, 40, 0.78) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.35);
     color: #fff;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.4),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.08),
+      0 4px 14px rgba(58, 58, 58, 0.3);
   }
   .btn-save:disabled,
   .btn-cancel:disabled {

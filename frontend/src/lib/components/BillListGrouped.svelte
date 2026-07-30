@@ -1183,8 +1183,8 @@
     align-items: flex-end;
     justify-content: center;
     gap: 1px;
-    padding: 5px 11px;
-    border-radius: 14px;
+    padding: 5px 14px;
+    border-radius: 999px;
     background: linear-gradient(135deg, rgba(40, 40, 40, 0.20) 0%, rgba(58, 58, 58, 0.12) 100%);
     backdrop-filter: saturate(180%) blur(12px);
     -webkit-backdrop-filter: saturate(180%) blur(12px);

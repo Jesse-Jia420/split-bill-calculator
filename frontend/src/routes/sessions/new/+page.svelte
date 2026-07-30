@@ -40,13 +40,7 @@
   onMount(async () => {
     await loadUser();
     loading = false;
-    // v0.3.15 (PO #4861) 修 n+1 bug: nicknames[0] 默认用 placeholder 字符串
-    // - 登录态: "你" → FE slice(1) 排除 (跟 §3.11 75cbdec 一致)
-    // - anon 态:  "我" → FE 改用同一 slice(1) 逻辑 (见 改动 2), BE dedupe 处理 "我" placeholder
-    // 这样两条路径都用 nicknames.slice(1), nicknames[0] 是 placeholder 字符串 (永远**不**发给 BE)
-    if (nicknames[0] === "") {
-      nicknames = [$user !== null ? "你" : "我"];
-    }
+    // Slot 0 stays empty with placeholder「你的昵称」— no default「你」/「我」.
   });
 
   $: nameValid = sessionName.trim().length > 0;
@@ -276,7 +270,7 @@
             <div class="nickname-row">
               <span class="nick-label">{i === 0 ? "你" : "同伴 " + i}</span>
               <input class="glass-input" type="text" bind:value={nicknames[i]}
-                placeholder={i === 0 ? "你的名字" : "同伴 " + i + " 的名字"}
+                placeholder={i === 0 ? "你的昵称" : "同伴 " + i + " 的昵称"}
                 maxlength="50"
                 onkeydown={(e) => e.key === "Enter" && i === nicknames.length - 1 && nicknamesValid && goNext()} />
             </div>
@@ -389,18 +383,10 @@
               </button>
             </div>
             <p class="exchange-rate-hint">
-              {#if !secondaryCurrency}
-                请先选支付币种
-              {:else if rateError}
+              {#if rateError}
                 {rateError}，可手动填写
               {:else if rateFetchedAt}
-                参考汇率已填入{#if rateProviderDate}（市场日 {rateProviderDate}）{/if}
-                · 获取于 {formatRateFetchedAt(rateFetchedAt)}
-                · 1 {primaryCurrency} = {parseFloat(exchangeRate || '0').toFixed(4)} {secondaryCurrency}
-              {:else if !exchangeRate || parseFloat(exchangeRate) <= 0}
-                请输入大于 0 的汇率（或等待参考汇率）
-              {:else}
-                1 {primaryCurrency} = {parseFloat(exchangeRate).toFixed(4)} {secondaryCurrency}
+                获取于 {formatRateFetchedAt(rateFetchedAt)}
               {/if}
             </p>
           </div>

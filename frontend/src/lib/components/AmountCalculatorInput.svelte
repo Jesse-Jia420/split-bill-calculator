@@ -13,6 +13,7 @@
    */
   import { onMount, createEventDispatcher, tick } from 'svelte';
   import { evaluateExpression } from '$api/calculator';
+  import { portal } from '$lib/actions/portal';
 
   export let value: string = '';
   export let evaluated: number | null = null;
@@ -366,86 +367,89 @@
   </div>
 
   {#if showKeypad}
-    <div
-      class="sheet-backdrop"
-      data-testid="amount-calc-backdrop"
-      onclick={closeKeypad}
-      aria-hidden="true"
-    ></div>
-    <div class="sheet" role="dialog" aria-label="计算器键盘" aria-modal="true">
-      <div class="sheet-amount-row" data-testid="amount-calc-sheet-row">
-        <div class="sheet-amount-main">
-          <span
-            class="sheet-amount-expr"
-            style={`font-size: ${exprFontPx}px; -webkit-line-clamp: ${exprLineClamp};`}
-            aria-label="当前金额表达式"
-            data-testid="amount-calc-sheet-expr"
+    <!-- Portal out of BillSheet (will-change/transform trap) so keypad sits above 取消/保存. -->
+    <div use:portal data-testid="amount-calc-portal">
+      <div
+        class="sheet-backdrop"
+        data-testid="amount-calc-backdrop"
+        onclick={closeKeypad}
+        aria-hidden="true"
+      ></div>
+      <div class="sheet" role="dialog" aria-label="计算器键盘" aria-modal="true">
+        <div class="sheet-amount-row" data-testid="amount-calc-sheet-row">
+          <div class="sheet-amount-main">
+            <span
+              class="sheet-amount-expr"
+              style={`font-size: ${exprFontPx}px; -webkit-line-clamp: ${exprLineClamp};`}
+              aria-label="当前金额表达式"
+              data-testid="amount-calc-sheet-expr"
+            >
+              {displayExpr || '0'}
+            </span>
+            {#if isError}
+              <span
+                class="sheet-amount-error-pill"
+                data-testid="amount-calc-error-pill"
+                aria-label="表达式错误"
+              >
+                表达式错误
+              </span>
+            {:else if sheetPreviewText}
+              <span
+                class="sheet-amount-preview"
+                data-testid="amount-calc-sheet-preview"
+                aria-label="当前金额预览"
+              >
+                {sheetPreviewText}
+              </span>
+            {/if}
+          </div>
+          <button
+            type="button"
+            class="confirm-btn"
+            class:disabled={!showConfirm}
+            class:hidden={!showConfirm}
+            onclick={pressConfirm}
+            disabled={disabled || !showConfirm}
+            aria-label="确认金额, 填入表单"
+            data-testid="amount-calc-confirm"
           >
-            {displayExpr || '0'}
-          </span>
-          {#if isError}
-            <span
-              class="sheet-amount-error-pill"
-              data-testid="amount-calc-error-pill"
-              aria-label="表达式错误"
-            >
-              表达式错误
-            </span>
-          {:else if sheetPreviewText}
-            <span
-              class="sheet-amount-preview"
-              data-testid="amount-calc-sheet-preview"
-              aria-label="当前金额预览"
-            >
-              {sheetPreviewText}
-            </span>
-          {/if}
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M5 12.5L10 17.5L19 7" stroke="white" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
         </div>
-        <button
-          type="button"
-          class="confirm-btn"
-          class:disabled={!showConfirm}
-          class:hidden={!showConfirm}
-          onclick={pressConfirm}
-          disabled={disabled || !showConfirm}
-          aria-label="确认金额, 填入表单"
-          data-testid="amount-calc-confirm"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M5 12.5L10 17.5L19 7" stroke="white" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-        </button>
-      </div>
-      <div class="keypad" aria-label="计算器键盘">
-        <button type="button" class="key num" onclick={() => pressChar('1')} disabled={disabled} aria-label="1">1</button>
-        <button type="button" class="key num" onclick={() => pressChar('2')} disabled={disabled} aria-label="2">2</button>
-        <button type="button" class="key num" onclick={() => pressChar('3')} disabled={disabled} aria-label="3">3</button>
-        <button type="button" class="key op" onclick={() => pressChar('+')} disabled={disabled} aria-label="加">+</button>
+        <div class="keypad" aria-label="计算器键盘">
+          <button type="button" class="key num" onclick={() => pressChar('1')} disabled={disabled} aria-label="1">1</button>
+          <button type="button" class="key num" onclick={() => pressChar('2')} disabled={disabled} aria-label="2">2</button>
+          <button type="button" class="key num" onclick={() => pressChar('3')} disabled={disabled} aria-label="3">3</button>
+          <button type="button" class="key op" onclick={() => pressChar('+')} disabled={disabled} aria-label="加">+</button>
 
-        <button type="button" class="key num" onclick={() => pressChar('4')} disabled={disabled} aria-label="4">4</button>
-        <button type="button" class="key num" onclick={() => pressChar('5')} disabled={disabled} aria-label="5">5</button>
-        <button type="button" class="key num" onclick={() => pressChar('6')} disabled={disabled} aria-label="6">6</button>
-        <button type="button" class="key op" onclick={() => pressChar('-')} disabled={disabled} aria-label="减">&minus;</button>
+          <button type="button" class="key num" onclick={() => pressChar('4')} disabled={disabled} aria-label="4">4</button>
+          <button type="button" class="key num" onclick={() => pressChar('5')} disabled={disabled} aria-label="5">5</button>
+          <button type="button" class="key num" onclick={() => pressChar('6')} disabled={disabled} aria-label="6">6</button>
+          <button type="button" class="key op" onclick={() => pressChar('-')} disabled={disabled} aria-label="减">&minus;</button>
 
-        <button type="button" class="key num" onclick={() => pressChar('7')} disabled={disabled} aria-label="7">7</button>
-        <button type="button" class="key num" onclick={() => pressChar('8')} disabled={disabled} aria-label="8">8</button>
-        <button type="button" class="key num" onclick={() => pressChar('9')} disabled={disabled} aria-label="9">9</button>
-        <button type="button" class="key op" onclick={() => pressChar('*')} disabled={disabled} aria-label="乘">×</button>
+          <button type="button" class="key num" onclick={() => pressChar('7')} disabled={disabled} aria-label="7">7</button>
+          <button type="button" class="key num" onclick={() => pressChar('8')} disabled={disabled} aria-label="8">8</button>
+          <button type="button" class="key num" onclick={() => pressChar('9')} disabled={disabled} aria-label="9">9</button>
+          <button type="button" class="key op" onclick={() => pressChar('*')} disabled={disabled} aria-label="乘">×</button>
 
-        <button type="button" class="key ctrl" onclick={pressClear} disabled={disabled} aria-label="清空">C</button>
-        <button type="button" class="key num" onclick={() => pressChar('0')} disabled={disabled} aria-label="0">0</button>
-        <button type="button" class="key num" onclick={() => pressChar('.')} disabled={disabled} aria-label="小数点">.</button>
-        <button type="button" class="key op" onclick={() => pressChar('/')} disabled={disabled} aria-label="除">÷</button>
+          <button type="button" class="key ctrl" onclick={pressClear} disabled={disabled} aria-label="清空">C</button>
+          <button type="button" class="key num" onclick={() => pressChar('0')} disabled={disabled} aria-label="0">0</button>
+          <button type="button" class="key num" onclick={() => pressChar('.')} disabled={disabled} aria-label="小数点">.</button>
+          <button type="button" class="key op" onclick={() => pressChar('/')} disabled={disabled} aria-label="除">÷</button>
 
-        <button
-          type="button"
-          class="key eq"
-          onclick={pressEquals}
-          disabled={disabled}
-          aria-label="等于, 计算结果并加括号"
-          data-testid="amount-calc-eq"
-        >=</button>
-        <button type="button" class="key ctrl bs" onclick={pressBackspace} disabled={disabled} aria-label="退格">⌫</button>
+          <button
+            type="button"
+            class="key eq"
+            onclick={pressEquals}
+            disabled={disabled}
+            aria-label="等于, 计算结果并加括号"
+            data-testid="amount-calc-eq"
+          >=</button>
+          <button type="button" class="key ctrl bs" onclick={pressBackspace} disabled={disabled} aria-label="退格">⌫</button>
+        </div>
       </div>
     </div>
   {/if}
@@ -533,11 +537,9 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    height: 56px;
-    min-height: 56px;
-    max-height: 56px;
-    padding: 6px 8px 6px 12px;
-    background: rgba(255, 255, 255, 0.72);
+    min-height: 64px;
+    padding: 10px 8px 10px 12px;
+    background: rgba(255, 255, 255, 0.92);
     backdrop-filter: blur(12px) saturate(180%);
     -webkit-backdrop-filter: blur(12px) saturate(180%);
     border-radius: 16px;
@@ -545,15 +547,16 @@
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.75),
       inset 0 -1px 0 rgba(15, 23, 42, 0.03);
+    overflow: visible;
   }
   .sheet-amount-main {
     flex: 1 1 auto;
     min-width: 0;
-    height: 100%;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
-    gap: 2px;
+    justify-content: center;
+    gap: 4px;
+    overflow: visible;
   }
   .sheet-amount-expr {
     flex: 1 1 auto;
