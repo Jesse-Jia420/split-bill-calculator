@@ -6,7 +6,7 @@
 import QRCode from 'qrcode';
 
 const W = 720;
-const H = 980;
+const H = 900;
 
 const PAPER = '#f6f5f1';
 const INK = '#1a1a1a';
@@ -227,37 +227,36 @@ export async function composeBrandedQrDataUrl(
   ctx.fillRect(80, 48, W - 160, 2);
 
   // --- Brand mark 「轻均」 + FairLite --------------------------------------
-  const brandY = 128;
+  const brandY = 118;
   ctx.textBaseline = 'alphabetic';
   ctx.textAlign = 'left';
 
   // Dark glass approximation: translucent fill + crisp stroke
-  ctx.font = '200 78px "Noto Sans SC", "PingFang SC", sans-serif';
+  ctx.font = '200 72px "Noto Sans SC", "PingFang SC", sans-serif';
   ctx.lineWidth = 1.1;
   ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)';
   ctx.fillStyle = INK_SOFT;
-  strokeSpacedText(ctx, '轻均', W / 2, brandY, 18);
-  fillSpacedText(ctx, '轻均', W / 2, brandY, 18);
+  strokeSpacedText(ctx, '轻均', W / 2, brandY, 16);
+  fillSpacedText(ctx, '轻均', W / 2, brandY, 16);
 
   // Specular top highlight (second pass, clipped fade via lighter fill)
   ctx.save();
   ctx.globalAlpha = 0.35;
   ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-  // draw only upper portion illusion via slight upward offset lighter glyphs
-  fillSpacedText(ctx, '轻均', W / 2, brandY - 1.5, 18);
+  fillSpacedText(ctx, '轻均', W / 2, brandY - 1.5, 16);
   ctx.restore();
 
-  ctx.font = '500 24px "Inter Variable", Inter, system-ui, sans-serif';
+  ctx.font = '500 22px "Inter Variable", Inter, system-ui, sans-serif';
   ctx.fillStyle = MUTED;
-  fillSpacedText(ctx, 'FairLite', W / 2, brandY + 42, 8);
+  fillSpacedText(ctx, 'FairLite', W / 2, brandY + 36, 4);
 
   // Tagline
-  ctx.font = '400 20px "Noto Sans SC", "PingFang SC", sans-serif';
+  ctx.font = '400 18px "Noto Sans SC", "PingFang SC", sans-serif';
   ctx.fillStyle = 'rgba(82, 82, 91, 0.62)';
-  fillSpacedText(ctx, '极简分账，一链即平。', W / 2, brandY + 78, 2);
+  fillSpacedText(ctx, '极简分账，一链即平。', W / 2, brandY + 68, 2);
 
   // Decorative divider
-  const divY = brandY + 108;
+  const divY = brandY + 92;
   ctx.strokeStyle = ACCENT;
   ctx.lineWidth = 1;
   ctx.beginPath();
@@ -285,10 +284,10 @@ export async function composeBrandedQrDataUrl(
   const qrImg = await loadImage(qrDataUrl);
   if (!qrImg) throw new Error('QR image load failed');
 
-  const framePad = 28;
+  const framePad = 26;
   const frameSize = qrPixel + framePad * 2;
   const frameX = (W - frameSize) / 2;
-  const frameY = divY + 36;
+  const frameY = divY + 28;
 
   // Soft drop shadow
   ctx.save();
@@ -317,26 +316,26 @@ export async function composeBrandedQrDataUrl(
   drawScanCorners(ctx, frameX, frameY, frameSize, frameSize, 32, 12);
 
   // --- Ledger name ---------------------------------------------------------
-  const nameY = frameY + frameSize + 56;
+  const nameY = frameY + frameSize + 48;
   const displayName = truncateName(sessionName, 16);
-  ctx.font = '500 34px "Noto Sans SC", "PingFang SC", sans-serif';
+  ctx.font = '500 32px "Noto Sans SC", "PingFang SC", sans-serif';
   ctx.fillStyle = INK;
   fillSpacedText(ctx, displayName, W / 2, nameY, 1);
 
-  ctx.font = '400 22px "Noto Sans SC", "PingFang SC", sans-serif';
+  ctx.font = '400 20px "Noto Sans SC", "PingFang SC", sans-serif';
   ctx.fillStyle = MUTED;
-  fillSpacedText(ctx, '扫码加入账本', W / 2, nameY + 42, 4);
+  fillSpacedText(ctx, '扫码加入账本', W / 2, nameY + 36, 4);
 
   // Footer brand strip
-  const footY = H - 64;
+  const footY = H - 52;
   ctx.strokeStyle = 'rgba(15, 23, 42, 0.06)';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(100, footY - 28);
-  ctx.lineTo(W - 100, footY - 28);
+  ctx.moveTo(100, footY - 22);
+  ctx.lineTo(W - 100, footY - 22);
   ctx.stroke();
 
-  ctx.font = '400 18px "Noto Sans SC", "PingFang SC", sans-serif';
+  ctx.font = '400 17px "Noto Sans SC", "PingFang SC", sans-serif';
   ctx.fillStyle = 'rgba(82, 82, 91, 0.55)';
   fillSpacedText(ctx, '轻均 FairLite', W / 2, footY, 3);
 

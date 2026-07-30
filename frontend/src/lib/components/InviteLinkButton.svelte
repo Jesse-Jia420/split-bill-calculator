@@ -293,13 +293,13 @@
     if (!url) return;
 
     const ok = await copyToClipboard(url);
-
+    // 始终打开分享卡片（含品牌化二维码）；复制失败时仍可扫码 / 点链接重试
+    modalOpen = true;
+    dispatch('open');
     if (ok) {
-      modalOpen = true;
       dispatch('copy');
-      dispatch('open');
     } else {
-      toast.error('复制失败,请手动选中链接');
+      toast.error('自动复制失败，可点下方链接重试或扫码分享');
     }
 
     copied = true;
@@ -582,7 +582,7 @@
             src={qrDataUrl}
             alt="{sessionName ? `${sessionName} · ` : ''}轻均 FairLite 账本二维码"
             width="280"
-            height="381"
+            height="350"
             data-testid="invite-qr-img"
             role="button"
             tabindex="0"
@@ -945,7 +945,7 @@
     display: block;
     width: 100%;
     height: auto;
-    aspect-ratio: 720 / 980;
+            aspect-ratio: 720 / 900;
     border-radius: 18px;
     image-rendering: auto;
     cursor: pointer;
