@@ -34,9 +34,14 @@ export const createSettlementRecord = (
   sessionId: number,
   payload: CreateSettlementInput
 ): Promise<SettlementRecord> => {
+  const h: Record<string, string> = {};
+  if (typeof window !== "undefined") {
+    const secret = localStorage.getItem("sbc.actingAs." + sessionId);
+    if (secret) h["X-Nickname-Secret"] = secret;
+  }
   return apiFetch<SettlementRecord>(
     `/sessions/${sessionId}/settlement_records`,
-    { method: 'POST', body: JSON.stringify(payload) }
+    { method: 'POST', body: JSON.stringify(payload), headers: h }
   );
 };
 
@@ -60,8 +65,13 @@ export const deleteSettlementRecord = (
   sessionId: number,
   recordId: number
 ): Promise<void> => {
+  const h: Record<string, string> = {};
+  if (typeof window !== "undefined") {
+    const secret = localStorage.getItem("sbc.actingAs." + sessionId);
+    if (secret) h["X-Nickname-Secret"] = secret;
+  }
   return apiFetch<void>(
     `/sessions/${sessionId}/settlement_records/${recordId}`,
-    { method: 'DELETE' }
+    { method: 'DELETE', headers: h }
   );
 };

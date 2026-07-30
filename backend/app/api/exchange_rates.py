@@ -57,7 +57,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.session_isolation import get_session_member, require_session_owner
+from app.core.session_isolation import get_session_member_or_secret, require_session_owner
 from app.db.models.session_exchange_rates import SessionExchangeRate
 from app.db.models.session_members import SessionMember
 from app.db.models.sessions import Session as SessionModel
@@ -165,7 +165,7 @@ def _validate_currency_in_session(
 )
 async def create_exchange_rate(
     payload: CreateRateRequest,
-    sm: Annotated[SessionMember, Depends(get_session_member)],
+    sm: Annotated[SessionMember, Depends(get_session_member_or_secret)],
     db: Annotated[Session, Depends(get_db)],
 ) -> list[dict]:
     """Create a new (from, to) exchange rate, auto-paired with the reciprocal.
@@ -263,7 +263,7 @@ async def create_exchange_rate(
 
 @router.get("", response_model=list[ExchangeRateOut])
 async def list_exchange_rates(
-    sm: Annotated[SessionMember, Depends(get_session_member)],
+    sm: Annotated[SessionMember, Depends(get_session_member_or_secret)],
     db: Annotated[Session, Depends(get_db)],
 ) -> list[dict]:
     """Return every exchange rate for the session.
@@ -364,7 +364,7 @@ async def update_exchange_rate(
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_exchange_rate(
-    sm: Annotated[SessionMember, Depends(get_session_member)],
+    sm: Annotated[SessionMember, Depends(get_session_member_or_secret)],
     db: Annotated[Session, Depends(get_db)],
     rate_id: int = Path(..., description="SessionExchangeRate.id"),
 ) -> None:

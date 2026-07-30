@@ -349,6 +349,15 @@
     );
   }
 
+  function nickSecretHeaders(): Record<string, string> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (typeof window !== 'undefined') {
+      const secret = localStorage.getItem('sbc.actingAs.' + session_id);
+      if (secret) headers['X-Nickname-Secret'] = secret;
+    }
+    return headers;
+  }
+
   async function patchForwardRate(): Promise<SessionExchangeRate[]> {
     const rate_row = findForwardRate();
     if (!rate_row) {
@@ -361,7 +370,7 @@
       {
         method: 'PATCH',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: nickSecretHeaders(),
         body: JSON.stringify({ rate: rate.trim() }),
       }
     );
@@ -393,7 +402,7 @@
           {
             method: 'POST',
             credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
+            headers: nickSecretHeaders(),
             body: JSON.stringify({
               from_currency: primary_currency,
               to_currency: secondary,
@@ -470,7 +479,7 @@
           {
             method: 'POST',
             credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
+            headers: nickSecretHeaders(),
             body: JSON.stringify({
               from_currency: primary_currency,
               to_currency: secondary,

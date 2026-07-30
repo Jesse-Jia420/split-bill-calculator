@@ -72,7 +72,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import get_current_user
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.session_isolation import get_session_member
+from app.core.session_isolation import get_session_member_or_secret, require_session_owner
 from app.db.models.session_members import SessionMember, SessionRole
 from app.db.models.sessions import Session as SessionModel
 from app.db.models.users import User
@@ -177,7 +177,7 @@ def _invite_payload(session: SessionModel) -> dict:
     response_model=SessionInviteView,
 )
 async def get_session_invite(
-    sm: Annotated[SessionMember, Depends(get_session_member)],
+    sm: Annotated[SessionMember, Depends(get_session_member_or_secret)],
     db: Annotated[Session, Depends(get_db)],
 ) -> dict:
     """Return the current invite token for a session.
@@ -210,7 +210,7 @@ async def get_session_invite(
     response_model=SessionInviteView,
 )
 async def rotate_session_invite(
-    sm: Annotated[SessionMember, Depends(get_session_member)],
+    sm: Annotated[SessionMember, Depends(require_session_owner)],
     db: Annotated[Session, Depends(get_db)],
 ) -> dict:
     """Owner-only: rotate the session's invite token.

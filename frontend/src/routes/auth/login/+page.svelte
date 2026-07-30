@@ -3,7 +3,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { sendCode, verifyCode } from '$api/auth';
-  import { bindActingMember, getSessionPreview } from '$api/sessions';
+  import { bindActingMember, getSessionPreview, getSessionPreviewByCode } from '$api/sessions';
   import { loadUser } from '$stores/user';
   import { toast } from '$stores/toast';
 
@@ -152,13 +152,37 @@
    */
   async function tryBindActingMember() {
     if (!returnTo) return;
-    const m = returnTo.match(/^\/sessions\/(\d+)(\/|$)/);
-    if (!m) return;
-    const sid = parseInt(m[1], 10);
-    const secret = typeof localStorage !== 'undefined'
-      ? localStorage.getItem(`sbc.actingAs.${sid}`)
-      : null;
-    if (!secret) return;
+    // Product G: support both /sessions/{id} and /s/{code} returnTo.
+    let sid: number | null = null;
+    let secret: string | null = null;
+    const idMatch = returnTo.match(/^\/sessions\/(\d+)(\/|$)/);
+    const codeMatch = returnTo.match(/^\/s\/([^/?#]+)(\/|$)/);
+    if (idMatch) {
+      sid = parseInt(idMatch[1], 10);
+      secret = typeof localStorage !== 'undefined'
+        ? localStorage.getItem(`sbc.actingAs.${sid}`)
+        : null;
+    } else if (codeMatch) {
+      const code = decodeURIComponent(codeMatch[1]);
+      secret = typeof localStorage !== 'undefined'
+        ? (localStorage.getItem(`sbc.actingAs.${code}`) ?? null)
+        : null;
+      try {
+        const preview = await getSessionPreviewByCode(code);
+        sid = preview.id;
+        if (!secret && typeof localStorage !== 'undefined') {
+          secret = localStorage.getItem(`sbc.actingAs.${sid}`);
+        }
+        // Keep both keys in sync after bind path.
+        if (secret && typeof localStorage !== 'undefined') {
+          localStorage.setItem(`sbc.actingAs.${sid}`, secret);
+          localStorage.setItem(`sbc.actingAs.${code}`, secret);
+        }
+      } catch {
+        return;
+      }
+    }
+    if (!sid || !secret) return;
     try {
       await bindActingMember(sid, { nickname_secret: secret });
     } catch {

@@ -32,7 +32,7 @@
   import { ArrowLeft } from 'lucide-svelte';
   import { ChevronRight } from 'lucide-svelte';
   import { sendCode, verifyCode } from '$api/auth';
-  import { getSessionPreview } from '$api/sessions';
+  import { getSessionPreview, joinClaim } from '$api/sessions';
   import { loadUser } from '$stores/user';
   import { toast } from '$stores/toast';
 
@@ -121,10 +121,24 @@
     try {
       await verifyCode(email.trim(), trimmed);
       await loadUser();
-      // 验证成功后跳回 join 页 (anon → BE 应该已经 auto-redirect 跳过),
-      // 或者直接跳账本详情 (logged-in 用户不是 member → /s/{code} 会 redirect 回 /join)
-      // 这里跳 /s/{code} 让 BE / FE 决定下一步.
-      // 没 sessionCode 就用 sessionId fallback.
+      // Product C: after logging in as this nickname's email, bind/re-enter that seat.
+      if (memberId) {
+        try {
+          await joinClaim(sessionId, {
+            action: 'claim',
+            session_member_id: Number(memberId),
+          });
+        } catch (claimErr: any) {
+          const code = claimErr?.code ?? '';
+          if (code === 'slot_owned_by_another_user') {
+            toast.error('该昵称已绑定其他邮箱，请用对应邮箱登录', 4000);
+            busy = false;
+            return;
+          }
+          // already bound to self / other soft failures → continue to ledger
+        }
+      }
+      // 验证成功后跳回账本详情
       await goto(`/s/${page.url.searchParams.get('sessionCode') || sessionId}`, { invalidateAll: true });
     } catch (e: any) {
       const c = e?.code ?? '';
