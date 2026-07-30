@@ -541,7 +541,7 @@
     data-testid="invite-sheet-backdrop"
   ></div>
   <div
-    class="invite-sheet"
+    class="invite-sheet sbc-bottom-sheet"
     class:dragging
     class:closing={modalClosing}
     role="dialog"
@@ -557,7 +557,7 @@
     <div class="sheet-handle" aria-hidden="true"></div>
     <!-- v0.3.0729-4 #6: 去除最上方「账本链接」标题 -->
     <!-- v0.3.36 #5 success-card: 中心 column, gap 14px -->
-    <div class="sheet-body">
+    <div class="sheet-body sbc-bottom-sheet__body">
       <div class="check-hero" aria-hidden="true">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
           <path d="M20 6L9 17l-5-5"/>
@@ -669,7 +669,7 @@
         </div>
       {/if}
     </div>
-    <div class="sheet-foot">
+    <div class="sheet-foot sbc-bottom-sheet__foot">
       <button type="button" class="btn-primary" onclick={closeModal} data-testid="invite-confirm-btn">
         知道了
       </button>
@@ -802,38 +802,15 @@
    * v0.3.37 #5 #2: 加 touch-action: pan-y 让浏览器知道此元素可垂直 pan (避免 passive listener 警告 + scroll lock conflict)
    * + 拖动时 transition:none (inline style 控制 transform) → 跟手反馈流畅 */
   .invite-sheet {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    margin: 0 auto;
-    max-width: 480px;
-    max-height: 92vh;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    touch-action: pan-y;
-    background: rgba(255, 255, 255, 0.92);
-    backdrop-filter: saturate(220%) blur(28px);
-    -webkit-backdrop-filter: saturate(220%) blur(28px);
-    border-top-left-radius: 24px;
-    border-top-right-radius: 24px;
-    border: 1px solid rgba(255, 255, 255, 0.7);
-    border-bottom: 0;
-    padding: 8px 16px 0;
-    box-shadow:
-      0 -8px 32px rgba(15, 23, 42, 0.12),
-      inset 0 1px 0 rgba(255, 255, 255, 0.85),
-      /* v0.3.0729-4 #14: 上拉橡皮筋时底部白色延伸，避免与页面底部分离 */
-      0 50vh 0 0 rgba(255, 255, 255, 0.96);
+    /* Shared .sbc-bottom-sheet owns flush bottom / radius / ::after under-fill. */
     z-index: 1000;
-    animation: inviteSheetUp 280ms cubic-bezier(0.32, 0.72, 0, 1);
-    display: flex;
-    flex-direction: column;
+    padding: 8px 16px 0;
     gap: 12px;
+    animation: inviteSheetUp 280ms cubic-bezier(0.32, 0.72, 0, 1);
+    touch-action: pan-y;
     will-change: transform;
   }
   .invite-sheet.dragging {
-    /* drag 时 inline style 控制 transform, 这里只保证动画期间 overflow 不被 clip */
     transition: none !important;
   }
   @keyframes inviteSheetUp {
@@ -841,9 +818,6 @@
     to { transform: translateY(0); }
   }
   @supports not (backdrop-filter: blur(1px)) {
-    .invite-sheet {
-      background: rgba(255, 255, 255, 0.96);
-    }
     .invite-sheet-backdrop {
       background: rgba(15, 23, 42, 0.55);
     }
@@ -1083,7 +1057,10 @@
   /* === sheet-foot + btn-primary (跟 AddSettlementSheet 同族) === */
   .sheet-foot {
     display: flex;
-    padding: 14px 4px 0;
+    padding-top: 14px;
+    padding-left: 4px;
+    padding-right: 4px;
+    /* padding-bottom from .sbc-bottom-sheet__foot */
   }
   .btn-primary {
     width: 100%;

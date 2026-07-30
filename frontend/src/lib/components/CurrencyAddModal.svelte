@@ -565,7 +565,7 @@
   onclick={close}
 ></div>
 <div
-  class="sheet"
+  class="sheet sbc-bottom-sheet"
   class:dragging
   class:closing
   role="dialog"
@@ -587,7 +587,7 @@
          关闭走 backdrop 点击 + drag-down + Escape (portal destroy 已修, 可关). -->
   </header>
 
-  <div class="sheet-body">
+  <div class="sheet-body sbc-bottom-sheet__body">
       {#if mode === 'single' && !has_bills}
         <!-- ===== single + !has_bills: 添加副币种 (add flow) ===== -->
         <section class="field">
@@ -826,7 +826,7 @@
     <!-- v0.3.27 (PO UAT 0727-1 #10): 删除页面左下角的"取消"按钮 (顶部 sheet-close × 已经等同关闭).
          v0.3.27 (PO UAT 0727-1 #4): 弹窗内的排版跟 AddSettlementSheet 完全一致 — 单 .btn-primary
          占满 .cta-row, 无 sheet-foot 双按钮; sheet-foot CSS 删 .btn-cancel-sheet 整段. -->
-    <div class="cta-row">
+    <div class="cta-row sbc-bottom-sheet__foot">
       {#if showSubmit}
         <button
           type="button"
@@ -875,51 +875,19 @@
   }
 
   .sheet {
-    /* v0.3.35 #5 (UAT 0725-3 #11): bottom sheet 形态 (跟 AddSettlementSheet .sheet 同款) -
-       圆角只在顶部 24px, 底部贴屏, max-width 480px, slide-up animation.
-       AddSettlementSheet 用 slideUp 280ms cubic-bezier(0.32, 0.72, 0, 1) (decisive ease). */
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    margin: 0 auto;
-    max-width: 480px;
-    max-height: 92vh;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    background: rgba(255, 255, 255, 0.92);
-    backdrop-filter: saturate(220%) blur(28px);
-    -webkit-backdrop-filter: saturate(220%) blur(28px);
-    border-top-left-radius: 24px;
-    border-top-right-radius: 24px;
-    border: 1px solid rgba(255, 255, 255, 0.7);
-    border-bottom: 0;
-    padding: 8px 16px 0;
-    box-shadow:
-      0 -8px 32px rgba(15, 23, 42, 0.12),
-      inset 0 1px 0 rgba(255, 255, 255, 0.85),
-      /* v0.3.0729-4 #14: 上拉橡皮筋时底部白色延伸，避免与页面底部分离 */
-      0 50vh 0 0 rgba(255, 255, 255, 0.96);
+    /* Shared .sbc-bottom-sheet owns flush bottom / radius / ::after under-fill.
+       Local: z-index, padding, drag touch, animation. */
     z-index: 1000;
-    animation: slideUp 280ms cubic-bezier(0.32, 0.72, 0, 1);
-    display: flex;
-    flex-direction: column;
+    padding: 8px 16px 0;
     gap: 12px;
-    /* v0.3.0728-2 #4 re-fix: 跟 v0.3.0728-2 #21 AddSettlementSheet 同款 — JS 完全接管 touch.
-       删 .sheet-close × button 后, sheet 仅通过 drag-down dismiss 关. touch-action: none
-       让浏览器不 pan, handleTouchMove 内 preventDefault 兑底. */
+    animation: slideUp 280ms cubic-bezier(0.32, 0.72, 0, 1);
     touch-action: none;
     will-change: transform;
   }
   .sheet.dragging {
     transition: none !important;
   }
-  /* v0.3.35 #5: 兼容 Safari iOS < 18 (无 backdrop-filter), fallback bg 加深一档, 跟 modal centered
-     fallback 同样的逻辑. */
   @supports not (backdrop-filter: blur(1px)) {
-    .sheet {
-      background: rgba(255, 255, 255, 0.96);
-    }
     .sheet-backdrop {
       background: rgba(15, 23, 42, 0.55);
     }
@@ -931,14 +899,14 @@
     background: rgba(15, 23, 42, 0.18);
     border-radius: 100px;
     margin: 0 auto 12px;
+    flex-shrink: 0;
   }
-  /* v0.3.0729-3 #2: 删 × 后 sheet-head 回 flex 居中 title (跟 InviteLinkButton 同款).
-     关闭仅靠 backdrop / drag-down / Escape. */
   .sheet-head {
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0 4px 12px;
+    flex-shrink: 0;
   }
   .sheet-title {
     font-size: 17px;
@@ -947,7 +915,6 @@
     letter-spacing: -0.01em;
   }
   .sheet-body {
-    flex: 1;
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -1167,7 +1134,8 @@
      整块 (圆形 FAB 系统已被 inline pill button 取代). PO UAT 0727-1 #10 字面 "删除页面
      左下角的'取消'按钮, 因为在页面右上角已经有了" — 顶部 .sheet-close × button = 关闭. */
   .cta-row {
-    padding: 4px 0 12px;
+    padding-top: 4px;
+    /* padding-bottom from .sbc-bottom-sheet__foot (safe-area) */
   }
   .btn-primary {
     width: 100%;
