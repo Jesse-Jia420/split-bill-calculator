@@ -355,9 +355,9 @@
       if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
         try {
           // @ts-ignore
+          // UAT: 只分享二维码图片, 不附带链接文案 (链接分享走旁边「分享账本链接」按钮).
           await navigator.share({
             title: `${buildQrFilename(sessionName).replace(/\.png$/i, '')}`,
-            text: inviteShareText || '通过此链接可随时回到账本或邀请朋友',
             files: [file],
           });
           dispatch('copy');

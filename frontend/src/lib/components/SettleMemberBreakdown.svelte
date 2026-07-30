@@ -1070,7 +1070,8 @@
      shorthand "0" 临到 .bills-section-paid / -consumed 时只覆盖 color, width 还是 .bills-section
      原 3px). 这样 sheet 是极透明玻璃 + 颜色竖条极淡, 设计锚点保留, 存在感大降. */
   .bills-section-paid { border-left-color: rgba(34, 197, 94, 0.45); }
-  .bills-section-consumed { border-left-color: rgba(40, 40, 40, 0.45); }
+  /* 消费明细: warm stone 色条 — 与副/消费币种 pill 同色系, 区别于付款绿与主色灰 */
+  .bills-section-consumed { border-left-color: rgba(120, 113, 108, 0.55); }
   .bills-section-head {
     margin: 0 0 var(--space-2, 8px);
     /* === v0.3.16 #2: extend sticky bg past container's padding-left (PO msg 14:54) === */
@@ -1158,7 +1159,7 @@
     color: #fff;
   }
   .icon-paid { background: var(--success-500); }
-  .icon-consumed { background: var(--accent-500); }
+  .icon-consumed { background: #78716c; /* stone-500, 对齐消费币种 / 副币种 pill */ }
   .bills-section-title { flex: 0 0 auto; }
   /* v0.3.17 #37: count 显式 14px 跟 chip font-size-md 视觉对位 */
   .bills-section-count { flex: 0 0 auto; font-weight: 400; font-size: var(--font-size-sm, 14px); }

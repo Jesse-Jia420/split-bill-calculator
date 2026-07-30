@@ -229,7 +229,16 @@
 
     const io = new IntersectionObserver(
       ([entry]) => {
-        billsSearchStuck = entry ? !entry.isIntersecting : false;
+        // Sentinel 在首屏下方 (未进视口) 时 isIntersecting=false, 若直接当 stuck
+        // 会把 ::before 玻璃层从搜索框一直铺到 navbar, 盖住成员区 (泰国长账单 UAT).
+        // 仅当 sentinel 从顶部滚出 root 才算真正 sticky.
+        const leftViaTop = Boolean(
+          entry &&
+            !entry.isIntersecting &&
+            entry.rootBounds &&
+            entry.boundingClientRect.top < entry.rootBounds.top
+        );
+        billsSearchStuck = leftViaTop;
         requestAnimationFrame(updateBillsSearchStuckBleed);
       },
       { root: main, rootMargin: '-8px 0px 0px 0px', threshold: 0 }
@@ -1666,13 +1675,12 @@
   /* v0.3.23 #138 (UAT bug #13): 删 .member-row-a:hover 背景变 — 反馈
      "成员 row hover 没意义, 整块颜色变化只是干扰". 删除该规则,
      member-row-a 在 hover 时保持默认背景. */
+  /* UAT: owner / 我 不再给整行底色 (看起来像「选中态」干扰). 身份靠 badge / ring 区分. */
   .member-row-a.is-owner {
-    background: linear-gradient(90deg, rgba(28, 28, 28, 0.04) 0%, transparent 60%);
     border-radius: 10px;
   }
 
   .member-row-a.is-me {
-    background: rgba(58, 58, 58, 0.04);
     border-radius: 10px;
     padding-bottom: 12px; /* room for avatar-bottom me badge */
   }

@@ -593,8 +593,8 @@
              UAT: 主币种 + 副币种同行并排 (跟 multi 编辑态 currency-pair-row 一致). -->
         <section class="field currency-pair-row">
           <div class="currency-pair-col">
-            <label class="field-label">主币种</label>
-            <div class="currency-pair-item currency-pair-item--locked" aria-label="主币种: {primary_currency}">
+            <label class="field-label">结算币种</label>
+            <div class="currency-pair-item currency-pair-item--locked" aria-label="结算币种: {primary_currency}">
               <span class="lock-icon" aria-hidden="true">
                 <Lock size={11} strokeWidth={2.5} />
               </span>
@@ -602,7 +602,7 @@
             </div>
           </div>
           <div class="currency-pair-col">
-            <label class="field-label" for="sbc-secondary-currency">副币种</label>
+            <label class="field-label" for="sbc-secondary-currency">消费币种</label>
             <select
               id="sbc-secondary-currency"
               class="currency-pair-item currency-select"
@@ -637,7 +637,7 @@
               aria-label="汇率 (1 {primary_currency} = X {secondary})"
               data-testid="currency-add-rate"
             />
-            <span class="rate-suffix">{secondary || '副币种'}</span>
+            <span class="rate-suffix">{secondary || '消费币种'}</span>
             <button
               type="button"
               class="rate-refresh"
@@ -676,9 +676,6 @@
               </p>
             </div>
           </div>
-          <p class="hint">
-            如需添加副币种, 请先删除所有账单 (本应用暂不支持)。
-          </p>
         </section>
       {:else if mode === 'multi' && !has_bills}
         <!-- ===== multi + !has_bills: 修改币种设置 (本期仅汇率可改) =====
@@ -686,13 +683,13 @@
              v0.3.19 #85 PO #7731 (#3): 删「修改主/副币种功能开发中...」hint (disables + tooltip 已说明). -->
         <section class="field currency-pair-row">
           <div class="currency-pair-col">
-            <label class="field-label" for="sbc-primary-currency">主币种</label>
+            <label class="field-label" for="sbc-primary-currency">结算币种</label>
             <select
               id="sbc-primary-currency"
               class="currency-pair-item currency-pair-item--locked currency-select"
               bind:value={primary}
               disabled={true}
-              title="改主币种功能开发中 (BE 未支持)"
+              title="改结算币种功能开发中 (BE 未支持)"
               data-testid="currency-edit-primary"
             >
               {#each primary_options as opt}
@@ -701,13 +698,13 @@
             </select>
           </div>
           <div class="currency-pair-col">
-            <label class="field-label" for="sbc-secondary-currency">副币种</label>
+            <label class="field-label" for="sbc-secondary-currency">消费币种</label>
             <select
               id="sbc-secondary-currency"
               class="currency-pair-item currency-select"
               bind:value={secondary}
               disabled={busy}
-              title="选择「—」切回单币种; 选其他币种替换当前副币种"
+              title="选择「—」切回单币种; 选其他币种替换当前消费币种"
               data-testid="currency-edit-secondary"
             >
               <option value="">—</option>
@@ -762,8 +759,8 @@
              CNY ⇄ THB 视觉. reuse .currency-pair-row / .currency-pair-col (multi+!has_bills 同款). -->
         <section class="field currency-pair-row">
           <div class="currency-pair-col">
-            <div class="field-label">主币种</div>
-            <div class="currency-pair-item currency-pair-item--locked" aria-label="主币种: {primary_currency}">
+            <div class="field-label">结算币种</div>
+            <div class="currency-pair-item currency-pair-item--locked" aria-label="结算币种: {primary_currency}">
               <span class="lock-icon" aria-hidden="true">
                 <Lock size={11} strokeWidth={2.5} />
               </span>
@@ -771,8 +768,8 @@
             </div>
           </div>
           <div class="currency-pair-col">
-            <div class="field-label">副币种</div>
-            <div class="currency-pair-item currency-pair-item--locked" aria-label="副币种: {secondary}">
+            <div class="field-label">消费币种</div>
+            <div class="currency-pair-item currency-pair-item--locked" aria-label="消费币种: {secondary}">
               <span class="lock-icon" aria-hidden="true">
                 <Lock size={11} strokeWidth={2.5} />
               </span>

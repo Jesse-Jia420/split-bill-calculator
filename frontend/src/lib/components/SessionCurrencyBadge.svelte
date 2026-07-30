@@ -397,11 +397,13 @@
   }
   .currency-chip.primary {
     background: transparent;
+    /* 与账单列表主币种 pill 字色一致 (charcoal) */
     color: var(--btn-label, var(--logo-ink, #1a1a1a));
   }
   .currency-chip.secondary {
     background: transparent;
-    color: var(--gray-700);
+    /* 与账单列表副币种 / 消费币种 pill 字色一致 (warm stone) */
+    color: #57534e;
   }
 
   .currency-arrow {
