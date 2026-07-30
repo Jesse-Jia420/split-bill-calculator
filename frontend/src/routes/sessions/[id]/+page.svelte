@@ -47,7 +47,7 @@
 </script>
 
 <svelte:head>
-  <title>打开账本 · SplitIt</title>
+  <title>打开账本 · 轻均 FairLite</title>
 </svelte:head>
 
 <main class="container" style="padding-top: 4rem; text-align: center;">

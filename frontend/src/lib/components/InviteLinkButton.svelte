@@ -383,7 +383,7 @@
     if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
       try {
         await navigator.share({
-          title: `SplitIt-快来加入我的${sessionName || ''}账本！`,
+          title: `轻均 FairLite · 快来加入我的${sessionName || ''}账本！`,
           text: '随时随地记账，AA不再烦恼',
           url: inviteUrl,
         });

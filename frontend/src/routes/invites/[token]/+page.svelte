@@ -128,7 +128,7 @@
 </script>
 
 <svelte:head>
-  <title>加入账本 · SplitIt</title>
+  <title>加入账本 · 轻均 FairLite</title>
 </svelte:head>
 
 <main class="container" style="padding-top: 4rem; text-align: center;">

@@ -27,7 +27,7 @@ Snapshot for the public launch prep. Status after the sanitization PR: **much cl
 
 1. i18n or an explicit “Chinese-only product” badge (README already states Chinese-only).
 2. Move `frontend/design-mocks/` (~20MB) to a design archive if the public clone should stay small.
-3. Unify product naming (`SplitIt` vs `split-bill-calculator` vs `sbc`) and a single version source.
+3. Unify product naming (`轻均 FairLite` vs `split-bill-calculator` vs `sbc`) and a single version source.
 4. CODE_OF_CONDUCT if you want community norms stated explicitly.
 5. Accessibility pass on remaining svelte-check warnings.
 

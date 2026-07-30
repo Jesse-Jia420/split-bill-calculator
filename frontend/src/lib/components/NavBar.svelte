@@ -38,7 +38,10 @@
      · 改法用 outer {#if} 包整个 .right div, 不用每个分支单独包, 因为三
        分支 (login btn / login-以保存 / logout btn) 都不该出现在登录页 -->
 <header class="navbar">
-  <a href="/" class="brand">SplitIt</a>
+  <a href="/" class="brand" aria-label="轻均 FairLite">
+    <span class="brand-zh">轻均</span>
+    <span class="brand-en">FairLite</span>
+  </a>
   {#if page.url.pathname !== '/auth/login' && !isLoginPage()}
     <div class="right">
       {#if $user}
@@ -124,14 +127,29 @@
     justify-content: space-between; /* 让 right 按空间收缩/换行，而不是撑出视口 */
   }
   .brand {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.4rem;
     font-weight: 600;
-    font-size: var(--font-size-lg);
     color: var(--color-text);
     text-decoration: none;
     min-width: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .brand-zh {
+    font-family: var(--font-zh);
+    font-size: var(--font-size-lg);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+  .brand-en {
+    font-family: var(--font-en);
+    font-size: 0.78em;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    color: var(--color-text-muted);
   }
   /* v0.3.20 #100 (PO msg 14:37): hover 象牙白替代蓝色. 象牙白 #FFFFF0 在白纸上 = 低对比 = logo hover 时视觉 'fade' — PO 原话 "象牙白色，不要现在的蓝色". */
   /* UAT v0.3.23 #131: hover 颜色不变 (PO brief "hover 颜色不变, 还是黑色"). Default .brand color = var(--color-text) 已黑色, hover 不再覆盖. */
