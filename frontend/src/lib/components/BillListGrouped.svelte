@@ -7,7 +7,7 @@
    *   mockup A 字面执行)。
    * - Row 1 = [+ toggle] [日期] ... [总笔数 badge]
    * - Row 2 = 货币玻璃 chip 行 (单币 1 chip / 双币 2 chip inline-flex + nowrap)
-   * - Row 2 = 货币玻璃 chip (总额 + 该币种人均, 装进同一 pill)
+   * - Row 2 = 货币玻璃 chip 同行; 每个 pill 两行 (总额 / 人均)
    * - (旧 Row 3 人均行已并入 chip)
    * - chip 行主币种 (session.primary_currency) = indigo 玻璃, 副币种 = teal 玻璃
    *   (一眼分主次)
@@ -692,7 +692,7 @@
           <details open={isOpen(g.date)} ontoggle={(e) => onGroupToggle(g.date, e)}>
             <!-- v0.3.18 #68 (PO #6899 ★★★ A): 固定布局 —
                  Row 1 = [日期] ... [总笔数 badge]
-                 Row 2 = 货币玻璃 chip (总额 + 该币种人均同 pill) -->
+                 Row 2 = 货币玻璃 chip 同行; 每个 pill 两行 (总额 / 人均) -->
             <summary class="day-header section-header">
               <div class="day-row-1">
                 <span class="day-date" data-testid="day-date">{formatDate(g.date, { weekday: true })}</span>
@@ -716,13 +716,13 @@
                       class:cc-chip-empty={!total}
                       data-testid="cc-chip"
                     >
-                      <span class="cc-code">{ccy}</span>
-                      <span class="cc-amt">{total ? fmtAmount(total.amount) : '—'}</span>
-                      {#if pc}
-                        <span class="cc-per" data-testid="cc-per">
-                          人均 {fmtAmount(pc.amount)}
-                        </span>
-                      {/if}
+                      <span class="cc-line-1">
+                        <span class="cc-code">{ccy}</span>
+                        <span class="cc-amt">{total ? fmtAmount(total.amount) : '—'}</span>
+                      </span>
+                      <span class="cc-line-2 cc-per" data-testid="cc-per">
+                        {#if pc}人均 {fmtAmount(pc.amount)}{:else}人均 —{/if}
+                      </span>
                     </span>
                   {/each}
                 {:else}
@@ -736,13 +736,13 @@
                       class:cc-chip-secondary={!isPrimary}
                       data-testid="cc-chip"
                     >
-                      <span class="cc-code">{t.ccy}</span>
-                      <span class="cc-amt">{fmtAmount(t.amount)}</span>
-                      {#if pc}
-                        <span class="cc-per" data-testid="cc-per">
-                          人均 {fmtAmount(pc.amount)}
-                        </span>
-                      {/if}
+                      <span class="cc-line-1">
+                        <span class="cc-code">{t.ccy}</span>
+                        <span class="cc-amt">{fmtAmount(t.amount)}</span>
+                      </span>
+                      <span class="cc-line-2 cc-per" data-testid="cc-per">
+                        {#if pc}人均 {fmtAmount(pc.amount)}{:else}人均 —{/if}
+                      </span>
                     </span>
                   {/each}
                 {/if}
@@ -1170,22 +1170,24 @@
     text-shadow: 0 1px 3px rgba(255, 255, 255, 0.8);
   }
 
-  /* === 货币玻璃 chip 行: 总额 + 该币种人均同 pill ===
-     右对齐; 允许 wrap (双币 + 人均后 pill 变宽, 窄屏换行优于挤扁). */
+  /* === 货币玻璃 chip 行: 各 pill 两行 (总额 / 人均), 多币种 pill 强制同一行 === */
   .day-row-2 {
     display: flex;
-    align-items: center;
+    align-items: stretch;
     justify-content: flex-end;
     gap: 6px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     min-height: 30px;
+    min-width: 0;
   }
   .cc-chip {
     display: inline-flex;
-    align-items: baseline;
-    gap: 6px;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 1px;
     padding: 5px 11px;
-    border-radius: 999px;
+    border-radius: 14px;
     background: linear-gradient(135deg, rgba(99, 102, 241, 0.20) 0%, rgba(59, 130, 246, 0.12) 100%);
     backdrop-filter: saturate(180%) blur(12px);
     -webkit-backdrop-filter: saturate(180%) blur(12px);
@@ -1195,7 +1197,14 @@
       0 1px 3px rgba(99, 102, 241, 0.10);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
-    flex-shrink: 0;
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+  .cc-chip .cc-line-1 {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 5px;
+    min-width: 0;
   }
   .cc-chip .cc-code {
     font-size: 10.5px;
@@ -1210,14 +1219,16 @@
     color: #0f172a;
     letter-spacing: -0.2px;
   }
+  .cc-chip .cc-line-2,
   .cc-chip .cc-per {
     font-size: 11px;
     font-weight: 500;
     color: #64748b;
     letter-spacing: -0.01em;
-    padding-left: 2px;
-    border-left: 1px solid rgba(15, 23, 42, 0.10);
-    margin-left: 2px;
+    line-height: 1.2;
+    padding-left: 0;
+    border-left: none;
+    margin-left: 0;
   }
   /* 副币种 chip: teal 玻璃 (一眼分主次) */
   .cc-chip.cc-chip-secondary {
@@ -1229,7 +1240,6 @@
   }
   .cc-chip.cc-chip-secondary .cc-code { color: #0f766e; }
   .cc-chip.cc-chip-secondary .cc-per {
-    border-left-color: rgba(15, 118, 110, 0.18);
     color: #0f766e;
   }
   .cc-chip.cc-chip-empty .cc-amt,
@@ -1245,7 +1255,7 @@
     .day-date { font-size: 14px; }
     .day-count { font-size: 11px; padding: 2px 7px; }
     .day-row-2 { gap: 4px; min-height: 26px; }
-    .cc-chip { padding: 4px 8px; gap: 4px; }
+    .cc-chip { padding: 4px 8px; gap: 0; border-radius: 12px; }
     .cc-chip .cc-code { font-size: 10px; }
     .cc-chip .cc-amt { font-size: 12px; }
     .cc-chip .cc-per { font-size: 10px; }
@@ -1258,7 +1268,7 @@
     .day-date { font-size: 17px; }
     .day-count { font-size: 13px; padding: 4px 11px; }
     .day-row-2 { gap: 8px; min-height: 34px; }
-    .cc-chip { padding: 6px 14px; }
+    .cc-chip { padding: 6px 14px; border-radius: 16px; }
     .cc-chip .cc-code { font-size: 11.5px; }
     .cc-chip .cc-amt { font-size: 15px; }
     .cc-chip .cc-per { font-size: 12px; }
