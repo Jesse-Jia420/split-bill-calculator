@@ -7,7 +7,8 @@
    *   mockup A 字面执行)。
    * - Row 1 = [+ toggle] [日期] ... [总笔数 badge]
    * - Row 2 = 货币玻璃 chip 行 (单币 1 chip / 双币 2 chip inline-flex + nowrap)
-   * - Row 3 = 人均行 (单币 "人均 X CNY" / 双币 "人均 X CNY + Y THB")
+   * - Row 2 = 货币玻璃 chip (总额 + 该币种人均, 装进同一 pill)
+   * - (旧 Row 3 人均行已并入 chip)
    * - chip 行主币种 (session.primary_currency) = indigo 玻璃, 副币种 = teal 玻璃
    *   (一眼分主次)
    * - chip 行用 flex-wrap: nowrap + overflow:hidden + text-overflow:ellipsis,
@@ -689,11 +690,9 @@
       {#each groups as g, gi (g.date)}
         <li class="day-group" in:fly={{ y: 8, duration: 220, delay: Math.min(gi * 40, 240) }}>
           <details open={isOpen(g.date)} ontoggle={(e) => onGroupToggle(g.date, e)}>
-            <!-- v0.3.18 #68 (PO #6899 ★★★ A): 固定 3 行布局 —
-                 单币/双币 group 高度 100% 一致, 滚动节奏齐.
-                 Row 1 = [+ toggle] [日期] ... [总笔数 badge]
-                 Row 2 = 货币玻璃 chip 行 (1-2 个 chip, inline-flex + nowrap)
-                 Row 3 = 人均行 -->
+            <!-- v0.3.18 #68 (PO #6899 ★★★ A): 固定布局 —
+                 Row 1 = [日期] ... [总笔数 badge]
+                 Row 2 = 货币玻璃 chip (总额 + 该币种人均同 pill) -->
             <summary class="day-header section-header">
               <div class="day-row-1">
                 <span class="day-date" data-testid="day-date">{formatDate(g.date, { weekday: true })}</span>
@@ -707,6 +706,7 @@
                 {#if currencies && currencies.length > 0}
                   {#each currencies as ccy}
                     {@const total = g.currencyTotals.find(t => t.ccy === ccy)}
+                    {@const pc = g.perCapitaBreakdown.find(p => p.ccy === ccy)}
                     {@const isPrimary = (primaryCurrency !== null && primaryCurrency !== undefined)
                       ? ccy === primaryCurrency
                       : false}
@@ -718,10 +718,16 @@
                     >
                       <span class="cc-code">{ccy}</span>
                       <span class="cc-amt">{total ? fmtAmount(total.amount) : '—'}</span>
+                      {#if pc}
+                        <span class="cc-per" data-testid="cc-per">
+                          人均 {fmtAmount(pc.amount)}
+                        </span>
+                      {/if}
                     </span>
                   {/each}
                 {:else}
                   {#each g.currencyTotals as t, ti (t.ccy)}
+                    {@const pc = g.perCapitaBreakdown.find(p => p.ccy === t.ccy)}
                     {@const isPrimary = (primaryCurrency !== null && primaryCurrency !== undefined)
                       ? t.ccy === primaryCurrency
                       : ti === 0}
@@ -732,28 +738,13 @@
                     >
                       <span class="cc-code">{t.ccy}</span>
                       <span class="cc-amt">{fmtAmount(t.amount)}</span>
+                      {#if pc}
+                        <span class="cc-per" data-testid="cc-per">
+                          人均 {fmtAmount(pc.amount)}
+                        </span>
+                      {/if}
                     </span>
                   {/each}
-                {/if}</div>
-              <div class="day-row-3">
-                {#if g.perCapitaBreakdown.length === 1}
-                  {@const pc = g.perCapitaBreakdown[0]}
-                  <!-- v0.3.20 #92 (PO msg 07:13 #7409): 单币场景 (1 个 perCapitaBreakdown entry) —
-                       "人均 X CNY". 无论 session currencies 是 1 还是 2, 都按实际账单数据展示. -->
-                  <span class="muted">
-                    人均 <strong>{fmtAmount(pc.amount) + ' ' + pc.ccy}</strong>
-                  </span>
-                {:else if g.perCapitaBreakdown.length > 1}
-                  <!-- v0.3.20 #92 (PO msg 07:13 #7409): 双币/多币 dedupe — 单一 "人均" label,
-                       多币种值合并到同一 <strong> (用 " · " 分隔).
-                       迭代 g.perCapitaBreakdown (实际有账单数据的币种) 而不是 session currencies,
-                       避免空币种渲染为 "—". -->
-                  <span class="muted">
-                    人均 <strong>{#each g.perCapitaBreakdown as pc, i (pc.ccy)}{#if i > 0} · {/if}{fmtAmount(pc.amount) + ' ' + pc.ccy}{/each}</strong>
-                  </span>
-                {:else}
-                  <!-- v0.3.18 #68: 没有 per-capita 数据时 fallback -->
-                  <span class="muted">人均 <strong>—</strong></span>
                 {/if}
               </div>
             </summary>
@@ -1179,21 +1170,19 @@
     text-shadow: 0 1px 3px rgba(255, 255, 255, 0.8);
   }
 
-  /* === v0.3.18 #68: Row 2 = 货币玻璃 chip 行 ===
-     v0.3.20 #92 (PO msg 07:13 #7409): 右对齐 (justify-content: flex-end), 跟 row1 chevron 右侧对齐,
-     单/双币统一右对齐. 仍 nowrap + overflow:hidden, 极窄屏 320px 自动 ellipsis (永不换行到第 4 行). */
+  /* === 货币玻璃 chip 行: 总额 + 该币种人均同 pill ===
+     右对齐; 允许 wrap (双币 + 人均后 pill 变宽, 窄屏换行优于挤扁). */
   .day-row-2 {
     display: flex;
     align-items: center;
     justify-content: flex-end;
     gap: 6px;
-    flex-wrap: nowrap;
-    overflow: hidden;
+    flex-wrap: wrap;
     min-height: 30px;
   }
   .cc-chip {
     display: inline-flex;
-    align-items: center;
+    align-items: baseline;
     gap: 6px;
     padding: 5px 11px;
     border-radius: 999px;
@@ -1206,8 +1195,7 @@
       0 1px 3px rgba(99, 102, 241, 0.10);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
-    flex-shrink: 1;
-    min-width: 0;
+    flex-shrink: 0;
   }
   .cc-chip .cc-code {
     font-size: 10.5px;
@@ -1221,9 +1209,15 @@
     font-weight: 700;
     color: #0f172a;
     letter-spacing: -0.2px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    min-width: 0;
+  }
+  .cc-chip .cc-per {
+    font-size: 11px;
+    font-weight: 500;
+    color: #64748b;
+    letter-spacing: -0.01em;
+    padding-left: 2px;
+    border-left: 1px solid rgba(15, 23, 42, 0.10);
+    margin-left: 2px;
   }
   /* 副币种 chip: teal 玻璃 (一眼分主次) */
   .cc-chip.cc-chip-secondary {
@@ -1234,23 +1228,13 @@
       0 1px 3px rgba(20, 184, 166, 0.10);
   }
   .cc-chip.cc-chip-secondary .cc-code { color: #0f766e; }
-
-  /* === v0.3.18 #68: Row 3 = 人均行 ===
-     v0.3.20 #92 (PO msg 07:13 #7409): 右对齐 (justify-content: flex-end), 跟 row2 chips 右侧对齐.
-     双币场景 Fix 4 也合并到单一 "人均" label, 这里右对齐让 values 视觉聚合. */
-  .day-row-3 {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 10px;
-    font-size: 12px;
-    color: #64748b;
-    font-weight: 500;
+  .cc-chip.cc-chip-secondary .cc-per {
+    border-left-color: rgba(15, 118, 110, 0.18);
+    color: #0f766e;
   }
-  .day-row-3 .muted strong {
-    color: #334155;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
+  .cc-chip.cc-chip-empty .cc-amt,
+  .cc-chip.cc-chip-empty .cc-per {
+    opacity: 0.55;
   }
 
   /* === v0.3.18 #68 续: 320px 极窄屏 chip 缩号 === */
@@ -1264,7 +1248,7 @@
     .cc-chip { padding: 4px 8px; gap: 4px; }
     .cc-chip .cc-code { font-size: 10px; }
     .cc-chip .cc-amt { font-size: 12px; }
-    .day-row-3 { font-size: 11px; }
+    .cc-chip .cc-per { font-size: 10px; }
   }
   /* === v0.3.18 #68 续: 768px tablet chip 微放大 === */
   @media (min-width: 720px) {
@@ -1277,7 +1261,7 @@
     .cc-chip { padding: 6px 14px; }
     .cc-chip .cc-code { font-size: 11.5px; }
     .cc-chip .cc-amt { font-size: 15px; }
-    .day-row-3 { font-size: 13.5px; }
+    .cc-chip .cc-per { font-size: 12px; }
   }
 
   .unit {
