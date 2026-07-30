@@ -247,8 +247,8 @@
     };
   });
 
-  /** Scroll chrome: when session title scrolls under the navbar, surface it in NavBar
-   *  and collapse auth controls into the avatar menu. Restore when scrolled back. */
+  /** Scroll chrome: when session title scrolls under the navbar, surface it on the
+   *  right of NavBar (logo stays). Restore when scrolled back. */
   let sessionTitleEl = $state<HTMLElement | null>(null);
   $effect(() => {
     if (!browser || !session || !sessionTitleEl) {
@@ -257,24 +257,38 @@
     }
     const titleText = session.name ?? '';
     const titleNode = sessionTitleEl;
+    let lastCompact: boolean | null = null;
+    let raf = 0;
 
     const sync = () => {
+      raf = 0;
       const nav = document.querySelector('.navbar');
       const navBottom =
         nav instanceof HTMLElement ? nav.getBoundingClientRect().bottom : 56;
       const rect = titleNode.getBoundingClientRect();
-      // Title has scrolled under (or tightly against) the navbar → compact.
-      const compact = rect.bottom <= navBottom + 2;
-      setNavbarLedgerChrome(titleText, compact);
-      titleNode.classList.toggle('session-title-away', compact);
+      // Hysteresis: enter compact a bit earlier, leave a bit later — cuts edge flicker.
+      const enterAt = navBottom + 2;
+      const leaveAt = navBottom + 14;
+      const next =
+        lastCompact === true
+          ? rect.bottom <= leaveAt
+          : rect.bottom <= enterAt;
+      if (next === lastCompact) return;
+      lastCompact = next;
+      setNavbarLedgerChrome(titleText, next);
+      titleNode.classList.toggle('session-title-away', next);
     };
 
     const main = document.querySelector('main.page') ?? document.querySelector('main');
     sync();
-    const onScroll = () => requestAnimationFrame(sync);
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(sync);
+    };
     main?.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onScroll);
     return () => {
+      if (raf) cancelAnimationFrame(raf);
       main?.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', onScroll);
       resetNavbarChrome();
@@ -929,16 +943,15 @@
                   aria-hidden="true"
                 >
                   {avatarLetter(m.display_name)}
+                  {#if isMe}
+                    <span class="me-badge-a">me</span>
+                  {/if}
                 </div>
                 <div class="member-info-a">
                   <div class="member-name-row-a">
                     <span class="member-name-a">{m.display_name}</span>
-                    {#if m.role === 'owner' && isMe}
-                      <span class="me-dot-a">me · owner</span>
-                    {:else if m.role === 'owner'}
+                    {#if m.role === 'owner'}
                       <span class="owner-tag-a">owner</span>
-                    {:else if isMe}
-                      <span class="me-dot-a">me</span>
                     {/if}
                   </div>
                   <div class="member-meta-a">
@@ -1253,13 +1266,13 @@
   /* v0.3.2 §3.12.3: `.session-header-actions` 整段删除 — 相关 CSS 也清理。
      保留是为了让后续 retro 引用，注释占位。*/
 
-  /* Title floats into NavBar when scrolled under — soften in-page copy while compact. */
+  /* In-page title softens when mirrored in the navbar — opacity only (no transform)
+     so it does not fight scroll compositing. */
   .session-title {
-    transition: opacity 180ms ease, transform 180ms ease;
+    transition: opacity 280ms cubic-bezier(0.22, 1, 0.36, 1);
   }
   .session-title.session-title-away {
-    opacity: 0.18;
-    transform: translateY(-4px);
+    opacity: 0.28;
   }
 
   /* §3.11 收尾: 详情页 header owner info 样式 */
@@ -1773,7 +1786,7 @@
     word-break: break-word;
     line-height: 1.3;
   }
-  /* owner tag (只有 owner 是别人时显示) — 紫色玻璃 pill */
+  /* owner tag — 昵称右侧仅标 owner */
   .owner-tag-a {
     display: inline-block;
     font-size: 10px;
@@ -1784,23 +1797,26 @@
     color: #6d28d9;
     line-height: 1.3;
   }
-  /* me 微章 — 蓝色圆点 + 文字, owner+me 同行时显示 "me · owner" */
-  .me-dot-a {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    font-size: 10px;
-    color: var(--accent-700, #1d4ed8);
-    font-weight: 600;
+  /* me badge — 贴在头像下缘, 不占昵称行 */
+  .me-badge-a {
+    position: absolute;
+    left: 50%;
+    bottom: -5px;
+    transform: translateX(-50%);
+    z-index: 1;
+    font-size: 9px;
+    font-weight: 700;
     line-height: 1;
-  }
-  .me-dot-a::before {
-    content: "";
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--accent-500, #3b82f6);
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.18);
+    letter-spacing: 0.02em;
+    padding: 2px 5px;
+    border-radius: 999px;
+    background: #3b82f6;
+    color: #fff;
+    box-shadow:
+      0 0 0 2px #fff,
+      0 1px 3px rgba(37, 99, 235, 0.35);
+    pointer-events: none;
+    white-space: nowrap;
   }
 
   /* Meta row — net 13px 首位 + email 不截断 */

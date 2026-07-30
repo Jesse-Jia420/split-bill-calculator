@@ -79,10 +79,7 @@
     <a
       href="/"
       class="brand"
-      class:brand-hidden={compact}
       aria-label="轻均 FairLite"
-      aria-hidden={compact ? 'true' : undefined}
-      tabindex={compact ? -1 : 0}
     >
       <span class="brand-zh" aria-hidden="true">
         <span class="brand-zh-inner">
@@ -92,16 +89,20 @@
       </span>
       <span class="brand-en">FairLite</span>
     </a>
-
-    {#if compact && ledgerTitle}
-      <div class="ledger-title" data-testid="navbar-ledger-title" title={ledgerTitle}>
-        {ledgerTitle}
-      </div>
-    {/if}
   </div>
 
   {#if page.url.pathname !== '/auth/login' && !isLoginPage()}
     <div class="right" class:right-compact={compact}>
+      <!-- Keep mounted while a ledger title exists so enter/exit can transition smoothly -->
+      <div
+        class="ledger-title"
+        class:visible={compact && !!ledgerTitle}
+        data-testid="navbar-ledger-title"
+        title={ledgerTitle ?? undefined}
+        aria-hidden={compact && ledgerTitle ? undefined : 'true'}
+      >
+        {ledgerTitle ?? ''}
+      </div>
       {#if compact}
         <!-- Compact: nickname / auth actions collapse into avatar menu -->
         <div class="avatar-menu" bind:this={menuRoot}>
@@ -229,16 +230,8 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    transition: opacity 180ms ease, transform 180ms ease, max-width 180ms ease;
     max-width: 14rem;
-  }
-  .brand.brand-hidden {
-    opacity: 0;
-    transform: translateY(-4px) scale(0.96);
-    max-width: 0;
-    pointer-events: none;
-    margin: 0;
-    gap: 0;
+    flex-shrink: 0;
   }
 
   .brand-zh {
@@ -302,43 +295,57 @@
     color: var(--color-text-muted);
   }
 
-  .ledger-title {
-    font-family: var(--font-zh);
-    font-size: 1.02rem;
-    font-weight: 600;
-    letter-spacing: -0.01em;
-    color: var(--gray-900);
-    line-height: 1.2;
-    min-width: 0;
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    animation: titleIn 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
-  }
-  @keyframes titleIn {
-    from {
-      opacity: 0;
-      transform: translateY(8px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
   .right {
     display: flex;
     align-items: center;
     gap: var(--space-2);
     margin-left: auto;
     min-width: 0;
-    flex: 0 0 auto;
+    flex: 0 1 auto;
     flex-wrap: wrap;
     justify-content: flex-end;
+    position: relative;
   }
   .right.right-compact {
     flex-wrap: nowrap;
+  }
+
+  /* Ledger title on the right (left of avatar). Logo stays left.
+     Absolute so show/hide doesn't relayout the brand; GPU opacity/transform only. */
+  .ledger-title {
+    position: absolute;
+    right: calc(36px + var(--space-2, 8px));
+    top: 50%;
+    font-family: var(--font-zh);
+    font-size: 0.95rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--gray-900);
+    line-height: 1.2;
+    max-width: min(46vw, 12.5rem);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: right;
+    opacity: 0;
+    transform: translate3d(12px, -50%, 0);
+    pointer-events: none;
+    visibility: hidden;
+    will-change: opacity, transform;
+    transition:
+      opacity 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s linear 280ms;
+  }
+  .ledger-title.visible {
+    opacity: 1;
+    transform: translate3d(0, -50%, 0);
+    pointer-events: auto;
+    visibility: visible;
+    transition:
+      opacity 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s linear 0s;
   }
   .email {
     color: var(--color-text-muted);
