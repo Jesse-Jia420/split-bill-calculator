@@ -629,26 +629,13 @@
   onsubmit={handleSubmit}
   onkeydown={handleFormKeyDown}
 >
-  <!-- Sheet layout: 金额+币种同一控制行; 时间+付款人等宽两列; 统一 label→control 节奏. -->
+  <!-- Sheet layout:
+       金额: label 行右侧挂币种 pill, 金额框全宽 (多币种也不挤控制行)
+       时间+付款人: 等宽两列; 与金额区间用更大 section gap 拉开 -->
   {#if isSheet}
     <div class="field field-amount-block">
-      <label class="label" for="amount">金额</label>
-      <div class="amount-currency-row">
-        <div class="amount-currency-main">
-          <AmountCalculatorInput
-            {amount}
-            initialValue={amountExpression}
-            initialAmount={amount}
-            {currency}
-            disabled={submitting}
-            error={amountError}
-            on:confirm={(e) => {
-              amount = e.detail.value;
-              amountExpression = e.detail.expression;
-              amountError = false;
-            }}
-          />
-        </div>
+      <div class="amount-label-row">
+        <label class="label" for="amount">金额</label>
         <div
           class="currency-pills currency-pills-inline"
           role="radiogroup"
@@ -668,6 +655,19 @@
           {/each}
         </div>
       </div>
+      <AmountCalculatorInput
+        {amount}
+        initialValue={amountExpression}
+        initialAmount={amount}
+        {currency}
+        disabled={submitting}
+        error={amountError}
+        on:confirm={(e) => {
+          amount = e.detail.value;
+          amountExpression = e.detail.expression;
+          amountError = false;
+        }}
+      />
     </div>
 
     <div class="field-grid field-grid-time-payer" data-testid="bill-time-payer-row">
@@ -1281,15 +1281,15 @@
   }
 
   /* Bottom-sheet form layout (BillSheet) — single vertical rhythm:
-     section gap 16 · label→control 6 · equal meta columns · matched control height 44. */
+     section gap 22 · label→control 8 · equal meta columns · matched control height 44. */
   .stack.sheet-layout {
     padding-bottom: 4px;
-    gap: 16px;
+    gap: 22px;
   }
   .sheet-layout .field {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
     min-width: 0;
   }
   .sheet-layout .label {
@@ -1301,42 +1301,47 @@
     line-height: 1.2;
   }
 
-  /* 金额 + 币种: 同一控制行, 币种贴金额框右侧, 不再与「付款人」label 抢垂直位 */
-  .sheet-layout .amount-currency-row {
+  /* 金额: 「金额」与币种 pill 同行; 金额输入独占下一行全宽 */
+  .sheet-layout .amount-label-row {
     display: flex;
-    align-items: stretch;
-    gap: 8px;
-    min-width: 0;
-    width: 100%;
-  }
-  .sheet-layout .amount-currency-main {
-    flex: 1 1 auto;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
     min-width: 0;
   }
-  .sheet-layout .amount-currency-main :global(.amount-calc) {
+  .sheet-layout .amount-label-row .label {
+    flex: 0 0 auto;
+  }
+  .sheet-layout .field-amount-block :global(.amount-calc) {
     gap: 0;
   }
   .sheet-layout .currency-pills-inline {
-    flex: 0 0 auto;
+    flex: 0 1 auto;
     margin-top: 0;
     flex-wrap: nowrap;
-    align-items: stretch;
-    align-self: stretch;
+    justify-content: flex-end;
+    gap: 6px;
+    max-width: 70%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .sheet-layout .currency-pills-inline::-webkit-scrollbar {
+    display: none;
   }
   .sheet-layout .currency-pills-inline .currency-pill {
     box-sizing: border-box;
-    height: 44px;
-    min-height: 44px;
-    padding: 0 12px;
+    height: 28px;
+    min-height: 28px;
+    padding: 0 10px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
     letter-spacing: 0.02em;
   }
 
-  /* 时间 + 付款人: 等宽两列, 与金额区块用 stack gap 拉开 */
+  /* 时间 + 付款人: 等宽两列; stack gap 已与金额区拉开 */
   .sheet-layout .field-grid {
     display: grid;
     gap: 12px;
