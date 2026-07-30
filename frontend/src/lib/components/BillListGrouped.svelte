@@ -3,16 +3,13 @@
    * v0.3.18 #68 (2026-07-20) — 账单时间 header 单/双币统一 (PO #6899 ★★★ A)。
    *
    * 本次 polish (v0.3.18 #68):
-   * - 固定 3 行布局: 单/双币 group header 高度 100% 一致 (反 #121 自决, 跟 Designer
-   *   mockup A 字面执行)。
-   * - Row 1 = [+ toggle] [日期] ... [总笔数 badge]
-   * - Row 2 = 货币玻璃 chip 行 (单币 1 chip / 双币 2 chip inline-flex + nowrap)
+   * - 固定布局: 单/双币 group header 结构一致
+   * - Row 1 = [日期] ... [总笔数 badge]
    * - Row 2 = 货币玻璃 chip 同行; 每个 pill 两行 (总额 / 人均)
    * - (旧 Row 3 人均行已并入 chip)
    * - chip 行主币种 (session.primary_currency) = indigo 玻璃, 副币种 = teal 玻璃
    *   (一眼分主次)
-   * - chip 行用 flex-wrap: nowrap + overflow:hidden + text-overflow:ellipsis,
-   *   320px 极窄屏下双币自动 ellipsis, 不再换行成第 4 行
+   * - chip 行 flex-wrap: nowrap, 双币同排不换行
    * - "+" toggle 改 22×22 圆形 indigo 0.10 bg (跟 v0.3.17 #19 圆形按钮族一致),
    *   不用 absolute 定位 (放在 row-1 flex 头)
    *
