@@ -244,6 +244,15 @@
 
   const BRAND_BOOK_TITLE = '「轻均 FairLite」';
 
+  /** 复制 / 分享账本链接正文（品牌 + 账本名 + URL + 用途说明）. */
+  function buildInviteShareText(name: string, url: string): string {
+    const trimmed = (name ?? '').trim();
+    const namePart = trimmed ? `${trimmed} ` : '';
+    return `${BRAND_BOOK_TITLE} ${namePart}账本链接 ${url} 通过此链接可随时回到账本或邀请朋友`;
+  }
+
+  $: inviteShareText = inviteUrl ? buildInviteShareText(sessionName, inviteUrl) : '';
+
   /** v0.3.0728-3 #2: 净化 QR 文件名 — 剔除非法字符 + 控制字符 + 过长截断 + 空 fallback.
    * 品牌书名号前缀不经 sanitize（保留空格与《》）. */
   function buildQrFilename(name: string): string {
@@ -258,12 +267,12 @@
       : `${BRAND_BOOK_TITLE}账本二维码.png`;
   }
 
-  /** v0.3.24 #14: extract copy logic for readability. */
-  async function copyToClipboard(url: string): Promise<boolean> {
+  /** 复制文本到剪贴板（账本链接分享文案 / 兜底）. */
+  async function copyToClipboard(text: string): Promise<boolean> {
     let ok = false;
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(url);
+        await navigator.clipboard.writeText(text);
         ok = true;
       }
     } catch {
@@ -272,7 +281,7 @@
     if (!ok) {
       try {
         const ta = document.createElement('textarea');
-        ta.value = url;
+        ta.value = text;
         ta.style.position = 'fixed';
         ta.style.left = '-9999px';
         ta.style.top = '0';
@@ -289,10 +298,9 @@
   }
 
   async function handleInviteClick() {
-    const url = inviteUrl;
-    if (!url) return;
+    if (!inviteUrl || !inviteShareText) return;
 
-    const ok = await copyToClipboard(url);
+    const ok = await copyToClipboard(inviteShareText);
     // 始终打开分享卡片（含品牌化二维码）；复制失败时仍可扫码 / 点链接重试
     modalOpen = true;
     dispatch('open');
@@ -310,11 +318,11 @@
     }, 10000);
   }
 
-  /** v0.3.36 #5: URL chip click → 重新复制 invite URL. */
+  /** URL chip click → 重新复制带说明的账本链接文案. */
   async function handleUrlChipClick(e: MouseEvent) {
     e.stopPropagation();
-    if (!inviteUrl) return;
-    const ok = await copyToClipboard(inviteUrl);
+    if (!inviteShareText) return;
+    const ok = await copyToClipboard(inviteShareText);
     if (ok) {
       toast.success('已重新复制链接');
       dispatch('copy');
@@ -349,7 +357,7 @@
           // @ts-ignore
           await navigator.share({
             title: `${buildQrFilename(sessionName).replace(/\.png$/i, '')}`,
-            text: '随时随地记账，AA不再烦恼',
+            text: inviteShareText || '通过此链接可随时回到账本或邀请朋友',
             files: [file],
           });
           dispatch('copy');
@@ -375,14 +383,17 @@
   /** v0.3.37 #5 #4: PWA 引导行动 — Web Share API (mobile) 或复制链接 (desktop fallback).
    * v0.3.0728-2 #5: 现仅用作 3-button row 第 3 个按钮 "分享账本链接" 的 handler. */
   async function handlePwaAction() {
-    if (!inviteUrl) return;
+    if (!inviteUrl || !inviteShareText) return;
     // 优先 Web Share API (mobile + Chrome desktop 都支持)
+    // 正文含 URL，不再单独传 url，避免部分 App 重复贴两遍链接
     if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
       try {
+        const trimmed = (sessionName ?? '').trim();
         await navigator.share({
-          title: `${BRAND_BOOK_TITLE} · 快来加入我的${sessionName || ''}账本！`,
-          text: '随时随地记账，AA不再烦恼',
-          url: inviteUrl,
+          title: trimmed
+            ? `${BRAND_BOOK_TITLE} ${trimmed} 账本链接`
+            : `${BRAND_BOOK_TITLE} 账本链接`,
+          text: inviteShareText,
         });
         dispatch('copy');
         return;
@@ -395,8 +406,8 @@
         }
       }
     }
-    // fallback: 复制链接 + toast
-    const ok = await copyToClipboard(inviteUrl);
+    // fallback: 复制带说明的链接文案 + toast
+    const ok = await copyToClipboard(inviteShareText);
     if (ok) {
       toast.success('链接已复制, 可粘贴分享');
       dispatch('copy');

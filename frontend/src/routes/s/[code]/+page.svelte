@@ -633,21 +633,27 @@
     }
   }
 
-  // T14: copy invite link to clipboard (EmptyState CTA 用)
+  // T14: copy invite / session link to clipboard (EmptyState CTA 用)
   let copyingInvite = $state(false);
   async function copyInviteLink() {
     if (!session) return;
     copyingInvite = true;
     try {
-      const preview = session.invite_token_preview ?? '';
-      const url = `${window.location.origin}/invites/${preview}`;
+      const code = session.session_code ?? '';
+      const url = code
+        ? `${window.location.origin}/s/${code}`
+        : `${window.location.origin}/sessions/${session.id}`;
+      const name = (session.name ?? '').trim();
+      const namePart = name ? `${name} ` : '';
+      const text =
+        `「轻均 FairLite」 ${namePart}账本链接 ${url} 通过此链接可随时回到账本或邀请朋友`;
       try {
-        await navigator.clipboard.writeText(url);
+        await navigator.clipboard.writeText(text);
         toast.success('邀请链接已复制');
       } catch {
         // 兜底:用 textarea + execCommand
         const ta = document.createElement('textarea');
-        ta.value = url;
+        ta.value = text;
         document.body.appendChild(ta);
         ta.select();
         try {
