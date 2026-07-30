@@ -1681,6 +1681,7 @@
   .member-row-a.is-me {
     background: rgba(59, 130, 246, 0.04);
     border-radius: 10px;
+    padding-bottom: 12px; /* room for avatar-bottom me badge */
   }
 
   /* Avatar — 36px, 5 色循环 (indigo/pink/emerald/amber/blue) + owner 紫色 ring */
@@ -1699,6 +1700,7 @@
     font-size: 13px;
     flex-shrink: 0;
     position: relative;
+    overflow: visible;
     border: 2px solid rgba(255, 255, 255, 0.5);
     /* Option B: backdrop-filter (与 palette 0.88 alpha 渐变配合) */
     backdrop-filter: blur(4px) saturate(180%);
