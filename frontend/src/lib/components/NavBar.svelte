@@ -127,24 +127,26 @@
           {/if}
           <button class="ghost btn-sm" onclick={handleLogout} tabindex={compact ? -1 : 0}>注销登录</button>
         {:else if guestSaveLabel}
-          {#if anonSaveHint && !compact}
-            <span class="nav-anon-hint" data-testid="invite-anon-hint">
-              <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-              </svg>
-              <span class="nav-anon-hint-text">
-                <span class="line-1">当前未登录 请收藏此链接</span>
-                <span class="line-2">这是回到账本的唯一密钥</span>
+          <div class="nav-guest-save">
+            {#if anonSaveHint && !compact}
+              <span class="nav-anon-hint" data-testid="invite-anon-hint">
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+                <span class="nav-anon-hint-text">
+                  <span class="line-1">当前未登录 请收藏此链接</span>
+                  <span class="line-2">这是回到账本的唯一密钥</span>
+                </span>
               </span>
-            </span>
-          {/if}
-          <a
-            href={loginHref}
-            class="btn-sm"
-            data-testid="navbar-login-save"
-            tabindex={compact ? -1 : 0}
-          >登录以保存</a>
+            {/if}
+            <a
+              href={loginHref}
+              class="btn-sm"
+              data-testid="navbar-login-save"
+              tabindex={compact ? -1 : 0}
+            >登录以保存</a>
+          </div>
         {:else if !inSession()}
           <a href="/auth/login" class="btn-sm" tabindex={compact ? -1 : 0}>登录</a>
         {/if}
