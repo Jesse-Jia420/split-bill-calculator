@@ -49,3 +49,16 @@ backend/data/sbc.db.pre-restore-*
 
 # Local verify artifacts (Playwright snapshots, sanity check outputs)
 .verify-*.png
+
+# Agent / UAT scratch (never commit)
+.uat_*
+.uat_*/*
+*.bak
+*.b64
+frontend/test-failed.*
+frontend/screenshot-*.png
+
+# Local tooling
+backend/.ruff_cache/
+backend/.pytest_cache/
+frontend/.svelte-kit/

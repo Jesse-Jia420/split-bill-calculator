@@ -80,7 +80,7 @@ test("JOURNEY (anon, no secret): /invites/{token} → /join → claim slot → /
   // ===== 第 1 幕: Setup — owner 创建 session + 拿 invite token =====
   // Owner 用 cookie 注入登录, 因为这只为 set up 测试 fixture.
   // 真正的 anon journey 在独立的 fresh context 里跑.
-  const owner = ensureUserAndToken("invite-anon.owner@jessejia.local");
+  const owner = ensureUserAndToken("invite-anon.owner@local.test");
   const ownerCtx: BrowserContext = await browser.newContext({
     ignoreHTTPSErrors: true,
   });
@@ -200,7 +200,7 @@ test("JOURNEY (anon, new role): /invites/{token} → /join → 新建一个角�
   browser,
 }) => {
   // ===== 第 1 幕: Setup — owner creates session with placeholders =====
-  const owner = ensureUserAndToken("invite-anon-new.owner@jessejia.local");
+  const owner = ensureUserAndToken("invite-anon-new.owner@local.test");
   const ownerCtx: BrowserContext = await browser.newContext({
     ignoreHTTPSErrors: true,
   });

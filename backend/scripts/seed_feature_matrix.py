@@ -547,7 +547,7 @@ def seed_feature_matrix(
     created.append({
         "name": mem.name,
         "id": mem.id,
-        "login_as": "xinhua1001=Member; owner=matrix-ju@local.test",
+        "login_as": "demo@example.com=Member; owner=matrix-ju@local.test",
     })
 
     return {"feature_matrix": created, "count": len(created)}

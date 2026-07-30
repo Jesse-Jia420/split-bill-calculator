@@ -37,15 +37,12 @@ from app.main import app
 
 @pytest.fixture(autouse=True)
 def _truncate_auth_tables():
-
-    # v0.2.2 anti-pattern #53b: skip truncate when SBC_SKIP_TEST_TRUNCATE=1
+    """Reset users / auth_tokens / verification_codes between tests."""
     import os as _os
     if _os.environ.get("SBC_SKIP_TEST_TRUNCATE") == "1":
         yield
         return
 
-def _truncate_auth_tables():
-    """Reset users / auth_tokens / verification_codes between tests."""
     db = SessionLocal()
     try:
         db.query(AuthToken).delete()
@@ -94,13 +91,13 @@ class TestBypassSetMembership:
     """The bypass set must contain the live test email."""
 
     def test_bypass_email_in_dev_set(self):
-        assert "xinhua1001@outlook.com" in DEV_BYPASS_EMAILS
+        assert "demo@example.com" in DEV_BYPASS_EMAILS
 
     def test_bypass_set_is_lowercased(self):
         # The CSV loader lowercases entries; sanity check that the
         # canonical email is reachable regardless of source casing.
         assert all(e == e.lower() for e in DEV_BYPASS_EMAILS)
-        assert "XINHUA1001@OUTLOOK.COM" not in DEV_BYPASS_EMAILS
+        assert "DEMO@EXAMPLE.COM" not in DEV_BYPASS_EMAILS
 
 
 class TestBypassSendCodeAndVerifyCode:
@@ -110,7 +107,7 @@ class TestBypassSendCodeAndVerifyCode:
         self, client: TestClient, db
     ) -> None:
         """send-code on a bypass email: 200 + no row written + no SMTP."""
-        email = "xinhua1001@outlook.com"
+        email = "demo@example.com"
 
         with patch("app.api.auth.EmailService") as mock_cls:
             r = client.post("/auth/send-code", json={"email": email})
@@ -131,7 +128,7 @@ class TestBypassSendCodeAndVerifyCode:
         self, client: TestClient, db
     ) -> None:
         """verify-code on a bypass email: any 6-digit code => 200 + cookie."""
-        email = "xinhua1001@outlook.com"
+        email = "demo@example.com"
 
         # First, send-code (bypass — no row written, but client gets 200).
         r = client.post("/auth/send-code", json={"email": email})
@@ -145,7 +142,7 @@ class TestBypassSendCodeAndVerifyCode:
         assert r.status_code == 200, r.text
         body = r.json()
         assert body["email"] == email
-        assert body["default_name"] == "xinhua1001"
+        assert body["default_name"] == "demo"
         assert isinstance(body["user_id"], int)
         assert "auth_token_expires_at" in body
 
@@ -165,7 +162,7 @@ class TestBypassSendCodeAndVerifyCode:
         self, client: TestClient, db
     ) -> None:
         """A second verify uses a different code; both produce audit rows."""
-        email = "xinhua1001@outlook.com"
+        email = "demo@example.com"
 
         # Two verifies with two different arbitrary codes.
         r1 = client.post(

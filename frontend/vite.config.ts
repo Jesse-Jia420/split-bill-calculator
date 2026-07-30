@@ -2,14 +2,7 @@ import { sveltekit } from "@sveltejs/kit/vite";
 import { defineConfig } from "vite";
 import { execSync } from "node:child_process";
 
-/**
- * v0.3.36 (PO msg 2026-07-27 12:19 你在页面 header 上添加前后端版本号。
- * 我们以此对齐): 在 vite config 加载时读 git rev-parse --short HEAD,
- * 设到 `import.meta.env.VITE_APP_VERSION`. v0.3.36 #1 VersionBadge 显示 FE hash
- * 用这个 env var (Vite 自动把 VITE_* 暴露给客户端 import.meta.env.VITE_*).
- *
- * 工作 tree 有未提交改动时附加 '-dirty', git 不可读时 fallback 'unknown'.
- */
+/** Expose short git hash as `import.meta.env.VITE_APP_VERSION`. */
 function gitVersionPlugin() {
   return {
     name: "git-version",
@@ -37,9 +30,8 @@ function gitVersionPlugin() {
 const tunnelHost = process.env.SBC_TUNNEL_HOST?.trim() || "";
 const lanHost = process.env.SBC_LAN_HOST?.trim() || "";
 
-// Vite 5 blocks unknown Host headers. LAN IP (192.168.x.x) is not localhost — use true in dev
-// so phones on the same Wi‑Fi can open http://<Mac-LAN-IP>:8448. Set SBC_DEV_STRICT_HOSTS=1
-// to restore the explicit list (staging tunnel hostnames only).
+// Vite 5 blocks unknown Host headers. Default `true` so LAN phones can open
+// the dev server. Set SBC_DEV_STRICT_HOSTS=1 to require an explicit allow-list.
 const strictHosts = process.env.SBC_DEV_STRICT_HOSTS === "1";
 
 export default defineConfig({
@@ -50,7 +42,6 @@ export default defineConfig({
     host: "0.0.0.0",
     allowedHosts: strictHosts
       ? [
-          "test.jessejia.pp.ua",
           "localhost",
           "127.0.0.1",
           ".loca.lt",
@@ -59,62 +50,40 @@ export default defineConfig({
           ...(lanHost ? [lanHost] : []),
         ]
       : true,
-    // Staging: wss HMR. LAN phone QA: optional SBC_LAN_HOST ws. Tunnel: off.
     hmr: tunnelHost
       ? false
       : lanHost
         ? { host: lanHost, port: 8448, protocol: "ws" }
-        : {
-            protocol: "wss",
-            host: "test.jessejia.pp.ua",
-          },
+        : undefined,
     proxy: {
-      // Standard API prefix (canonical path used by client.ts).
       "/api": {
         target: "http://127.0.0.1:8449",
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, "")
+        rewrite: (path) => path.replace(/^\/api/, ""),
       },
-      // Fallback proxies for legacy / cached client bundles that do not
-      // prepend /api. Forwarded as-is (no rewrite).
-      //
-      // v0.1.4 round 2: 修复 SvelteKit 页面 404 问题。
-      // 之前 commit 2e17d7c 引入的 /auth /sessions /invites /health 宽泛前缀
-      // 代理, 把 SvelteKit 页面也一起代理到后端, 导致 /auth/login /sessions/1
-      // /invites/[token] 等页面返回 JSON / 404。
-      // 修法: 用 bypass 函数, 把 SvelteKit 页面显式 bypass, 让 SvelteKit 处理;
-      // 真正的 API endpoint (例如 /auth/me, /auth/send-code, /invites/{token}/accept)
-      // 继续被代理到后端。
+      // Legacy clients that omit /api — bypass SvelteKit page routes.
       "/auth": {
         target: "http://127.0.0.1:8449",
         changeOrigin: true,
         bypass: (req) => {
-          // /auth/login 是 SvelteKit 页面, 不能代理到后端。
-          // 注意 req.url 含 query string (e.g. /auth/login?returnTo=/sessions/4
-          // 由 401 自动重定向触发), 所以用 path-only 比较避免误把 query
-          // 形态的 login 页代理到后端 (uvicorn 找不到该路由返 404)。
           const path = req.url.split("?")[0];
           if (path === "/auth/login" || path === "/auth/login/") return req.url;
-          // 其他 /auth/* (me / send-code / verify-code / logout) 继续代理
-        }
+        },
       },
       "/sessions": {
         target: "http://127.0.0.1:8449",
         changeOrigin: true,
-        // 所有 /sessions/* 都是 SvelteKit 页面, 后端 API 用 /api/sessions
-        bypass: (req) => req.url
+        bypass: (req) => req.url,
       },
       "/invites": {
         target: "http://127.0.0.1:8449",
         changeOrigin: true,
         bypass: (req) => {
-          // /invites/{token}/accept 是后端 API, 继续代理
           if (/^\/invites\/[^/]+\/accept\/?$/.test(req.url)) return undefined;
-          // 其他 /invites/* 是 SvelteKit 页面, 跳过代理
           return req.url;
-        }
+        },
       },
-      "/health": { target: "http://127.0.0.1:8449", changeOrigin: true }
-    }
-  }
+      "/health": { target: "http://127.0.0.1:8449", changeOrigin: true },
+    },
+  },
 });

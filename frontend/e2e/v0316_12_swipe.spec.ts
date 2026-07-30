@@ -49,11 +49,11 @@ function findThailandSessionId(): number {
 
 async function loginViaApi(page: Page): Promise<void> {
   const r1 = await page.request.post(`${BASE}/auth/send-code`, {
-    data: { email: "xinhua1001@outlook.com" },
+    data: { email: "demo@example.com" },
   });
   expect(r1.status(), "send-code").toBe(200);
   const r2 = await page.request.post(`${BASE}/auth/verify-code`, {
-    data: { email: "xinhua1001@outlook.com", code: "000000" },
+    data: { email: "demo@example.com", code: "000000" },
   });
   expect(r2.status(), "verify-code").toBe(200);
 

@@ -1,6 +1,6 @@
 # 测试数据功能矩阵
 
-账本名称 / 账单名称内的 `[标签]` 标明要验的功能点。用 `xinhua1001@outlook.com` 登录（任意 6 位验证码），打开「我的账本」按名称浏览。
+账本名称 / 账单名称内的 `[标签]` 标明要验的功能点。用 `demo@example.com` 登录（需将该邮箱列入 `DEV_BYPASS_EMAILS`，再用任意 6 位验证码），打开「我的账本」按名称浏览。
 
 重新注入（idempotent）：
 
@@ -47,17 +47,17 @@ SBC_SKIP_SEED=false .venv/bin/python -m scripts.seed_dev_data
 | `[我创建·可改删]` / `[非我创建·不可改]` | 编辑权限 |
 | `[结算记录]` / `[CNY还款]` | 已结算记录备注 |
 
-泰国账本内既有命名（如 `7.25按摩Ju+Canyina独占(像汤圆付)`）同样遵循「独占 / 垫付 / N人」可读约定。
-
 ---
 
 ## 登录账号
 
 | 邮箱 | 角色 |
 |---|---|
-| `xinhua1001@outlook.com` | 主测账号（多数账本 Owner；Member 账本例外） |
-| `matrix-ju@local.test` | `[我是Member]` 的 Owner；若干账本的 Ju |
-| `ju@thailand.local` 等 | 泰国账本辅助成员（DEV_BYPASS 可加这些邮箱以便切换） |
+| `demo@example.com` | 主测账号（多数账本 Owner；Member 账本例外） |
+| `matrix-ju@local.test` | `[我是Member]` 的 Owner |
+| `ju@thailand.local` 等 | 泰国账本辅助成员（可按需加入 `DEV_BYPASS_EMAILS`） |
+
+**Never** put real personal inboxes in `DEV_BYPASS_EMAILS` on a shared or public deployment.
 
 ---
 

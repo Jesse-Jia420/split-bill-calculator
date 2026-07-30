@@ -24,7 +24,7 @@
  * the email verification flow (same pattern as full_flow.spec.ts).
  *
  * Prerequisite: `scripts/seed_dev_data.py` must have been run so session 1
- * "泰国测试账单 6.19-6.22" exists with xinhua1001@outlook.com as owner.
+ * "泰国测试账单 6.19-6.22" exists with demo@example.com as owner.
  */
 import { test, expect, type Page, type BrowserContext } from "@playwright/test";
 import path from "node:path";
@@ -34,7 +34,7 @@ import {
   SCREENSHOTS_DIR,
 } from "./test-helpers";
 
-const OWNER = "xinhua1001@outlook.com";
+const OWNER = "demo@example.com";
 const BASE = "http://localhost:8448";
 const SESSION_NAME = "T04-undo self-contained";
 const SHOT = (n: number, name: string) =>

@@ -42,7 +42,7 @@ import fs from "node:fs";
 import { ensureUserAndToken, wipeDb, type SeededUser } from "./test-helpers";
 
 const BASE = "http://localhost:8448";
-const TEST_EMAIL = "calc.dave@jessejia.local";
+const TEST_EMAIL = "calc.dave@local.test";
 const SESSION_NAME = "TEST-005 calculator writeback";
 
 const SCREENSHOTS_DIR = path.join(process.cwd(), "e2e", "screenshots");

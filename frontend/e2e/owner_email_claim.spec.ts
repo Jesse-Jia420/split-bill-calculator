@@ -185,11 +185,11 @@ test("case 2 (PRD §3.11.5): 点 CTA → 登录 → 跳回 → claim 200 + owner
   // user 在 /auth/login 真页面输 email. 然后我们 plant code + 直接跳到
   // verify step (test-mode pre-fill) 跳过 SMTP — 但 page 仍是同一个 SPA,
   // 浏览器历史正确, returnTo 完整保留.
-  await page.locator("#email").fill("claim.owner@jessejia.local");
+  await page.locator("#email").fill("claim.owner@local.test");
   await gotoLoginWithCode(
     page,
     `/sessions/${sid}?claim=1`,
-    "claim.owner@jessejia.local",
+    "claim.owner@local.test",
     "888888"
   );
   await page.locator('button:has-text("验证并登录")').click();
@@ -215,7 +215,7 @@ test("case 2 (PRD §3.11.5): 点 CTA → 登录 → 跳回 → claim 200 + owner
   const sessionData = await sessionRes.json();
   expect(sessionRes.status()).toBe(200);
   expect(sessionData.owner_user_id).not.toBeNull();
-  expect(sessionData.owner_email).toBe("claim.owner@jessejia.local");
+  expect(sessionData.owner_email).toBe("claim.owner@local.test");
 
   // ★ query 已被 replaceState 清掉 (claim 成功)
   expect(page.url()).toMatch(new RegExp(`/sessions/${sid}$`));
@@ -228,7 +228,7 @@ test("case 3 (PRD §3.11.6): 登录创建 → CTA 不显示 + owner UI 自然在
   browser,
 }) => {
   const ctx = await browser.newContext({ ignoreHTTPSErrors: true });
-  const user = ensureUserAndToken("claim.owner@jessejia.local");
+  const user = ensureUserAndToken("claim.owner@local.test");
   await loginAs(ctx, user);
   const page = await ctx.newPage();
 
@@ -254,8 +254,8 @@ test("case 4 (PRD §3.11.5): 重复 claim 已 claim session → 409", async ({
   browser,
   request,
 }) => {
-  const user1 = ensureUserAndToken("claim.first@jessejia.local");
-  const user2 = ensureUserAndToken("claim.second@jessejia.local");
+  const user1 = ensureUserAndToken("claim.first@local.test");
+  const user2 = ensureUserAndToken("claim.second@local.test");
 
   const anonCtx = await browser.newContext({ ignoreHTTPSErrors: true });
   const anonPage = await anonCtx.newPage();
@@ -308,11 +308,11 @@ test("case 5 (反 #100): 真 iPhone viewport (hasTouch + isMobile) — claim flo
   // ★ 走完整 mobile login flow (用 .tap() 配 hasTouch)
   await page.getByTestId("claim-login-cta").tap();
   await page.waitForURL(/\/auth\/login/);
-  await page.locator("#email").fill("claim.iphone@jessejia.local");
+  await page.locator("#email").fill("claim.iphone@local.test");
   await gotoLoginWithCode(
     page,
     `/sessions/${sid}?claim=1`,
-    "claim.iphone@jessejia.local",
+    "claim.iphone@local.test",
     "777777"
   );
   await page.locator('button:has-text("验证并登录")').tap();

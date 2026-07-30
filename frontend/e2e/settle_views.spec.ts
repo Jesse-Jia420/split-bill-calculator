@@ -32,7 +32,7 @@ import fs from "node:fs";
 import { ensureUserAndToken, wipeDb, type SeededUser } from "./test-helpers";
 
 const BASE = "http://localhost:8448";
-const TEST_EMAIL = "settle.frank@jessejia.local";
+const TEST_EMAIL = "settle.frank@local.test";
 const SESSION_NAME = "TEST-007 settle dual-view";
 
 const SCREENSHOTS_DIR = path.join(process.cwd(), "e2e", "screenshots");
