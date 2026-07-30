@@ -629,28 +629,31 @@
   onsubmit={handleSubmit}
   onkeydown={handleFormKeyDown}
 >
-  <!-- Sheet: 金额+币种同行; 时间+付款人同行 (防溢出: minmax(0)+max-width:100%). -->
+  <!-- Sheet layout: 金额+币种同一控制行; 时间+付款人等宽两列; 统一 label→control 节奏. -->
   {#if isSheet}
-    <div class="field-grid">
-      <div class="field field-amount">
-        <label class="label" for="amount">金额</label>
-        <AmountCalculatorInput
-          {amount}
-          initialValue={amountExpression}
-          initialAmount={amount}
-          {currency}
-          disabled={submitting}
-          error={amountError}
-          on:confirm={(e) => {
-            amount = e.detail.value;
-            amountExpression = e.detail.expression;
-            amountError = false;
-          }}
-        />
-      </div>
-      <div class="field field-currency">
-        <span class="label" id="currency-pills-label">币种</span>
-        <div class="currency-pills" role="radiogroup" aria-labelledby="currency-pills-label">
+    <div class="field field-amount-block">
+      <label class="label" for="amount">金额</label>
+      <div class="amount-currency-row">
+        <div class="amount-currency-main">
+          <AmountCalculatorInput
+            {amount}
+            initialValue={amountExpression}
+            initialAmount={amount}
+            {currency}
+            disabled={submitting}
+            error={amountError}
+            on:confirm={(e) => {
+              amount = e.detail.value;
+              amountExpression = e.detail.expression;
+              amountError = false;
+            }}
+          />
+        </div>
+        <div
+          class="currency-pills currency-pills-inline"
+          role="radiogroup"
+          aria-label="币种"
+        >
           {#each (session.currencies && session.currencies.length > 0 ? session.currencies : [currency]) as code (code)}
             <button
               type="button"
@@ -1277,29 +1280,72 @@
     padding-bottom: 56px;
   }
 
-  /* Bottom-sheet compact layout (BillSheet) */
+  /* Bottom-sheet form layout (BillSheet) — single vertical rhythm:
+     section gap 16 · label→control 6 · equal meta columns · matched control height 44. */
   .stack.sheet-layout {
     padding-bottom: 4px;
-    gap: 10px;
+    gap: 16px;
   }
   .sheet-layout .field {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
     min-width: 0;
   }
+  .sheet-layout .label {
+    margin-bottom: 0;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    color: #64748b;
+    line-height: 1.2;
+  }
+
+  /* 金额 + 币种: 同一控制行, 币种贴金额框右侧, 不再与「付款人」label 抢垂直位 */
+  .sheet-layout .amount-currency-row {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+    min-width: 0;
+    width: 100%;
+  }
+  .sheet-layout .amount-currency-main {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .sheet-layout .amount-currency-main :global(.amount-calc) {
+    gap: 0;
+  }
+  .sheet-layout .currency-pills-inline {
+    flex: 0 0 auto;
+    margin-top: 0;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    align-self: stretch;
+  }
+  .sheet-layout .currency-pills-inline .currency-pill {
+    box-sizing: border-box;
+    height: 44px;
+    min-height: 44px;
+    padding: 0 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  /* 时间 + 付款人: 等宽两列, 与金额区块用 stack gap 拉开 */
   .sheet-layout .field-grid {
     display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 10px;
-    align-items: end;
-  }
-  .sheet-layout .field-grid-time-payer {
-    /* 同行: 时间略宽、付款人略窄; 两侧 minmax(0) 防 grid 子项撑破 */
-    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
-    align-items: start;
+    gap: 12px;
     width: 100%;
     max-width: 100%;
+  }
+  .sheet-layout .field-grid-time-payer {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
     overflow: hidden;
   }
   .sheet-layout .field-time,
@@ -1309,13 +1355,14 @@
     max-width: 100%;
     overflow: hidden;
   }
-  /* 覆盖全局 #occurredAt { max-width: 260px } — 半宽列里 260px 会横向溢出 */
+  /* 覆盖全局 #occurredAt { max-width: 260px } — 半宽列里会横向溢出 */
   .sheet-layout .field-time input[type="datetime-local"]#occurredAt {
     box-sizing: border-box;
     width: 100%;
     max-width: 100% !important;
     min-width: 0 !important;
-    height: 42px;
+    height: 44px;
+    min-height: 44px;
     overflow: hidden;
     padding-inline: 8px;
     font-size: 13px;
@@ -1335,38 +1382,26 @@
     width: 100%;
     max-width: 100%;
     min-width: 0;
-    height: 42px;
+    height: 44px;
+    min-height: 44px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .sheet-layout .field-currency {
-    min-width: 72px;
-  }
-  .sheet-layout .field-currency .currency-pills {
-    margin-top: 0;
-    justify-content: flex-end;
-  }
-  .sheet-layout .label {
-    margin-bottom: 0;
-    font-size: 12px;
-    color: #64748b;
-  }
   .sheet-layout .preset-row {
-    margin: 2px 0 6px;
+    margin: 0;
+    padding-bottom: 0;
   }
   .sheet-layout .preset-chip {
     padding: 4px 10px;
     font-size: 12px;
     min-height: 28px;
   }
-  .sheet-layout input[type="datetime-local"]#occurredAt,
-  .sheet-layout select#payer,
   .sheet-layout input#desc {
-    min-height: 42px;
+    min-height: 44px;
   }
   .sheet-layout .ppts-toggle-row {
-    margin-top: 2px;
+    margin-top: 0;
   }
 
   /* v0.3.21 #110 (PO msg 18:46): <input type="datetime-local"> 在 iOS Safari
