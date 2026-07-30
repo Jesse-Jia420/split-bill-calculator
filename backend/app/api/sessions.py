@@ -76,7 +76,13 @@ from sqlalchemy.orm import Session
 from app.core.auth import get_current_user, get_optional_user
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.session_isolation import get_session_member, get_session_member_or_secret, require_session_owner
+from app.core.session_isolation import (
+    check_session_activity_window as _check_session_activity_window,
+    get_session_member,
+    get_session_member_or_secret,
+    require_session_owner,
+    session_is_permanently_saved as _session_is_permanently_saved,
+)
 from app.db.models.session_exchange_rates import SessionExchangeRate
 from app.db.models.session_members import SessionMember, SessionRole
 from app.db.models.settlement_records import SettlementRecord
@@ -565,34 +571,12 @@ def _classify_invite_status(session: SessionModel) -> str:
     return "active"
 
 
-def _check_session_activity_window(
-    session: SessionModel,
-) -> None:
-    """§3.11.11 7-day activity window check.
-
-    Raises HTTPException 410 if the session's last_active_at is more than
-    ``settings.session_activity_ttl_days`` (default 7) in the past.
-    This is independent from invite token TTL — the invite link can still
-    be valid per ``invite_expires_at`` while the session itself has been
-    reclaimed due to owner inactivity (PRD §3.11.11 decision α).
-    """
-    if session.last_active_at is None:
-        # Defensive: treat missing value as active (new sessions).
+def _bump_session_activity(db: Session, session_id: int) -> None:
+    """Extend the 7-day activity window (e.g. after bill CRUD)."""
+    session = db.get(SessionModel, session_id)
+    if session is None:
         return
-    last_active = session.last_active_at
-    if last_active.tzinfo is None:
-        last_active = last_active.replace(tzinfo=timezone.utc)
-    cutoff = datetime.now(timezone.utc) - timedelta(
-        days=settings.session_activity_ttl_days
-    )
-    if last_active < cutoff:
-        raise HTTPException(
-            status_code=status.HTTP_410_GONE,
-            detail={
-                "error": "session expired, owner not active for 7 days",
-                "code": "session_reclaimed",
-            },
-        )
+    session.last_active_at = datetime.now(timezone.utc)
 
 
 # ---------------------------------------------------------------------------
@@ -799,7 +783,10 @@ async def list_sessions(
     rows = (
         db.query(SessionModel, SessionMember)
         .join(SessionMember, SessionMember.session_id == SessionModel.id)
-        .filter(SessionMember.user_id == user.id)
+        .filter(
+            SessionMember.user_id == user.id,
+            SessionModel.archived.is_(False),
+        )
         .order_by(SessionModel.created_at.desc())
         .all()
     )
@@ -962,7 +949,7 @@ async def get_session_preview_by_code(
             detail={"error": "session not found"},
         )
 
-    _check_session_activity_window(session)
+    _check_session_activity_window(session, db)
 
     sm_user_pairs = (
         db.query(SessionMember, User)
@@ -1032,7 +1019,7 @@ async def get_session_by_code(
         raise HTTPException(status_code=404, detail={"error": "session not found"})
 
     # §3.11.11: 7-day activity window check.
-    _check_session_activity_window(session)
+    _check_session_activity_window(session, db)
 
     from app.db.models.session_members import SessionMember as SessionMemberModel
     from app.db.models.users import User as UserModel
@@ -1142,7 +1129,7 @@ async def get_session(
         )
 
     # §3.11.11: 7-day activity window check (410 Gone when reclaimed).
-    _check_session_activity_window(session)
+    _check_session_activity_window(session, db)
 
     # v0.3 (PRD §3.10): use LEFT JOIN so anonymous members (user_id=NULL)
     # are included. Anonymous members have no user row, so u.email is None.
@@ -1277,6 +1264,24 @@ async def claim_session(
             detail={"error": "session owner_email already set"},
         )
 
+    # Product: only the owner-role seat may claim session ownership.
+    # Other logged-in members permanently save the ledger via user_id bind
+    # (see _session_is_permanently_saved) without becoming owner.
+    from app.db.models.session_members import SessionMember as _SM
+    caller_sm = (
+        db.query(_SM)
+        .filter(_SM.session_id == session_id, _SM.user_id == user.id)
+        .first()
+    )
+    if caller_sm is None or caller_sm.role != SessionRole.OWNER.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "error": "only_owner_seat_can_claim_session",
+                "hint": "bind your nickname via login to permanently save; only the creator seat becomes session owner",
+            },
+        )
+
     # Atomic UPDATE with the same guard in the WHERE so two concurrent
     # claimants cannot both succeed even if both pass the read-side
     # check above. SQLite serialises writes; we also add the explicit
@@ -1301,12 +1306,7 @@ async def claim_session(
     # (e.g. creator who skipped §3.10.5), we fall back to the
     # session's first owner-role row (typically None -- caller is
     # the first owner member).
-    from app.db.models.session_members import SessionMember as _SM
-    sm = (
-        db.query(_SM)
-        .filter(_SM.session_id == session.id, _SM.user_id == user.id)
-        .first()
-    )
+    sm = caller_sm
     if sm is None:
         # No nickname binding yet -- synthesise a minimal SessionMember
         # payload so the response shape stays consistent. The FE's
@@ -1816,7 +1816,7 @@ async def join_claim_session(
         )
 
     # §3.11.11: 7-day activity window check.
-    _check_session_activity_window(session)
+    _check_session_activity_window(session, db)
 
     now = datetime.now(timezone.utc)
 
@@ -1835,10 +1835,50 @@ async def join_claim_session(
 
         if user is not None:
             # Logged-in: bind user_id to this nickname slot.
+            # Product C: seat already bound to another email/user → 409.
+            # Same user re-entering their own seat → OK.
+            if sm.user_id is not None and sm.user_id != user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "error": "slot_owned_by_another_user",
+                        "reason": "this nickname is bound to another email; login with that email to become this person",
+                        "slot_owner_user_id": sm.user_id,
+                    },
+                )
+            # Product: one logged-in user may occupy only one seat per session.
+            other = (
+                db.query(SessionMember)
+                .filter(
+                    SessionMember.session_id == session_id,
+                    SessionMember.user_id == user.id,
+                    SessionMember.id != sm.id,
+                )
+                .first()
+            )
+            if other is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "error": "already_a_member",
+                        "reason": "you already occupy another nickname in this ledger",
+                        "existing_member_id": other.id,
+                        "existing_display_name": other.display_name,
+                    },
+                )
             sm.user_id = user.id
             sm.is_anon = False
+            # Invalidate prior anon device secret (invite_token / session_code unchanged).
+            sm.nickname_secret = None
             # §3.11.11: bump owner activity clock on every join/claim.
             session.last_active_at = now
+            # Product E: binding the owner seat also claims session ownership.
+            if (
+                sm.role == SessionRole.OWNER.value
+                and session.owner_user_id is None
+            ):
+                session.owner_user_id = user.id
+                session.owner_email = user.email
             db.commit()
             db.refresh(sm)
             return {
@@ -1890,6 +1930,22 @@ async def join_claim_session(
             )
 
         if user is not None:
+            # Product: one logged-in user may occupy only one seat per session.
+            existing = (
+                db.query(SessionMember)
+                .filter_by(session_id=session_id, user_id=user.id)
+                .first()
+            )
+            if existing is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "error": "already_a_member",
+                        "reason": "you already occupy a nickname in this ledger",
+                        "existing_member_id": existing.id,
+                        "existing_display_name": existing.display_name,
+                    },
+                )
             # Logged-in: create user-bound member row.
             sm = SessionMember(
                 session_id=session_id,
@@ -1898,6 +1954,7 @@ async def join_claim_session(
                 role=SessionRole.MEMBER.value,
                 is_anon=False,
                 claimed_at=now,
+                nickname_secret=None,
             )
             db.add(sm)
             # §3.11.11: bump owner activity clock on every join/claim.
@@ -1972,10 +2029,11 @@ async def bind_acting_member(
     - 拿 localStorage `sbc.actingAs.{sid}` → secret
     - 调本 endpoint with {nickname_secret: secret}
     - BE 找 SessionMember (session_id=sid AND nickname_secret=secret AND user_id IS NULL AND is_anon=True)
-    - 找到 → SET user_id=current_user.id, is_anon=False, claimed_at=now()
+    - 找到 → SET user_id=current_user.id, is_anon=False, claimed_at=now(),
+      nickname_secret=NULL (invalidate anon device key; invite_token / session_code unchanged)
 
     失败返 404 (session 不存在 OR slot 已不存在 / 已被 β 轮换 / 已绑 user_id).
-    FE 静默吞掉 (用户仍以 anon 进入 session, localStorage secret 仍有效).
+    FE 成功后应清除 localStorage 匿名密钥；失败可静默吞掉.
     """
     sm = db.execute(
         select(SessionMember)
@@ -1998,12 +2056,39 @@ async def bind_acting_member(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": "session not found"},
         )
-    _check_session_activity_window(session)  # 410 if expired (existing helper)
+    _check_session_activity_window(session, db)  # 410 if expired
+
+    # Product: one logged-in user may occupy only one seat per session.
+    other = (
+        db.query(SessionMember)
+        .filter(
+            SessionMember.session_id == session_id,
+            SessionMember.user_id == user.id,
+            SessionMember.id != sm.id,
+        )
+        .first()
+    )
+    if other is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error": "already_a_member",
+                "reason": "you already occupy another nickname in this ledger",
+                "existing_member_id": other.id,
+                "existing_display_name": other.display_name,
+            },
+        )
 
     sm.user_id = user.id
     sm.is_anon = False
+    # Invalidate prior anon device secret after login bind (invite link unchanged).
+    sm.nickname_secret = None
     sm.claimed_at = datetime.now(timezone.utc)
     session.last_active_at = datetime.now(timezone.utc)
+    # Product E: owner seat bind → sync sessions.owner_user_id / owner_email.
+    if sm.role == SessionRole.OWNER.value and session.owner_user_id is None:
+        session.owner_user_id = user.id
+        session.owner_email = user.email
     db.commit()
     db.refresh(sm)
 
@@ -2121,7 +2206,7 @@ def _settlement_record_dict(
 )
 async def create_settlement_record(
     body: CreateSettlementRequest,
-    sm: Annotated[SessionMember, Depends(get_session_member)],
+    sm: Annotated[SessionMember, Depends(get_session_member_or_secret)],
     db: Annotated[Session, Depends(get_db)],
     session_id: int = Path(..., description="sessions.id"),
 ) -> dict:
@@ -2191,6 +2276,7 @@ async def create_settlement_record(
         created_by=sm.id,
     )
     db.add(record)
+    _bump_session_activity(db, session_id)
     db.commit()
     db.refresh(record)
 
@@ -2234,7 +2320,7 @@ async def list_settlement_records(
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_settlement_record(
-    sm: Annotated[SessionMember, Depends(get_session_member)],
+    sm: Annotated[SessionMember, Depends(get_session_member_or_secret)],
     db: Annotated[Session, Depends(get_db)],
     session_id: int = Path(..., description="sessions.id"),
     record_id: int = Path(..., description="settlement_records.id"),

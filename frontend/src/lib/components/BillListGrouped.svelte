@@ -90,6 +90,10 @@
   export let memberIdToName: Record<number, string> = {};
   export let currentUserMemberId: number | null = null;
   export let onDelete: ((billId: number) => void | Promise<void>) | null = null;
+  /** Open edit sheet on parent (preferred over navigating to /bills/.../edit). */
+  export let onEdit: ((bill: Bill) => void | Promise<void>) | null = null;
+  /** Open create sheet on parent. */
+  export let onCreate: (() => void) | null = null;
   /** Sprint 3 T13: true 时显示 N 个 SkeletonBill 骨架 */
   export let loading: boolean = false;
   /** v0.3.20 #95 Fix 3 (PO msg 02:41 #7459): payer 头像位置在 session.members
@@ -509,6 +513,10 @@
     swipeOffsetStore.update((o) => ({ ...o, [billId]: 0 }));
     if (get(openSwipeBillIdStore) === billId) openSwipeBillIdStore.set(null);
     await tick();
+    if (onEdit && bill) {
+      void onEdit(bill);
+      return;
+    }
     goto(`/sessions/${sessionId}/bills/${billId}/edit`);
   }
   async function onSwipeDelete(billId: number, e: MouseEvent) {
@@ -645,7 +653,12 @@
   {:else if !bills || bills.length === 0}
     {#if totalBills === 0}
       <p class="muted">
-        还没有账单,<a href="/sessions/{sessionId}/bills/new">点"+ 新建账单"开始</a>。
+        还没有账单，
+        {#if onCreate}
+          <button type="button" class="linkish" onclick={() => onCreate?.()}>点「+ 新建账单」开始</button>。
+        {:else}
+          <a href="/sessions/{sessionId}/bills/new">点"+ 新建账单"开始</a>。
+        {/if}
       </p>
     {:else}
       <!-- v0.3.22 #119: filter 没匹配项 placeholder (跟“没有账单”区别,
@@ -1011,6 +1024,15 @@
   .bill-list-empty {
     margin: var(--space-6) 0 0;
     text-align: center;
+  }
+  button.linkish {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--accent-700, #4338ca);
+    font: inherit;
+    text-decoration: underline;
+    cursor: pointer;
   }
   /* v0.3.18 #46-A (PO msg 18:15 拍板): sheet 玻璃感加强 (方案 B + 玻璃感更强)
      — sheet bg 0.32 → 0.55 (明显玻璃边缘)

@@ -45,7 +45,29 @@ from app.db.models.users import User  # noqa: E402
 TZ_SH = timezone(timedelta(hours=8))
 
 # Synthetic demo account (also the recommended DEV_BYPASS_EMAILS entry).
-TEST_USER_EMAIL = "demo@example.com"
+# Override with SEED_USER_EMAIL for a personal UAT inbox (e.g. xinhua1001@…).
+# Resolved at call-time inside seed_dev_data() so backend/.env is honoured
+# after pydantic-settings loads it into the process (and after exports).
+DEFAULT_TEST_USER_EMAIL = "demo@example.com"
+
+
+def _resolve_test_user_email() -> str:
+    env = os.environ.get("SEED_USER_EMAIL", "").strip()
+    if env:
+        return env
+    try:
+        from app.core.config import settings
+
+        configured = getattr(settings, "seed_user_email", None)
+        if isinstance(configured, str) and configured.strip():
+            return configured.strip()
+    except Exception:
+        pass
+    return DEFAULT_TEST_USER_EMAIL
+
+
+# Back-compat alias used by tests / docs that import TEST_USER_EMAIL.
+TEST_USER_EMAIL = DEFAULT_TEST_USER_EMAIL
 
 # Thailand demo members, in display order. Index 0 is the owner.
 # Display names are fictional fixtures referenced by bill descriptions below.
@@ -685,7 +707,11 @@ def seed_dev_data(db: OrmSession | None = None) -> dict[str, Any]:
         now = datetime.now(TZ_SH)
 
         # 1. Demo owner of seeded sessions.
-        demo = _ensure_user(db, TEST_USER_EMAIL, default_name="Jesse")
+        owner_email = _resolve_test_user_email()
+        # Keep module alias in sync for callers that re-read TEST_USER_EMAIL after seed.
+        global TEST_USER_EMAIL
+        TEST_USER_EMAIL = owner_email
+        demo = _ensure_user(db, owner_email, default_name="Jesse")
 
         # 2. v0.3.x / UAT #0723-3 #5 (PO msg #8645): Thailand #2
         #    session is the **sole** canonical multi-bill session.

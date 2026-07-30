@@ -49,12 +49,13 @@
 -->
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
-  import { Lock, Check } from 'lucide-svelte';
+  import { Lock, Check, RefreshCw } from 'lucide-svelte';
   import { toast } from '$stores/toast';
   import { ApiError } from '$api/client';
   import { portal } from '$lib/actions/portal';
   import { addSessionCurrency, deleteSessionCurrency, type SessionDetail } from '$api/sessions';
   import type { SessionExchangeRate } from '$api/sessions';
+  import { fetchReferenceRate, formatRateFetchedAt } from '$api/referenceRates';
 
   /** SUPPORTED_CURRENCIES — 跟 backend/app/api/sessions.py 保持一致.
    *  内联而非 import 避免为单个常量建共享模块 (PRD §3.7.5 双端硬编 10 个 ISO). */
@@ -102,6 +103,13 @@
   /** Forward rate (1 primary = X secondary). Decimal-as-string 保留精度 (BE wire format). */
   let rate = '';
   let busy = false;
+  let rateLoading = false;
+  let rateFetchedAt: string | null = null;
+  let rateProviderDate: string | null = null;
+  let rateError: string | null = null;
+  /** Once the user edits the rate field, auto-fill stops until refresh. */
+  let rateUserEdited = false;
+  let rateFetchGen = 0;
 
   /** §1 — 副币种可选 = SUPPORTED minus primary minus existing.
    *  multi 模式本期保留过滤逻辑 (BE 未支持改主/副币种, select 仍 disabled 兜底). */
@@ -140,7 +148,11 @@
         const row = exchange_rates.find(
           (r) => r.from_currency === primary && r.to_currency === ex
         );
-        if (row) rate = row.rate;
+        if (row) {
+          rate = row.rate;
+          // Keep saved rate; do not auto-overwrite with reference FX.
+          rateUserEdited = true;
+        }
       }
     }
     multiInitialized = true;
@@ -163,6 +175,57 @@
           ? !busy
           : rateValid && !busy
         : false;
+
+
+  async function loadReferenceRate(force = false) {
+    const from = mode === 'multi' ? primary : primary_currency;
+    const to = secondary;
+    if (!from || !to || from === to) return;
+    if (!force && rateUserEdited && rate.trim() !== '') return;
+    const gen = ++rateFetchGen;
+    rateLoading = true;
+    rateError = null;
+    try {
+      const ref = await fetchReferenceRate(from, to);
+      if (gen !== rateFetchGen) return;
+      rate = ref.rate;
+      rateFetchedAt = ref.fetched_at;
+      rateProviderDate = ref.provider_date;
+      rateUserEdited = false;
+    } catch (e: any) {
+      if (gen !== rateFetchGen) return;
+      rateError = e?.message ?? '参考汇率获取失败';
+    } finally {
+      if (gen === rateFetchGen) rateLoading = false;
+    }
+  }
+
+  function onRateInput() {
+    rateUserEdited = true;
+  }
+
+  let lastRatePair = '';
+  $: {
+    const from = mode === 'multi' ? primary : primary_currency;
+    const pair = secondary ? `${from}->${secondary}` : '';
+    if (pair && pair !== lastRatePair) {
+      lastRatePair = pair;
+      const saved = exchange_rates.find(
+        (r) => r.from_currency === from && r.to_currency === secondary
+      );
+      if (saved) {
+        // Editing an existing pair: keep saved rate until user hits refresh.
+        rate = saved.rate;
+        rateUserEdited = true;
+        rateFetchedAt = null;
+        rateProviderDate = null;
+        rateError = null;
+      } else {
+        rateUserEdited = false;
+        void loadReferenceRate(true);
+      }
+    }
+  }
 
   let closing = false;
 
@@ -286,6 +349,15 @@
     );
   }
 
+  function nickSecretHeaders(): Record<string, string> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (typeof window !== 'undefined') {
+      const secret = localStorage.getItem('sbc.actingAs.' + session_id);
+      if (secret) headers['X-Nickname-Secret'] = secret;
+    }
+    return headers;
+  }
+
   async function patchForwardRate(): Promise<SessionExchangeRate[]> {
     const rate_row = findForwardRate();
     if (!rate_row) {
@@ -298,7 +370,7 @@
       {
         method: 'PATCH',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: nickSecretHeaders(),
         body: JSON.stringify({ rate: rate.trim() }),
       }
     );
@@ -330,7 +402,7 @@
           {
             method: 'POST',
             credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
+            headers: nickSecretHeaders(),
             body: JSON.stringify({
               from_currency: primary_currency,
               to_currency: secondary,
@@ -407,7 +479,7 @@
           {
             method: 'POST',
             credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
+            headers: nickSecretHeaders(),
             body: JSON.stringify({
               from_currency: primary_currency,
               to_currency: secondary,
@@ -557,13 +629,36 @@
               inputmode="decimal"
               class="glass-input rate-input"
               bind:value={rate}
-              disabled={busy || secondary === ''}
-              placeholder="0.00"
+              oninput={onRateInput}
+              disabled={busy || secondary === '' || rateLoading}
+              placeholder={rateLoading ? '获取中…' : '0.00'}
               aria-label="汇率 (1 {primary_currency} = X {secondary})"
               data-testid="currency-add-rate"
             />
             <span class="rate-suffix">{secondary || '副币种'}</span>
+            <button
+              type="button"
+              class="rate-refresh"
+              disabled={busy || secondary === '' || rateLoading}
+              onclick={() => loadReferenceRate(true)}
+              aria-label="重新获取参考汇率"
+              title="重新获取参考汇率"
+              data-testid="currency-rate-refresh"
+            >
+              <RefreshCw size={14} strokeWidth={2.4} />
+            </button>
           </div>
+          {#if rateError}
+            <p class="hint hint-error">{rateError}，可手动填写</p>
+          {:else if rateFetchedAt}
+            <p class="hint" data-testid="currency-rate-fetched">
+              参考汇率已填入
+              {#if rateProviderDate}（市场日 {rateProviderDate}）{/if}
+              · 获取于 {formatRateFetchedAt(rateFetchedAt)}
+            </p>
+          {:else if secondary}
+            <p class="hint">选择副币种后将自动填入参考汇率，仍可手动修改</p>
+          {/if}
         </section>
       {:else if mode === 'single' && has_bills}
         <!-- ===== single + has_bills: 矛盾状态 (locked 提示) ===== -->
@@ -631,13 +726,33 @@
               inputmode="decimal"
               class="glass-input rate-input"
               bind:value={rate}
-              disabled={busy || secondary === ''}
-              placeholder="0.00"
+              oninput={onRateInput}
+              disabled={busy || secondary === '' || rateLoading}
+              placeholder={rateLoading ? '获取中…' : '0.00'}
               aria-label="汇率 (1 {primary} = X {secondary})"
               data-testid="currency-edit-rate"
             />
             <span class="rate-suffix">{secondary}</span>
+            <button
+              type="button"
+              class="rate-refresh"
+              disabled={busy || secondary === '' || rateLoading}
+              onclick={() => loadReferenceRate(true)}
+              aria-label="重新获取参考汇率"
+              title="重新获取参考汇率"
+            >
+              <RefreshCw size={14} strokeWidth={2.4} />
+            </button>
           </div>
+          {#if rateError}
+            <p class="hint hint-error">{rateError}，可手动填写</p>
+          {:else if rateFetchedAt}
+            <p class="hint">
+              参考汇率已填入
+              {#if rateProviderDate}（市场日 {rateProviderDate}）{/if}
+              · 获取于 {formatRateFetchedAt(rateFetchedAt)}
+            </p>
+          {/if}
         </section>
       {:else if mode === 'multi' && has_bills}
         <!-- ===== multi + has_bills: 仅修改汇率 (主/副币种 locked chip 同行) ===== -->
@@ -674,17 +789,36 @@
               inputmode="decimal"
               class="glass-input rate-input"
               bind:value={rate}
-              disabled={busy}
-              placeholder="0.00"
+              oninput={onRateInput}
+              disabled={busy || rateLoading}
+              placeholder={rateLoading ? '获取中…' : '0.00'}
               title="已有账单, 只能修改汇率"
               aria-label="汇率 (1 {primary} = X {secondary})"
               data-testid="currency-edit-rate-bills"
             />
             <span class="rate-suffix">{secondary}</span>
+            <button
+              type="button"
+              class="rate-refresh"
+              disabled={busy || rateLoading}
+              onclick={() => loadReferenceRate(true)}
+              aria-label="重新获取参考汇率"
+              title="重新获取参考汇率"
+            >
+              <RefreshCw size={14} strokeWidth={2.4} />
+            </button>
           </div>
-          <p class="hint">
-            已有账单, 只能修改汇率。
-          </p>
+          {#if rateError}
+            <p class="hint hint-error">{rateError}，可手动填写</p>
+          {:else if rateFetchedAt}
+            <p class="hint">
+              参考汇率已填入
+              {#if rateProviderDate}（市场日 {rateProviderDate}）{/if}
+              · 获取于 {formatRateFetchedAt(rateFetchedAt)}
+            </p>
+          {:else}
+            <p class="hint">已有账单, 只能修改汇率。可点刷新获取参考值。</p>
+          {/if}
         </section>
       {/if}
     </div>
@@ -948,12 +1082,31 @@
     white-space: nowrap;
     flex-shrink: 0;
   }
+  .rate-refresh {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    background: rgba(15, 23, 42, 0.04);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    color: var(--accent-700, #4338ca);
+  }
+  .rate-refresh:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
 
   .hint {
     margin: 0;
     font-size: var(--font-size-xs);
     color: var(--gray-500);
     line-height: 1.4;
+  }
+  .hint-error {
+    color: var(--error-700, #be123c);
   }
 
   /* v0.3.19 #85 PO #7731 (#4) + v3 (#3 跟进): 主+副币种 select / chip 同行并排.

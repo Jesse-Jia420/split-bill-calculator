@@ -193,28 +193,25 @@
     }
     try {
       const result = await getSessionByCode(code);
-      session = result;  // getSessionByCode returns SessionDetail directly (not wrapped)
-      sessionId = result.id;  // 回填 numeric id, 后续 BE 调用用
-      // 注: getSessionByCode 不返 actingAsMemberId (member 由 X-Nickname-Secret BE 端识别).
-      // v0.3.36 #14 — UAT 0728-1 #14 (PO 字面 "右侧添加按钮点击后无法打开添加结算记录弹窗"):
-      // 跟 bills/new 一样从 $user 找 current user 在 session.members 里的 SessionMember.
-      // 原 bug: currentMember = null → {#if addSheetOpen && session && currentMember}
-      // 永远 false → AddSettlementSheet 不渲染 (需要 currentMemberId 给付款人 select 默认值).
-      // 修法: 加载 session 后, 从 $user.user_id 查 session.members 匹配 member, 设 currentMember.
-      // anon case (X-Nickname-Secret 路径): user.user_id = null, currentMember 设 null
-      // (AddSettlementSheet 不会被挂载, anon 用户无法添加已结算记录 — 这是 intentional, 跟
-      // BE POST /settlement_records 当前仅接受已认证 user 一致, anon 用户走 X-SBC-Member-ID
-      // 后续 sprint 单独处理).
+      session = result.session;
+      sessionId = result.session.id;
+      // Prefer logged-in membership; else anon seat from X-SBC-Member-ID.
       try {
         const u = await loadUser();
         if (u && session) {
           const me = session.members.find((m) => m.user_id === u.user_id);
           if (me) {
             currentMember = { id: me.id };
+          } else if (result.actingAsMemberId != null) {
+            currentMember = { id: result.actingAsMemberId };
           }
+        } else if (result.actingAsMemberId != null) {
+          currentMember = { id: result.actingAsMemberId };
         }
       } catch {
-        /* anon / loadUser failed → currentMember 留 null, AddSettlementSheet 不挂载 */
+        if (result.actingAsMemberId != null) {
+          currentMember = { id: result.actingAsMemberId };
+        }
       }
       for (const m of session.members) {
         memberIdToName[m.id] = m.display_name;
