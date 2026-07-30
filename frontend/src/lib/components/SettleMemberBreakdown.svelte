@@ -41,7 +41,7 @@
    * - 概览 tab (SettleTransferPath) 已在 #132 改过, 不用再动
    */
   import { onMount, tick } from 'svelte';
-  import { scale, fly, fade, slide } from 'svelte/transition';
+  import { scale, fly, fade } from 'svelte/transition';
   import { getSettle } from '$api/settle';
   import { formatMoney, formatDate } from '$lib/utils/format';
   import { currencySymbol } from '$lib/utils/currency';
@@ -548,62 +548,61 @@
               <span class="bills-section-icon icon-paid" aria-hidden="true">↑</span>
               <span class="bills-section-title">付款明细</span>
               <span class="bills-section-count muted">({selectedMember.paid_bills.length})</span>
-              <span class="collapse-icon" aria-hidden="true">{paidExpanded ? '▼' : '▶'}</span>
+              <span class="collapse-icon" class:is-open={paidExpanded} aria-hidden="true">▼</span>
             </h4>
             {#if selectedMember.paid_bills.length === 0}
               <p class="muted empty-hint">没有付过账单</p>
             {:else if filteredPaidBills.length === 0}
               <p class="muted empty-hint">没有匹配的账单,换个关键词试试。</p>
-            {:else if paidExpanded}
-              <!-- v0.3.17 #20 hotfix (PO msg 13:12): ul 用 transition:slide
-                   200ms, li 改 in:fade 80ms 取消 stagger — toggle 展开/收起
-                   整体 smooth, 30 行不再逐行 delay 200ms, 不再「卡卡的」 -->
-              <ul class="bill-sublist" transition:slide={{ duration: 200 }}>
-                {#each filteredPaidBills as b, i (b.bill_id)}
-                  <li
-                    class="bill-subrow"
-                    in:fade={{ duration: 80 }}
-                  >
-                    <div class="row1">
-                      <span class="bill-sub-desc">{b.description || '(无说明)'}</span>
-                      <!--
-                        hotfix #4: paid bill 主金额。
-                        - primary → BE `amount_primary` (已换算) + `primary_currency`.
-                        - split   → 原始 `amount` + `currency`.
-                      -->
-                      <span class="amount-primary">
-                        {#if viewMode === 'primary'}{fmtPaidPrimary(b)}{:else}{fmtPaidSplit(b)}{/if}
-                      </span>
-                    </div>
-                    <div class="row2 muted">
-                      <span class="bill-sub-date">{fmtDate(b.occurred_at)}</span>
-                      {#if b.participant_count}
-                        <span class="sep" aria-hidden="true">·</span>
-                        <span class="participant-count">
-                          <svg
-                            class="participant-icon"
-                            viewBox="0 0 24 24"
-                            width="14"
-                            height="14"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="1.75"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            aria-hidden="true"
-                          >
-                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                            <circle cx="9" cy="7" r="4" />
-                            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-                            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                          </svg>
-                          <span class="participant-count-num">{b.participant_count}</span>
-                        </span>
-                      {/if}
-                    </div>
-                  </li>
-                {/each}
-              </ul>
+            {:else}
+              <!-- UAT: 平滑展开/收起 — grid 0fr↔1fr (始终挂载, 避免 slide 跳变) -->
+              <div class="bill-sublist-wrap" class:is-open={paidExpanded}>
+                <div class="bill-sublist-inner">
+                  <ul class="bill-sublist">
+                    {#each filteredPaidBills as b, i (b.bill_id)}
+                      <li class="bill-subrow">
+                        <div class="row1">
+                          <span class="bill-sub-desc">{b.description || '(无说明)'}</span>
+                          <!--
+                            hotfix #4: paid bill 主金额。
+                            - primary → BE `amount_primary` (已换算) + `primary_currency`.
+                            - split   → 原始 `amount` + `currency`.
+                          -->
+                          <span class="amount-primary">
+                            {#if viewMode === 'primary'}{fmtPaidPrimary(b)}{:else}{fmtPaidSplit(b)}{/if}
+                          </span>
+                        </div>
+                        <div class="row2 muted">
+                          <span class="bill-sub-date">{fmtDate(b.occurred_at)}</span>
+                          {#if b.participant_count}
+                            <span class="sep" aria-hidden="true">·</span>
+                            <span class="participant-count">
+                              <svg
+                                class="participant-icon"
+                                viewBox="0 0 24 24"
+                                width="14"
+                                height="14"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.75"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                              >
+                                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                                <circle cx="9" cy="7" r="4" />
+                                <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                              </svg>
+                              <span class="participant-count-num">{b.participant_count}</span>
+                            </span>
+                          {/if}
+                        </div>
+                      </li>
+                    {/each}
+                  </ul>
+                </div>
+              </div>
             {/if}
           </div>
 
@@ -626,67 +625,68 @@
               <span class="bills-section-icon icon-consumed" aria-hidden="true">↓</span>
               <span class="bills-section-title">消费明细</span>
               <span class="bills-section-count muted">({selectedMember.consumed_bills.length})</span>
-              <span class="collapse-icon" aria-hidden="true">{consumedExpanded ? '▼' : '▶'}</span>
+              <span class="collapse-icon" class:is-open={consumedExpanded} aria-hidden="true">▼</span>
             </h4>
             {#if selectedMember.consumed_bills.length === 0}
               <p class="muted empty-hint">没有被分摊的账单</p>
             {:else if filteredConsumedBills.length === 0}
               <p class="muted empty-hint">没有匹配的账单,换个关键词试试。</p>
-            {:else if consumedExpanded}
-              <ul class="bill-sublist" transition:slide={{ duration: 200 }}>
-                {#each filteredConsumedBills as b, i (b.bill_id)}
-                  {@const tags = fmtConsumedTags(b)}
-                  <li
-                    class="bill-subrow"
-                    in:fade={{ duration: 80 }}
-                  >
-                    <div class="row1">
-                      <span class="bill-sub-desc">{b.description || '(无说明)'}</span>
-                      <!--
-                        hotfix #4: consumed share 主金额: 双模式。
-                        - primary → BE `share_amount_primary` + `primary_currency`.
-                        - split   → 原始 `share_amount` + `currency`.
-                      -->
-                      <span class="amount-primary">
-                        {#if viewMode === 'primary'}{fmtConsumedPrimary(b)}{:else}{fmtConsumedSplit(b)}{/if}
-                      </span>
-                    </div>
-                    <!-- v0.3.27 (UAT 0723-2 #4): 个人消费 独立行, 跟 BillListGrouped .bill-row-exclusive 同款 -->
-                    {#if tags.excl}
-                      <div class="bill-row-exclusive muted">
-                        个人消费 {tags.excl}
-                      </div>
-                    {/if}
-                    <div class="row2 muted">
-                      <span class="bill-sub-date">{fmtDate(b.occurred_at)}</span>
-                      {#if b.participant_count}
-                        <span class="sep" aria-hidden="true">·</span>
-                        <span class="participant-count">
-                          <svg
-                            class="participant-icon"
-                            viewBox="0 0 24 24"
-                            width="14"
-                            height="14"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="1.75"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            aria-hidden="true"
-                          >
-                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                            <circle cx="9" cy="7" r="4" />
-                            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-                            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                          </svg>
-                          <span class="participant-count-num">{b.participant_count}</span>
-                        </span>
-                      {/if}
-                      <span class="shared-tag-right">分摊 {tags.shared}</span>
-                    </div>
-                  </li>
-                {/each}
-              </ul>
+            {:else}
+              <div class="bill-sublist-wrap" class:is-open={consumedExpanded}>
+                <div class="bill-sublist-inner">
+                  <ul class="bill-sublist">
+                    {#each filteredConsumedBills as b, i (b.bill_id)}
+                      {@const tags = fmtConsumedTags(b)}
+                      <li class="bill-subrow">
+                        <div class="row1">
+                          <span class="bill-sub-desc">{b.description || '(无说明)'}</span>
+                          <!--
+                            hotfix #4: consumed share 主金额: 双模式。
+                            - primary → BE `share_amount_primary` + `primary_currency`.
+                            - split   → 原始 `share_amount` + `currency`.
+                          -->
+                          <span class="amount-primary">
+                            {#if viewMode === 'primary'}{fmtConsumedPrimary(b)}{:else}{fmtConsumedSplit(b)}{/if}
+                          </span>
+                        </div>
+                        <!-- v0.3.27 (UAT 0723-2 #4): 个人消费 独立行, 跟 BillListGrouped .bill-row-exclusive 同款 -->
+                        {#if tags.excl}
+                          <div class="bill-row-exclusive muted">
+                            个人消费 {tags.excl}
+                          </div>
+                        {/if}
+                        <div class="row2 muted">
+                          <span class="bill-sub-date">{fmtDate(b.occurred_at)}</span>
+                          {#if b.participant_count}
+                            <span class="sep" aria-hidden="true">·</span>
+                            <span class="participant-count">
+                              <svg
+                                class="participant-icon"
+                                viewBox="0 0 24 24"
+                                width="14"
+                                height="14"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.75"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                              >
+                                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                                <circle cx="9" cy="7" r="4" />
+                                <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                              </svg>
+                              <span class="participant-count-num">{b.participant_count}</span>
+                            </span>
+                          {/if}
+                          <span class="shared-tag-right">分摊 {tags.shared}</span>
+                        </div>
+                      </li>
+                    {/each}
+                  </ul>
+                </div>
+              </div>
             {/if}
           </div>
         </div>
@@ -1142,6 +1142,32 @@
     font-size: clamp(0.6875rem, 2.6vw, 0.75rem);
     color: var(--gray-400);
     line-height: 1;
+    display: inline-flex;
+    transition: transform 240ms cubic-bezier(0.32, 0.72, 0, 1);
+    transform: rotate(-90deg);
+  }
+  .collapse-icon.is-open {
+    transform: rotate(0deg);
+  }
+
+  /* UAT: 付款/消费明细平滑展开/收起 */
+  .bill-sublist-wrap {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 300ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .bill-sublist-wrap.is-open {
+    grid-template-rows: 1fr;
+  }
+  .bill-sublist-inner {
+    overflow: hidden;
+    min-height: 0;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .bill-sublist-wrap,
+    .collapse-icon {
+      transition: none;
+    }
   }
 
   /* v0.3.17 #37 (PO msg 10:55 #6262): icon 20×20 → 24×24, 跟加倍的 chip 高度视觉对位. font-size +2px (12 → 14). */

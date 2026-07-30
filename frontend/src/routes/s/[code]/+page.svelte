@@ -923,9 +923,14 @@
         {/if}
       </header>
 
-      {#if membersOpen}
-        <!-- v0.3.25 (UAT 0723-2 #14): 删 1-member 紧凑 CTA banner ('xxx还没有同伴, 邀请朋友加入一起记账'). 
-             现在 1-member case 直接走 else 分支的 members list (单 row). -->
+      <!-- UAT: 成员列表平滑展开/收起 — 始终挂载, grid 0fr↔1fr (跟账单 day-group 同款) -->
+      <div
+        class="members-body-wrap"
+        class:is-open={membersOpen}
+        aria-hidden={!membersOpen}
+        inert={!membersOpen ? true : undefined}
+      >
+        <div class="members-body">
         {#if session.members.length === 0}
           <EmptyState
             icon="users"
@@ -942,7 +947,6 @@
                 class="member-row-a"
                 class:is-owner={m.role === 'owner'}
                 class:is-me={isMe}
-                in:fly={{ y: 8, duration: 220, delay: Math.min(i * 30, 300) }}
               >
                 <div
                   class="avatar-a palette-{i % 10}"
@@ -989,7 +993,8 @@
             {/each}
           </ul>
         {/if}
-      {/if}
+        </div>
+      </div>
     </div>
 
     <!-- 反馈修 5 项目 8 + v0.3.2 §3.12.3: 「个人账单」按钮迁到 head，「查看结算」也并排。
@@ -1647,6 +1652,25 @@
   }
   .expiry-cta-suffix {
     color: var(--gray-600, #525252);
+  }
+
+  /* UAT: 成员列表平滑展开/收起 (grid 0fr ↔ 1fr) */
+  .members-body-wrap {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 300ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .members-body-wrap.is-open {
+    grid-template-rows: 1fr;
+  }
+  .members-body {
+    overflow: hidden;
+    min-height: 0;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .members-body-wrap {
+      transition: none;
+    }
   }
 
   /* === Member list — 列表布局 (替代旧 chip 圆角 999px) === */
