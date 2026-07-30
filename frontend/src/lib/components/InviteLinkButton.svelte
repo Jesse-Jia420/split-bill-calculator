@@ -250,7 +250,7 @@
     }
   }
 
-  const BRAND_BOOK_TITLE = '《轻均 FairLite》';
+  const BRAND_BOOK_TITLE = '「轻均 FairLite」';
 
   /** v0.3.0728-3 #2: 净化 QR 文件名 — 剔除非法字符 + 控制字符 + 过长截断 + 空 fallback.
    * 品牌书名号前缀不经 sanitize（保留空格与《》）. */
