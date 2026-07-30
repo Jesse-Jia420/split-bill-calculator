@@ -102,43 +102,40 @@
 
   {#if page.url.pathname !== '/auth/login' && !isLoginPage()}
     <div class="right" class:right-compact={compact}>
-      <!-- Crossfade stage: title ↔ chrome share one grid cell (no max-width layout thrash). -->
-      <div class="right-swap">
-        <div
-          class="ledger-title"
-          class:visible={compact && !!ledgerTitle}
-          data-testid="navbar-ledger-title"
-          title={ledgerTitle ?? undefined}
-          aria-hidden={compact && ledgerTitle ? undefined : 'true'}
-        >
-          <span class="ledger-title-text">{ledgerTitle ?? ''}</span>
-        </div>
-
-        <div
-          class="nav-chrome-full"
-          class:collapsed={compact}
-          aria-hidden={compact ? 'true' : undefined}
-        >
-          {#if $user}
-            <span class="email" title="{$user.email}">{$user.default_name}</span>
-            {#if page.url.pathname !== '/sessions/new' && !isSessionsListPage()}
-              <a href="/sessions" class="btn-sm links-item" tabindex={compact ? -1 : 0}>我的账本</a>
-            {/if}
-            <button class="ghost btn-sm" onclick={handleLogout} tabindex={compact ? -1 : 0}>注销登录</button>
-          {:else if guestSaveLabel}
-            <a
-              href={loginHref}
-              class="btn-sm"
-              data-testid="navbar-login-save"
-              tabindex={compact ? -1 : 0}
-            >登录以保存</a>
-          {:else if !inSession()}
-            <a href="/auth/login" class="btn-sm" tabindex={compact ? -1 : 0}>登录</a>
-          {/if}
-        </div>
+      <!-- Title + chrome + avatar: one-step L→R morph (avatar slot reserved immediately). -->
+      <div
+        class="ledger-title"
+        class:visible={compact && !!ledgerTitle}
+        data-testid="navbar-ledger-title"
+        title={ledgerTitle ?? undefined}
+        aria-hidden={compact && ledgerTitle ? undefined : 'true'}
+      >
+        <span class="ledger-title-text">{ledgerTitle ?? ''}</span>
       </div>
 
-      <!-- Avatar: opacity/scale only; width jumps once (not animated). -->
+      <div
+        class="nav-chrome-full"
+        class:collapsed={compact}
+        aria-hidden={compact ? 'true' : undefined}
+      >
+        {#if $user}
+          <span class="email" title="{$user.email}">{$user.default_name}</span>
+          {#if page.url.pathname !== '/sessions/new' && !isSessionsListPage()}
+            <a href="/sessions" class="btn-sm links-item" tabindex={compact ? -1 : 0}>我的账本</a>
+          {/if}
+          <button class="ghost btn-sm" onclick={handleLogout} tabindex={compact ? -1 : 0}>注销登录</button>
+        {:else if guestSaveLabel}
+          <a
+            href={loginHref}
+            class="btn-sm"
+            data-testid="navbar-login-save"
+            tabindex={compact ? -1 : 0}
+          >登录以保存</a>
+        {:else if !inSession()}
+          <a href="/auth/login" class="btn-sm" tabindex={compact ? -1 : 0}>登录</a>
+        {/if}
+      </div>
+
       <div
         class="avatar-menu"
         class:expanded={compact}
@@ -332,51 +329,40 @@
     flex-wrap: nowrap;
   }
 
-  /* Title ↔ chrome share one cell; only opacity/transform animate (GPU). */
-  .right-swap {
-    position: relative;
-    flex: 1 1 auto;
-    min-width: 0;
-    display: grid;
-    grid-template-columns: minmax(0, max-content);
-    justify-content: end;
-    justify-items: end;
-    align-items: center;
-  }
-
+  /*
+   * One-step L→R morph:
+   * - Avatar width reserved immediately (no width tween) so title's layout target
+   *   IS the final seat from frame 0 — avoids the old two-hop (button seat → final).
+   * - Title: final max-width on enter (instant), slides L→R via translateX.
+   * - Chrome: leaves flow immediately, slides L→R (positive X) + fades, same timing.
+   * Timings restored to original 320ms / 280ms / 240ms / 260ms curves.
+   */
   .ledger-title {
-    grid-column: 1;
-    grid-row: 1;
+    flex: 0 1 auto;
     min-width: 0;
-    max-width: min(46vw, 12.5rem);
+    max-width: 0;
     opacity: 0;
-    transform: translate3d(0, 6px, 0);
+    transform: translate3d(-18px, 0, 0);
+    overflow: hidden;
     pointer-events: none;
     visibility: hidden;
-    /* Absolute while hidden so it does not inflate the swap cell. */
-    position: absolute;
-    inset-inline-end: 0;
-    top: 0;
-    bottom: 0;
-    display: flex;
-    align-items: center;
     transition:
-      opacity 200ms ease,
-      transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
-      visibility 0s linear 240ms;
+      max-width 0s linear 320ms,
+      opacity 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s linear 320ms;
   }
   .ledger-title.visible {
-    position: relative;
-    inset: auto;
-    top: auto;
-    bottom: auto;
+    /* Final width immediately — motion is pure L→R translate into that seat. */
+    max-width: min(46vw, 12.5rem);
     opacity: 1;
     transform: translate3d(0, 0, 0);
     pointer-events: auto;
     visibility: visible;
     transition:
-      opacity 200ms ease,
-      transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
+      max-width 0s linear 0s,
+      opacity 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
       visibility 0s linear 0s;
   }
   .ledger-title-text {
@@ -395,42 +381,38 @@
   }
 
   .nav-chrome-full {
-    grid-column: 1;
-    grid-row: 1;
     display: flex;
     align-items: center;
     justify-content: flex-end;
     gap: var(--space-2);
     min-width: 0;
+    flex: 0 1 auto;
     opacity: 1;
     transform: translate3d(0, 0, 0);
     transform-origin: right center;
     transition:
-      opacity 180ms ease,
-      transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 240ms ease,
+      transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
       visibility 0s linear 0s;
   }
   .nav-chrome-full.collapsed {
-    opacity: 0;
-    transform: translate3d(10px, 0, 0);
-    pointer-events: none;
-    visibility: hidden;
-    /* Leave flow immediately — one layout pass, not a 320ms max-width tween. */
+    /* Out of flow immediately so title layout = final seat; visual exit is L→R. */
     position: absolute;
-    inset-inline-end: 0;
+    right: calc(36px + var(--space-2));
     top: 0;
     bottom: 0;
-    display: flex;
-    align-items: center;
+    transform: translate3d(20px, 0, 0);
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
     transition:
-      opacity 180ms ease,
-      transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
-      visibility 0s linear 180ms;
+      opacity 240ms ease,
+      transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s linear 320ms;
   }
   .nav-chrome-full .btn-sm {
     white-space: nowrap;
   }
-
 
   .email {
     color: var(--color-text-muted);
@@ -449,15 +431,15 @@
     height: 36px;
     opacity: 0;
     visibility: hidden;
-    transform: scale(0.72);
+    transform: scale(0.55);
     transform-origin: center center;
     overflow: visible;
     pointer-events: none;
-    /* Width/flex jump once; only opacity + scale tween (compositor-friendly). */
+    /* Width reserved instantly when expanded — only opacity/scale tween. */
     transition:
-      opacity 180ms ease,
-      transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
-      visibility 0s linear 180ms;
+      opacity 260ms ease,
+      transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s linear 320ms;
   }
   .avatar-menu.expanded {
     flex: 0 0 36px;
@@ -468,8 +450,8 @@
     transform: scale(1);
     pointer-events: auto;
     transition:
-      opacity 180ms ease,
-      transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 260ms ease,
+      transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
       visibility 0s linear 0s;
   }
   .avatar-btn {
