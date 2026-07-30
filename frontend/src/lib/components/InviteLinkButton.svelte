@@ -223,8 +223,8 @@
    * 当前 qrDataUrl 已经是 base64 PNG data URL (qrcode.toDataURL 输出).
    * 用 fetch(dataURL) → blob → URL.createObjectURL → anchor download.
    * 反 #121 自决 — 不引入 file-saver 依赖, 直接走原生 API.
-   * 文件名: "《轻均 FairLite》{sessionName 净化后}账本二维码.png"
-   *  - 空 sessionName → fallback "《轻均 FairLite》账本二维码.png"
+   * 文件名: "「轻均 FairLite」{sessionName 净化后}账本二维码.png"
+   *  - 空 sessionName → fallback "「轻均 FairLite」账本二维码.png"
    *  - sanitize 剔除  / \ : * ? " < > | (文件系统非法) + 控制字符 + 空格→下划线 + 截断 32 字符
    *  - 截断 32 字符避免 macOS HFS+/APFS 255 字节限制
    *  - 前缀书名号品牌名 + 后缀 "账本二维码.png" 永远保留. */
