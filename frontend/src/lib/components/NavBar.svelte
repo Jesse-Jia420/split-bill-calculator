@@ -10,10 +10,11 @@
 
   $: compact = $navbarChrome.compact && !!$navbarChrome.title;
   $: ledgerTitle = $navbarChrome.title;
+  $: anonSaveHint = $navbarChrome.anonSaveHint;
 
   // Leave ledger chrome when navigating away from a session page.
   $: if (!inSession()) {
-    if ($navbarChrome.title || $navbarChrome.compact) resetNavbarChrome();
+    if ($navbarChrome.title || $navbarChrome.compact || $navbarChrome.anonSaveHint) resetNavbarChrome();
     menuOpen = false;
   }
 
@@ -126,6 +127,18 @@
           {/if}
           <button class="ghost btn-sm" onclick={handleLogout} tabindex={compact ? -1 : 0}>注销登录</button>
         {:else if guestSaveLabel}
+          {#if anonSaveHint && !compact}
+            <span class="nav-anon-hint" data-testid="invite-anon-hint">
+              <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              <span class="nav-anon-hint-text">
+                <span class="line-1">当前未登录 请收藏此链接</span>
+                <span class="line-2">这是回到账本的唯一密钥</span>
+              </span>
+            </span>
+          {/if}
           <a
             href={loginHref}
             class="btn-sm"
@@ -177,6 +190,11 @@
                 注销登录
               </button>
             {:else if guestSaveLabel}
+              {#if anonSaveHint}
+                <div class="menu-anon-hint" role="note">
+                  当前未登录 请收藏此链接<br />这是回到账本的唯一密钥
+                </div>
+              {/if}
               <a href={loginHref} class="menu-item" role="menuitem" onclick={() => (menuOpen = false)}>
                 登录以保存
               </a>
@@ -407,6 +425,63 @@
   }
   .nav-chrome-full .btn-sm {
     white-space: nowrap;
+  }
+
+  /* Guest save cluster: hint 紧挨「登录以保存」 */
+  .nav-guest-save {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  /* Anon first-visit hint — tightly left of「登录以保存」 */
+  .nav-anon-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    box-sizing: border-box;
+    min-height: 36px;
+    max-width: min(42vw, 10.5rem);
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.15;
+    color: var(--red-700, #b91c1c);
+    background: rgba(239, 68, 68, 0.10);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+  .nav-anon-hint svg {
+    flex-shrink: 0;
+    opacity: 0.95;
+  }
+  .nav-anon-hint-text {
+    display: inline-flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1px;
+    min-width: 0;
+  }
+  .nav-anon-hint-text .line-1,
+  .nav-anon-hint-text .line-2 {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .menu-anon-hint {
+    padding: 8px 10px 6px;
+    margin-bottom: 2px;
+    font-size: 0.75rem;
+    line-height: 1.35;
+    color: var(--red-700, #b91c1c);
+    border-bottom: 1px solid rgba(15, 23, 42, 0.06);
   }
 
   .email {
