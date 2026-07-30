@@ -242,7 +242,7 @@
     }
   }
 
-  const BRAND_BOOK_TITLE = '「轻均 FairLite」';
+  const BRAND_BOOK_TITLE = '「轻均分账 FairLite」';
 
   /** 复制 / 分享账本链接正文（品牌 + 账本名 + URL + 用途说明）. */
   function buildInviteShareText(name: string, url: string): string {
@@ -591,7 +591,7 @@
           <img
             class="qr-img"
             src={qrDataUrl}
-            alt="{sessionName ? `${sessionName} · ` : ''}轻均 FairLite 账本二维码"
+            alt="{sessionName ? `${sessionName} · ` : ''}轻均分账 FairLite 账本二维码"
             width="280"
             height="350"
             data-testid="invite-qr-img"

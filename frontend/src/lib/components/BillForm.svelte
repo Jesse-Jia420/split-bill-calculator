@@ -670,20 +670,18 @@
       </div>
     </div>
 
-    <div class="field-grid field-grid-time-payer" data-testid="bill-time-payer-row">
-      <div class="field field-time">
-        <label class="label" for="occurredAt">时间</label>
-        <input id="occurredAt" type="datetime-local" bind:value={occurredAt} />
-      </div>
-      <div class="field field-payer">
-        <label class="label" for="payer">付款人</label>
-        <select id="payer" bind:value={payerMemberId}>
-          <option value={null}>— 选择 —</option>
-          {#each session.members as m (m.id)}
-            <option value={m.id}>{m.display_name}</option>
-          {/each}
-        </select>
-      </div>
+    <div class="field field-time" data-testid="bill-time-row">
+      <label class="label" for="occurredAt">时间</label>
+      <input id="occurredAt" type="datetime-local" bind:value={occurredAt} />
+    </div>
+    <div class="field field-payer" data-testid="bill-payer-row">
+      <label class="label" for="payer">付款人</label>
+      <select id="payer" bind:value={payerMemberId}>
+        <option value={null}>— 选择 —</option>
+        {#each session.members as m (m.id)}
+          <option value={m.id}>{m.display_name}</option>
+        {/each}
+      </select>
     </div>
   {:else}
   <div class="row" style="gap: var(--space-3); align-items: flex-start;">
@@ -1365,46 +1363,55 @@
     cursor: not-allowed;
   }
 
-  /* 时间 + 付款人: 等宽两列; stack gap 已与金额区拉开 */
-  .sheet-layout .field-grid {
-    display: grid;
-    gap: 12px;
-    width: 100%;
-    max-width: 100%;
-  }
-  .sheet-layout .field-grid-time-payer {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    align-items: start;
-    overflow: hidden;
-  }
+  /* 时间 / 付款人各占整行 — datetime-local 半宽列会裁切 native widget */
   .sheet-layout .field-time,
   .sheet-layout .field-payer {
     min-width: 0;
     width: 100%;
     max-width: 100%;
-    overflow: hidden;
   }
-  /* 覆盖全局 #occurredAt { max-width: 260px } — 半宽列里会横向溢出 */
   .sheet-layout .field-time input[type="datetime-local"]#occurredAt {
     box-sizing: border-box;
+    display: block;
     width: 100%;
     max-width: 100% !important;
     min-width: 0 !important;
     height: 44px;
     min-height: 44px;
-    overflow: hidden;
-    padding-inline: 8px;
-    font-size: 13px;
+    max-height: 44px;
+    padding: 0 12px;
+    font-size: 14px;
+    line-height: 44px;
+    overflow: visible;
+    -webkit-appearance: none;
+    appearance: none;
   }
   .sheet-layout .field-time input[type="datetime-local"]#occurredAt::-webkit-datetime-edit,
   .sheet-layout .field-time input[type="datetime-local"]#occurredAt::-webkit-datetime-edit-fields-wrapper {
+    display: inline-flex;
+    align-items: center;
     min-width: 0;
-    max-width: 100%;
-    overflow: hidden;
+    max-width: none;
+    height: 44px;
+    line-height: 44px;
+    padding: 0;
+  }
+  .sheet-layout .field-time input[type="datetime-local"]#occurredAt::-webkit-datetime-edit-text,
+  .sheet-layout .field-time input[type="datetime-local"]#occurredAt::-webkit-datetime-edit-month-field,
+  .sheet-layout .field-time input[type="datetime-local"]#occurredAt::-webkit-datetime-edit-day-field,
+  .sheet-layout .field-time input[type="datetime-local"]#occurredAt::-webkit-datetime-edit-year-field,
+  .sheet-layout .field-time input[type="datetime-local"]#occurredAt::-webkit-datetime-edit-hour-field,
+  .sheet-layout .field-time input[type="datetime-local"]#occurredAt::-webkit-datetime-edit-minute-field,
+  .sheet-layout .field-time input[type="datetime-local"]#occurredAt::-webkit-datetime-edit-ampm-field {
+    padding: 0 1px;
+    line-height: 44px;
   }
   .sheet-layout .field-time input[type="datetime-local"]#occurredAt::-webkit-calendar-picker-indicator {
-    margin-left: 2px;
-    flex-shrink: 0;
+    margin-left: 4px;
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    opacity: 0.7;
   }
   .sheet-layout .field-payer select#payer {
     box-sizing: border-box;
@@ -1468,26 +1475,31 @@
   input[type="datetime-local"]#occurredAt {
     min-width: 0;
     width: 100%;
-    max-width: 260px; /* v0.3.37 #2: constrength to ~widget+padding, 不再全宽撑长 */
-    padding-block: 8px;
-    padding-inline: 10px; /* v0.3.37 #2: symmetric 10px, 原 12px 16px → 10px 省 8px */
-    font-size: 14px; /* v0.3.37 #2: 降 1px 跟其余 input 一致 */
+    max-width: 100%;
+    box-sizing: border-box;
+    height: 44px;
+    min-height: 44px;
+    padding: 0 12px;
+    font-size: 14px;
     letter-spacing: -0.01em;
-    /* v0.3.0729-4 #3: 时间文字垂直居中 */
-    height: 40px;
-    line-height: 1.2;
-    display: flex;
-    align-items: center;
+    line-height: 44px;
+    display: block;
+    -webkit-appearance: none;
+    appearance: none;
   }
   input[type="datetime-local"]#occurredAt::-webkit-datetime-edit,
   input[type="datetime-local"]#occurredAt::-webkit-datetime-edit-fields-wrapper {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    height: 100%;
+    height: 44px;
+    line-height: 44px;
     padding: 0;
   }
   input[type="datetime-local"]#occurredAt::-webkit-calendar-picker-indicator {
-    align-self: center;
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    opacity: 0.7;
   }
 
   /* v0.3.29 — UAT 0725-1 #6: 时间 input 独立整行, full-width container 让 iOS Safari
@@ -1500,6 +1512,7 @@
   }
   .occurredAt-row input[type="datetime-local"]#occurredAt {
     display: block;
+    max-width: 100%;
   }
 
   /* v0.3.35 #1 — UAT 0725-3 #6 (PO msg #9088 batch): description 空提交红框玻璃.

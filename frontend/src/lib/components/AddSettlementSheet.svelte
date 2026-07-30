@@ -33,6 +33,7 @@
   import { ApiError } from '$api/client';
   import { formatMoney } from '$lib/utils/format';
   import { currencySymbol } from '$lib/utils/currency';
+  import IosSwitch from '$lib/components/IosSwitch.svelte';
 
   export let sessionId: number;
   /** SessionMember.id -> display_name. 来自 session.members. */
@@ -60,6 +61,8 @@
   let amountStr: string = '';
   let note: string = '';
   let busy = false;
+  $: currencyOptions = currencies.length > 0 ? currencies : [currency || primaryCurrency || 'CNY'];
+  $: isMultiCurrency = currencyOptions.length > 1;
 
   /** 默认付款人 = 当前用户 (PO 字面 "任一成员可给任一其它成员"). */
   $: if (payerId === null && currentMemberId != null && members.length > 0) {
@@ -309,48 +312,44 @@
       </div>
     </div>
 
-    <!-- Row 2: 金额 (跟新建账单 sheet 同款: 标签行右侧币种 pill, 金额框全宽) -->
+    <!-- Row 2: 金额 + 币种切换 pill (跟新建账单 sheet 同款 IosSwitch / locked chip) -->
     <div class="form-row full">
       <div class="field amount-field">
-        <div class="amount-label-row">
-          <label class="field-label" for="add-settle-amount">金额</label>
+        <label class="field-label" for="add-settle-amount">金额</label>
+        <div class="amount-input-row">
           <div
-            class="currency-pills"
-            role="radiogroup"
-            aria-label="币种"
-            data-sbc="sheet-currency-pills"
+            class="field-control amount-control"
+            class:focused={amountStr.length > 0}
+            data-sbc="sheet-amount-control"
           >
-            {#each (currencies.length > 0 ? currencies : [currency]) as code (code)}
-              <button
-                type="button"
-                class="currency-pill"
-                class:active={currency === code}
-                role="radio"
-                aria-checked={currency === code}
-                disabled={busy}
-                data-sbc="sheet-currency-pill-{code}"
-                onclick={() => { currency = code; }}
-              >{code}</button>
-            {/each}
+            <span class="currency-prefix">{currencySymbol(currency)}</span>
+            <input
+              id="add-settle-amount"
+              class="amount-input"
+              type="text"
+              inputmode="decimal"
+              placeholder="0.00"
+              autocomplete="off"
+              bind:value={amountStr}
+              disabled={busy}
+              data-sbc="sheet-amount-input"
+            />
           </div>
-        </div>
-        <div
-          class="field-control"
-          class:focused={amountStr.length > 0}
-          data-sbc="sheet-amount-control"
-        >
-          <span class="currency-prefix">{currencySymbol(currency)}</span>
-          <input
-            id="add-settle-amount"
-            class="amount-input"
-            type="text"
-            inputmode="decimal"
-            placeholder="0.00"
-            autocomplete="off"
-            bind:value={amountStr}
-            disabled={busy}
-            data-sbc="sheet-amount-input"
-          />
+          {#if isMultiCurrency}
+            <div class="currency-switch-wrap" data-sbc="sheet-currency-switch">
+              <IosSwitch
+                ariaLabel="币种"
+                options={currencyOptions.map((code) => ({ value: code, label: code }))}
+                bind:value={currency}
+              />
+            </div>
+          {:else}
+            <span
+              class="currency-locked"
+              aria-label="币种 {currencyOptions[0]}（单币种不可选）"
+              data-sbc="sheet-currency-locked"
+            >{currencyOptions[0]}</span>
+          {/if}
         </div>
       </div>
     </div>
@@ -505,61 +504,58 @@
     margin-bottom: 4px;
     letter-spacing: 0.02em;
   }
-  /* 跟 BillForm sheet amount-label-row / currency-pill 视觉对齐 */
-  .amount-label-row {
+  /* 跟 BillForm sheet: 金额 input + 币种 IosSwitch / locked chip 同行 */
+  .amount-input-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 10px;
     min-width: 0;
-    margin-bottom: 8px;
+    width: 100%;
   }
-  .amount-label-row .field-label {
-    margin-bottom: 0;
+  .amount-control {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .currency-switch-wrap {
     flex: 0 0 auto;
-  }
-  .currency-pills {
     display: flex;
-    flex-wrap: nowrap;
-    justify-content: flex-end;
-    gap: 6px;
-    flex: 0 1 auto;
-    max-width: 70%;
-    overflow-x: auto;
-    scrollbar-width: none;
+    align-items: center;
   }
-  .currency-pills::-webkit-scrollbar { display: none; }
-  .currency-pill {
+  .currency-switch-wrap :global(.ios-switch) {
+    margin: 0;
+    width: fit-content;
+    max-width: 100%;
+  }
+  .currency-switch-wrap :global(.ios-switch-option) {
+    padding: 0.35rem 0.7rem;
+    font-size: 0.75rem;
+    min-height: 36px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .currency-locked {
+    flex: 0 0 auto;
     box-sizing: border-box;
-    height: 28px;
-    min-height: 28px;
-    padding: 0 10px;
+    height: 36px;
+    min-height: 36px;
+    padding: 0 12px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: transparent;
-    border: 1px solid var(--color-border, #e5e7eb);
-    border-radius: 999px;
-    font-size: 12px;
+    border-radius: 9999px;
+    font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 0.02em;
-    color: var(--color-text, #111827);
-    cursor: pointer;
-    font-family: inherit;
-    transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .currency-pill:hover:not(:disabled) {
-    border-color: rgba(40, 40, 40, 0.5);
-  }
-  .currency-pill.active {
-    background: #2c2c2c;
-    color: white;
-    border-color: #2c2c2c;
-  }
-  .currency-pill:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+    color: rgba(26, 26, 26, 0.55);
+    background: rgba(255, 255, 255, 0.12);
+    border: 0.5px solid rgba(40, 40, 40, 0.28);
+    box-shadow:
+      inset 0 1px 2px rgba(0, 0, 0, 0.04),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.95);
+    opacity: 0.72;
+    user-select: none;
+    pointer-events: none;
+    white-space: nowrap;
   }
   .field-control {
     display: flex;

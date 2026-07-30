@@ -105,11 +105,8 @@
   let paidExpanded = true;
   let consumedExpanded = true;
 
-  // === v0.3.24 #12 (PO msg 16:35 UAT file line 12): 付款明细 + 消费明细 搜索框 ===
-  // 跟 BillListGrouped.svelte 的 .bills-search 同款 (玻璃风 placeholder "搜索账单名称"),
-  // 实时 filter b.description 包含关键词 (case-insensitive, 中文/英文都按 substring match).
-  let paidSearchQuery = '';
-  let consumedSearchQuery = '';
+  // Shared sticky search for 付款明细 + 消费明细 (one box above 付款明细).
+  let detailSearchQuery = '';
 
   /** T6: 金额统一改用 formatMoney (千分位 + 2dp)。 */
   function fmt(n: number): string {
@@ -205,11 +202,15 @@
     return desc.includes(q);
   }
   $: filteredPaidBills = selectedMember
-    ? (selectedMember.paid_bills ?? []).filter((b) => matchesSearch(b, paidSearchQuery))
+    ? (selectedMember.paid_bills ?? []).filter((b) => matchesSearch(b, detailSearchQuery))
     : [];
   $: filteredConsumedBills = selectedMember
-    ? (selectedMember.consumed_bills ?? []).filter((b) => matchesSearch(b, consumedSearchQuery))
+    ? (selectedMember.consumed_bills ?? []).filter((b) => matchesSearch(b, detailSearchQuery))
     : [];
+  $: showDetailSearch =
+    !!selectedMember &&
+    ((selectedMember.paid_bills?.length ?? 0) > 0 ||
+      (selectedMember.consumed_bills?.length ?? 0) > 0);
 
   $: meMemberId = (() => {
     if (currentUserId === null || currentUserId === undefined) return null;
@@ -506,6 +507,28 @@
             </div>
           </div>
 
+          <!-- Shared sticky search (filters both 付款明细 + 消费明细) -->
+          {#if showDetailSearch}
+            <div class="bills-section-search bills-section-search-shared" data-testid="member-detail-search">
+              <Search size={14} aria-hidden="true" />
+              <input
+                type="search"
+                bind:value={detailSearchQuery}
+                placeholder="搜索账单名称"
+                aria-label="搜索付款与消费明细"
+                class="bills-section-search-input"
+              />
+              {#if detailSearchQuery}
+                <button
+                  type="button"
+                  class="bills-section-search-clear"
+                  aria-label="清除搜索"
+                  onclick={() => (detailSearchQuery = '')}
+                ><X size={12} /></button>
+              {/if}
+            </div>
+          {/if}
+
           <!-- T10: 付款明细 section with sticky header -->
           <div class="bills-section bills-section-paid glass-sheet">
             <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
@@ -527,36 +550,9 @@
               <span class="bills-section-count muted">({selectedMember.paid_bills.length})</span>
               <span class="collapse-icon" aria-hidden="true">{paidExpanded ? '▼' : '▶'}</span>
             </h4>
-            <!-- v0.3.24 #12 (PO msg 16:35 UAT file line 12): 付款明细 搜索框
-                 跟 BillListGrouped.svelte .bills-search 同款玻璃风格.
-                 只在 paid_bills.length > 0 时 render (空 section 不显示 search,
-                 否则用户搜什么都没有显得无意义). -->
-            {#if selectedMember.paid_bills.length > 0}
-              <div class="bills-section-search">
-                <Search size={14} aria-hidden="true" />
-                <input
-                  type="search"
-                  bind:value={paidSearchQuery}
-                  placeholder="搜索账单名称"
-                  aria-label="搜索付款明细"
-                  class="bills-section-search-input"
-                />
-                {#if paidSearchQuery}
-                  <button
-                    type="button"
-                    class="bills-section-search-clear"
-                    aria-label="清除搜索"
-                    onclick={() => (paidSearchQuery = '')}
-                  ><X size={12} /></button>
-                {/if}
-              </div>
-            {/if}
             {#if selectedMember.paid_bills.length === 0}
               <p class="muted empty-hint">没有付过账单</p>
             {:else if filteredPaidBills.length === 0}
-              <!-- v0.3.24 #12 (PO msg 16:35 UAT file line 12): 付款明细 filter 没匹配
-                   跟 BillListGrouped 的 totalBills > 0 && filteredBills === 0 文案对齐
-                   (v0.3.22 #119 拍板双态 placeholder, 区分 "没数据" vs "filter 没过"). -->
               <p class="muted empty-hint">没有匹配的账单,换个关键词试试。</p>
             {:else if paidExpanded}
               <!-- v0.3.17 #20 hotfix (PO msg 13:12): ul 用 transition:slide
@@ -601,7 +597,7 @@
                             <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
                             <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                           </svg>
-                          <span class="participant-count-num">{b.participant_count}人</span>
+                          <span class="participant-count-num">{b.participant_count}</span>
                         </span>
                       {/if}
                     </div>
@@ -632,34 +628,9 @@
               <span class="bills-section-count muted">({selectedMember.consumed_bills.length})</span>
               <span class="collapse-icon" aria-hidden="true">{consumedExpanded ? '▼' : '▶'}</span>
             </h4>
-            <!-- v0.3.24 #12 (PO msg 16:35 UAT file line 12): 消费明细 搜索框
-                 跟 付款明细 search 同款, filter consumed_bills.
-                 只在 consumed_bills.length > 0 时 render. -->
-            {#if selectedMember.consumed_bills.length > 0}
-              <div class="bills-section-search">
-                <Search size={14} aria-hidden="true" />
-                <input
-                  type="search"
-                  bind:value={consumedSearchQuery}
-                  placeholder="搜索账单名称"
-                  aria-label="搜索消费明细"
-                  class="bills-section-search-input"
-                />
-                {#if consumedSearchQuery}
-                  <button
-                    type="button"
-                    class="bills-section-search-clear"
-                    aria-label="清除搜索"
-                    onclick={() => (consumedSearchQuery = '')}
-                  ><X size={12} /></button>
-                {/if}
-              </div>
-            {/if}
             {#if selectedMember.consumed_bills.length === 0}
               <p class="muted empty-hint">没有被分摊的账单</p>
             {:else if filteredConsumedBills.length === 0}
-              <!-- v0.3.24 #12 (PO msg 16:35 UAT file line 12): 消费明细 filter 没匹配,
-                   跟 付款明细 同文案 (跟 BillListGrouped 风格统一). -->
               <p class="muted empty-hint">没有匹配的账单,换个关键词试试。</p>
             {:else if consumedExpanded}
               <ul class="bill-sublist" transition:slide={{ duration: 200 }}>
@@ -708,7 +679,7 @@
                             <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
                             <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                           </svg>
-                          <span class="participant-count-num">{b.participant_count}人</span>
+                          <span class="participant-count-num">{b.participant_count}</span>
                         </span>
                       {/if}
                       <span class="shared-tag-right">分摊 {tags.shared}</span>
@@ -1467,30 +1438,26 @@
        堆叠 (从底到顶): bill items (z-index auto) → 搜索框 (z-index 9) → section h4
        sticky header (z-index 10). 搜索框 z-index 9 < h4 z-index 10, 滚到 h4 重叠时
        h4 视觉压在搜索框上方 (跟 iOS native section header 行为一致). */
+  /* Shared sticky search above 付款明细 — sticks at top of the detail scroll. */
   .bills-section-search {
     position: sticky;
-    /* v0.3.0729-2 #9: top 跟 glass-chip 实际高度对齐.
-       chip = padding 20+20 + 16px 字 + min-height 60 → 实测常 ~64-72px (含 gap/icon).
-       旧 top:32/60 仍会被 header 挡住; 现 top:76px 保证 search 整条露在 chip 下沿之下. */
-    top: 76px;
-    /* search 在 header 之下 (z < header), 正确堆叠: items → search(9) → header(10). */
-    z-index: 9;
+    top: 0;
+    z-index: 12;
     display: flex;
     align-items: center;
     gap: var(--space-2, 8px);
-    /* margin-bottom 8px 保留 (跟下面 bill items 视觉间距), 但改成 sticky 后 margin-top 也归 0
-       (避免跟 h4 视觉间距 8px + h4 margin-bottom 8px 叠加 16px). */
-    margin: 0 0 var(--space-2, 8px);
+    margin: 0 0 var(--space-3, 12px);
     padding: 8px var(--space-2, 8px);
-    /* v0.3.0729-4 #12: 与账单列表日期 header 同透明度 (0.42) */
     background: rgba(255, 255, 255, 0.42);
     backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
     border: 1px solid var(--color-border, #e5e7eb);
     border-radius: var(--radius-md, 8px);
     color: var(--gray-500);
-    /* 跟 .bills-section 共享 left border (颜色竖条) — search 缩进跟 ul 内容对齐 */
-    margin-left: 0;
+  }
+  /* When shared search is present, section headers stick just below it. */
+  .bills-section-search-shared ~ .bills-section .section-header {
+    top: 44px;
   }
   @supports not (backdrop-filter: blur(1px)) {
     .bills-section-search {
