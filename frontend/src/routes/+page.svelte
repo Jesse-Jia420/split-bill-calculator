@@ -68,7 +68,12 @@
 
   <div class="hero">
     <div class="brand" aria-label="轻均 FairLite">
-      <span class="brand-zh">轻均</span>
+      <span class="brand-zh">
+        <span class="brand-zh-inner">
+          <span class="brand-zh-glass" aria-hidden="true">轻均</span>
+          轻均
+        </span>
+      </span>
       <span class="brand-en">FairLite</span>
     </div>
 
@@ -188,32 +193,81 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.35rem;
-    margin-bottom: 1.35rem;
+    gap: 0.55rem;
+    margin-bottom: 1.5rem;
   }
 
+  /*
+   * 「轻均」— 细高 + iOS 锁屏时间式 Liquid Glass
+   * - 细：Noto Sans SC ExtraLight (200)
+   * - 高：scaleY 拉长、scaleX 略收，呼应「轻而匀称」
+   * - 玻璃：冷白玻璃体 + 外沿描边 + 顶部高光带（paint-order / background-clip）
+   */
   .brand-zh {
+    display: inline-block;
+    animation: rise 0.95s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .brand-zh-inner {
+    position: relative;
+    display: inline-block;
     font-family: 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
-    font-weight: 700;
-    font-size: clamp(3.75rem, 16vw, 5.75rem);
-    line-height: 0.95;
-    letter-spacing: 0.08em;
-    color: var(--foam);
-    text-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.18),
-      0 18px 40px rgba(0, 0, 0, 0.35);
-    animation: rise 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+    font-weight: 200;
+    font-size: clamp(4.6rem, 20vw, 7rem);
+    line-height: 0.92;
+    letter-spacing: 0.22em;
+    text-indent: 0.22em;
+    transform: scaleX(0.88) scaleY(1.16);
+    transform-origin: center center;
+    -webkit-font-smoothing: antialiased;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+
+    /* 玻璃体：半透冷白，透出背后氛围 */
+    color: rgba(236, 244, 242, 0.72);
+
+    /* 玻璃外沿 —— 描在 fill 后，只露外侧亮边 */
+    -webkit-text-stroke: 1.35px rgba(255, 255, 255, 0.72);
+    paint-order: stroke fill;
+
+    filter: drop-shadow(0 10px 28px rgba(0, 0, 0, 0.38))
+      drop-shadow(0 1px 0 rgba(255, 255, 255, 0.35));
+  }
+
+  /* 顶部高光带：模拟曲面玻璃受光（iOS 锁屏数字同族） */
+  .brand-zh-glass {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    font: inherit;
+    font-weight: inherit;
+    letter-spacing: inherit;
+    line-height: inherit;
+    text-indent: inherit;
+    color: transparent;
+    -webkit-text-stroke: 0;
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.98) 0%,
+      rgba(255, 255, 255, 0.88) 12%,
+      rgba(245, 252, 250, 0.55) 28%,
+      rgba(230, 240, 238, 0.12) 42%,
+      rgba(230, 240, 238, 0) 55%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    animation: glassSheen 6.5s ease-in-out infinite alternate;
   }
 
   .brand-en {
     font-family: 'Inter Variable', Inter, system-ui, sans-serif;
-    font-weight: 500;
-    font-size: clamp(1.05rem, 3.8vw, 1.35rem);
-    letter-spacing: 0.28em;
-    text-indent: 0.28em;
+    font-weight: 400;
+    font-size: clamp(1rem, 3.6vw, 1.25rem);
+    letter-spacing: 0.32em;
+    text-indent: 0.32em;
     text-transform: none;
-    color: rgba(244, 247, 245, 0.88);
-    animation: rise 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.08s both;
+    color: rgba(244, 247, 245, 0.78);
+    animation: rise 0.95s cubic-bezier(0.16, 1, 0.3, 1) 0.08s both;
   }
 
   .headline {
@@ -394,13 +448,25 @@
     }
   }
 
+  @keyframes glassSheen {
+    from {
+      opacity: 0.88;
+      filter: brightness(1);
+    }
+    to {
+      opacity: 1;
+      filter: brightness(1.08);
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .stage-img,
     .brand-zh,
     .brand-en,
     .headline,
     .support,
-    .actions {
+    .actions,
+    .brand-zh-glass {
       animation: none !important;
     }
   }
