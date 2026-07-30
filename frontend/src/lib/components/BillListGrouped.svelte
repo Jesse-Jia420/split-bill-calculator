@@ -1236,9 +1236,7 @@
       0 1px 3px rgba(20, 184, 166, 0.10);
   }
   .cc-chip.cc-chip-secondary .cc-code { color: #0f766e; }
-  .cc-chip.cc-chip-secondary .cc-per {
-    color: #0f766e;
-  }
+  /* 人均行统一灰色 — 不随主/副币种变色 */
   .cc-chip.cc-chip-empty .cc-amt,
   .cc-chip.cc-chip-empty .cc-per {
     opacity: 0.55;
