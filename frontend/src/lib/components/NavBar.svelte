@@ -191,6 +191,18 @@
     justify-content: space-between;
     transition: background 180ms ease, box-shadow 180ms ease;
   }
+  /* Fill under status bar with paper tone so iOS overscroll never flashes stark white above the bar. */
+  .navbar::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: env(safe-area-inset-top, 0px);
+    background: #fafafa;
+    pointer-events: none;
+    z-index: -1;
+  }
   .navbar.compact {
     background: rgba(255, 255, 255, 0.55);
     box-shadow:
@@ -342,9 +354,17 @@
     flex-shrink: 0;
   }
   .avatar-btn {
+    /* Override global button { min-height: 44px; padding: … } — that stretched the chip into an oval. */
+    box-sizing: border-box;
     width: 36px;
     height: 36px;
-    border-radius: 999px;
+    min-width: 36px;
+    min-height: 36px;
+    max-width: 36px;
+    max-height: 36px;
+    aspect-ratio: 1 / 1;
+    flex: 0 0 36px;
+    border-radius: 50%;
     border: 1px solid rgba(99, 102, 241, 0.28);
     background: linear-gradient(135deg, rgba(99, 102, 241, 0.92) 0%, rgba(59, 130, 246, 0.88) 100%);
     color: #fff;
@@ -353,6 +373,9 @@
     justify-content: center;
     cursor: pointer;
     padding: 0;
+    margin: 0;
+    line-height: 0;
+    overflow: hidden;
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.35),
       0 2px 8px rgba(99, 102, 241, 0.28);
