@@ -516,10 +516,14 @@
     right: 0;
     bottom: 0;
     z-index: 1201;
-    background: var(--color-bg, #fff);
+    width: 100%;
+    max-width: var(--sbc-sheet-max-w, 480px);
+    margin: 0 auto;
+    background: var(--sbc-sheet-bg, #fff);
+    border-radius: var(--sbc-sheet-radius, 20px) var(--sbc-sheet-radius, 20px) 0 0;
     border-top: 1px solid var(--color-border, #e5e7eb);
     box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.06);
-    padding: 12px 12px calc(12px + env(safe-area-inset-bottom, 0px));
+    padding: 12px 12px var(--sbc-sheet-pad-bottom, calc(12px + env(safe-area-inset-bottom, 0px)));
     display: flex;
     flex-direction: column;
     gap: 12px;

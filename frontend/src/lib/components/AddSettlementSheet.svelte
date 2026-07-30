@@ -254,7 +254,7 @@
 <!-- Bottom sheet -->
 <!-- v0.3.0729-2 #6: 恢复 × 关闭按钮 (仅靠 drag-down 真机关不稳) + 保留 drag-down 作辅助. -->
 <div
-  class="sheet"
+  class="sheet sbc-bottom-sheet"
   class:dragging
   class:closing
   role="dialog"
@@ -274,7 +274,7 @@
          关闭走 backdrop / drag-down / Escape. -->
   </div>
 
-  <div class="form">
+  <div class="form sbc-bottom-sheet__body">
     <!-- Row 1: 付款人 + 收款人 (并排) -->
     <div class="form-row">
       <div class="field">
@@ -409,7 +409,7 @@
   {/if}
 
   <!-- CTA -->
-  <div class="cta-row">
+  <div class="cta-row sbc-bottom-sheet__foot">
     <button
       class="btn-primary"
       type="button"
@@ -439,39 +439,13 @@
 
   /* === Bottom Sheet (modal) === */
   .sheet {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    max-width: 480px;
-    margin: 0 auto;
-    background: rgba(255, 255, 255, 0.92);
-    backdrop-filter: saturate(220%) blur(28px);
-    -webkit-backdrop-filter: saturate(220%) blur(28px);
-    border-top-left-radius: 24px;
-    border-top-right-radius: 24px;
-    border: 1px solid rgba(255, 255, 255, 0.7);
-    border-bottom: 0;
-    box-shadow:
-      0 -8px 32px rgba(15, 23, 42, 0.12),
-      inset 0 1px 0 rgba(255, 255, 255, 0.85),
-      /* v0.3.0729-4 #14: 上拉橡皮筋时底部白色延伸，避免与页面底部分离 */
-      0 50vh 0 0 rgba(255, 255, 255, 0.96);
-    /* v0.3.0729-2 #6: z-index 60 → 1000, 跟 CurrencyAddModal 对齐,
-       避免被 VersionBadge (z=200) / NavBar (z=100) 盖住交互. */
+    /* Shared .sbc-bottom-sheet owns flush bottom / radius / ::after under-fill. */
     z-index: 1000;
-    padding: 8px 16px 16px;
+    padding: 8px 16px 0;
     animation: slideUp 280ms cubic-bezier(0.32, 0.72, 0, 1);
-    max-height: 92vh;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    /* v0.3.0728-2 #21 re-fix: touch-action: none 让 JS 完全接管 touchmove (避免 iOS Safari
-       pan-y 浏览器默认 pan 抢 touchend → dragDeltaY 跟手指不一致 → 关不掉).
-       form 字段短 (max-height:92vh 内 fit) 不需要内部 scroll, 改 none 安全. */
     touch-action: none;
     will-change: transform;
   }
-  /* v0.3.0728-2 #21: drag 时 inline style 控制 transform, 这里只保证动画期间 overflow 不被 clip */
   .sheet.dragging {
     transition: none !important;
   }
@@ -513,6 +487,7 @@
 
   /* === Form === */
   .form { padding-bottom: 8px; }
+  /* scroll lives on .sbc-bottom-sheet__body */
   .form-row { display: flex; gap: 10px; margin-bottom: 10px; }
   .form-row.full { flex-direction: column; gap: 0; }
   .field { flex: 1; min-width: 0; }
@@ -683,7 +658,10 @@
   }
 
   /* === CTA === */
-  .cta-row { padding: 4px 0 12px; }
+  .cta-row {
+    padding-top: 4px;
+    /* padding-bottom from .sbc-bottom-sheet__foot */
+  }
   .btn-primary {
     width: 100%;
     height: 50px;

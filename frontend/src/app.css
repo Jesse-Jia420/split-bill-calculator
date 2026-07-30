@@ -98,6 +98,15 @@ input, textarea, select, [contenteditable] {
   --radius-xl: 16px;
   --radius-full: 9999px;
 
+  /* Bottom sheets — shared chrome (BillSheet / Currency / Invite / Settlement / keypad)
+     Flush to viewport bottom; only top corners rounded; safe-area lives in foot padding.
+     Do NOT put overflow-y on the sheet root (clips bottom fill / looks “断掉”). */
+  --sbc-sheet-max-w: 480px;
+  --sbc-sheet-radius: 20px;
+  --sbc-sheet-bg: rgba(255, 255, 255, 0.96);
+  --sbc-sheet-pad-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  --sbc-sheet-max-h: min(92vh, 900px);
+
   /* Spacing (4px base) — v0.3.17 #34 (PO msg 01:31 #6137 + 01:42 #6155): clamp 化
      跟 viewport 联动, 320px 缩到 87.5%, 大屏维持原值.
      vw-based 校准到 ~400px viewport 命中 max. */
@@ -644,3 +653,66 @@ button.glass-pill.invite-btn.invite-btn-breathing,
 .invite-btn-breathing::after {
   display: none;
 }
+
+/* ============================================================
+ * Shared bottom-sheet helpers (class hooks for sheet roots / feet)
+ * Components keep local animation / z-index; these fix the “断掉”
+ * seam: flush bottom + unclipped under-fill + safe-area foot pad.
+ * ============================================================ */
+.sbc-bottom-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0 auto;
+  width: min(100vw, var(--sbc-sheet-max-w));
+  max-width: var(--sbc-sheet-max-w);
+  max-height: var(--sbc-sheet-max-h);
+  max-height: min(92dvh, 900px);
+  display: flex;
+  flex-direction: column;
+  /* visible: allow ::after under-fill; scrolling belongs on __body */
+  overflow: visible;
+  overscroll-behavior: none;
+  background: var(--sbc-sheet-bg);
+  backdrop-filter: saturate(180%) blur(24px);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  border-radius: var(--sbc-sheet-radius) var(--sbc-sheet-radius) 0 0;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-bottom: 0;
+  box-shadow:
+    0 -8px 32px rgba(15, 23, 42, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+/* Rubber-band / home-indicator fill — must NOT be a box-shadow (overflow clips it) */
+.sbc-bottom-sheet::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% - 1px);
+  height: 70vh;
+  background: var(--sbc-sheet-bg);
+  pointer-events: none;
+  z-index: -1;
+}
+.sbc-bottom-sheet__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+.sbc-bottom-sheet__foot {
+  flex-shrink: 0;
+  padding-bottom: var(--sbc-sheet-pad-bottom);
+}
+@supports not (backdrop-filter: blur(1px)) {
+  .sbc-bottom-sheet {
+    background: #ffffff;
+  }
+  .sbc-bottom-sheet::after {
+    background: #ffffff;
+  }
+}
+
