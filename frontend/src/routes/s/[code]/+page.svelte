@@ -767,7 +767,7 @@
                 </svg>
                 <span class="anon-hint-text">
                   <span class="line-1">当前未登录 请收藏此链接</span>
-                  <span class="line-2">这是您回到此账本的唯一密钥。</span>
+                  <span class="line-2">这是回到账本的唯一密钥</span>
                 </span>
               </span>
             {:else if !membersOpen && session.members.length > 0}
