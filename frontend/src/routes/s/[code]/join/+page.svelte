@@ -189,7 +189,12 @@
     busy = true;
     try {
       const res = await joinClaim(sessionId, { action: 'claim', session_member_id: slotId });
-      _storeActingAs(res.session_member_id, res.nickname_secret ?? '');
+      // Logged-in claim returns nickname_secret=null (secret invalidated); clear LS.
+      if (res.nickname_secret) {
+        _storeActingAs(res.session_member_id, res.nickname_secret);
+      } else {
+        _clearActingAs();
+      }
       // v0.3.36 — UAT 0727-1 #8: 用 URL `code` 直接 (always available from page.params.code).
       // 之前 const code = session?.session_code || ... shadow 外层 `code`, 现在不需要.
       await goto('/s/' + code, { replaceState: true });
@@ -247,7 +252,11 @@
     busy = true;
     try {
       const res = await joinClaim(sessionId, { action: 'add', display_name: nickname });
-      _storeActingAs(res.session_member_id, res.nickname_secret ?? '');
+      if (res.nickname_secret) {
+        _storeActingAs(res.session_member_id, res.nickname_secret);
+      } else {
+        _clearActingAs();
+      }
       // v0.3.36 — 用 URL `code` 直接.
       await goto('/s/' + code, { replaceState: true });
     } catch (e: any) {
@@ -264,7 +273,14 @@
     // can find the secret. memberId-keyed was a v0.3.0 typo.
     if (typeof window !== 'undefined' && sessionId && secret) {
       localStorage.setItem(LS_PREFIX + sessionId, secret);
+      localStorage.setItem(LS_PREFIX + code, secret);
     }
+  }
+
+  function _clearActingAs() {
+    if (typeof window === 'undefined' || !sessionId) return;
+    localStorage.removeItem(LS_PREFIX + sessionId);
+    localStorage.removeItem(LS_PREFIX + code);
   }
 
   // v0.3.29 — UAT 0725-1 #13 v4: 合并一段列表 (无邮箱/有邮箱 混排).

@@ -183,13 +183,17 @@
   /**
    * §3.11.14: After verify_code 200, try to bind the anon-acting localStorage
    * secret to the now-logged-in user. Silent on failure (slot already bound /
-   * rotated by β / session expired) — the user still falls back to anon-acting
-   * inside the session via the localStorage secret.
+   * rotated by β / session expired).
+   *
+   * On success the BE clears nickname_secret (invite link / session_code stay
+   * stable). FE must drop localStorage secrets so old devices/links cannot
+   * keep impersonating with the stale anon key.
    */
   async function tryBindActingMember() {
     if (!returnTo) return;
     // Product G: support both /sessions/{id} and /s/{code} returnTo.
     let sid: number | null = null;
+    let codeKey: string | null = null;
     let secret: string | null = null;
     const idMatch = returnTo.match(/^\/sessions\/(\d+)(\/|$)/);
     const codeMatch = returnTo.match(/^\/s\/([^/?#]+)(\/|$)/);
@@ -200,6 +204,7 @@
         : null;
     } else if (codeMatch) {
       const code = decodeURIComponent(codeMatch[1]);
+      codeKey = code;
       secret = typeof localStorage !== 'undefined'
         ? (localStorage.getItem(`sbc.actingAs.${code}`) ?? null)
         : null;
@@ -209,11 +214,6 @@
         if (!secret && typeof localStorage !== 'undefined') {
           secret = localStorage.getItem(`sbc.actingAs.${sid}`);
         }
-        // Keep both keys in sync after bind path.
-        if (secret && typeof localStorage !== 'undefined') {
-          localStorage.setItem(`sbc.actingAs.${sid}`, secret);
-          localStorage.setItem(`sbc.actingAs.${code}`, secret);
-        }
       } catch {
         return;
       }
@@ -221,6 +221,11 @@
     if (!sid || !secret) return;
     try {
       await bindActingMember(sid, { nickname_secret: secret });
+      // Product: invalidate anon device secret after login bind (not invite URL).
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem(`sbc.actingAs.${sid}`);
+        if (codeKey) localStorage.removeItem(`sbc.actingAs.${codeKey}`);
+      }
     } catch {
       // 静默吞掉: slot 已被 β 轮换 / 已绑 user_id / session 过期
     }
