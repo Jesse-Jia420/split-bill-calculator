@@ -41,6 +41,7 @@
   import { Search, X } from 'lucide-svelte';
   import InviteLinkButton from '$components/InviteLinkButton.svelte';
   import BillListGrouped from '$components/BillListGrouped.svelte';
+  import BillSheet from '$components/BillSheet.svelte';
   import EmptyState from '$components/EmptyState.svelte';
   import SessionCurrencyBadge from '$components/SessionCurrencyBadge.svelte';
   import CurrencyAddModal from '$components/CurrencyAddModal.svelte';
@@ -59,6 +60,9 @@
   // v0.3.18 #53: open/close state for the CurrencyAddModal (triggered by
   // SessionCurrencyBadge single-pill + icon when owner).
   let addCurrencyOpen = $state(false);
+  /** Bill bottom sheet: null = closed. */
+  let billSheetMode = $state<'create' | 'edit' | null>(null);
+  let editingBill = $state<Bill | null>(null);
 
   let memberIdToName = $state<Record<number, string>>({});
   let memberIdToNet = $state<Record<number, number>>({});
@@ -263,6 +267,25 @@
     }
 
     await load();
+
+    // Deep links from legacy /bills/new and /bills/{id}/edit.
+    if (browser && session) {
+      const billNew = page.url.searchParams.get('bill');
+      const editId = page.url.searchParams.get('editBill');
+      if (billNew === 'new') {
+        editingBill = null;
+        billSheetMode = 'create';
+        void goto(`/s/${code}`, { replaceState: true, noScroll: true });
+      } else if (editId) {
+        const id = Number(editId);
+        const found = bills.find((b) => b.id === id) ?? null;
+        if (found) {
+          editingBill = found;
+          billSheetMode = 'edit';
+        }
+        void goto(`/s/${code}`, { replaceState: true, noScroll: true });
+      }
+    }
 
     // v0.3.31 #2 (UAT 0725-2 #2, PO msg ~20:03 字面):
     //   "匿名用户创建账本,首次进入账单页时,邀请链接按钮高亮呼吸。
@@ -1009,6 +1032,14 @@
           memberIdToName={memberIdToName}
           currentUserMemberId={currentMemberId}
           onDelete={requestDeleteBill}
+          onEdit={(bill) => {
+            editingBill = bill;
+            billSheetMode = 'edit';
+          }}
+          onCreate={() => {
+            editingBill = null;
+            billSheetMode = 'create';
+          }}
           loading={loading}
           primaryCurrency={session.primary_currency}
           currencies={session.currencies}
@@ -1084,16 +1115,44 @@
       </div>
     {/if}
 
-    <!-- FAB: 200ms 后从下方 60px 飞入
-         v0.3.16 #8 (PO msg 19:26): 加 .glass-pill 玻璃化 (保留 50% 圆形 + 白色 + icon) -->
-    <!-- v0.3.x (UAT #0723-3 #3): /s/{session_code}/bills/new unguessable 格式 -->
-    <a
+    <!-- FAB opens create bill sheet (no separate route). -->
+    <button
+      type="button"
       class="fab glass-pill"
-      href="/s/{session.session_code || String(session.id)}/bills/new"
       title="新建账单"
       aria-label="新建账单"
+      onclick={() => {
+        editingBill = null;
+        billSheetMode = 'create';
+      }}
       in:fly={{ y: 60, duration: 400, delay: 200 }}
-    >+</a>
+    >+</button>
+  {/if}
+
+  {#if billSheetMode && session}
+    <BillSheet
+      {session}
+      mode={billSheetMode}
+      existingBill={editingBill}
+      defaultPayerMemberId={currentMemberId}
+      onSaved={async () => {
+        try {
+          bills = await listBills(session.id);
+        } catch {
+          /* keep existing list; toast already shown on save */
+        }
+        billSheetMode = null;
+        editingBill = null;
+      }}
+      dismiss={() => {
+        billSheetMode = null;
+        editingBill = null;
+      }}
+      on:close={() => {
+        billSheetMode = null;
+        editingBill = null;
+      }}
+    />
   {/if}
 
   <!-- v0.3.18 #53 + v0.3.19 #85: owner-driven modal.

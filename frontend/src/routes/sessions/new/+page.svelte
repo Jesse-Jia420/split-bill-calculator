@@ -7,6 +7,8 @@
   import IosSwitch from "$lib/components/IosSwitch.svelte";
   // v0.3.28 UAT 0724-1 #5 (Option C 玻璃圆环): wizard 初次加载 + step 切换时显示 LoadingOverlay.
   import LoadingOverlay from '$components/LoadingOverlay.svelte';
+  import { fetchReferenceRate, formatRateFetchedAt } from '$api/referenceRates';
+  import { RefreshCw } from 'lucide-svelte';
 
   let step = 1;
   let sessionName = "";
@@ -24,6 +26,12 @@
   // BE v0.2.1 (currencies=2 时 exchange_rates 必填, 否则 422).
   // 用 string 输入框, 提交时 parseFloat. 允许中间空白态.
   let exchangeRate: string = "";
+  let rateLoading = false;
+  let rateFetchedAt: string | null = null;
+  let rateProviderDate: string | null = null;
+  let rateError: string | null = null;
+  let rateUserEdited = false;
+  let rateFetchGen = 0;
 
   // anon 也展示 step 3 币种选择, 但限制单币种 (PO msg 19:56)
   $: isAnon = $user === null;
@@ -76,6 +84,42 @@
   $: if (currencyMode === "single") {
     secondaryCurrency = "";
     exchangeRate = "";
+    rateFetchedAt = null;
+    rateProviderDate = null;
+    rateError = null;
+    rateUserEdited = false;
+  }
+
+  async function loadReferenceRate(force = false) {
+    if (currencyMode !== "dual") return;
+    if (!primaryCurrency || !secondaryCurrency) return;
+    if (!force && rateUserEdited && exchangeRate.trim() !== "") return;
+    const gen = ++rateFetchGen;
+    rateLoading = true;
+    rateError = null;
+    try {
+      const ref = await fetchReferenceRate(primaryCurrency, secondaryCurrency);
+      if (gen !== rateFetchGen) return;
+      exchangeRate = ref.rate;
+      rateFetchedAt = ref.fetched_at;
+      rateProviderDate = ref.provider_date;
+      rateUserEdited = false;
+    } catch (e: any) {
+      if (gen !== rateFetchGen) return;
+      rateError = e?.message ?? "参考汇率获取失败";
+    } finally {
+      if (gen === rateFetchGen) rateLoading = false;
+    }
+  }
+
+  let lastWizardPair = "";
+  $: if (currencyMode === "dual" && primaryCurrency && secondaryCurrency) {
+    const pair = `${primaryCurrency}->${secondaryCurrency}`;
+    if (pair !== lastWizardPair) {
+      lastWizardPair = pair;
+      rateUserEdited = false;
+      void loadReferenceRate(true);
+    }
   }
 
   function goNext() {
@@ -319,22 +363,42 @@
                主币种切换时已清空, 副币种切换时**不**清 (用户可能想换币种再改 rate, 简化 UX). -->
           <div class="currency-section">
             <label class="currency-label" for="exchange-rate-input">
-              汇率 (1 {primaryCurrency} = ? {secondaryCurrency || '结算币种'})
+              汇率 (1 {primaryCurrency} = ? {secondaryCurrency || '支付币种'})
             </label>
-            <input
-              id="exchange-rate-input"
-              class="glass-input"
-              type="number"
-              step="any"
-              min="0"
-              bind:value={exchangeRate}
-              placeholder="例如 0.14"
-            />
+            <div class="rate-row-new">
+              <input
+                id="exchange-rate-input"
+                class="glass-input"
+                type="number"
+                step="any"
+                min="0"
+                bind:value={exchangeRate}
+                oninput={() => (rateUserEdited = true)}
+                disabled={rateLoading || !secondaryCurrency}
+                placeholder={rateLoading ? '获取中…' : '例如 0.14'}
+              />
+              <button
+                type="button"
+                class="rate-refresh-new"
+                disabled={rateLoading || !secondaryCurrency}
+                onclick={() => loadReferenceRate(true)}
+                aria-label="重新获取参考汇率"
+                title="重新获取参考汇率"
+              >
+                <RefreshCw size={16} strokeWidth={2.4} />
+              </button>
+            </div>
             <p class="exchange-rate-hint">
               {#if !secondaryCurrency}
-                请先选结算币种
+                请先选支付币种
+              {:else if rateError}
+                {rateError}，可手动填写
+              {:else if rateFetchedAt}
+                参考汇率已填入{#if rateProviderDate}（市场日 {rateProviderDate}）{/if}
+                · 获取于 {formatRateFetchedAt(rateFetchedAt)}
+                · 1 {primaryCurrency} = {parseFloat(exchangeRate || '0').toFixed(4)} {secondaryCurrency}
               {:else if !exchangeRate || parseFloat(exchangeRate) <= 0}
-                请输入大于 0 的汇率
+                请输入大于 0 的汇率（或等待参考汇率）
               {:else}
                 1 {primaryCurrency} = {parseFloat(exchangeRate).toFixed(4)} {secondaryCurrency}
               {/if}
@@ -510,4 +574,28 @@
   /* v0.3.28 UAT 0724-1 #9: .anon-currency-hint dead code (anon 双币种锁定已解除).
      Wizard 现在 anon 也可选双币种, 整段 CSS 不再使用. svelte-check baseline
      期望不再有 unused-selector 警告. */
+
+  .rate-row-new {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .rate-row-new .glass-input {
+    flex: 1;
+  }
+  .rate-refresh-new {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    background: rgba(15, 23, 42, 0.04);
+    display: grid;
+    place-items: center;
+    color: var(--accent-700, #4338ca);
+    cursor: pointer;
+  }
+  .rate-refresh-new:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
 </style>
