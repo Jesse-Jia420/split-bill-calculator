@@ -568,6 +568,7 @@
   .menu-item {
     display: flex;
     align-items: center;
+    justify-content: center;
     min-height: 40px;
     padding: 0 10px;
     border: 0;
@@ -580,7 +581,7 @@
     cursor: pointer;
     font-family: inherit;
     width: 100%;
-    text-align: left;
+    text-align: center;
   }
   .menu-item:hover {
     background: rgba(40, 40, 40, 0.08);
