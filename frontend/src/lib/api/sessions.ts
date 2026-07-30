@@ -119,42 +119,84 @@ export const getSession = (id: number) => {
   return apiFetch<SessionDetail>(url, { headers });
 };
 
-/** v0.3 (PRD §3.10): session detail with acting-as member ID.
+/** v0.3 (PRD §3.10): session detail by public code + anon acting-as member id.
  *
- * Checks localStorage for an anonymous acting-as secret for this session.
- * If found, sends X-Nickname-Secret header and returns the member ID
- * extracted from the X-SBC-Member-ID response header.
- *
- * Returns { session, actingAsMemberId } where actingAsMemberId is null
- * if no secret is stored or the secret is invalid (member not found).
+ * Sends X-Nickname-Secret from localStorage (code-keyed preferred) and reads
+ * X-SBC-Member-ID from the response so the detail page can resolve「我」.
  */
-export const getSessionByCode = async (code: string): Promise<SessionDetail> => {
+export const getSessionByCode = async (
+  code: string
+): Promise<{ session: SessionDetail; actingAsMemberId: number | null }> => {
   const extraHeaders: Record<string, string> = {};
   if (typeof window !== "undefined") {
-    // v0.3.0728-2 #3 followup: 优先读 code-keyed secret (sbc.actingAs.{code}),
-    // 避免循环扫所有 sbc.actingAs.* 拿错 secret 的 bug (浏览器有 N 个 anon 账本 secret 时
-    // 互相覆盖导致 BE 返 403). Fallback 老 id-keyed entry 兼容旧 anon 创建记录.
+    // Prefer code-keyed secret; avoid scanning every sbc.actingAs.* (wrong secret → 403).
     const codeKey = "sbc.actingAs." + code;
     const codeSecret = localStorage.getItem(codeKey);
     if (codeSecret) {
       extraHeaders["X-Nickname-Secret"] = codeSecret;
     } else {
+      // Legacy id-keyed fallback only when a single matching entry is unambiguous
+      // is not possible here — try id keys only after we know session id from a
+      // failed-header path. Keep scanning last-resort for old clients.
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
         if (k && k.startsWith("sbc.actingAs.") && k !== codeKey) {
           const v = localStorage.getItem(k);
-          if (v) extraHeaders["X-Nickname-Secret"] = v;
+          if (v) {
+            extraHeaders["X-Nickname-Secret"] = v;
+            break; // first legacy entry only — do not overwrite with unrelated secrets
+          }
         }
       }
     }
   }
-  // BUG-V031-A fix: use apiFetch (not raw fetch) so 403 detail.session_id
-  // is preserved on the thrown ApiError. /s/[code]/+page.svelte needs
-  // e.detail.session_id to redirect non-members to /join.
-  return apiFetch<SessionDetail>(
-    "/sessions/by-code/" + encodeURIComponent(code),
-    { headers: extraHeaders }
-  );
+
+  const res = await fetch("/api/sessions/by-code/" + encodeURIComponent(code), {
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...extraHeaders },
+  });
+
+  if (res.status === 401 && typeof window !== "undefined") {
+    const userMod = await import("$stores/user");
+    userMod.clearUser();
+    const here = window.location.pathname + window.location.search;
+    window.location.assign(
+      "/auth/login?returnTo=" + encodeURIComponent(here) + "&expired=1"
+    );
+    return new Promise(() => {});
+  }
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const detail = body?.detail;
+    const err: any = new Error(
+      typeof detail === "object" && detail?.error
+        ? detail.error
+        : typeof detail === "string"
+          ? detail
+          : `HTTP ${res.status}`
+    );
+    err.status = res.status;
+    err.code =
+      (typeof detail === "object" && detail?.error) || `http_${res.status}`;
+    err.detail = detail;
+    throw err;
+  }
+
+  const session: SessionDetail = await res.json();
+  const headerId = res.headers.get("X-SBC-Member-ID");
+  const actingAsMemberId = headerId ? Number(headerId) : null;
+
+  // Sync id-keyed secret once we know numeric id (legacy readers).
+  if (typeof window !== "undefined" && actingAsMemberId != null) {
+    const codeKey = "sbc.actingAs." + code;
+    const secret = localStorage.getItem(codeKey);
+    if (secret) {
+      localStorage.setItem("sbc.actingAs." + session.id, secret);
+    }
+  }
+
+  return { session, actingAsMemberId };
 };
 
 
