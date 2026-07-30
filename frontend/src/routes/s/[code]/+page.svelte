@@ -1266,9 +1266,9 @@
      保留是为了让后续 retro 引用，注释占位。*/
 
   /* In-page title softens when mirrored in the navbar — opacity only (no transform)
-     so it does not fight scroll compositing. */
+     so it does not fight scroll compositing. Keep in sync with NavBar title fade (~200ms). */
   .session-title {
-    transition: opacity 280ms cubic-bezier(0.22, 1, 0.36, 1);
+    transition: opacity 200ms ease;
   }
   .session-title.session-title-away {
     opacity: 0.28;
