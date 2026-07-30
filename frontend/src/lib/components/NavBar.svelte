@@ -102,42 +102,43 @@
 
   {#if page.url.pathname !== '/auth/login' && !isLoginPage()}
     <div class="right" class:right-compact={compact}>
-      <!-- Title slides in from the right of brand, squeezing chrome toward avatar -->
-      <div
-        class="ledger-title"
-        class:visible={compact && !!ledgerTitle}
-        data-testid="navbar-ledger-title"
-        title={ledgerTitle ?? undefined}
-        aria-hidden={compact && ledgerTitle ? undefined : 'true'}
-      >
-        <span class="ledger-title-text">{ledgerTitle ?? ''}</span>
-      </div>
+      <!-- Crossfade stage: title ↔ chrome share one grid cell (no max-width layout thrash). -->
+      <div class="right-swap">
+        <div
+          class="ledger-title"
+          class:visible={compact && !!ledgerTitle}
+          data-testid="navbar-ledger-title"
+          title={ledgerTitle ?? undefined}
+          aria-hidden={compact && ledgerTitle ? undefined : 'true'}
+        >
+          <span class="ledger-title-text">{ledgerTitle ?? ''}</span>
+        </div>
 
-      <!-- Full chrome: collapses toward the right into the avatar -->
-      <div
-        class="nav-chrome-full"
-        class:collapsed={compact}
-        aria-hidden={compact ? 'true' : undefined}
-      >
-        {#if $user}
-          <span class="email" title="{$user.email}">{$user.default_name}</span>
-          {#if page.url.pathname !== '/sessions/new' && !isSessionsListPage()}
-            <a href="/sessions" class="btn-sm links-item" tabindex={compact ? -1 : 0}>我的账本</a>
+        <div
+          class="nav-chrome-full"
+          class:collapsed={compact}
+          aria-hidden={compact ? 'true' : undefined}
+        >
+          {#if $user}
+            <span class="email" title="{$user.email}">{$user.default_name}</span>
+            {#if page.url.pathname !== '/sessions/new' && !isSessionsListPage()}
+              <a href="/sessions" class="btn-sm links-item" tabindex={compact ? -1 : 0}>我的账本</a>
+            {/if}
+            <button class="ghost btn-sm" onclick={handleLogout} tabindex={compact ? -1 : 0}>注销登录</button>
+          {:else if guestSaveLabel}
+            <a
+              href={loginHref}
+              class="btn-sm"
+              data-testid="navbar-login-save"
+              tabindex={compact ? -1 : 0}
+            >登录以保存</a>
+          {:else if !inSession()}
+            <a href="/auth/login" class="btn-sm" tabindex={compact ? -1 : 0}>登录</a>
           {/if}
-          <button class="ghost btn-sm" onclick={handleLogout} tabindex={compact ? -1 : 0}>注销登录</button>
-        {:else if guestSaveLabel}
-          <a
-            href={loginHref}
-            class="btn-sm"
-            data-testid="navbar-login-save"
-            tabindex={compact ? -1 : 0}
-          >登录以保存</a>
-        {:else if !inSession()}
-          <a href="/auth/login" class="btn-sm" tabindex={compact ? -1 : 0}>登录</a>
-        {/if}
+        </div>
       </div>
 
-      <!-- Avatar: morphs in as full chrome collapses -->
+      <!-- Avatar: opacity/scale only; width jumps once (not animated). -->
       <div
         class="avatar-menu"
         class:expanded={compact}
@@ -218,7 +219,7 @@
     border-bottom: 1px solid rgba(255, 255, 255, 0.2);
     flex-wrap: nowrap;
     justify-content: space-between;
-    transition: background 220ms ease, box-shadow 220ms ease;
+    /* Glass chrome stays constant — do NOT thicken/opaque on compact title morph. */
   }
   /* Fill under status bar with paper tone so iOS overscroll never flashes stark white above the bar. */
   .navbar::before {
@@ -231,13 +232,6 @@
     background: #fafafa;
     pointer-events: none;
     z-index: -1;
-  }
-  .navbar.compact {
-    background: rgba(255, 255, 255, 0.55);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.55),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.05),
-      0 1px 10px rgba(15, 23, 42, 0.06);
   }
 
   .left {
@@ -338,33 +332,51 @@
     flex-wrap: nowrap;
   }
 
-  /* Ledger title: grows in from the left of the right cluster, pushing chrome right */
-  .ledger-title {
-    flex: 0 1 auto;
+  /* Title ↔ chrome share one cell; only opacity/transform animate (GPU). */
+  .right-swap {
+    position: relative;
+    flex: 1 1 auto;
     min-width: 0;
-    max-width: 0;
+    display: grid;
+    grid-template-columns: minmax(0, max-content);
+    justify-content: end;
+    justify-items: end;
+    align-items: center;
+  }
+
+  .ledger-title {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+    max-width: min(46vw, 12.5rem);
     opacity: 0;
-    transform: translate3d(-10px, 8px, 0);
-    overflow: hidden;
+    transform: translate3d(0, 6px, 0);
     pointer-events: none;
     visibility: hidden;
-    will-change: max-width, opacity, transform;
+    /* Absolute while hidden so it does not inflate the swap cell. */
+    position: absolute;
+    inset-inline-end: 0;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
     transition:
-      max-width 320ms cubic-bezier(0.22, 1, 0.36, 1),
-      opacity 280ms cubic-bezier(0.22, 1, 0.36, 1),
-      transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
-      visibility 0s linear 320ms;
+      opacity 200ms ease,
+      transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s linear 240ms;
   }
   .ledger-title.visible {
-    max-width: min(46vw, 12.5rem);
+    position: relative;
+    inset: auto;
+    top: auto;
+    bottom: auto;
     opacity: 1;
     transform: translate3d(0, 0, 0);
     pointer-events: auto;
     visibility: visible;
     transition:
-      max-width 320ms cubic-bezier(0.22, 1, 0.36, 1),
-      opacity 280ms cubic-bezier(0.22, 1, 0.36, 1),
-      transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 200ms ease,
+      transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
       visibility 0s linear 0s;
   }
   .ledger-title-text {
@@ -383,27 +395,37 @@
   }
 
   .nav-chrome-full {
+    grid-column: 1;
+    grid-row: 1;
     display: flex;
     align-items: center;
     justify-content: flex-end;
     gap: var(--space-2);
     min-width: 0;
-    max-width: 28rem;
     opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
+    transform: translate3d(0, 0, 0);
     transform-origin: right center;
-    overflow: hidden;
-    will-change: max-width, opacity, transform;
     transition:
-      max-width 320ms cubic-bezier(0.22, 1, 0.36, 1),
-      opacity 240ms ease,
-      transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+      opacity 180ms ease,
+      transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s linear 0s;
   }
   .nav-chrome-full.collapsed {
-    max-width: 0;
     opacity: 0;
-    transform: translate3d(18px, 0, 0) scale(0.86);
+    transform: translate3d(10px, 0, 0);
     pointer-events: none;
+    visibility: hidden;
+    /* Leave flow immediately — one layout pass, not a 320ms max-width tween. */
+    position: absolute;
+    inset-inline-end: 0;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    transition:
+      opacity 180ms ease,
+      transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s linear 180ms;
   }
   .nav-chrome-full .btn-sm {
     white-space: nowrap;
@@ -424,25 +446,31 @@
     flex: 0 0 0;
     width: 0;
     max-width: 0;
+    height: 36px;
     opacity: 0;
-    transform: scale(0.55);
+    visibility: hidden;
+    transform: scale(0.72);
     transform-origin: center center;
     overflow: visible;
     pointer-events: none;
-    will-change: width, max-width, opacity, transform;
+    /* Width/flex jump once; only opacity + scale tween (compositor-friendly). */
     transition:
-      width 320ms cubic-bezier(0.22, 1, 0.36, 1),
-      max-width 320ms cubic-bezier(0.22, 1, 0.36, 1),
-      opacity 260ms ease,
-      transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+      opacity 180ms ease,
+      transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s linear 180ms;
   }
   .avatar-menu.expanded {
     flex: 0 0 36px;
     width: 36px;
     max-width: 36px;
     opacity: 1;
+    visibility: visible;
     transform: scale(1);
     pointer-events: auto;
+    transition:
+      opacity 180ms ease,
+      transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s linear 0s;
   }
   .avatar-btn {
     /* Override global button { min-height: 44px; padding: … } — that stretched the chip into an oval. */
