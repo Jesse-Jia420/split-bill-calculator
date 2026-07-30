@@ -119,9 +119,12 @@
     padding: calc(var(--navbar-h, 56px) + env(safe-area-inset-top, 0px) + 16px) 0 0;
     overflow-y: auto;
     overflow-x: hidden;
-    overscroll-behavior-y: contain;
+    /* none (not contain): iOS rubber-band at top was flashing a large white band under the status bar. */
+    overscroll-behavior-y: none;
     -webkit-overflow-scrolling: touch;
     min-height: 0; /* 关键 */
+    /* Match paper fallback so any residual overscroll gutter isn't stark browser-white. */
+    background-color: transparent;
   }
   .page-inner { padding: var(--space-4); width: 100%; }
   @media (min-width: 960px) {
