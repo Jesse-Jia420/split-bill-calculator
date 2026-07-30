@@ -146,6 +146,10 @@
     gap: 18px;
     z-index: 9999;
     /* navbar (z-index 1000) 之上, toast (z-index 9999) 同级 */
+    pointer-events: auto;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
   }
 
   /* Inline variant: 行内 flex (wizard step 切换内嵌) */
