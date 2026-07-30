@@ -76,7 +76,13 @@ from sqlalchemy.orm import Session
 from app.core.auth import get_current_user, get_optional_user
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.session_isolation import get_session_member, get_session_member_or_secret, require_session_owner
+from app.core.session_isolation import (
+    check_session_activity_window as _check_session_activity_window,
+    get_session_member,
+    get_session_member_or_secret,
+    require_session_owner,
+    session_is_permanently_saved as _session_is_permanently_saved,
+)
 from app.db.models.session_exchange_rates import SessionExchangeRate
 from app.db.models.session_members import SessionMember, SessionRole
 from app.db.models.settlement_records import SettlementRecord
@@ -565,62 +571,6 @@ def _classify_invite_status(session: SessionModel) -> str:
     return "active"
 
 
-def _session_is_permanently_saved(
-    session: SessionModel,
-    db: Session,
-) -> bool:
-    """True once any member has logged in (user_id bound) or session owner claimed.
-
-    Product rule: 任意成员登录后账本永久保存 — skip the 7-day reclaim window.
-    """
-    if session.owner_user_id is not None or session.owner_email is not None:
-        return True
-    bound = (
-        db.query(SessionMember.id)
-        .filter(
-            SessionMember.session_id == session.id,
-            SessionMember.user_id.isnot(None),
-        )
-        .first()
-    )
-    return bound is not None
-
-
-def _check_session_activity_window(
-    session: SessionModel,
-    db: Session | None = None,
-) -> None:
-    """§3.11.11 7-day activity window check.
-
-    Raises HTTPException 410 if the session's last_active_at is more than
-    ``settings.session_activity_ttl_days`` (default 7) in the past.
-    This is independent from invite token TTL — the invite link can still
-    be valid per ``invite_expires_at`` while the session itself has been
-    reclaimed due to owner inactivity (PRD §3.11.11 decision α).
-
-    Skip when any member is logged-in-bound (permanent save).
-    """
-    if db is not None and _session_is_permanently_saved(session, db):
-        return
-    if session.last_active_at is None:
-        # Defensive: treat missing value as active (new sessions).
-        return
-    last_active = session.last_active_at
-    if last_active.tzinfo is None:
-        last_active = last_active.replace(tzinfo=timezone.utc)
-    cutoff = datetime.now(timezone.utc) - timedelta(
-        days=settings.session_activity_ttl_days
-    )
-    if last_active < cutoff:
-        raise HTTPException(
-            status_code=status.HTTP_410_GONE,
-            detail={
-                "error": "session expired, owner not active for 7 days",
-                "code": "session_reclaimed",
-            },
-        )
-
-
 def _bump_session_activity(db: Session, session_id: int) -> None:
     """Extend the 7-day activity window (e.g. after bill CRUD)."""
     session = db.get(SessionModel, session_id)
@@ -833,7 +783,10 @@ async def list_sessions(
     rows = (
         db.query(SessionModel, SessionMember)
         .join(SessionMember, SessionMember.session_id == SessionModel.id)
-        .filter(SessionMember.user_id == user.id)
+        .filter(
+            SessionMember.user_id == user.id,
+            SessionModel.archived.is_(False),
+        )
         .order_by(SessionModel.created_at.desc())
         .all()
     )
@@ -1893,8 +1846,30 @@ async def join_claim_session(
                         "slot_owner_user_id": sm.user_id,
                     },
                 )
+            # Product: one logged-in user may occupy only one seat per session.
+            other = (
+                db.query(SessionMember)
+                .filter(
+                    SessionMember.session_id == session_id,
+                    SessionMember.user_id == user.id,
+                    SessionMember.id != sm.id,
+                )
+                .first()
+            )
+            if other is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "error": "already_a_member",
+                        "reason": "you already occupy another nickname in this ledger",
+                        "existing_member_id": other.id,
+                        "existing_display_name": other.display_name,
+                    },
+                )
             sm.user_id = user.id
             sm.is_anon = False
+            # Invalidate prior anon device secret (invite_token / session_code unchanged).
+            sm.nickname_secret = None
             # §3.11.11: bump owner activity clock on every join/claim.
             session.last_active_at = now
             # Product E: binding the owner seat also claims session ownership.
@@ -1955,6 +1930,22 @@ async def join_claim_session(
             )
 
         if user is not None:
+            # Product: one logged-in user may occupy only one seat per session.
+            existing = (
+                db.query(SessionMember)
+                .filter_by(session_id=session_id, user_id=user.id)
+                .first()
+            )
+            if existing is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "error": "already_a_member",
+                        "reason": "you already occupy a nickname in this ledger",
+                        "existing_member_id": existing.id,
+                        "existing_display_name": existing.display_name,
+                    },
+                )
             # Logged-in: create user-bound member row.
             sm = SessionMember(
                 session_id=session_id,
@@ -1963,6 +1954,7 @@ async def join_claim_session(
                 role=SessionRole.MEMBER.value,
                 is_anon=False,
                 claimed_at=now,
+                nickname_secret=None,
             )
             db.add(sm)
             # §3.11.11: bump owner activity clock on every join/claim.
@@ -2037,10 +2029,11 @@ async def bind_acting_member(
     - 拿 localStorage `sbc.actingAs.{sid}` → secret
     - 调本 endpoint with {nickname_secret: secret}
     - BE 找 SessionMember (session_id=sid AND nickname_secret=secret AND user_id IS NULL AND is_anon=True)
-    - 找到 → SET user_id=current_user.id, is_anon=False, claimed_at=now()
+    - 找到 → SET user_id=current_user.id, is_anon=False, claimed_at=now(),
+      nickname_secret=NULL (invalidate anon device key; invite_token / session_code unchanged)
 
     失败返 404 (session 不存在 OR slot 已不存在 / 已被 β 轮换 / 已绑 user_id).
-    FE 静默吞掉 (用户仍以 anon 进入 session, localStorage secret 仍有效).
+    FE 成功后应清除 localStorage 匿名密钥；失败可静默吞掉.
     """
     sm = db.execute(
         select(SessionMember)
@@ -2065,8 +2058,31 @@ async def bind_acting_member(
         )
     _check_session_activity_window(session, db)  # 410 if expired
 
+    # Product: one logged-in user may occupy only one seat per session.
+    other = (
+        db.query(SessionMember)
+        .filter(
+            SessionMember.session_id == session_id,
+            SessionMember.user_id == user.id,
+            SessionMember.id != sm.id,
+        )
+        .first()
+    )
+    if other is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error": "already_a_member",
+                "reason": "you already occupy another nickname in this ledger",
+                "existing_member_id": other.id,
+                "existing_display_name": other.display_name,
+            },
+        )
+
     sm.user_id = user.id
     sm.is_anon = False
+    # Invalidate prior anon device secret after login bind (invite link unchanged).
+    sm.nickname_secret = None
     sm.claimed_at = datetime.now(timezone.utc)
     session.last_active_at = datetime.now(timezone.utc)
     # Product E: owner seat bind → sync sessions.owner_user_id / owner_email.
