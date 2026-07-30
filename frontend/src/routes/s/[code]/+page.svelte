@@ -48,7 +48,7 @@
   // v0.3.28 UAT 0724-1 #5 (Option C 玻璃圆环): 加载账单数据 fetch 时显示 LoadingOverlay.
   import LoadingOverlay from '$components/LoadingOverlay.svelte';
   import { getSessionByCode, claimSession } from '$api/sessions';
-  import { setNavbarLedgerChrome, resetNavbarChrome } from '$stores/navbarChrome';
+  import { setNavbarLedgerChrome, resetNavbarChrome, setNavbarAnonSaveHint } from '$stores/navbarChrome';
   import { user, loadUser } from '$stores/user';
   import { toast } from '$stores/toast';
 
@@ -138,11 +138,16 @@
   let isOwner = $derived(currentMember?.role === 'owner');
 
   // v0.3.31 #2 (UAT 0725-2 #2): 匿名 owner 首次进入账单页触发呼吸 + 文案 pill.
+  // showAnonHint → NavBar 右侧「登录以保存」旁红色提醒 (紧挨登录按钮)
   // showBreathing → 传给 InviteLinkButton 的 breathing prop, 触发 CSS keyframes.
-  // showAnonHint → 控制红色玻璃 pill .expiry-anon-a 渲染 (邀请按钮正下方).
   // 两者由 onMount() 一次性设置 (sessionStorage 二次访问不重触).
   let showBreathing = $state(false);
   let showAnonHint = $state(false);
+
+  // Keep NavBar anon-save hint in sync (beside 登录以保存).
+  $effect(() => {
+    setNavbarAnonSaveHint(showAnonHint);
+  });
 
   // v0.3.28 (UAT 0723-3 #9): session 至少有一名已认领成员 (user_id !== null) → "已永久保存" 提示
   //   取代原 "yyyy.mm.dd 过期 · 登录即可永久保存" 过期提示.
@@ -357,7 +362,8 @@
     //   2) sessionStorage 没有 sbc-visited-{session.id} 标记 → 首次进入账单页
     // 满足两条件则:
     //   - showBreathing = true → InviteLinkButton 加 .invite-btn-breathing (1.5s 紫光晕 + scale 1↔1.02)
-    //   - showAnonHint = true → 邀请按钮下方渲染红色玻璃 pill .expiry-anon-a (PO 新文案)
+    //   - showAnonHint = true → NavBar「登录以保存」旁红色提醒 pill
+    //   - 不立即写 sessionStorage — 只有 InviteLinkButton 真的派 copy/open 事件才写.
     //   - 立即写 sessionStorage, 刷新/重进不重触 (PO 明确 "首次进入")
     // 不满足 (已认领 member / 二次访问) → 两个 flag 保持 false, 既不呼吸也不显 pill.
     // 注: members 在 load() 后已就绪, 此时 session.members[0].user_id 反映 owner 是否匿名.
@@ -404,7 +410,7 @@
       // 所以 modal 点击事件会冒泡到 header 的 onclick → 触发 toggle (user 反馈 #3).
       // 用 closest() 排除: 邀请按钮 + modal 区域 + 过期 CTA link.
       // 其他区域 (chevron, title, avatar, 空 row2 区域) 维持原有 toggle 行为.
-      if (target?.closest('.invite-row, .invite-modal-backdrop, .expiry-cta-link, .expiry-anon-a')) return;
+      if (target?.closest('.invite-row, .invite-modal-backdrop, .expiry-cta-link')) return;
     }
     // v0.3.0729-4 #1: 展示「当前未登录…」提示时，成员 section 禁止折叠
     if (showAnonHint && membersOpen) return;
@@ -841,21 +847,8 @@
              用 space-between + right margin-left: auto, 折叠时 [avatars | invite],
              展开时 [空 | invite] 自然 right-align, 任何状态都能调 invite -->
         <div class="members-head-row2">
-          <!-- v0.3.0729-4 #2: 未登录提示左边与成员 section 左边对齐（正常 padding）;
-               与邀请按钮仍同行：提示在左、邀请在右。 -->
           <div class="members-row2-left">
-            {#if showAnonHint}
-              <span class="expiry-anon-a" data-testid="invite-anon-hint">
-                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                </svg>
-                <span class="anon-hint-text">
-                  <span class="line-1">当前未登录 请收藏此链接</span>
-                  <span class="line-2">这是回到账本的唯一密钥</span>
-                </span>
-              </span>
-            {:else if !membersOpen && session.members.length > 0}
+            {#if !membersOpen && session.members.length > 0}
               <div class="members-avatars-inline" aria-hidden="true">
                 {#each session.members.slice(0, 8) as m, i (m.id)}
                   <div class="avatar-mini palette-{i % 10}" title={m.display_name}>
@@ -1545,62 +1538,9 @@
     flex-shrink: 0;
     opacity: 0.85;
   }
-  /* v0.3.31 #2 (UAT 0725-2 #2, PO msg ~20:03 字面): 匿名 owner 首次进入账单页文案 pill.
-     视觉跟 .expiry-inline-a 同族 (pill shape + font-size 11px + gap 4px + border-radius 999px),
-     配色改 red-50 系 (caution 色, 跟 amber / emerald 视觉同族但语义区分, 表示「未登录,链接唯一密钥」紧急).
-     比 expiry-inline-a / expiry-saved-a 大一档 (font-size 13px / padding 6px 14px) — 主信息
-     级而非备注级, 因为文案更长且承载 owner 首次进入的引导 + 提醒.  */
-  .expiry-anon-a {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    /* Match InviteLinkButton height in the same row */
-    height: var(--invite-btn-h, 40px);
-    box-sizing: border-box;
-    font-size: 11px;
-    color: var(--red-700, #b91c1c);
-    background: rgba(239, 68, 68, 0.10);
-    border: 1px solid rgba(239, 68, 68, 0.25);
-    border-radius: 999px;
-    padding: 0 10px;
-    font-weight: 500;
-    line-height: 1.15;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    text-align: left;
-    flex-shrink: 1;
-    min-width: 0;
-    max-width: 100%;
-  }
-  .expiry-anon-a svg {
-    flex-shrink: 0;
-    opacity: 0.95;
-    width: 10px;
-    height: 10px;
-  }
-  /* Exactly two lines — each line nowrap so line-1 never wraps into a 3rd line. */
-  .expiry-anon-a .anon-hint-text {
-    display: inline-flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 1px;
-    min-width: 0;
-    line-height: 1.15;
-  }
-  .expiry-anon-a .anon-hint-text .line-1,
-  .expiry-anon-a .anon-hint-text .line-2 {
-    display: block;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  @media (max-width: 380px) {
-    .expiry-anon-a {
-      font-size: 10px;
-      padding: 0 8px;
-      gap: 4px;
-    }
-  }
+  /* v0.3.31 #2 anon hint pill styles moved to NavBar (.nav-anon-hint)
+     — 紧挨右侧「登录以保存」按钮. */
+
   /* v0.3.28 (UAT 0723-3 #9): "已永久保存" 绿色版 — 跟 .expiry-inline-a 视觉同族 (pill shape + font-size 11px + gap 4px + border-radius 999px + flex-shrink 0), 配色改 emerald 系 (跟 .is-me ring / 已登录状态色系区分, 表示「已成功认领」). */
   .expiry-saved-a {
     display: inline-flex;
