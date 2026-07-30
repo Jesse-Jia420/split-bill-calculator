@@ -1227,15 +1227,15 @@
     border-left: none;
     margin-left: 0;
   }
-  /* 副币种 chip: teal 玻璃 (一眼分主次) */
+  /* 副币种 chip: warm stone 玻璃 — 搭配 charcoal 主题, 又与主币种灰玻璃区分 */
   .cc-chip.cc-chip-secondary {
-    background: linear-gradient(135deg, rgba(20, 184, 166, 0.16) 0%, rgba(40, 40, 40, 0.10) 100%);
-    border-color: rgba(20, 184, 166, 0.30);
+    background: linear-gradient(135deg, rgba(120, 113, 108, 0.18) 0%, rgba(40, 40, 40, 0.08) 100%);
+    border-color: rgba(120, 113, 108, 0.34);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.55),
-      0 1px 3px rgba(20, 184, 166, 0.10);
+      0 1px 3px rgba(87, 83, 78, 0.10);
   }
-  .cc-chip.cc-chip-secondary .cc-code { color: #0f766e; }
+  .cc-chip.cc-chip-secondary .cc-code { color: #57534e; }
   /* 人均行统一灰色 — 不随主/副币种变色 */
   .cc-chip.cc-chip-empty .cc-amt,
   .cc-chip.cc-chip-empty .cc-per {

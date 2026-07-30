@@ -1420,9 +1420,14 @@
     min-width: 0;
     height: 44px;
     min-height: 44px;
+    padding: 0 12px;
+    line-height: 44px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    /* iOS/WebKit: 默认 select padding + line-box 会裁切字形底部 */
+    -webkit-appearance: none;
+    appearance: none;
   }
   .sheet-layout .preset-row {
     margin: 0;

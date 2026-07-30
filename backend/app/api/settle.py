@@ -274,10 +274,47 @@ def _convert_to_primary(
     return _quantize(amount * rate_snapshot)
 
 
+def _excl_to_primary(
+    excl_raw: Decimal,
+    bill_currency: str | None,
+    snapshot,
+    session_rates: dict[tuple[str, str], Decimal] | None,
+    primary_currency: str | None,
+) -> Decimal:
+    """Convert an exclusive amount into primary currency.
+
+    Prefer current ``session_rates`` (same source as bill ``amount_primary``
+    in settle_session). Fall back to historical snapshot, then raw.
+    Never hardcode CNY — primary may be any supported currency.
+    """
+    excl_raw = Decimal(excl_raw)
+    if (
+        session_rates is not None
+        and primary_currency is not None
+        and bill_currency is not None
+        and bill_currency != primary_currency
+        and (bill_currency, primary_currency) in session_rates
+    ):
+        return _quantize(excl_raw * session_rates[(bill_currency, primary_currency)])
+    if (
+        snapshot is not None
+        and bill_currency is not None
+        and primary_currency is not None
+        and bill_currency != primary_currency
+    ):
+        return _quantize(excl_raw * Decimal(snapshot))
+    if snapshot is not None and bill_currency is not None and bill_currency != "CNY":
+        # Legacy unit-test / pre-multi-primary path.
+        return _quantize(excl_raw * Decimal(snapshot))
+    return _quantize(excl_raw)
+
+
 def _compute_balances(
     bills,  # list[Bill] | list[tuple[Bill, Decimal]] — duck-typed for test compatibility
     participants_by_bill: dict[int, list[BillParticipant]],
     member_ids: list[int],
+    session_rates: dict[tuple[str, str], Decimal] | None = None,
+    primary_currency: str | None = None,
 ) -> dict[int, Decimal]:
     """Compute net[member_id] for the session (Decimal throughout, v0.2.2 T11).
 
@@ -295,7 +332,12 @@ def _compute_balances(
     net = (amount I paid for others) - (amount I consumed)
         = sum(bill.amount where bill.payer_id == me)
         - sum(per_user_total across all bills I participated in)
+
+    Orphan member ids (payer / participant not in ``member_ids``, e.g. a
+    deleted seat still referenced by old bills) are skipped so sum(net)
+    stays 0 instead of HTTP 500.
     """
+    member_id_set = set(member_ids)
     paid: dict[int, Decimal] = {mid: Decimal("0") for mid in member_ids}
     consumed: dict[int, Decimal] = {mid: Decimal("0") for mid in member_ids}
 
@@ -332,8 +374,31 @@ def _compute_balances(
             # Production path with a foreign-currency bill — multiply.
             amount_primary = _quantize(amount_primary * Decimal(snapshot))
 
-        paid[bill.payer_id] = paid.get(bill.payer_id, Decimal("0")) + amount_primary
-        ppts = participants_by_bill.get(bill.id, [])
+        payer_id = int(bill.payer_id)
+        # Skip bills whose payer is no longer a session member (orphan FK).
+        if payer_id not in member_id_set:
+            continue
+
+        all_ppts = participants_by_bill.get(bill.id, [])
+        # Drop orphan participants so shares redistribute among remaining seats.
+        # Orphan exclusive amounts are peeled off amount_primary so they are not
+        # silently absorbed into the shared pool of remaining members.
+        orphan_excl = Decimal("0")
+        for p in all_ppts:
+            if int(p.member_id) not in member_id_set and p.is_exclusive:
+                orphan_excl += _excl_to_primary(
+                    Decimal(p.exclusive_amount),
+                    bill_currency,
+                    snapshot,
+                    session_rates,
+                    primary_currency,
+                )
+        amount_primary = amount_primary - orphan_excl
+
+        ppts = [p for p in all_ppts if int(p.member_id) in member_id_set]
+        # Credit payer even when no remaining participants (degenerate / orphan-only
+        # exclusive peeled to 0) — matches historical empty-ppts behaviour.
+        paid[payer_id] = paid.get(payer_id, Decimal("0")) + amount_primary
         if not ppts:
             continue
 
@@ -341,24 +406,28 @@ def _compute_balances(
         exclusive_total = Decimal("0")
         for p in ppts:
             if p.is_exclusive:
-                excl_amt = Decimal(p.exclusive_amount)
-                if bill_currency is not None and snapshot is not None and bill_currency != "CNY":
-                    excl_amt = _quantize(excl_amt * Decimal(snapshot))
-                else:
-                    excl_amt = _quantize(excl_amt)
-                exclusive_total += excl_amt
+                exclusive_total += _excl_to_primary(
+                    Decimal(p.exclusive_amount),
+                    bill_currency,
+                    snapshot,
+                    session_rates,
+                    primary_currency,
+                )
 
         shared_pool = amount_primary - exclusive_total
         per_user_shared = shared_pool / Decimal(len(ppts))
         for p in ppts:
             own_excl = Decimal("0")
             if p.is_exclusive:
-                excl_amt = Decimal(p.exclusive_amount)
-                if bill_currency is not None and snapshot is not None and bill_currency != "CNY":
-                    own_excl = _quantize(excl_amt * Decimal(snapshot))
-                else:
-                    own_excl = _quantize(excl_amt)
-            consumed[p.member_id] = consumed.get(p.member_id, Decimal("0")) + per_user_shared + own_excl
+                own_excl = _excl_to_primary(
+                    Decimal(p.exclusive_amount),
+                    bill_currency,
+                    snapshot,
+                    session_rates,
+                    primary_currency,
+                )
+            mid = int(p.member_id)
+            consumed[mid] = consumed.get(mid, Decimal("0")) + per_user_shared + own_excl
 
     net: dict[int, Decimal] = {}
     for mid in member_ids:
@@ -561,6 +630,8 @@ def _share_amounts_primary(
     bill,  # Bill | _FakeBill — duck-typed for unit tests
     parts: list[BillParticipant],
     amount_primary: Decimal,
+    session_rates: dict[tuple[str, str], Decimal] | None = None,
+    primary_currency: str | None = None,
 ) -> list[Decimal]:
     """Per-participant share in primary currency (same formula as bills API).
 
@@ -580,23 +651,26 @@ def _share_amounts_primary(
     exclusive_total = Decimal("0")
     for p in parts:
         if p.is_exclusive:
-            excl = Decimal(p.exclusive_amount)
-            if snapshot is not None and bill_currency is not None and bill_currency != "CNY":
-                excl = _quantize(excl * Decimal(snapshot))
-            else:
-                excl = _quantize(excl)
-            exclusive_total += excl
+            exclusive_total += _excl_to_primary(
+                Decimal(p.exclusive_amount),
+                bill_currency,
+                snapshot,
+                session_rates,
+                primary_currency,
+            )
     shared_pool = amount_primary - exclusive_total
-    per_user_shared = shared_pool / len(parts)
+    per_user_shared = shared_pool / Decimal(len(parts))
     out: list[Decimal] = []
     for p in parts:
         own = Decimal("0")
         if p.is_exclusive:
-            excl = Decimal(p.exclusive_amount)
-            if snapshot is not None and bill_currency is not None and bill_currency != "CNY":
-                own = _quantize(excl * Decimal(snapshot))
-            else:
-                own = _quantize(excl)
+            own = _excl_to_primary(
+                Decimal(p.exclusive_amount),
+                bill_currency,
+                snapshot,
+                session_rates,
+                primary_currency,
+            )
         out.append(per_user_shared + own)
     return out
 
@@ -618,6 +692,7 @@ def _compute_per_member(
     behaviour so the v0.1.2 / v0.2.1 unit fixtures remain valid.
     """
     out: list[MemberSettlement] = []
+    member_id_set = {m.id for m in members}
     for m in members:
         paid_bills: list[BillSummary] = []
         consumed_bills: list[BillShare] = []
@@ -625,10 +700,26 @@ def _compute_per_member(
         total_consumed = Decimal("0")
 
         for bill, amount_primary in bills_with_primary:
+            # Match _compute_balances: skip orphan-payer bills.
+            if int(bill.payer_id) not in member_id_set:
+                continue
             primary = _primary_currency_for(bill)
             # v0.3.16 #3: 提前算 ppts, 让 payer 侧 BillSummary 也能拿到 participant_count
-            ppts = participants_by_bill.get(bill.id, [])
-            shares_primary = _share_amounts_primary(bill, ppts, amount_primary)
+            # Drop orphan participants (same filter as balances).
+            ppts = [
+                p
+                for p in participants_by_bill.get(bill.id, [])
+                if int(p.member_id) in member_id_set
+            ]
+            if not ppts:
+                continue
+            shares_primary = _share_amounts_primary(
+                bill,
+                ppts,
+                amount_primary,
+                session_rates=session_rates,
+                primary_currency=primary_currency,
+            )
             # Biller side: bills where this member is the payer.
             if bill.payer_id == m.id:
                 paid_bills.append(
@@ -808,7 +899,13 @@ async def settle_session(
         bills_with_primary.append((b, amount_primary))
 
     # ---- 4. Aggregate balances (Decimal) + greedy pair (Decimal) ---------
-    balances = _compute_balances(bills_with_primary, participants_by_bill, member_ids)
+    balances = _compute_balances(
+        bills_with_primary,
+        participants_by_bill,
+        member_ids,
+        session_rates=session_rates,
+        primary_currency=primary_currency,
+    )
 
     # v0.3.32 -- UAT 0725-2 #1: subtract per-pair settlement_records so the
     # remaining transfer list reflects "what's still owed" rather than the
