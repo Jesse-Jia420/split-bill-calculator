@@ -550,7 +550,7 @@
   }
   .avatar-btn.anon {
     background: linear-gradient(135deg, rgba(99, 102, 241, 0.14) 0%, rgba(59, 130, 246, 0.10) 100%);
-    color: var(--accent-700, #4338ca);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
   }
   .avatar-btn:hover {
     transform: translateY(-1px);
@@ -628,7 +628,7 @@
   }
   .menu-item:hover {
     background: rgba(99, 102, 241, 0.08);
-    color: var(--accent-700, #4338ca);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
     text-decoration: none;
   }
   .menu-item.danger {
@@ -655,7 +655,7 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.95),
       inset 0 -1px 0 rgba(0, 0, 0, 0.04),
       0 1px 2px rgba(15, 23, 42, 0.04);
-    color: var(--accent-700, #4338ca);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
     font-size: var(--font-size-sm);
     font-weight: 600;
     text-decoration: none;
@@ -689,7 +689,7 @@
       rgba(255, 255, 255, 0.50) 0%,
       rgba(255, 255, 255, 0.35) 100%
     );
-    color: var(--accent-700);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
   }
   @supports not (backdrop-filter: blur(1px)) {
     .btn-sm { background: rgba(99, 102, 241, 0.08); }

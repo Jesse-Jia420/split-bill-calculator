@@ -999,7 +999,7 @@
     font-weight: 500;
   }
   .bill-swipe-hint .hint-edit {
-    color: var(--accent-700, #4338ca);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
     font-weight: 500;
   }
   /* v0.3.24 #18 (PO msg 16:35 UAT line #18 字面 "账单列表搜索框，当无搜索结果时，提示的 没有匹配的账单，换个关键词试试 ，出现的位置不对，被搜索框挡住了。应下移一些"):
@@ -1017,7 +1017,7 @@
     background: none;
     border: none;
     padding: 0;
-    color: var(--accent-700, #4338ca);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
     font: inherit;
     text-decoration: underline;
     cursor: pointer;
@@ -1137,7 +1137,7 @@
     justify-content: center;
     border-radius: 50%;
     background: rgba(99, 102, 241, 0.10);
-    color: #4338ca;
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
     font-size: 15px;
     font-weight: 400;
     line-height: 1;
@@ -1207,7 +1207,7 @@
     font-size: 10.5px;
     font-weight: 700;
     letter-spacing: 0.06em;
-    color: #4338ca;
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
     flex-shrink: 0;
   }
   .cc-chip .cc-amt {
@@ -1397,11 +1397,11 @@
      完全一致即可, 但保留 modifier 让 design 后续可微调而其他按钮不变。*/
   .bill-swipe-action.glass-pill.glass-pill--edit {
     /* 沿用基类 app.css .glass-pill 的渐变 (不重写) — 仅显式声明便于读 */
-    color: var(--accent-700, #4338ca);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
     border-color: rgba(99, 102, 241, 0.22);
   }
   .bill-swipe-action.glass-pill.glass-pill--edit:hover {
-    color: var(--accent-800, #3730a3);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
     border-color: rgba(99, 102, 241, 0.30);
   }
 

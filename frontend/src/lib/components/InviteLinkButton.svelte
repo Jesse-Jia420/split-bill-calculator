@@ -977,7 +977,7 @@
     border-radius: 12px;
     background: rgba(99, 102, 241, 0.06);
     border: 1px dashed rgba(99, 102, 241, 0.30);
-    color: var(--accent-700, #4338ca);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
     font-size: 13px;
     font-weight: 500;
     font-variant-numeric: tabular-nums;
@@ -1046,7 +1046,7 @@
     border-radius: 10px;
     background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(99, 102, 241, 0.08) 100%);
     border: 1px solid rgba(99, 102, 241, 0.22);
-    color: var(--accent-700, #4338ca);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
     font-size: 12.5px;
     font-weight: 600;
     font-family: inherit;

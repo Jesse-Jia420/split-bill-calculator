@@ -803,7 +803,7 @@
     color: var(--gray-500);
   }
   .role.owner {
-    color: #4338ca;
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
   }
   .role .dot-led {
     width: 6px;

@@ -147,7 +147,7 @@
   .pill-text {
     font-size: 14px;
     font-weight: 600;
-    color: #4338ca;
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
     letter-spacing: -0.005em;
   }
 
