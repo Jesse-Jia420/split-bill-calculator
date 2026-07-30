@@ -279,16 +279,15 @@
     <span class="avatar" style={payerPal} aria-hidden="true">{initialOf(record.payer_name)}</span>
     <span class="arrow-mini" aria-hidden="true">→</span>
     <span class="avatar" style={payeePal} aria-hidden="true">{initialOf(record.payee_name)}</span>
-    <div class="row-info">
-      <div class="row-from-to">
-        <span class="row-name">{record.payer_name}</span>
-        <span class="row-arrow" aria-hidden="true">→</span>
-        <span class="row-name">{record.payee_name}</span>
-      </div>
-      <div class="row-meta">
-        {record.currency} · {fmtDate(record.created_at)}
-        {#if record.note}<span class="note-inline" title={record.note}>· {record.note}</span>{/if}
-      </div>
+    <!-- Single row: time left of nicknames; currency/time meta row removed (redundant with amount). -->
+    <div
+      class="row-main"
+      title={record.note ? record.note : undefined}
+    >
+      <span class="row-time">{fmtDate(record.created_at)}</span>
+      <span class="row-name">{record.payer_name}</span>
+      <span class="row-arrow" aria-hidden="true">→</span>
+      <span class="row-name">{record.payee_name}</span>
     </div>
     <div class="row-amount">{fmtAmount(record.amount, record.currency)}</div>
   </div>
@@ -336,42 +335,49 @@
       inset 0 -1px 0 rgba(0, 0, 0, 0.08),
       0 1px 2px rgba(0, 0, 0, 0.08);
   }
-  .arrow-mini { color: #a3a3a3; font-size: 12px; padding: 0 1px; }
-  .row-info {
+  .arrow-mini { color: #a3a3a3; font-size: 12px; padding: 0 1px; flex-shrink: 0; }
+  /* One horizontal band: time | names — all share the row's vertical center axis */
+  .row-main {
     flex: 1;
-    min-width: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-  .row-from-to {
+    min-width: 0;
     display: flex;
     align-items: center;
     gap: 6px;
+  }
+  .row-time {
+    flex: 0 0 auto;
+    font-size: 12px;
+    font-weight: 500;
+    color: #737373;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    line-height: 1;
   }
   .row-name {
     font-size: 14px;
     font-weight: 500;
     color: #171717;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    line-height: 1.2;
   }
-  .row-arrow { color: #737373; font-size: 12px; }
-  .row-meta {
-    font-size: 11px;
+  .row-arrow {
     color: #737373;
-    font-variant-numeric: tabular-nums;
-    text-align: left;
-    white-space: nowrap;
-    overflow: visible;
-    text-overflow: clip;
+    font-size: 12px;
+    flex-shrink: 0;
+    line-height: 1;
   }
-  .note-inline { font-style: italic; color: #525252; }
   .row-amount {
     font-size: 14px;
     font-weight: 600;
     color: #10b981;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
+    flex-shrink: 0;
+    line-height: 1;
   }
 
   /* v0.3.0729-4 #10: 跟手圆形删除按钮（与 BillListGrouped 同款） */
