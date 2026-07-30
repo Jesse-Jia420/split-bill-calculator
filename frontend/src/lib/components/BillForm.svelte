@@ -629,7 +629,7 @@
   onsubmit={handleSubmit}
   onkeydown={handleFormKeyDown}
 >
-  <!-- Sheet: 金额+币种同行; 时间整行; 付款人整行 (datetime-local 不能与付款人挤一列). -->
+  <!-- Sheet: 金额+币种同行; 时间+付款人同行 (防溢出: minmax(0)+max-width:100%). -->
   {#if isSheet}
     <div class="field-grid">
       <div class="field field-amount">
@@ -667,18 +667,20 @@
       </div>
     </div>
 
-    <div class="field field-time">
-      <label class="label" for="occurredAt">时间</label>
-      <input id="occurredAt" type="datetime-local" bind:value={occurredAt} />
-    </div>
-    <div class="field field-payer">
-      <label class="label" for="payer">付款人</label>
-      <select id="payer" bind:value={payerMemberId}>
-        <option value={null}>— 选择 —</option>
-        {#each session.members as m (m.id)}
-          <option value={m.id}>{m.display_name}</option>
-        {/each}
-      </select>
+    <div class="field-grid field-grid-time-payer" data-testid="bill-time-payer-row">
+      <div class="field field-time">
+        <label class="label" for="occurredAt">时间</label>
+        <input id="occurredAt" type="datetime-local" bind:value={occurredAt} />
+      </div>
+      <div class="field field-payer">
+        <label class="label" for="payer">付款人</label>
+        <select id="payer" bind:value={payerMemberId}>
+          <option value={null}>— 选择 —</option>
+          {#each session.members as m (m.id)}
+            <option value={m.id}>{m.display_name}</option>
+          {/each}
+        </select>
+      </div>
     </div>
   {:else}
   <div class="row" style="gap: var(--space-3); align-items: flex-start;">
@@ -1293,20 +1295,48 @@
     align-items: end;
   }
   .sheet-layout .field-grid-time-payer {
+    /* 同行: 时间略宽、付款人略窄; 两侧 minmax(0) 防 grid 子项撑破 */
     grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
     align-items: end;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
   }
   .sheet-layout .field-time,
   .sheet-layout .field-payer {
     min-width: 0;
     width: 100%;
-  }
-  .sheet-layout .field-time input[type="datetime-local"]#occurredAt {
     max-width: 100%;
+    overflow: hidden;
+  }
+  /* 覆盖全局 #occurredAt { max-width: 260px } — 半宽列里 260px 会横向溢出 */
+  .sheet-layout .field-time input[type="datetime-local"]#occurredAt {
+    box-sizing: border-box;
     width: 100%;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow: hidden;
+    padding-inline: 8px;
+    font-size: 13px;
+  }
+  .sheet-layout .field-time input[type="datetime-local"]#occurredAt::-webkit-datetime-edit,
+  .sheet-layout .field-time input[type="datetime-local"]#occurredAt::-webkit-datetime-edit-fields-wrapper {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+  }
+  .sheet-layout .field-time input[type="datetime-local"]#occurredAt::-webkit-calendar-picker-indicator {
+    margin-left: 2px;
+    flex-shrink: 0;
   }
   .sheet-layout .field-payer select#payer {
+    box-sizing: border-box;
     width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .sheet-layout .field-currency {
     min-width: 72px;
