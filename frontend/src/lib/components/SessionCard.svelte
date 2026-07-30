@@ -795,7 +795,8 @@
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    padding: 3px 9px;
+    /* UAT: 右侧与下方人数数字右缘对齐 — 去掉 padding-right (人数 .count 无右 padding). */
+    padding: 3px 0 3px 9px;
     line-height: 1;
     flex-shrink: 0;
   }
@@ -1060,36 +1061,30 @@
     outline: 2px solid rgba(220, 38, 38, 0.55);
     outline-offset: 2px;
   }
-  /* 非 owner: 置灰但仍可点 (toast 报错说明原因) */
+  /* 非 owner: 置灰但仍可点 (toast 报错说明原因).
+   * UAT: 颜色跟账单列表 .bill-swipe-action.disabled 一致 —
+   * 保留红玻璃底色 + grayscale + 更低 opacity, 不再用 slate 灰底. */
   .delete-btn.disabled {
-    background: linear-gradient(
-      135deg,
-      rgba(148, 163, 184, 0.22) 0%,
-      rgba(148, 163, 184, 0.14) 100%
-    );
-    border-color: rgba(148, 163, 184, 0.35);
-    color: #94a3b8;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.45),
-      0 1px 2px rgba(15, 23, 42, 0.06);
-    /* keep clickable — progress gate already on [aria-hidden=false] */
-    opacity: calc(var(--swipe-progress, 0) * 0.45);
+    /* 红玻璃基色保留 (跟 enabled / 账单删除同源), 靠 opacity + grayscale 置灰 */
+    opacity: calc(var(--swipe-progress, 0) * 0.28);
+    filter: grayscale(40%);
     cursor: not-allowed;
   }
   .delete-btn.disabled:hover {
+    /* 跟 BillListGrouped .bill-swipe-action.disabled:hover 同款 — 不升亮误导 */
     background: linear-gradient(
       135deg,
-      rgba(148, 163, 184, 0.22) 0%,
-      rgba(148, 163, 184, 0.14) 100%
+      rgba(220, 38, 38, 0.10) 0%,
+      rgba(239, 68, 68, 0.08) 100%
     );
-    border-color: rgba(148, 163, 184, 0.35);
-    color: #94a3b8;
+    border-color: rgba(220, 38, 38, 0.22);
+    color: var(--error-700, #be123c);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.45),
-      0 1px 2px rgba(15, 23, 42, 0.06);
+      inset 0 1px 0 rgba(255, 255, 255, 0.5),
+      0 1px 2px rgba(220, 38, 38, 0.12);
   }
   .delete-btn.disabled:focus-visible {
-    outline: 2px solid rgba(148, 163, 184, 0.55);
+    outline: 2px solid rgba(220, 38, 38, 0.4);
   }
 
   /* v0.3.25 #16: confirm modal (跟 InviteLinkButton v0.3.24 #14 同款玻璃风格).
