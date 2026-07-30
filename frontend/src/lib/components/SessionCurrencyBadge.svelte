@@ -236,8 +236,8 @@
 
     background: linear-gradient(
       135deg,
-      rgba(99, 102, 241, 0.16) 0%,
-      rgba(59, 130, 246, 0.14) 100%
+      rgba(40, 40, 40, 0.16) 0%,
+      rgba(58, 58, 58, 0.14) 100%
     );
     backdrop-filter: saturate(200%) blur(20px);
     -webkit-backdrop-filter: saturate(200%) blur(20px);
@@ -245,15 +245,15 @@
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.6),
       inset 0 -1px 0 rgba(0, 0, 0, 0.04),
-      0 4px 14px rgba(99, 102, 241, 0.15);
+      0 4px 14px rgba(40, 40, 40, 0.15);
 
     border-radius: 999px;
-    border: 1.5px solid rgba(99, 102, 241, 0.28);
+    border: 1.5px solid rgba(40, 40, 40, 0.28);
   }
 
   @supports not (backdrop-filter: blur(1px)) {
     .currency-pill-row--single {
-      background: rgba(99, 102, 241, 0.28);
+      background: rgba(40, 40, 40, 0.28);
     }
   }
 
@@ -272,19 +272,19 @@
   button.currency-pill-row--single:hover {
     background: linear-gradient(
       135deg,
-      rgba(99, 102, 241, 0.16) 0%,
-      rgba(59, 130, 246, 0.13) 100%
+      rgba(40, 40, 40, 0.16) 0%,
+      rgba(58, 58, 58, 0.13) 100%
     );
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.55),
       inset 0 -1px 0 rgba(0, 0, 0, 0.04),
-      0 2px 6px rgba(99, 102, 241, 0.08);
+      0 2px 6px rgba(40, 40, 40, 0.08);
   }
   button.currency-pill-row--single:active {
     transform: scale(0.97);
   }
   button.currency-pill-row--single:focus-visible {
-    outline: 2px solid var(--accent-500, #3b82f6);
+    outline: 2px solid var(--accent-500, #2c2c2c);
     outline-offset: 2px;
   }
 
@@ -326,8 +326,8 @@
 
     background: linear-gradient(
       135deg,
-      rgba(99, 102, 241, 0.06) 0%,
-      rgba(59, 130, 246, 0.04) 100%
+      rgba(40, 40, 40, 0.06) 0%,
+      rgba(58, 58, 58, 0.04) 100%
     );
     backdrop-filter: saturate(200%) blur(20px);
     -webkit-backdrop-filter: saturate(200%) blur(20px);
@@ -335,15 +335,15 @@
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.6),
       inset 0 -1px 0 rgba(0, 0, 0, 0.04),
-      0 1px 4px rgba(99, 102, 241, 0.08);
+      0 1px 4px rgba(40, 40, 40, 0.08);
 
     border-radius: 999px;
-    border: 1px solid rgba(99, 102, 241, 0.18);
+    border: 1px solid rgba(40, 40, 40, 0.18);
   }
 
   @supports not (backdrop-filter: blur(1px)) {
     .currency-bar {
-      background: rgba(99, 102, 241, 0.08);
+      background: rgba(40, 40, 40, 0.08);
     }
   }
 
@@ -365,19 +365,19 @@
   button.currency-bar--clickable:hover {
     background: linear-gradient(
       135deg,
-      rgba(99, 102, 241, 0.14) 0%,
-      rgba(59, 130, 246, 0.10) 100%
+      rgba(40, 40, 40, 0.14) 0%,
+      rgba(58, 58, 58, 0.10) 100%
     );
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.7),
       inset 0 -1px 0 rgba(0, 0, 0, 0.04),
-      0 2px 8px rgba(99, 102, 241, 0.10);
+      0 2px 8px rgba(40, 40, 40, 0.10);
   }
   button.currency-bar--clickable:active {
     transform: scale(0.98);
   }
   button.currency-bar--clickable:focus-visible {
-    outline: 2px solid var(--accent-500, #3b82f6);
+    outline: 2px solid var(--accent-500, #2c2c2c);
     outline-offset: 2px;
   }
 
@@ -405,7 +405,7 @@
   }
 
   .currency-arrow {
-    color: var(--accent-500, #6366f1);
+    color: var(--accent-500, #2c2c2c);
     font-size: clamp(0.75rem, 2.8vw, 0.875rem);
     font-weight: 600;
     flex-shrink: 0;

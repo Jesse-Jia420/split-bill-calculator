@@ -503,7 +503,7 @@
     padding: 0;
     border: none;
     /* v0.3.28 UAT 0724-2 #10: 填色 + 象牙白 icon (同 IosSwitch 选中态样式) */
-    background: var(--accent-600, #6366f1);
+    background: var(--accent-600, #2c2c2c);
     color: #fffff0;
     transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease, color 150ms ease;
   }
@@ -517,7 +517,7 @@
     /* 玻璃上白色 outline + indigo 实心 ring, focus 状态显眼 (跟原 .fab 一致) */
     outline: 2px solid #fff;
     outline-offset: 2px;
-    box-shadow: 0 0 0 4px #4f46e5;
+    box-shadow: 0 0 0 4px #262626;
   }
 
   /* narrow viewport (≤600px) — 跟 IosSwitch option 36px min-height 同步降级 */
@@ -579,12 +579,12 @@
     border-radius: 999px;
     background: linear-gradient(
       135deg,
-      rgba(99, 102, 241, 0.16) 0%,
-      rgba(59, 130, 246, 0.12) 100%
+      rgba(40, 40, 40, 0.16) 0%,
+      rgba(58, 58, 58, 0.12) 100%
     );
     backdrop-filter: saturate(180%) blur(16px);
     -webkit-backdrop-filter: saturate(180%) blur(16px);
-    border: 1px solid rgba(99, 102, 241, 0.28);
+    border: 1px solid rgba(40, 40, 40, 0.28);
     color: var(--btn-label, var(--logo-ink, #1a1a1a));
     font-size: 13px;
     font-weight: 600;
@@ -593,19 +593,19 @@
     transition: transform 150ms ease, background 150ms ease, box-shadow 150ms ease;
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.55),
-      0 1px 3px rgba(99, 102, 241, 0.16);
+      0 1px 3px rgba(40, 40, 40, 0.16);
     flex-shrink: 0;
   }
   .add-btn:hover {
     transform: translateY(-1px);
     background: linear-gradient(
       135deg,
-      rgba(99, 102, 241, 0.22) 0%,
-      rgba(59, 130, 246, 0.18) 100%
+      rgba(40, 40, 40, 0.22) 0%,
+      rgba(58, 58, 58, 0.18) 100%
     );
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.65),
-      0 2px 6px rgba(99, 102, 241, 0.22);
+      0 2px 6px rgba(40, 40, 40, 0.22);
   }
   .add-btn:active {
     transform: scale(0.97);
@@ -630,7 +630,7 @@
     color: #737373;
     font-size: 13px;
   }
-  .record-empty strong { color: #6366f1; font-weight: 600; }
+  .record-empty strong { color: #2c2c2c; font-weight: 600; }
 
   /* v0.3.33 — UAT 0725-3 #4: section 3「最新应结算」template + reactive 都删了, 一并清理 .latest-* / .new-amount CSS. */
 </style>

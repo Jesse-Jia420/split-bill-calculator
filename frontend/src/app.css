@@ -80,10 +80,15 @@ input, textarea, select, [contenteditable] {
   /* Default button label color (glass / ghost / outline). Filled primary keeps #fff. */
   --btn-label: var(--logo-ink);
 
-  /* Brand */
-  --accent-50: #eff6ff;
-  --accent-500: #3b82f6;
-  --accent-700: #1d4ed8;
+  /* Brand — soft charcoal (not 死黑 #000). Anchored on logo ink. */
+  --accent-50: #f4f4f4;
+  --accent-500: #2c2c2c;
+  --accent-700: #1a1a1a;
+  --accent-800: #121212;
+  /* RGB companions for rgba() glass / gradients (same soft charcoal family) */
+  --accent-rgb: 44, 44, 44;
+  --accent-rgb-soft: 58, 58, 58;
+  --accent-rgb-deep: 26, 26, 26;
 
   /* Semantic (color-blind friendly) */
   --success-50: #ecfdf5;
@@ -340,16 +345,16 @@ button:not(:disabled):active,
 .glass-pill {
   background: linear-gradient(
     135deg,
-    rgba(99, 102, 241, 0.04) 0%,
-    rgba(59, 130, 246, 0.02) 100%
+    rgba(40, 40, 40, 0.04) 0%,
+    rgba(58, 58, 58, 0.02) 100%
   );
   backdrop-filter: saturate(200%) blur(20px);
   -webkit-backdrop-filter: saturate(200%) blur(20px);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.45),
     inset 0 -1px 0 rgba(0, 0, 0, 0.02),
-    0 1px 4px rgba(99, 102, 241, 0.05);
-  border: 1px solid rgba(99, 102, 241, 0.16);
+    0 1px 4px rgba(40, 40, 40, 0.05);
+  border: 1px solid rgba(40, 40, 40, 0.16);
   color: var(--btn-label, var(--logo-ink, #1a1a1a));
   border-radius: 999px; /* pill — FAB 用 .fab 自己的 50% 覆盖 */
   transition:
@@ -362,14 +367,14 @@ button:not(:disabled):active,
   /* v0.3.18 #50: hover 0.12/0.09 → 0.10/0.06 (跟新 base 0.04/0.02 同步降级, hover 仍略亮) */
   background: linear-gradient(
     135deg,
-    rgba(99, 102, 241, 0.10) 0%,
-    rgba(59, 130, 246, 0.06) 100%
+    rgba(40, 40, 40, 0.10) 0%,
+    rgba(58, 58, 58, 0.06) 100%
   );
   transform: translateY(-1px);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.55),
     inset 0 -1px 0 rgba(0, 0, 0, 0.03),
-    0 2px 8px rgba(99, 102, 241, 0.08);
+    0 2px 8px rgba(40, 40, 40, 0.08);
 }
 .glass-pill:active {
   transform: scale(0.97);
@@ -384,7 +389,7 @@ button:not(:disabled):active,
    v0.3.18 #50: 0.12 → 0.08 (跟新 base 0.04/0.02 同比例降级, 仍提供 fallback opaque 可读性) */
 @supports not (backdrop-filter: blur(1px)) {
   .glass-pill {
-    background: rgba(99, 102, 241, 0.08);
+    background: rgba(40, 40, 40, 0.08);
   }
 }
 
@@ -396,15 +401,15 @@ button:not(:disabled):active,
 .btn.glass-pill,
 button.glass-pill,
 a.glass-pill {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.06) 0%, rgba(59, 130, 246, 0.04) 100%);
-  border-color: rgba(99, 102, 241, 0.18);
+  background: linear-gradient(135deg, rgba(40, 40, 40, 0.06) 0%, rgba(58, 58, 58, 0.04) 100%);
+  border-color: rgba(40, 40, 40, 0.18);
   color: var(--btn-label, var(--logo-ink, #1a1a1a));
 }
 .btn.glass-pill:hover,
 button.glass-pill:hover,
 a.glass-pill:hover {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.14) 0%, rgba(59, 130, 246, 0.10) 100%);
-  border-color: rgba(99, 102, 241, 0.25);
+  background: linear-gradient(135deg, rgba(40, 40, 40, 0.14) 0%, rgba(58, 58, 58, 0.10) 100%);
+  border-color: rgba(40, 40, 40, 0.25);
   color: var(--btn-label, var(--logo-ink, #1a1a1a));
 }
 
@@ -424,7 +429,7 @@ a.glass-pill:hover {
   background: rgba(255, 255, 255, 0.12);
   backdrop-filter: saturate(180%) blur(12px);
   -webkit-backdrop-filter: saturate(180%) blur(12px);
-  border: 1.5px solid rgba(99, 102, 241, 0.28);
+  border: 1.5px solid rgba(40, 40, 40, 0.28);
   border-radius: 14px;
   padding: 14px 16px;
   color: #171717;
@@ -439,9 +444,9 @@ a.glass-pill:hover {
 }
 .glass-input:focus {
   outline: none;
-  border-color: rgba(99, 102, 241, 0.55);
+  border-color: rgba(40, 40, 40, 0.55);
   background: rgba(255, 255, 255, 0.22);
-  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.16);
+  box-shadow: 0 0 0 4px rgba(40, 40, 40, 0.16);
 }
 .glass-input::placeholder { color: #a3a3a3; }
 .glass-input:disabled { opacity: 0.55; cursor: not-allowed; }
@@ -460,19 +465,19 @@ a.glass-pill:hover {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: rgba(99, 102, 241, 0.12);
-  border: 1px solid rgba(99, 102, 241, 0.18);
+  background: rgba(40, 40, 40, 0.12);
+  border: 1px solid rgba(40, 40, 40, 0.18);
   backdrop-filter: saturate(180%) blur(8px);
   -webkit-backdrop-filter: saturate(180%) blur(8px);
   transition: background 300ms ease, transform 300ms ease;
 }
 .progress .dot.active {
-  background: rgba(99, 102, 241, 0.55);
-  border-color: rgba(99, 102, 241, 0.55);
+  background: rgba(40, 40, 40, 0.55);
+  border-color: rgba(40, 40, 40, 0.55);
 }
 .progress .dot.done {
-  background: rgba(165, 180, 252, 0.7);
-  border-color: rgba(165, 180, 252, 0.8);
+  background: rgba(58, 58, 58, 0.55);
+  border-color: rgba(40, 40, 40, 0.45);
   transform: scale(0.85);
 }
 
@@ -490,7 +495,7 @@ button.btn-primary {
   min-height: 52px;
   padding: 0 1.5rem;
   border-radius: 9999px;
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.85) 0%, rgba(99, 102, 241, 0.78) 100%);
+  background: linear-gradient(135deg, rgba(58, 58, 58, 0.85) 0%, rgba(40, 40, 40, 0.78) 100%);
   border: 1px solid rgba(255, 255, 255, 0.35);
   backdrop-filter: saturate(200%) blur(20px);
   -webkit-backdrop-filter: saturate(200%) blur(20px);
@@ -504,16 +509,16 @@ button.btn-primary {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.4),
     inset 0 -1px 0 rgba(0, 0, 0, 0.08),
-    0 6px 20px rgba(59, 130, 246, 0.35);
+    0 6px 20px rgba(58, 58, 58, 0.35);
   transition: background 180ms ease, transform 100ms ease, box-shadow 180ms ease;
 }
 .btn.btn-primary:hover:not(:disabled),
 button.btn-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.95) 0%, rgba(99, 102, 241, 0.9) 100%);
+  background: linear-gradient(135deg, rgba(58, 58, 58, 0.95) 0%, rgba(40, 40, 40, 0.9) 100%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.5),
     inset 0 -1px 0 rgba(0, 0, 0, 0.1),
-    0 8px 24px rgba(59, 130, 246, 0.45);
+    0 8px 24px rgba(58, 58, 58, 0.45);
 }
 .btn.btn-primary:active:not(:disabled),
 button.btn-primary:active:not(:disabled) { transform: scale(0.98); }
@@ -523,7 +528,7 @@ button.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
 @supports not (backdrop-filter: blur(1px)) {
   .btn.btn-primary,
   button.btn-primary {
-    background: rgba(59, 130, 246, 0.9);
+    background: rgba(58, 58, 58, 0.9);
   }
 }
 
@@ -535,18 +540,18 @@ button.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
  * ============================================================ */
 .mode-pill.active,
 .currency-pill.active {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.85) 0%, rgba(99, 102, 241, 0.78) 100%) !important;
+  background: linear-gradient(135deg, rgba(58, 58, 58, 0.85) 0%, rgba(40, 40, 40, 0.78) 100%) !important;
   border: 1px solid rgba(255, 255, 255, 0.35) !important;
   color: #fff !important;
   font-weight: 600;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.4),
     inset 0 -1px 0 rgba(0, 0, 0, 0.08),
-    0 4px 14px rgba(59, 130, 246, 0.3);
+    0 4px 14px rgba(58, 58, 58, 0.3);
 }
 .mode-pill.active:hover,
 .currency-pill.active:hover {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.95) 0%, rgba(99, 102, 241, 0.9) 100%) !important;
+  background: linear-gradient(135deg, rgba(58, 58, 58, 0.95) 0%, rgba(40, 40, 40, 0.9) 100%) !important;
 
 }
 /* v0.3.17 #32-D-4 (PO msg 01:18 #6116): .ios-switch 全套 utility 移到
@@ -595,7 +600,7 @@ button.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
  * 匿名 owner 首次进入账单页时, 邀请链接按钮加 .invite-btn-breathing class 触发此 keyframes.
  * 1.5s ease-in-out infinite, 紫光晕 16→24px + scale 1↔1.02.
  * - transform 用 scale 而非 translate, 不影响 button 的 click box (button click 区域跟 layout 一致).
- * - box-shadow indigo-500 rgba(99,102,241, 0.35↔0.55) 跟项目主色 token --accent-500 同源.
+ * - box-shadow indigo-500 rgba(40, 40, 40, 0.35↔0.55) 跟项目主色 token --accent-500 同源.
  * - z-index / pointer-events 不动, 动画期间不影响 button 可点击性 (a11y).
  * ============================================================ */
 /* v0.3.34 #4 — UAT 0725-2 #2 dramatic breathing (PO msg "新建账本后, 邀请链接并没有高亮呼吸").
@@ -626,10 +631,10 @@ button.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
     /* v0.3.0728-2 #8: 去紫色光晕, 只保留边框流光.
        v0.3.0729-2 UAT #3: 去掉 transform scale — scale(1.05) + overflow:hidden
        会在呼吸峰值裁切 ::before 流光边框, 真机上看成边框断续/抖动. */
-    box-shadow: 0 0 0 rgba(99, 102, 241, 0);
+    box-shadow: 0 0 0 rgba(40, 40, 40, 0);
   }
   50% {
-    box-shadow: 0 0 0 rgba(168, 85, 247, 0);
+    box-shadow: 0 0 0 rgba(28, 28, 28, 0);
   }
 }
 /* v0.3.37 #16: 5 色 conic-gradient 边框流光 (PO 拍 v3-1 = RECOMMENDED) */
@@ -642,12 +647,12 @@ button.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
    box-shadow 不需要 mask/z-index/伪元素, iOS Safari 全版本支持.
    先用 outline 占位 1.5px 空间, 再用 box-shadow 颜色动画. */
 @keyframes invite-border-color {
-  0%   { box-shadow: 0 0 0 1.5px #6366f1, inset 0 1px 0 rgba(255,255,255,0.45); }
-  20%  { box-shadow: 0 0 0 1.5px #a855f7, inset 0 1px 0 rgba(255,255,255,0.45); }
+  0%   { box-shadow: 0 0 0 1.5px #2c2c2c, inset 0 1px 0 rgba(255,255,255,0.45); }
+  20%  { box-shadow: 0 0 0 1.5px #1f1f1f, inset 0 1px 0 rgba(255,255,255,0.45); }
   40%  { box-shadow: 0 0 0 1.5px #ec4899, inset 0 1px 0 rgba(255,255,255,0.45); }
   60%  { box-shadow: 0 0 0 1.5px #f59e0b, inset 0 1px 0 rgba(255,255,255,0.45); }
   80%  { box-shadow: 0 0 0 1.5px #10b981, inset 0 1px 0 rgba(255,255,255,0.45); }
-  100% { box-shadow: 0 0 0 1.5px #6366f1, inset 0 1px 0 rgba(255,255,255,0.45); }
+  100% { box-shadow: 0 0 0 1.5px #2c2c2c, inset 0 1px 0 rgba(255,255,255,0.45); }
 }
 button.glass-pill.invite-btn.invite-btn-breathing,
 .invite-btn.invite-btn-breathing {

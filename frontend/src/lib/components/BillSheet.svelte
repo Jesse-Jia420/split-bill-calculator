@@ -286,7 +286,7 @@
     color: #334155;
   }
   .btn-save {
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    background: linear-gradient(135deg, #2c2c2c, #8b5cf6);
     color: #fff;
   }
   .btn-save:disabled,

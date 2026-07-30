@@ -512,7 +512,7 @@
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.45),
       inset 0 -1px 0 rgba(0, 0, 0, 0.06),
-      0 2px 4px rgba(99, 102, 241, 0.10);
+      0 2px 4px rgba(40, 40, 40, 0.10);
   }
   /* v0.3.29 — UAT 0725-1 #13 v4: 加 palette-5/6 支持 6-7 成员头像 (合并列表槽位更多).
      跟 v0.3.28 v2 mockup 同源 (palette 0..6). */
@@ -526,7 +526,7 @@
   .palette-2 { background: linear-gradient(135deg, rgba(52, 211, 153, 0.88) 0%, rgba(16, 185, 129, 0.88) 100%); }
   .palette-3 { background: linear-gradient(135deg, rgba(251, 191, 36, 0.88) 0%, rgba(245, 158, 11, 0.88) 100%); }
   .palette-4 { background: linear-gradient(135deg, rgba(96, 165, 250, 0.88) 0%, rgba(59, 130, 246, 0.88) 100%); }
-  .palette-5 { background: linear-gradient(135deg, rgba(168, 85, 247, 0.88) 0%, rgba(236, 72, 153, 0.88) 100%); }
+  .palette-5 { background: linear-gradient(135deg, rgba(28, 28, 28, 0.88) 0%, rgba(236, 72, 153, 0.88) 100%); }
   .palette-6 { background: linear-gradient(135deg, rgba(34, 197, 94, 0.88) 0%, rgba(16, 185, 129, 0.88) 100%); }
   /* v0.3.0728-2 #20 解冻: 5 → 10 扩色 (palette-7..9) — 跟 SessionCard avatar-mini 字段级同 */
   .palette-7 { background: linear-gradient(135deg, rgba(14, 165, 233, 0.88) 0%, rgba(59, 130, 246, 0.88) 100%); }
@@ -614,7 +614,7 @@
     content: '';
     flex: 1;
     height: 0.5px;
-    background: rgba(99, 102, 241, 0.18);
+    background: rgba(40, 40, 40, 0.18);
   }
 
   .gap {

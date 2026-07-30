@@ -12,8 +12,8 @@ const PAPER = '#f6f5f1';
 const INK = '#1a1a1a';
 const INK_SOFT = 'rgba(26, 26, 26, 0.58)';
 const MUTED = 'rgba(82, 82, 91, 0.78)';
-const ACCENT = 'rgba(99, 102, 241, 0.22)';
-const ACCENT_LINE = 'rgba(99, 102, 241, 0.35)';
+const ACCENT = 'rgba(40, 40, 40, 0.22)';
+const ACCENT_LINE = 'rgba(40, 40, 40, 0.35)';
 
 function roundRect(
   ctx: CanvasRenderingContext2D,
@@ -199,14 +199,14 @@ export async function composeBrandedQrDataUrl(
 
   // Soft indigo wash (top-right + bottom-left) — glass atmosphere
   const wash1 = ctx.createRadialGradient(W * 0.85, 40, 20, W * 0.85, 80, 340);
-  wash1.addColorStop(0, 'rgba(99, 102, 241, 0.14)');
-  wash1.addColorStop(1, 'rgba(99, 102, 241, 0)');
+  wash1.addColorStop(0, 'rgba(40, 40, 40, 0.14)');
+  wash1.addColorStop(1, 'rgba(40, 40, 40, 0)');
   ctx.fillStyle = wash1;
   ctx.fillRect(0, 0, W, H);
 
   const wash2 = ctx.createRadialGradient(60, H - 40, 10, 80, H - 80, 300);
-  wash2.addColorStop(0, 'rgba(59, 130, 246, 0.10)');
-  wash2.addColorStop(1, 'rgba(59, 130, 246, 0)');
+  wash2.addColorStop(0, 'rgba(58, 58, 58, 0.10)');
+  wash2.addColorStop(1, 'rgba(58, 58, 58, 0)');
   ctx.fillStyle = wash2;
   ctx.fillRect(0, 0, W, H);
 
@@ -301,7 +301,7 @@ export async function composeBrandedQrDataUrl(
 
   // Glass rim
   roundRect(ctx, frameX, frameY, frameSize, frameSize, 28);
-  ctx.strokeStyle = 'rgba(99, 102, 241, 0.18)';
+  ctx.strokeStyle = 'rgba(40, 40, 40, 0.18)';
   ctx.lineWidth = 1.5;
   ctx.stroke();
 

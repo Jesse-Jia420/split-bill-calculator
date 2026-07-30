@@ -114,7 +114,7 @@
   }
   /* v0.3.17 #27: info = blue → indigo 渐变 (跟 .btn-primary 同参数) */
   .toast-item.info {
-    background: linear-gradient(135deg, rgba(59, 130, 246, 0.85) 0%, rgba(99, 102, 241, 0.78) 100%);
+    background: linear-gradient(135deg, rgba(58, 58, 58, 0.85) 0%, rgba(40, 40, 40, 0.78) 100%);
     color: #fff;
   }
   .toast-icon {

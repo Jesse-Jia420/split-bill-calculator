@@ -38,7 +38,7 @@
     3) 分享账本链接 (navigator.share URL, 跟 v0.3.37 #5 同款, handlePwaAction 不变)
     * 3 个 button 等宽 (flex: 1 1 0; gap: 8px; width: 100% 容器)
     * 字体从 13.5px → 12.5px (3 button 紧凑布局, padding 12 → 8px)
-    * 视觉: 玻璃风 rgba(99,102,241,0.12→0.08) + border 1px 0.22 + accent-700 文字 (跟之前 1 button 同源)
+    * 视觉: 玻璃风 rgba(40, 40, 40,0.12→0.08) + border 1px 0.22 + accent-700 文字 (跟之前 1 button 同源)
     * Data-testid 3 个: invite-pwa-save-qr / invite-pwa-share-qr / invite-pwa-share-link (test-friendly)
     * PWA 引导 hint 文案保留在按钮上方 (1 hint + 3 button stack, 跟 mockup 一致)
     * 反 #121 自决 — 3 button 等宽 + 文案精简 + 文件名 账本二维码.png
@@ -695,7 +695,7 @@
     height: 44px;
     padding: 0 16px;
     border-radius: 12px;
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.95) 0%, rgba(168, 85, 247, 0.95) 100%);
+    background: linear-gradient(135deg, rgba(40, 40, 40, 0.95) 0%, rgba(28, 28, 28, 0.95) 100%);
     border: 0;
     color: #fff;
     font-size: 14px;
@@ -708,21 +708,21 @@
     gap: 6px;
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.25),
-      0 4px 12px rgba(99, 102, 241, 0.30);
+      0 4px 12px rgba(40, 40, 40, 0.30);
     transition: background 150ms ease, transform 100ms ease, box-shadow 150ms ease;
     -webkit-tap-highlight-color: transparent;
   }
   .install-btn:hover {
-    background: linear-gradient(135deg, rgba(99, 102, 241, 1) 0%, rgba(168, 85, 247, 1) 100%);
+    background: linear-gradient(135deg, rgba(40, 40, 40, 1) 0%, rgba(28, 28, 28, 1) 100%);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.4),
-      0 6px 16px rgba(99, 102, 241, 0.36);
+      0 6px 16px rgba(40, 40, 40, 0.36);
   }
   .install-btn:active {
     transform: scale(0.97);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.18),
-      0 2px 8px rgba(99, 102, 241, 0.24);
+      0 2px 8px rgba(40, 40, 40, 0.24);
   }
   .install-btn:focus-visible {
     outline: 2px solid rgba(255, 255, 255, 0.6);
@@ -954,7 +954,7 @@
     transform: scale(0.985);
   }
   .qr-img:focus-visible {
-    outline: 2px solid var(--accent-500, #6366f1);
+    outline: 2px solid var(--accent-500, #2c2c2c);
     outline-offset: 2px;
   }
   .qr-error {
@@ -975,8 +975,8 @@
     width: 100%;
     padding: 10px 14px;
     border-radius: 12px;
-    background: rgba(99, 102, 241, 0.06);
-    border: 1px dashed rgba(99, 102, 241, 0.30);
+    background: rgba(40, 40, 40, 0.06);
+    border: 1px dashed rgba(40, 40, 40, 0.30);
     color: var(--btn-label, var(--logo-ink, #1a1a1a));
     font-size: 13px;
     font-weight: 500;
@@ -991,8 +991,8 @@
     transition: background 150ms ease, border-color 150ms ease;
   }
   .url-chip:hover {
-    background: rgba(99, 102, 241, 0.10);
-    border-color: rgba(99, 102, 241, 0.45);
+    background: rgba(40, 40, 40, 0.10);
+    border-color: rgba(40, 40, 40, 0.45);
   }
   .url-chip:active {
     transform: scale(0.99);
@@ -1044,8 +1044,8 @@
     height: 36px;
     padding: 0 8px;
     border-radius: 10px;
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(99, 102, 241, 0.08) 100%);
-    border: 1px solid rgba(99, 102, 241, 0.22);
+    background: linear-gradient(135deg, rgba(40, 40, 40, 0.12) 0%, rgba(40, 40, 40, 0.08) 100%);
+    border: 1px solid rgba(40, 40, 40, 0.22);
     color: var(--btn-label, var(--logo-ink, #1a1a1a));
     font-size: 12.5px;
     font-weight: 600;
@@ -1059,7 +1059,7 @@
     white-space: nowrap;
   }
   .pwa-btn:hover {
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.18) 0%, rgba(99, 102, 241, 0.12) 100%);
+    background: linear-gradient(135deg, rgba(40, 40, 40, 0.18) 0%, rgba(40, 40, 40, 0.12) 100%);
   }
   .pwa-btn:active {
     transform: scale(0.98);
@@ -1077,31 +1077,31 @@
     width: 100%;
     height: 50px;
     border-radius: 14px;
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.95) 0%, rgba(168, 85, 247, 0.95) 100%);
+    background: linear-gradient(135deg, rgba(40, 40, 40, 0.95) 0%, rgba(28, 28, 28, 0.95) 100%);
     color: #fff;
     font-size: 16px;
     font-weight: 600;
     border: 0;
     cursor: pointer;
     box-shadow:
-      0 4px 12px rgba(99, 102, 241, 0.30),
+      0 4px 12px rgba(40, 40, 40, 0.30),
       inset 0 1px 0 rgba(255, 255, 255, 0.25);
     transition:
       background 150ms ease,
       transform 100ms ease;
   }
   .btn-primary:hover {
-    background: linear-gradient(135deg, rgba(99, 102, 241, 1) 0%, rgba(59, 130, 246, 1) 100%);
+    background: linear-gradient(135deg, rgba(40, 40, 40, 1) 0%, rgba(58, 58, 58, 1) 100%);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.5),
       inset 0 -1px 0 rgba(0, 0, 0, 0.05),
-      0 6px 16px rgba(99, 102, 241, 0.36);
+      0 6px 16px rgba(40, 40, 40, 0.36);
   }
   .btn-primary:active {
     transform: scale(0.97);
   }
   .btn-primary:focus-visible {
-    outline: 2px solid var(--accent-500, #6366f1);
+    outline: 2px solid var(--accent-500, #2c2c2c);
     outline-offset: 2px;
   }
 
