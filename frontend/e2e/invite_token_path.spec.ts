@@ -26,8 +26,8 @@ import fs from "node:fs";
 import { ensureUserAndToken, wipeDb, type SeededUser } from "./test-helpers";
 
 const BASE = "http://localhost:8448";
-const OWNER_EMAIL = "invite.owner@jessejia.local";
-const CLAIMER_EMAIL = "invite.claimer@jessejia.local";
+const OWNER_EMAIL = "invite.owner@local.test";
+const CLAIMER_EMAIL = "invite.claimer@local.test";
 const SESSION_NAME = "TEST-008 invite token dispatch";
 
 const SCREENSHOTS_DIR = path.join(process.cwd(), "e2e", "screenshots");

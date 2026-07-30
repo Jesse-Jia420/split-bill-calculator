@@ -19,6 +19,6 @@ fi
 
 echo "Starting Cloudflare quick tunnel → http://127.0.0.1:${PORT}"
 echo "Open the https://*.trycloudflare.com URL on your phone (NOT 127.0.0.1)."
-echo "Login: demo@example.com + any 6-digit code"
+echo "Login: configure DEV_BYPASS_EMAILS locally (e.g. demo@example.com) + any 6-digit code"
 echo "---"
 exec "$CF_BIN" tunnel --url "http://127.0.0.1:${PORT}"

@@ -20,7 +20,7 @@ import { test, expect, type BrowserContext } from "@playwright/test";
 import { ensureUserAndToken, wipeDb, type SeededUser } from "./test-helpers";
 
 const BASE = "http://localhost:8448";
-const TEST_EMAIL = "empty.edgar@jessejia.local";
+const TEST_EMAIL = "empty.edgar@local.test";
 const SESSION_NAME = "TEST-011 empty state";
 
 async function loginAs(ctx: BrowserContext, user: SeededUser) {

@@ -109,7 +109,7 @@ test("A: anon + '登录以保存' → login → bind 200 → slot.user_id 已设
   const ctx = await browser.newContext({ ignoreHTTPSErrors: true });
   const page = await ctx.newPage();
 
-  const loginEmail = "scenarioA.alice@jessejia.local";
+  const loginEmail = "scenarioA.alice@local.test";
 
   // 1. 创 anon session + claim creator slot
   const { sid, creatorSecret } = await createAnonSessionAndClaimCreator(
@@ -204,7 +204,7 @@ test("B: multi-slot localStorage + 只登录一个 → 只那个 sid 的 slot �
   const ctx = await browser.newContext({ ignoreHTTPSErrors: true });
   const page = await ctx.newPage();
 
-  const loginEmail = "scenarioB.bob@jessejia.local";
+  const loginEmail = "scenarioB.bob@local.test";
 
   // 创 2 个 anon session, 都 claim creator
   const C = await createAnonSessionAndClaimCreator(
@@ -291,7 +291,7 @@ test("C: secret 已轮换 → bind 静默吞掉 + 用户仍以 anon 进入 sessi
   const ctx = await browser.newContext({ ignoreHTTPSErrors: true });
   const page = await ctx.newPage();
 
-  const loginEmail = "scenarioC.chris@jessejia.local";
+  const loginEmail = "scenarioC.chris@local.test";
 
   // 1. 创 session + claim creator slot → 拿到 S1
   const { sid, creatorSecret: originalSecret } =

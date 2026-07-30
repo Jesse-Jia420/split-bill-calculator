@@ -37,15 +37,12 @@ from app.main import app
 
 @pytest.fixture(autouse=True)
 def _truncate_auth_tables():
-
-    # v0.2.2 anti-pattern #53b: skip truncate when SBC_SKIP_TEST_TRUNCATE=1
+    """Reset users / auth_tokens / verification_codes between tests."""
     import os as _os
     if _os.environ.get("SBC_SKIP_TEST_TRUNCATE") == "1":
         yield
         return
 
-def _truncate_auth_tables():
-    """Reset users / auth_tokens / verification_codes between tests."""
     db = SessionLocal()
     try:
         db.query(AuthToken).delete()
@@ -100,7 +97,7 @@ class TestBypassSetMembership:
         # The CSV loader lowercases entries; sanity check that the
         # canonical email is reachable regardless of source casing.
         assert all(e == e.lower() for e in DEV_BYPASS_EMAILS)
-        assert "XINHUA1001@OUTLOOK.COM" not in DEV_BYPASS_EMAILS
+        assert "DEMO@EXAMPLE.COM" not in DEV_BYPASS_EMAILS
 
 
 class TestBypassSendCodeAndVerifyCode:
@@ -145,7 +142,7 @@ class TestBypassSendCodeAndVerifyCode:
         assert r.status_code == 200, r.text
         body = r.json()
         assert body["email"] == email
-        assert body["default_name"] == "xinhua1001"
+        assert body["default_name"] == "demo"
         assert isinstance(body["user_id"], int)
         assert "auth_token_expires_at" in body
 

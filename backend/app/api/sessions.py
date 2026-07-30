@@ -335,17 +335,8 @@ class SessionPreviewMember(BaseModel):
     """One slot in the session preview.
 
     Public-safe subset of session_members: nickname_secret / joined_at
-    are excluded. email is optional - included only when the slot is
-    bound to a real user account (user_id != null). For unbound slots
-    (anon-created placeholders awaiting claim) email stays None.
-
-    v0.3.x (UAT #0723-3 #2 续): let the /join page's "已被 {email} 绑定"
-    text and avatar+nickname+email rendering work for anon visitors,
-    who reach this branch when getSession() 403s and they fall back to
-    the public preview endpoint. Email exposure here is acceptable
-    because (a) the FE masks it down to local-prefix(3) + *** + domain,
-    and (b) the same email is already exposed via the session-detail
-    endpoint once the anon user authenticates.
+    are excluded. ``email`` is optional and always **masked** when present
+    (e.g. ``a***@example.com``). Unbound slots keep email=None.
     """
 
     id: int
@@ -368,15 +359,10 @@ class SessionPreview(BaseModel):
     primary_currency: str
     # v0.3.1: unguessable 10-char public code (e.g. /s/HY3MYUL9EQ).
     session_code: str
-    # BUG-LANDING-3 (fix): the full invite token. Always returned on the
-    # preview endpoint (no auth required) so anon creators can copy the
-    # invite link from /join without first claiming a slot. Contrast with
-    # GET /sessions/{id} which only returns invite_token_preview to the
-    # owner.
-    invite_token: str
-    # Client-relative path to the invite landing page (FE will prepend
-    # the origin). Same token as invite_token.
-    invite_url: str
+    # Empty on public preview. Owners obtain invite material from
+    # authenticated session detail / invite endpoints only.
+    invite_token: str = ""
+    invite_url: str = ""
     # All slots (owner + member). Unclaimed first, claimed last, both
     # ordered by id so the order is stable across renders.
     members: list[SessionPreviewMember]
@@ -841,6 +827,44 @@ async def list_sessions(
     return out
 
 
+
+def _mask_email(email: str | None) -> str | None:
+    """Mask email for public responses: a***@example.com."""
+    if not email:
+        return None
+    at = email.find("@")
+    if at < 1:
+        return email[:3] + "***"
+    return email[0] + "***@" + email[at + 1 :]
+
+
+def _public_session_preview_payload(session, sm_user_pairs) -> dict:
+    """Build anon-safe session preview (no raw emails, no invite token)."""
+    members_payload: list[dict] = []
+    for sm_row, user_row in sm_user_pairs:
+        members_payload.append(
+            {
+                "id": sm_row.id,
+                "display_name": sm_row.display_name,
+                "role": sm_row.role,
+                "user_id": sm_row.user_id,
+                "is_anon": bool(sm_row.is_anon),
+                "claimed_at": _iso(sm_row.claimed_at) if sm_row.claimed_at else None,
+                "email": _mask_email(user_row.email if user_row else None),
+            }
+        )
+    return {
+        "id": session.id,
+        "name": session.name,
+        "currencies": list(session.currencies or ["CNY"]),
+        "primary_currency": session.primary_currency or "CNY",
+        "session_code": session.session_code or "",
+        # Intentionally empty on public preview — invite material is owner-only.
+        "invite_token": "",
+        "invite_url": "",
+        "members": members_payload,
+    }
+
 # ---------------------------------------------------------------------------
 # GET /sessions/{id}/preview   (BUG-LANDING-1 + BUG-LANDING-3 fix)
 # ---------------------------------------------------------------------------
@@ -894,10 +918,6 @@ async def get_session_preview(
             detail={"error": "session not found"},
         )
 
-    # Pull every slot. LEFT OUTEr JOIN User so we can surface email
-    # for user-bound slots (v0.3.x UAT #0723-3 #2 续) without a second
-    # round-trip per slot. Unbound slots (user_id IS NULL) get email=None
-    # (LEFT JOIN produces NULL on the right side for missing rows).
     sm_user_pairs = (
         db.query(SessionMember, User)
         .outerjoin(User, User.id == SessionMember.user_id)
@@ -905,36 +925,8 @@ async def get_session_preview(
         .order_by(SessionMember.claimed_at.is_(None).desc(), SessionMember.id.asc())
         .all()
     )
+    return _public_session_preview_payload(session, sm_user_pairs)
 
-    members_payload: list[dict] = []
-    for sm_row, user_row in sm_user_pairs:
-        members_payload.append(
-            {
-                "id": sm_row.id,
-                "display_name": sm_row.display_name,
-                "role": sm_row.role,
-                "user_id": sm_row.user_id,
-                "is_anon": bool(sm_row.is_anon),
-                # None for unclaimed slots; ISO string once claimed.
-                "claimed_at": _iso(sm_row.claimed_at) if sm_row.claimed_at else None,
-                # v0.3.x (UAT #0723-3 #2 续): surface the bound user's
-                # email so the FE can render "已被 {masked_email} 绑定".
-                # None when the slot has no user (anon-created placeholder).
-                "email": user_row.email if user_row else None,
-            }
-        )
-
-    invite_token = session.invite_token or ""
-    return {
-        "id": session.id,
-        "name": session.name,
-        "currencies": list(session.currencies or ["CNY"]),
-        "primary_currency": session.primary_currency or "CNY",
-        "session_code": session.session_code or "",
-        "invite_token": invite_token,
-        "invite_url": f"/invites/{invite_token}" if invite_token else "",
-        "members": members_payload,
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -949,7 +941,7 @@ async def get_session_preview(
 )
 async def get_session_preview_by_code(
     db: Annotated[Session, Depends(get_db)],
-    session_code: str = Path(..., description="Session public code (e.g. 64BZQNX9NU)"),
+    session_code: str = Path(..., description="Session public code (10-char public code)"),
 ) -> dict:
     """Public, no-auth preview by code (跟 /{id}/preview 同 payload).
 
@@ -979,32 +971,8 @@ async def get_session_preview_by_code(
         .order_by(SessionMember.claimed_at.is_(None).desc(), SessionMember.id.asc())
         .all()
     )
+    return _public_session_preview_payload(session, sm_user_pairs)
 
-    members_payload: list[dict] = []
-    for sm_row, user_row in sm_user_pairs:
-        members_payload.append(
-            {
-                "id": sm_row.id,
-                "display_name": sm_row.display_name,
-                "role": sm_row.role,
-                "user_id": sm_row.user_id,
-                "is_anon": bool(sm_row.is_anon),
-                "claimed_at": _iso(sm_row.claimed_at) if sm_row.claimed_at else None,
-                "email": user_row.email if user_row else None,
-            }
-        )
-
-    invite_token = session.invite_token or ""
-    return {
-        "id": session.id,
-        "name": session.name,
-        "currencies": list(session.currencies or ["CNY"]),
-        "primary_currency": session.primary_currency or "CNY",
-        "session_code": session.session_code or "",
-        "invite_token": invite_token,
-        "invite_url": f"/invites/{invite_token}" if invite_token else "",
-        "members": members_payload,
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -1138,67 +1106,6 @@ async def get_session_by_code(
     response.headers["X-SBC-Member-ID"] = str(sm.id)
     return payload
 
-
-@router.get("/{session_id}/preview", response_model=dict)
-async def get_session_preview_public(
-    session_id: int,
-    db: Annotated[Session, Depends(get_db)],
-) -> dict:
-    """v0.3.x (PO 12:45 Bug 2 fix): public no-auth session preview.
-
-    Returns minimum session metadata + member list needed by the
-    /join page for anon visitors who don't yet have a cookie or
-    X-Nickname-Secret. Used so anon creators / invitees can see the
-    nickname slots in the session before deciding to login / claim.
-
-    Public fields only: name, currencies, primary_currency, members
-    (id, display_name, role, user_id (NULL=anon), claimed_at).
-    NO owner_user_id, owner_email, invite_token, invite_url, X-Nickname-Secret.
-
-    200: lightweight payload
-    404: session not found
-    """
-    session = db.execute(
-        select(SessionModel).where(SessionModel.id == session_id)
-    ).scalar_one_or_none()
-    if session is None:
-        raise HTTPException(status_code=404, detail={"error": "session not found"})
-
-    # §3.11.11: 7-day activity window check (410 Gone when reclaimed).
-    _check_session_activity_window(session)
-
-    from app.db.models.session_members import SessionMember as SessionMemberModel
-    members = db.execute(
-        select(SessionMemberModel)
-        .where(SessionMemberModel.session_id == session.id)
-        .order_by(SessionMemberModel.joined_at.asc())
-    ).scalars().all()
-
-    return {
-        "id": session.id,
-        "name": session.name,
-        "session_code": session.session_code or "",
-        "currencies": list(session.currencies or ["CNY"]),
-        "primary_currency": session.primary_currency or "CNY",
-        "members": [
-            {
-                "id": m.id,
-                "display_name": m.display_name,
-                "role": m.role,
-                "user_id": m.user_id,
-                "is_anon": m.user_id is None,
-                "claimed_at": _iso(m.joined_at),
-                # §3.11.13: anon slot → return secret (already-public to claimer
-                # via localStorage / X-Nickname-Secret); logged-in slot → null.
-                "nickname_secret": (
-                    m.nickname_secret
-                    if (m.user_id is None and m.nickname_secret is not None)
-                    else None
-                ),
-            }
-            for m in members
-        ],
-    }
 
 
 @router.get("/{session_id}", response_model=SessionDetail)

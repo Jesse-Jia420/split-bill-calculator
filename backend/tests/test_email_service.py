@@ -183,13 +183,13 @@ class TestSendCodeEndpoint:
 
             response = client.post(
                 "/auth/send-code",
-                json={"email": "your-smtp-user@example.com"},
+                json={"email": "noreply@example.com"},
             )
 
         assert response.status_code == 200
         body = response.json()
         assert body["sent"] is True
-        assert body["email"] == "your-smtp-user@example.com"
+        assert body["email"] == "noreply@example.com"
         assert body["ttl_minutes"] >= 1
 
     def test_invalid_email_returns_400(self, client: TestClient) -> None:
@@ -222,7 +222,7 @@ class TestSendCodeEndpoint:
 
             response = client.post(
                 "/auth/send-code",
-                json={"email": "your-smtp-user@example.com"},
+                json={"email": "noreply@example.com"},
             )
 
         assert response.status_code == 500

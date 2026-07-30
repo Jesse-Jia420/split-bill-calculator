@@ -65,19 +65,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# v0.3.15 (PO #4921) temp RequestValidationError handler — logs raw request body
-# for /sessions/*/bills 422 errors so we can debug FE payload issues.
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
+    """Return 422 details without logging cookies, secrets, or request bodies."""
     import logging as _logging
-    _lg = _logging.getLogger("uvicorn.error")
-    body = b""
-    try:
-        body = await request.body()
-    except Exception:
-        pass
-    _lg.warning(f"[#6 validation] {request.method} {request.url.path} headers={dict(request.headers)} body={body.decode('utf-8', errors='replace')[:2000]} detail={exc.errors()}")
-    from fastapi.exceptions import RequestValidationError as _RVE
+
+    _logging.getLogger("uvicorn.error").warning(
+        "request validation failed method=%s path=%s error_count=%s",
+        request.method,
+        request.url.path,
+        len(exc.errors()),
+    )
     return _JSONResponse(status_code=422, content={"detail": exc.errors()})
 
 # Routers

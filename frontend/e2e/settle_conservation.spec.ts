@@ -133,7 +133,7 @@ async function createSessionAndDetail(
 }
 
 test("TEST-012A: 3 members, 1 bill AA → conservation holds", async ({ request }) => {
-  const user = ensureUserAndToken("settle12.alice@jessejia.local");
+  const user = ensureUserAndToken("settle12.alice@local.test");
   const session = await createSessionAndDetail(request, user, {
     name: "TEST-012A AA",
     member_nicknames: ["A", "B", "C"],
@@ -156,7 +156,7 @@ test("TEST-012A: 3 members, 1 bill AA → conservation holds", async ({ request 
 });
 
 test("TEST-012B: 4 members, 4 bills (mixed payers) → conservation holds", async ({ request }) => {
-  const user = ensureUserAndToken("settle12.bob@jessejia.local");
+  const user = ensureUserAndToken("settle12.bob@local.test");
   const session = await createSessionAndDetail(request, user, {
     name: "TEST-012B 4x4",
     member_nicknames: ["A", "B", "C", "D"],
@@ -175,7 +175,7 @@ test("TEST-012B: 4 members, 4 bills (mixed payers) → conservation holds", asyn
 });
 
 test("TEST-012C: multi-currency (CNY + USD with rate) → conservation in primary", async ({ request }) => {
-  const user = ensureUserAndToken("settle12.cathy@jessejia.local");
+  const user = ensureUserAndToken("settle12.cathy@local.test");
   const session = await createSessionAndDetail(request, user, {
     name: "TEST-012C multi-ccy",
     currencies: ["CNY", "USD"],
@@ -197,7 +197,7 @@ test("TEST-012C: multi-currency (CNY + USD with rate) → conservation in primar
 });
 
 test("TEST-012D: 3 members with 1 exclusive-amount bill → conservation holds", async ({ request }) => {
-  const user = ensureUserAndToken("settle12.dave@jessejia.local");
+  const user = ensureUserAndToken("settle12.dave@local.test");
   const session = await createSessionAndDetail(request, user, {
     name: "TEST-012D exclusive",
     member_nicknames: ["A", "B", "C"],
