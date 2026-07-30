@@ -223,11 +223,11 @@
    * 当前 qrDataUrl 已经是 base64 PNG data URL (qrcode.toDataURL 输出).
    * 用 fetch(dataURL) → blob → URL.createObjectURL → anchor download.
    * 反 #121 自决 — 不引入 file-saver 依赖, 直接走原生 API.
-   * 文件名: "{sessionName 净化后}账本二维码.png" (v0.3.0728-3 #2 新批)
-   *  - 空 sessionName → fallback "账本二维码.png" (跟 #4 兼容)
+   * 文件名: "《轻均 FairLite》{sessionName 净化后}账本二维码.png"
+   *  - 空 sessionName → fallback "《轻均 FairLite》账本二维码.png"
    *  - sanitize 剔除  / \ : * ? " < > | (文件系统非法) + 控制字符 + 空格→下划线 + 截断 32 字符
    *  - 截断 32 字符避免 macOS HFS+/APFS 255 字节限制
-   *  - 后缀 "账本二维码.png" 永远保留 (跟原 #4 文件名模式一致). */
+   *  - 前缀书名号品牌名 + 后缀 "账本二维码.png" 永远保留. */
   async function downloadQrPng(): Promise<boolean> {
     if (!qrDataUrl) return false;
     try {
@@ -250,15 +250,20 @@
     }
   }
 
-  /** v0.3.0728-3 #2: 净化 QR 文件名 — 剔除非法字符 + 控制字符 + 过长截断 + 空 fallback. */
+  const BRAND_BOOK_TITLE = '《轻均 FairLite》';
+
+  /** v0.3.0728-3 #2: 净化 QR 文件名 — 剔除非法字符 + 控制字符 + 过长截断 + 空 fallback.
+   * 品牌书名号前缀不经 sanitize（保留空格与《》）. */
   function buildQrFilename(name: string): string {
     const cleaned = (name ?? '')
       // 文件系统非法 + 控制字符 (U+0000..U+001F). 用 \u 转义, 避免源文件含字面 null byte.
-      .replace(/[\/\:*?"<>|\u0000-\u001f]/g, '')
+      .replace(/[\/\\:*?"<>|\u0000-\u001f]/g, '')
       .replace(/\s+/g, '_')                     // 空格 → 下划线
       .replace(/^[._]+|[._]+$/g, '')             // 去掉首尾 . _
       .slice(0, 32);                             // 截断 32 字符避免 macOS 255 字节限制
-    return cleaned ? `${cleaned}账本二维码.png` : '账本二维码.png';
+    return cleaned
+      ? `${BRAND_BOOK_TITLE}${cleaned}账本二维码.png`
+      : `${BRAND_BOOK_TITLE}账本二维码.png`;
   }
 
   /** v0.3.24 #14: extract copy logic for readability. */
@@ -383,7 +388,7 @@
     if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
       try {
         await navigator.share({
-          title: `轻均 FairLite · 快来加入我的${sessionName || ''}账本！`,
+          title: `${BRAND_BOOK_TITLE} · 快来加入我的${sessionName || ''}账本！`,
           text: '随时随地记账，AA不再烦恼',
           url: inviteUrl,
         });
