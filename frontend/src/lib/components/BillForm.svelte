@@ -75,6 +75,8 @@
   export let mode: 'create' | 'edit' = 'create';
   /** v0.1.2 (fix #3): when mode === 'edit', prefill the form. */
   export let existingBill: Bill | null = null;
+  /** 'sheet' = bottom-sheet compact layout (BillSheet); 'page' = full page. */
+  export let layout: 'page' | 'sheet' = 'page';
 
   // v0.3.20 #93 (PO msg 00:04 #7450): removed smart-date-chips prop + UI (T03).
   // occurred_at default is now driven by getDefaultOccurredAt(primaryCurrency)
@@ -82,6 +84,7 @@
 
   $: isEdit = mode === 'edit';
   $: canEditDescription = !isEdit;
+  $: isSheet = layout === 'sheet';
 
   // v0.2.1 T01: the AmountCalculatorInput owns the amount field. ``amount`` is
   // the currently-evaluated number (null when the expression is empty or
@@ -619,30 +622,69 @@
 
 </script>
 
-<form class="stack" id="bill-form" onsubmit={handleSubmit} onkeydown={handleFormKeyDown}>
-  <!-- v0.3.15 (PO #4807 + Designer 报告): form-level error 改走 Toast 系统,
-       不再渲染 inline 错误块. form 仍保留 padding-bottom: 96px 让最后
-       一行 member 不被左右下角 FAB 遮挡 (5-member session 测过). -->
-  <!-- v0.3.23 #136 (UAT bug #3): 金额 + 时间 一行, flex:1 each 让输入框长度一致 -->
-  <!-- v0.3.29 — UAT 0725-1 #6: 时间 input 从金额行挪到独立整行. iOS Safari datetime-local
-       native widget 有 implicit min-width ~200px (picker indicator 30px + locale text 140-170px),
-       WebKit bug #119175 12 年未修, CSS max-width 只能压上限不能压下限. 任何 padding 调整
-       / flex:1 / min-width:0 都不解决 (v0.3.24 Top #1 padding-inline / v0.3.28 #4
-       max-width 100% 都只缓解症状, 物理上 input box ~156px < widget ~200px 仍溢出).
-       方案 B: 挪 occurredAt 到独立整行 .occurredAt-row { width: 100% }, 物理给 widget 200px+
-       container. amount 行变 flex 单 item, 时间行变独立 full-width block. -->
+<form
+  class="stack"
+  class:sheet-layout={isSheet}
+  id="bill-form"
+  onsubmit={handleSubmit}
+  onkeydown={handleFormKeyDown}
+>
+  <!-- Sheet: 金额 + 币种同行; 时间整行; 付款人整行. Page: 保留原结构. -->
+  {#if isSheet}
+    <div class="field-grid">
+      <div class="field field-amount">
+        <label class="label" for="amount">金额</label>
+        <AmountCalculatorInput
+          {amount}
+          initialValue={amountExpression}
+          initialAmount={amount}
+          {currency}
+          disabled={submitting}
+          error={amountError}
+          on:confirm={(e) => {
+            amount = e.detail.value;
+            amountExpression = e.detail.expression;
+            amountError = false;
+          }}
+        />
+      </div>
+      <div class="field field-currency">
+        <span class="label" id="currency-pills-label">币种</span>
+        <div class="currency-pills" role="radiogroup" aria-labelledby="currency-pills-label">
+          {#each (session.currencies && session.currencies.length > 0 ? session.currencies : [currency]) as code (code)}
+            <button
+              type="button"
+              class="currency-pill"
+              class:active={currency === code}
+              class:disabled={submitting}
+              role="radio"
+              aria-checked={currency === code}
+              disabled={submitting}
+              onclick={() => handleCurrencyPillClick(code)}
+            >{code}</button>
+          {/each}
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="label" for="occurredAt">时间</label>
+      <input id="occurredAt" type="datetime-local" bind:value={occurredAt} />
+    </div>
+
+    <div class="field">
+      <label class="label" for="payer">付款人</label>
+      <select id="payer" bind:value={payerMemberId}>
+        <option value={null}>— 选择 —</option>
+        {#each session.members as m (m.id)}
+          <option value={m.id}>{m.display_name}</option>
+        {/each}
+      </select>
+    </div>
+  {:else}
   <div class="row" style="gap: var(--space-3); align-items: flex-start;">
     <div style="flex: 1; min-width: 0;">
       <label class="label" for="amount">金额</label>
-      <!-- v0.2.1 T01: AmountCalculatorInput replaces the bare number input.
-           Calculator preview lives inside the component; this row holds the
-           currency suffix only. -->
-      <!-- v0.3.30 #8 (PO msg 18:30 UAT 0725-1 #8): calculator functionality opt.
-           new flow:
-           - amount is controlled prop (form-row shows final digit after confirm)
-           - initialValue/initialAmount is edit-mode prefill (one-shot on mount)
-           - on:confirm is one-way: parent receives -> sets amount + amountExpression
-           - no more bind:value/bind:evaluated (PO literal #2) -->
       <AmountCalculatorInput
         {amount}
         initialValue={amountExpression}
@@ -659,7 +701,6 @@
     </div>
   </div>
   <div class="occurredAt-row">
-    <!-- v0.3.20 #95 Fix 2 (PO msg 02:41 #7459): 标签 "发生时间" → "时间" -->
     <label class="label" for="occurredAt">时间</label>
     <input id="occurredAt" type="datetime-local" bind:value={occurredAt} />
   </div>
@@ -676,10 +717,6 @@
     </div>
     <div style="flex: 1; min-width: 0;">
       <span class="label" id="currency-pills-label">币种</span>
-      <!-- v0.2.2 (T10): currency pill selector. The session may declare
-           1 or 2 allowed currencies; we render chips so the user can
-           pick one. For 1-currency sessions we still render a
-           non-interactive chip so the field never disappears entirely. -->
       <div class="currency-pills" role="radiogroup" aria-labelledby="currency-pills-label">
         {#each (session.currencies && session.currencies.length > 0 ? session.currencies : [currency]) as code (code)}
           <button
@@ -696,8 +733,9 @@
       </div>
     </div>
   </div>
+  {/if}
 
-  <div>
+  <div class="field field-desc">
     <label class="label" for="desc">说明</label>
     <!-- v0.3.0728-2 #9 (UAT 0728-2 #9 BillForm 8 个预设选项, PO msg 16:50)
          + v0.3.0728-3 #4 (PO msg 2026-07-28 batch 新批 #4 "预设选项应放在 说明和说明 input 之间")
@@ -733,10 +771,6 @@
       }}
     />
 
-  </div>
-
-  <div>
-    <!-- 时间 input 已迁到金额同一行 (v0.3.23 #136), 此 div 删掉 -->
   </div>
 
   <div>
@@ -1240,6 +1274,52 @@
      * FAB 避让改靠页面层 fab 自身; keyboard 靠 .pill-input scroll-margin-bottom
      * + visualViewport resize, 不再靠大 padding 撑空白. */
     padding-bottom: 56px;
+  }
+
+  /* Bottom-sheet compact layout (BillSheet) */
+  .stack.sheet-layout {
+    padding-bottom: 4px;
+    gap: 10px;
+  }
+  .sheet-layout .field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+  .sheet-layout .field-grid {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    align-items: end;
+  }
+  .sheet-layout .field-currency {
+    min-width: 72px;
+  }
+  .sheet-layout .field-currency .currency-pills {
+    margin-top: 0;
+    justify-content: flex-end;
+  }
+  .sheet-layout .label {
+    margin-bottom: 0;
+    font-size: 12px;
+    color: #64748b;
+  }
+  .sheet-layout .preset-row {
+    margin: 2px 0 6px;
+  }
+  .sheet-layout .preset-chip {
+    padding: 4px 10px;
+    font-size: 12px;
+    min-height: 28px;
+  }
+  .sheet-layout input[type="datetime-local"]#occurredAt,
+  .sheet-layout select#payer,
+  .sheet-layout input#desc {
+    min-height: 42px;
+  }
+  .sheet-layout .ppts-toggle-row {
+    margin-top: 2px;
   }
 
   /* v0.3.21 #110 (PO msg 18:46): <input type="datetime-local"> 在 iOS Safari

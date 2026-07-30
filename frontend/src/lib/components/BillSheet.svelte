@@ -1,5 +1,6 @@
 <!--
   Bill create/edit bottom sheet — same family as CurrencyAddModal / InviteLinkButton.
+  Drag-to-dismiss only from the handle (not the whole sheet) so form inputs stay clickable.
 -->
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
@@ -40,12 +41,14 @@
     }, 240);
   }
 
+  /** Drag only from the handle strip — never from inputs / body. */
   function handleTouchStart(e: TouchEvent) {
     if (!sheetEl) return;
     const t = e.touches[0];
     if (!t) return;
     dragStartY = t.clientY;
     dragging = true;
+    dragDeltaY = 0;
     sheetHeight = sheetEl.getBoundingClientRect().height;
   }
 
@@ -55,15 +58,14 @@
     if (!t) return;
     const deltaY = t.clientY - dragStartY;
     dragDeltaY = deltaY;
+    e.preventDefault();
     if (deltaY >= 0) {
-      e.preventDefault();
       sheetEl.style.transform = `translateY(${deltaY}px)`;
-      sheetEl.style.transition = 'none';
     } else {
       const rubberY = deltaY / 3;
       sheetEl.style.transform = `translateY(${rubberY}px)`;
-      sheetEl.style.transition = 'none';
     }
+    sheetEl.style.transition = 'none';
   }
 
   function handleTouchEnd() {
@@ -138,7 +140,6 @@
       onSaved?.(bill);
       close();
     } catch (e) {
-      // BillForm catches and humanizes API errors into toast.
       throw e;
     } finally {
       busy = false;
@@ -159,16 +160,22 @@
     aria-label={title}
     data-testid="bill-sheet"
     bind:this={sheetEl}
-    ontouchstart={handleTouchStart}
-    ontouchmove={handleTouchMove}
-    ontouchend={handleTouchEnd}
-    ontouchcancel={handleTouchEnd}
   >
-    <div class="sheet-handle" aria-hidden="true"></div>
-    <header class="sheet-head">
-      <h3 class="sheet-title">{title}</h3>
-      <p class="sheet-sub muted">{session.name}</p>
-    </header>
+    <!-- Drag zone: handle + title only -->
+    <div
+      class="sheet-drag"
+      role="presentation"
+      ontouchstart={handleTouchStart}
+      ontouchmove={handleTouchMove}
+      ontouchend={handleTouchEnd}
+      ontouchcancel={handleTouchEnd}
+    >
+      <div class="sheet-handle" aria-hidden="true"></div>
+      <header class="sheet-head">
+        <h3 class="sheet-title">{title}</h3>
+        <p class="sheet-sub muted">{session.name}</p>
+      </header>
+    </div>
 
     <div class="sheet-body">
       {#key formKey}
@@ -177,6 +184,7 @@
           {mode}
           {existingBill}
           {defaultPayerMemberId}
+          layout="sheet"
           onSubmit={handleSubmit}
         />
       {/key}
@@ -203,11 +211,14 @@
     animation: fade-out 240ms ease both;
   }
 
+  /* Match CurrencyAddModal: left/right 0 + margin auto — NOT left:50%+translateX(-50%).
+     Drag only sets translateY, so centering must not depend on transform. */
   .sheet {
     position: fixed;
-    left: 50%;
+    left: 0;
+    right: 0;
     bottom: 0;
-    transform: translateX(-50%);
+    margin: 0 auto;
     width: min(100vw, 480px);
     max-height: min(92vh, 900px);
     z-index: 1101;
@@ -219,26 +230,30 @@
     border-radius: 20px 20px 0 0;
     box-shadow: 0 -8px 40px rgba(15, 23, 42, 0.18);
     animation: sheet-up 280ms cubic-bezier(0.32, 0.72, 0, 1) both;
-    touch-action: none;
+    will-change: transform;
   }
   .sheet.closing {
     animation: sheet-down 240ms cubic-bezier(0.32, 0.72, 0, 1) both;
   }
   .sheet.dragging {
     animation: none;
+    transition: none !important;
   }
 
+  .sheet-drag {
+    flex-shrink: 0;
+    touch-action: none;
+    cursor: grab;
+  }
   .sheet-handle {
     width: 36px;
     height: 4px;
     border-radius: 999px;
     background: rgba(15, 23, 42, 0.18);
     margin: 10px auto 0;
-    flex-shrink: 0;
   }
   .sheet-head {
-    padding: 12px 20px 8px;
-    flex-shrink: 0;
+    padding: 10px 20px 6px;
   }
   .sheet-title {
     margin: 0;
@@ -259,7 +274,8 @@
     flex: 1;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    padding: 4px 16px 12px;
+    overscroll-behavior: contain;
+    padding: 0 16px 8px;
     touch-action: pan-y;
   }
   .sheet-foot {
@@ -295,35 +311,19 @@
   }
 
   @keyframes fade-in {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
   @keyframes fade-out {
-    from {
-      opacity: 1;
-    }
-    to {
-      opacity: 0;
-    }
+    from { opacity: 1; }
+    to { opacity: 0; }
   }
   @keyframes sheet-up {
-    from {
-      transform: translateX(-50%) translateY(110%);
-    }
-    to {
-      transform: translateX(-50%) translateY(0);
-    }
+    from { transform: translateY(110%); }
+    to { transform: translateY(0); }
   }
   @keyframes sheet-down {
-    from {
-      transform: translateX(-50%) translateY(0);
-    }
-    to {
-      transform: translateX(-50%) translateY(110%);
-    }
+    from { transform: translateY(0); }
+    to { transform: translateY(110%); }
   }
 </style>
