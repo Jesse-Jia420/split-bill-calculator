@@ -29,10 +29,9 @@
   // 新 swipe 触发时: SessionCard dispatch 'swipechange' 事件带新 swipe id, parent set swipedId = id
   // → 其他 SessionCard 收到 swipedId !== session.id 自动收起 swipe. type number 跟 session.id 一致.
   let swipedId: number | null = $state(null);
-  // v0.3.0728-3 #3 — list-top hint 仅当用户拥有至少 1 个 session (即 hint 适用) 才显示.
-  //   非 owner 用户看不到 "左划以删除账本" 提示 (因为他们没 delete-btn, 提示会误导).
-  //   $sessions 是来自 session store (line ~22), $derived 自动 reactivity 跟随 store 变化.
-  let hasOwnedSession = $derived(($sessions ?? []).some((s) => s.role === 'owner'));
+  // v0.3.0728-3 #3 — list-top hint: 所有账本均可左滑出删除按钮 (非 owner 置灰),
+  //   故只要列表非空就显示提示.
+  let hasAnySession = $derived(($sessions ?? []).length > 0);
 
   onMount(async () => {
     try {
@@ -52,7 +51,7 @@
        "应更换边框的灰色文字展示，不应该像现在这么显眼"). -->
   <div class="row between sessions-title-row">
     <h2>我的账本</h2>
-    {#if !loading && $sessions.length > 0 && hasOwnedSession}
+    {#if !loading && hasAnySession}
       <div class="list-top-hint" data-testid="list-top-hint-delete" aria-label="左划以删除账本">
         <span class="swipe-arrow" aria-hidden="true">←</span>
         <span>左划以<span class="hint-delete">删除</span>账本</span>
