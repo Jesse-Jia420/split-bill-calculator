@@ -1318,16 +1318,16 @@
     justify-content: space-between;
     gap: 8px;
     min-height: 36px;
-    --invite-btn-h: 40px;
+    --invite-btn-h: 44px;
   }
   @media (max-width: 767px) {
     .members-head-row2 {
-      --invite-btn-h: 40px;
+      --invite-btn-h: 44px;
     }
   }
   @media (max-width: 380px) {
     .members-head-row2 {
-      --invite-btn-h: 32px;
+      --invite-btn-h: 36px;
     }
   }
   .members-row2-left {
@@ -1460,44 +1460,53 @@
   .expiry-anon-a {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    font-size: 13px;
+    gap: 5px;
+    /* Match InviteLinkButton height in the same row */
+    height: var(--invite-btn-h, 40px);
+    box-sizing: border-box;
+    font-size: 11px;
     color: var(--red-700, #b91c1c);
     background: rgba(239, 68, 68, 0.10);
     border: 1px solid rgba(239, 68, 68, 0.25);
     border-radius: 999px;
-    padding: 6px 14px;
+    padding: 0 10px;
     font-weight: 500;
-    line-height: 1.4;
-    white-space: normal;
+    line-height: 1.15;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     text-align: left;
-    /* v0.3.0729-3 #2: 横向排列时 shrink 允许，避免撑出 row 宽度 */
     flex-shrink: 1;
     min-width: 0;
-    /* v0.3.0729-4 #2: 与成员 section 左缘对齐，不再限宽 200px */
     max-width: 100%;
   }
   .expiry-anon-a svg {
     flex-shrink: 0;
     opacity: 0.95;
+    width: 10px;
+    height: 10px;
   }
-  /* v0.3.36 #15 — UAT 0728-1 #15: 匿名 hint 文案两行 (PO 字面 "第一行 当前未登录 请收藏此链接, 第二行 这是您回到此账本的唯一密钥。")
-     — 拆成 .line-1 + .line-2, 各自 display:block 垂直堆叠. pill 保留原 13px font-size + color + padding, 只调整内部 layout.
-     .anon-hint-text 容器 inline-flex item 跟 svg 同行水平 baseline, 内部两行垂直堆叠.
-     因为 .expiry-anon-a 是 inline-flex align-items: center, .anon-hint-text 仍按一行对待 (高度是 line-1 + line-2),
-     svg 在 align-items center 中垂直居中 (跟两行整体中点对齐). */
+  /* Exactly two lines — each line nowrap so line-1 never wraps into a 3rd line. */
   .expiry-anon-a .anon-hint-text {
     display: inline-flex;
     flex-direction: column;
-    line-height: 1.4;
+    justify-content: center;
+    gap: 1px;
+    min-width: 0;
+    line-height: 1.15;
   }
-  .expiry-anon-a .anon-hint-text .line-1 {
-    display: block;
-  }
+  .expiry-anon-a .anon-hint-text .line-1,
   .expiry-anon-a .anon-hint-text .line-2 {
     display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  @media (max-width: 380px) {
+    .expiry-anon-a {
+      font-size: 10px;
+      padding: 0 8px;
+      gap: 4px;
+    }
   }
   /* v0.3.28 (UAT 0723-3 #9): "已永久保存" 绿色版 — 跟 .expiry-inline-a 视觉同族 (pill shape + font-size 11px + gap 4px + border-radius 999px + flex-shrink 0), 配色改 emerald 系 (跟 .is-me ring / 已登录状态色系区分, 表示「已成功认领」). */
   .expiry-saved-a {

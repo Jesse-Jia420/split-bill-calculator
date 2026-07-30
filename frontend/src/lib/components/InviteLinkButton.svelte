@@ -754,10 +754,22 @@
     position: relative;
     z-index: 3;
   }
+  .invite-btn {
+    /* Inherit height from members-head-row2 --invite-btn-h so red hint pill can match. */
+    height: var(--invite-btn-h, 44px);
+    min-height: var(--invite-btn-h, 44px);
+    max-height: var(--invite-btn-h, 44px);
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    padding-block: 0;
+  }
   @media (max-width: 380px) {
     .invite-btn {
-      padding: var(--space-2) var(--space-3);
-      min-height: 36px;
+      padding: 0 var(--space-3);
+      height: var(--invite-btn-h, 36px);
+      min-height: var(--invite-btn-h, 36px);
+      max-height: var(--invite-btn-h, 36px);
     }
     .btn-label {
       font-size: var(--font-size-sm);
