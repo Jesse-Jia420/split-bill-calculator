@@ -86,14 +86,14 @@
 
     <div class="actions">
       {#if !$user}
-        <a href="/auth/login" class="btn-primary">登录</a>
+        <a href="/auth/login" class="btn-cta">登录</a>
         <div class="or-row" aria-hidden="true">
           <span class="or-char">或</span>
           <span>无需注册，</span>
         </div>
         <button
           type="button"
-          class="btn-ghost"
+          class="btn-cta"
           onclick={handleStartUsing}
           disabled={busy}
         >
@@ -102,7 +102,7 @@
       {:else}
         <button
           type="button"
-          class="btn-primary"
+          class="btn-cta"
           onclick={handleStartUsing}
           disabled={busy}
         >
@@ -161,14 +161,14 @@
     background:
       linear-gradient(
         165deg,
-        rgba(7, 26, 28, 0.55) 0%,
-        rgba(12, 48, 46, 0.42) 42%,
-        rgba(18, 36, 40, 0.62) 100%
+        rgba(7, 26, 28, 0.42) 0%,
+        rgba(12, 48, 46, 0.28) 40%,
+        rgba(18, 36, 40, 0.5) 100%
       ),
       radial-gradient(
-        120% 80% at 50% 18%,
-        rgba(31, 111, 102, 0.28) 0%,
-        transparent 58%
+        90% 55% at 50% 28%,
+        rgba(255, 255, 255, 0.06) 0%,
+        transparent 62%
       );
   }
 
@@ -199,9 +199,8 @@
 
   /*
    * 「轻均」— 细高 + iOS 锁屏时间式 Liquid Glass
-   * - 细：Noto Sans SC ExtraLight (200)
-   * - 高：scaleY 拉长、scaleX 略收，呼应「轻而匀称」
-   * - 玻璃：冷白玻璃体 + 外沿描边 + 顶部高光带（paint-order / background-clip）
+   * 避免 transform:scale（会栅格化导致边缘发糊）；用更大字号 + 字距体现细高。
+   * 玻璃：低不透明度字身透出背景 + 硬描边锐利外沿 + 顶部高光层。
    */
   .brand-zh {
     display: inline-block;
@@ -213,28 +212,30 @@
     display: inline-block;
     font-family: 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
     font-weight: 200;
-    font-size: clamp(4.6rem, 20vw, 7rem);
-    line-height: 0.92;
-    letter-spacing: 0.22em;
-    text-indent: 0.22em;
-    transform: scaleX(0.88) scaleY(1.16);
-    transform-origin: center center;
+    font-size: clamp(5.75rem, 24vw, 8.5rem);
+    line-height: 0.9;
+    letter-spacing: 0.28em;
+    text-indent: 0.28em;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     font-synthesis: none;
-    text-rendering: optimizeLegibility;
+    text-rendering: geometricPrecision;
 
-    /* 玻璃体：半透冷白，透出背后氛围 */
-    color: rgba(236, 244, 242, 0.72);
+    /* 更透：隐约看见背景 */
+    color: rgba(255, 255, 255, 0.28);
 
-    /* 玻璃外沿 —— 描在 fill 后，只露外侧亮边 */
-    -webkit-text-stroke: 1.35px rgba(255, 255, 255, 0.72);
+    /* 锐利玻璃外沿（细硬描边，避免粗 stroke + filter 发糊） */
+    -webkit-text-stroke: 0.6px rgba(255, 255, 255, 0.82);
     paint-order: stroke fill;
 
-    filter: drop-shadow(0 10px 28px rgba(0, 0, 0, 0.38))
-      drop-shadow(0 1px 0 rgba(255, 255, 255, 0.35));
+    /* 硬边高光 + 轻景深（不用大半径 filter blur） */
+    text-shadow:
+      0 0 0.5px rgba(255, 255, 255, 0.9),
+      0 1px 0 rgba(255, 255, 255, 0.45),
+      0 14px 32px rgba(0, 0, 0, 0.28);
   }
 
-  /* 顶部高光带：模拟曲面玻璃受光（iOS 锁屏数字同族） */
+  /* 顶部高光：半透，不盖死字身，仍能透背景 */
   .brand-zh-glass {
     position: absolute;
     inset: 0;
@@ -247,15 +248,16 @@
     color: transparent;
     -webkit-text-stroke: 0;
     background: linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.98) 0%,
-      rgba(255, 255, 255, 0.88) 12%,
-      rgba(245, 252, 250, 0.55) 28%,
-      rgba(230, 240, 238, 0.12) 42%,
-      rgba(230, 240, 238, 0) 55%
+      185deg,
+      rgba(255, 255, 255, 0.92) 0%,
+      rgba(255, 255, 255, 0.55) 18%,
+      rgba(255, 255, 255, 0.12) 38%,
+      rgba(255, 255, 255, 0) 52%
     );
     -webkit-background-clip: text;
     background-clip: text;
+    mix-blend-mode: screen;
+    opacity: 0.85;
     animation: glassSheen 6.5s ease-in-out infinite alternate;
   }
 
@@ -309,43 +311,17 @@
     animation: rise 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.34s both;
   }
 
-  .btn-primary,
-  .btn-ghost {
+  .btn-cta {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 52px;
+    min-height: 48px;
     padding: 0 1.5rem;
     border-radius: 9999px;
     cursor: pointer;
     text-decoration: none;
     font-family: 'Noto Sans SC', 'Inter Variable', sans-serif;
     letter-spacing: 0.02em;
-    transition: background 0.18s, transform 0.1s, box-shadow 0.18s, border-color 0.18s;
-    -webkit-tap-highlight-color: transparent;
-    outline: none;
-  }
-
-  .btn-primary {
-    color: #06201e;
-    font-size: 1rem;
-    font-weight: 600;
-    background: linear-gradient(180deg, #f7faf8 0%, #e6efeb 100%);
-    border: 1px solid rgba(255, 255, 255, 0.55);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.85),
-      0 10px 28px rgba(0, 0, 0, 0.22);
-  }
-
-  .btn-primary:hover:not(:disabled) {
-    background: linear-gradient(180deg, #ffffff 0%, #eef5f2 100%);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.95),
-      0 12px 32px rgba(0, 0, 0, 0.26);
-  }
-
-  .btn-ghost {
-    min-height: 48px;
     color: var(--foam);
     font-size: 0.95rem;
     font-weight: 500;
@@ -354,26 +330,28 @@
     backdrop-filter: saturate(140%) blur(8px);
     -webkit-backdrop-filter: saturate(140%) blur(8px);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    transition: background 0.18s, transform 0.1s, box-shadow 0.18s, border-color 0.18s;
+    -webkit-tap-highlight-color: transparent;
+    outline: none;
   }
 
-  .btn-ghost:hover:not(:disabled) {
+  .btn-cta:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.2);
     border-color: rgba(255, 255, 255, 0.5);
   }
 
-  .btn-primary:active:not(:disabled),
-  .btn-ghost:active:not(:disabled) {
+  .btn-cta:active:not(:disabled) {
     transform: scale(0.98);
+    background: rgba(255, 255, 255, 0.16);
+    border-color: rgba(255, 255, 255, 0.42);
   }
 
-  .btn-primary:disabled,
-  .btn-ghost:disabled {
+  .btn-cta:disabled {
     opacity: 0.6;
     cursor: not-allowed;
   }
 
-  .btn-primary:focus-visible,
-  .btn-ghost:focus-visible,
+  .btn-cta:focus-visible,
   .logout-link:focus-visible {
     outline: 2px solid rgba(244, 247, 245, 0.85);
     outline-offset: 2px;
@@ -450,12 +428,10 @@
 
   @keyframes glassSheen {
     from {
-      opacity: 0.88;
-      filter: brightness(1);
+      opacity: 0.72;
     }
     to {
-      opacity: 1;
-      filter: brightness(1.08);
+      opacity: 0.95;
     }
   }
 
