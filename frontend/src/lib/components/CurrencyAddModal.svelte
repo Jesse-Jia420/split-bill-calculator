@@ -148,7 +148,11 @@
         const row = exchange_rates.find(
           (r) => r.from_currency === primary && r.to_currency === ex
         );
-        if (row) rate = row.rate;
+        if (row) {
+          rate = row.rate;
+          // Keep saved rate; do not auto-overwrite with reference FX.
+          rateUserEdited = true;
+        }
       }
     }
     multiInitialized = true;
@@ -206,8 +210,20 @@
     const pair = secondary ? `${from}->${secondary}` : '';
     if (pair && pair !== lastRatePair) {
       lastRatePair = pair;
-      rateUserEdited = false;
-      void loadReferenceRate(true);
+      const saved = exchange_rates.find(
+        (r) => r.from_currency === from && r.to_currency === secondary
+      );
+      if (saved) {
+        // Editing an existing pair: keep saved rate until user hits refresh.
+        rate = saved.rate;
+        rateUserEdited = true;
+        rateFetchedAt = null;
+        rateProviderDate = null;
+        rateError = null;
+      } else {
+        rateUserEdited = false;
+        void loadReferenceRate(true);
+      }
     }
   }
 
