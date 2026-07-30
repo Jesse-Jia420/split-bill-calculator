@@ -1,4 +1,4 @@
-"""Application settings (pydantic-settings, reads from .env)."""
+"""Application settings (pydantic-settings, reads from backend/.env)."""
 from __future__ import annotations
 
 from functools import lru_cache
@@ -29,14 +29,13 @@ class Settings(BaseSettings):
     )
 
     # --- CORS ---
-    # NOTE: pydantic-settings 2.x dotenv loader JSON-decodes List fields BEFORE field_validator
-    # (mode="before") runs, so we cannot parse comma-separated strings here. The .env file
-    # MUST use a JSON array, e.g.:
-    #   CORS_ALLOW_ORIGINS=["http://localhost:5173","http://127.0.0.1:5173"]
-    # See SPEC.md antipattern #31.
+    # pydantic-settings 2.x JSON-decodes List fields from dotenv. Use a JSON
+    # array in .env, e.g. CORS_ALLOW_ORIGINS=["http://localhost:5173"]
     cors_allow_origins: List[str] = Field(
         default_factory=lambda: [
-            "http://localhost:5173", "http://localhost:8448", "http://127.0.0.1:8448",
+            "http://localhost:5173",
+            "http://localhost:8448",
+            "http://127.0.0.1:8448",
             "http://127.0.0.1:5173",
             "http://localhost:8000",
         ],
@@ -44,63 +43,47 @@ class Settings(BaseSettings):
     )
 
     # --- Email (SMTP) ---
-    smtp_host: str = Field(default="smtp.gmail.com")
+    smtp_host: str = Field(default="smtp.example.com")
     smtp_port: int = Field(default=587)
-    smtp_username: str = Field(default="your-smtp-user@example.com")
-    smtp_password: str = Field(default="<from-bw>")
-    smtp_from: str = Field(default="your-smtp-user@example.com")
+    smtp_username: str = Field(default="")
+    smtp_password: str = Field(default="")
+    smtp_from: str = Field(default="noreply@example.com")
     smtp_use_tls: bool = Field(default=True)
-    # smtp_use_ssl: implicit SSL from connect (port 465 pattern, e.g. Aliyun
-    # DirectMail). When True, smtp_use_tls (STARTTLS) is ignored and the
-    # SMTP_SSL class is used directly. Default False preserves the legacy
-    # Gmail SMTP+STARTTLS path.
+    # When True, use implicit SSL (port 465 style). STARTTLS is ignored.
     smtp_use_ssl: bool = Field(default=False)
 
-    # --- Verification code ---
+    # --- Verification / auth TTLs ---
     verification_code_ttl_minutes: int = Field(default=10)
-    auth_token_ttl_days: int = Field(default=30)
+    auth_token_ttl_days: int = Field(
+        default=30,
+        description="Days to retain unused auth_tokens before cleanup.",
+    )
+    verification_code_retention_days: int = Field(
+        default=7,
+        description="Days to retain consumed/expired verification_codes before cleanup.",
+    )
 
-    # --- Session invites (T09) ---
-    # Default TTL for newly minted session invite links. v0.1 default: 30 days.
-    # Controlled via env INVITE_TTL_DAYS.
+    # --- Session invites ---
     invite_ttl_days: int = Field(default=30)
 
-    # --- v0.3.x §3.11.11 (PRD §3.11.11) ---
-    # 7-day active window measured from session.last_active_at. When the
-    # delta exceeds this, the session is reclaimed (GET endpoints 410).
-    # This is intentionally independent from invite_ttl_days — the invite
-    # link is still valid for invite_ttl_days after rotation, but the
-    # *ability to enter the session* via that link is bound by this
-    # activity window.
+    # 7-day active window from session.last_active_at (GET may 410 when exceeded).
     session_activity_ttl_days: int = Field(default=7)
 
-    # --- AI parse (T11) ---
-    # MiniMax API key for POST /sessions/{id}/bills/parse.
-    # v0.1 simplification: read directly from env MINIMAX_API_KEY.
-    # When empty / unset, /bills/parse returns 422 {error: ai_unavailable}
-    # so the frontend falls back to a plain manual form. See SPEC sec 6.
+    # --- Optional AI parse ---
     minimax_api_key: str = Field(
         default="",
-        description="MiniMax API key. Empty/unset -> /bills/parse returns 422 ai_unavailable.",
+        description="MiniMax API key. Empty -> /bills/parse returns 422 ai_unavailable.",
     )
-    minimax_api_base: str = Field(
-        default="https://api.minimaxi.com",
-        description="MiniMax API base URL.",
-    )
-    minimax_model: str = Field(
-        default="MiniMax-Text-01",
-        description="MiniMax chat model id used by /bills/parse.",
-    )
+    minimax_api_base: str = Field(default="https://api.minimaxi.com")
+    minimax_model: str = Field(default="MiniMax-Text-01")
 
     # --- Auth rate limits ---
-    # Maximum /auth/send-code requests per email per hour. v0.1: 5/h.
     send_code_rate_limit_per_hour: int = Field(default=5)
 
     # --- Cookies ---
-    # dev: false (http). prod: true (https only). Controlled by env COOKIE_SECURE.
     cookie_secure: bool = Field(
         default=False,
-        description="Set Secure flag on session cookies (true in production behind HTTPS).",
+        description="Set Secure flag on session cookies (true behind HTTPS).",
     )
     session_cookie_name: str = Field(default="sbc_session")
 
@@ -108,49 +91,10 @@ class Settings(BaseSettings):
     app_env: str = Field(default="dev")
     debug: bool = Field(default=False)
 
-    # --- v0.3.15 UAT 数据持久化 (PO #4784) ---
-    # Default False: uvicorn startup auto-injects UAT fixtures
-    # (demo@example.com user + Thailand session + 32 bills +
-    # personal session). Seed is find-or-create: existing data is NEVER
-    # wiped, only missing fixtures are created.
-    # Previously (v0.3.13) this defaulted True to keep dev space clean,
-    # but PO #4784 mandates UAT data persist across commits/restarts.
-    #
-    # Override hierarchy:
-    #   1. `ENV=production` → seed is **always** skipped (legacy guard).
-    #   2. `SBC_SKIP_SEED` env → take this value (default False = inject).
-    #   3. .env file `SBC_SKIP_SEED=true` → opt out.
-    #
-    # See SPEC.md §3.15 for rationale (PO #4784).
+    # Skip demo seed on startup (recommended true for clean clones).
     sbc_skip_seed: bool = Field(
-        default=False,  # v0.3.15 UAT 持久化 (PO #4784): seed 默认跑, find-or-create 不清数据
-        description=(
-            "Skip seed_dev_data lifespan injection (True = skip, False = "
-            "inject). Default False per PO #4784 — UAT fixtures persist "
-            "across restarts. Override per dev with SBC_SKIP_SEED=true."
-        ),
-    )
-
-    # Retention windows for nightly_cleanup.py.
-    # - `auth_token_ttl_days`: drop auth_tokens that are expired OR older
-    #   than this AND never used. Active session cookies (those whose
-    #   raw token is still hashed and matched at request time) are NEVER
-    #   touched — the script only operates on tokens whose *hash* row is
-    #   already expired or whose row is 30+ days old without a recorded
-    #   `last_used_at`.
-    # - `verification_code_retention_days`: drop `verification_codes`
-    #   rows that are (used OR expired) for longer than this window.
-    auth_token_ttl_days: int = Field(
-        default=30,
-        description="Days to retain unused auth_tokens before cleanup.",
-    )
-    verification_code_retention_days: int = Field(
-        default=7,
-        description=(
-            "Days to retain consumed/expired verification_codes before "
-            "cleanup. Active (unconsumed & unexpired) codes are NEVER "
-            "touched by this script."
-        ),
+        default=True,
+        description="Skip seed_dev_data lifespan injection when True.",
     )
 
 

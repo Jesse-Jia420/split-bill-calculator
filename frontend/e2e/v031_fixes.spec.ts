@@ -105,7 +105,7 @@ test.describe("v0.3.1 landing + anon-join", () => {
 
   test("logged-in: 进入我的session logic (via direct goto)", async ({ page }) => {
     // ARRANGE: seed a logged-in user
-    const u = ensureUserAndToken("logged.v03@jessejia.local");
+    const u = ensureUserAndToken("logged.v03@local.test");
 
     // Set sbc_session cookie (raw token, BE hashes it)
     await page.context().addCookies([
@@ -173,7 +173,7 @@ test.describe("v0.3.1 fix: per-currency daily total", () => {
     );
 
     // Ensure user id=1 exists for created_by FK constraint.
-    db.prepare("INSERT OR IGNORE INTO users (id, email, default_name, created_at) VALUES (1, 'test.v03@jessejia.local', 'Test', ?)").run(new Date().toISOString());
+    db.prepare("INSERT OR IGNORE INTO users (id, email, default_name, created_at) VALUES (1, 'test.v03@local.test', 'Test', ?)").run(new Date().toISOString());
 
     const sess = db
       .prepare(

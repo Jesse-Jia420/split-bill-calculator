@@ -268,7 +268,7 @@ test("C: 未登录 + /sessions/{sid}/join → 点 logged-in slot → '嗨 X, 请
   const page = await ctx.newPage();
 
   // Seed user "alice" who will own a logged-in slot in the session
-  const alice = ensureUserAndToken("scenarioC.alice@jessejia.local");
+  const alice = ensureUserAndToken("scenarioC.alice@local.test");
 
   // Create session with anon slot "bob" + logged-in slot "alice" (via SQL)
   const { sid, anonSecret } = await createSessionWithLoggedInSlot(
@@ -350,7 +350,7 @@ test("D: 已登录 + /sessions/{sid} → email + '注销登录' → 点击 → �
   const page = await ctx.newPage();
 
   // Login as seeded user
-  const user = ensureUserAndToken("scenarioD.dave@jessejia.local");
+  const user = ensureUserAndToken("scenarioD.dave@local.test");
   await loginAs(ctx, user);
 
   // Visit /sessions/1 (no need to actually create a session, just need

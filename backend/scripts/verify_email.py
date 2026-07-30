@@ -8,7 +8,7 @@ Usage:
     cd /config/workspace/split-bill-calculator/backend
     .venv/bin/python -m scripts.verify_email [recipient_email]
 
-Default recipient: your-smtp-user@example.com
+Default recipient: noreply@example.com
 
 Exit codes:
     0  SMTP reachable, login OK, email sent
@@ -38,7 +38,7 @@ from app.services.email_service import (  # noqa: E402
 )
 from app.services.verification_code import generate_code  # noqa: E402
 
-DEFAULT_RECIPIENT = "your-smtp-user@example.com"
+DEFAULT_RECIPIENT = "noreply@example.com"
 
 # Suppress noisy SMTP DEBUG output but keep our own INFO logs.
 logging.basicConfig(
@@ -54,10 +54,9 @@ def _config_error(msg: str) -> "None":
 
 async def _send(recipient: str) -> None:
     # Defensive: refuse to run with the placeholder password.
-    if not settings.smtp_password or settings.smtp_password == "<from-bw>":
+    if not settings.smtp_password:
         _config_error(
-            "SMTP_PASSWORD is empty or still the placeholder. "
-            "Set it in backend/.env (do not commit)."
+            "SMTP_PASSWORD is empty. Set it in backend/.env (do not commit)."
         )
 
     service = EmailService(settings)
@@ -65,8 +64,8 @@ async def _send(recipient: str) -> None:
     ttl = settings.verification_code_ttl_minutes
     print(f"→ Sending verification code to {recipient!r}")
     print(f"  host={settings.smtp_host}:{settings.smtp_port} "
-          f"user={settings.smtp_username!r} tls={settings.smtp_use_tls}")
-    print(f"  code={code!r} ttl={ttl}m  (the code itself is printed for debugging)")
+          f"tls={settings.smtp_use_tls}")
+    # Do not print the code — check the recipient inbox / mail catcher.
 
     try:
         await service.send_verification_code(recipient, code, ttl)

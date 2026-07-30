@@ -64,7 +64,7 @@ const BASE = "http://localhost:8448";
  * wizard, which seeds 2 anon-claimed member slots — "Alice" + "Friend").
  * That way the test's dd user can pick either slot.
  */
-const OWNER_EMAIL = "v032.owner@jessejia.local";
+const OWNER_EMAIL = "v032.owner@local.test";
 const SESSION_NAME = "v0.3.2 §3.12 anon CRUD";
 
 const SCREENSHOT_STEP = (n: number, name: string) =>

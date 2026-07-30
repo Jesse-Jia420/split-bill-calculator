@@ -115,7 +115,7 @@ test("JOURNEY (logged-in, owner): /invites/{token} → auto-match → /sessions/
   // Setup uses ensureUserAndToken for the OWNER fixture only (this is not
   // the actual journey — it's just creating the session + invite token).
   // The journey test below walks the REAL auth UI in a separate browser.
-  const owner = ensureUserAndToken("invite-loggedin-a.owner@jessejia.local");
+  const owner = ensureUserAndToken("invite-loggedin-a.owner@local.test");
   const setupCtx: BrowserContext = await browser.newContext({
     ignoreHTTPSErrors: true,
   });
@@ -159,7 +159,7 @@ test("JOURNEY (logged-in, owner): /invites/{token} → auto-match → /sessions/
     ...MOBILE_CONTEXT_OPTS,
     ignoreHTTPSErrors: true,
   });
-  await loginBySqlInjection(ownerCtx, "invite-loggedin-a.owner@jessejia.local");
+  await loginBySqlInjection(ownerCtx, "invite-loggedin-a.owner@local.test");
   const ownerPage: Page = await ownerCtx.newPage();
 
   // Sanity check: owner should now see their session in dashboard
@@ -202,7 +202,7 @@ test("JOURNEY (logged-in, non-member): /invites/{token} → /join → add new ni
   browser,
 }) => {
   // ===== 第 1 幕: Setup — owner creates session =====
-  const owner = ensureUserAndToken("invite-loggedin-b.owner@jessejia.local");
+  const owner = ensureUserAndToken("invite-loggedin-b.owner@local.test");
   const setupCtx: BrowserContext = await browser.newContext({
     ignoreHTTPSErrors: true,
   });
@@ -244,7 +244,7 @@ test("JOURNEY (logged-in, non-member): /invites/{token} → /join → add new ni
     ...MOBILE_CONTEXT_OPTS,
     ignoreHTTPSErrors: true,
   });
-  await loginBySqlInjection(inviteeCtx, "invite-loggedin-b.invitee@jessejia.local");
+  await loginBySqlInjection(inviteeCtx, "invite-loggedin-b.invitee@local.test");
   const inviteePage: Page = await inviteeCtx.newPage();
 
   // ===== 第 3 幕: Invite 走 /invites/{token} → /join (PRD row 2) =====

@@ -59,20 +59,17 @@ from app.main import app
 
 @pytest.fixture(autouse=True)
 def _truncate_all():
-
-    # v0.2.2 anti-pattern #53b: skip truncate when SBC_SKIP_TEST_TRUNCATE=1
-    import os as _os
-    if _os.environ.get("SBC_SKIP_TEST_TRUNCATE") == "1":
-        yield
-        return
-
-def _truncate_all():
     """Wipe every table between tests for isolation.
 
     Order matters: child rows first so we don't have to rely on the
     ON DELETE CASCADE foreign keys (which work fine but doing it
     explicitly makes test failures more readable).
     """
+    import os as _os
+    if _os.environ.get("SBC_SKIP_TEST_TRUNCATE") == "1":
+        yield
+        return
+
     db = SessionLocal()
     try:
         db.query(BillParticipant).delete()

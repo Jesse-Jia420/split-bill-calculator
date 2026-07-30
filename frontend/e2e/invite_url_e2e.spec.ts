@@ -34,7 +34,7 @@ const SCREENSHOTS_DIR = path.join(process.cwd(), "e2e", "screenshots");
 const SCREENSHOT_STEP = (n: number, name: string) =>
   path.join(SCREENSHOTS_DIR, `test-004-${String(n).padStart(2, "0")}-${name}.png`);
 
-const CREATOR_EMAIL = "test004.creator@jessejia.local";
+const CREATOR_EMAIL = "test004.creator@local.test";
 const INVITEE_NICKNAME = "FriendTester";
 const SESSION_NAME = "TEST-004 invite-e2e";
 

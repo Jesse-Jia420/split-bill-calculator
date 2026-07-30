@@ -50,7 +50,7 @@ test("JOURNEY (anon + secret): /invites/{token} → BE 验证 secret → /sessio
   browser,
 }) => {
   // ===== 第 1 幕: Setup — owner creates session, fetches invite token =====
-  const owner = ensureUserAndToken("invite-secret.owner@jessejia.local");
+  const owner = ensureUserAndToken("invite-secret.owner@local.test");
   const ownerCtx: BrowserContext = await browser.newContext({
     ignoreHTTPSErrors: true,
   });

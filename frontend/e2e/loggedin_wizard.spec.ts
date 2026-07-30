@@ -29,7 +29,7 @@ import {
   type SeededUser,
 } from "./test-helpers";
 
-const TEST_EMAIL = "loggedin.alice@jessejia.local";
+const TEST_EMAIL = "loggedin.alice@local.test";
 const SESSION_NAME = "TEST-002 logged-in wizard";
 
 const SCREENSHOTS_DIR = path.join(process.cwd(), "e2e", "screenshots");

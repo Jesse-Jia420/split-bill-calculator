@@ -71,11 +71,9 @@ _RATELIMIT_WINDOW_HOURS = 1
 # Dev bypass (v0.1.4)
 # ---------------------------------------------------------------------------
 # Emails listed in the ``DEV_BYPASS_EMAILS`` env var (CSV, lower-cased on
-# load) skip the SMTP send + the real verification_code lookup. They
-# are a developer affordance for browser-based screenshot/QA flows that
-# cannot read a real inbox. In production the env var is unset so this
-# set is empty and the bypass is a no-op. See SPEC.md antipattern #48 +
-# v0.1.4 decision (option B: full bypass).
+# load) skip the SMTP send + the real verification_code lookup. They are
+# a local/dev affordance only. Leave the env unset in production so the
+# set stays empty.
 DEV_BYPASS_EMAILS: set[str] = {
     e.strip().lower()
     for e in os.getenv("DEV_BYPASS_EMAILS", "").split(",")

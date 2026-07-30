@@ -117,7 +117,7 @@ def test_seed_creates_thailand_and_personal_sessions() -> None:
 
     assert "skipped" not in result
     assert result["bills_created"] == len(seed_mod.THAILAND_BILLS) == 27
-    assert result["xinhua_user_id"] is not None
+    assert result["demo_user_id"] is not None
     assert result["thailand_session_id"] is not None
     assert result["personal_session_id"] is not None
 
@@ -158,9 +158,9 @@ def test_seed_creates_thailand_and_personal_sessions() -> None:
 
         from app.db.models.users import User
 
-        xinhua = db.query(User).filter_by(email=seed_mod.TEST_USER_EMAIL).first()
-        assert xinhua is not None
-        assert xinhua.default_name == "Jesse"
+        demo_user = db.query(User).filter_by(email=seed_mod.TEST_USER_EMAIL).first()
+        assert demo_user is not None
+        assert demo_user.default_name == "Jesse"
     finally:
         db.close()
 
@@ -173,7 +173,7 @@ def test_seed_is_idempotent() -> None:
     r2 = seed_mod.seed_dev_data()
 
     # Session / user ids stay the same.
-    assert r1["xinhua_user_id"] == r2["xinhua_user_id"]
+    assert r1["demo_user_id"] == r2["demo_user_id"]
     assert r1["thailand_session_id"] == r2["thailand_session_id"]
     assert r1["personal_session_id"] == r2["personal_session_id"]
     # First run creates 27 bills; second run creates 0.
@@ -285,10 +285,10 @@ def test_seed_does_not_touch_unrelated_sessions() -> None:
         # the original user (not xinhua), and still has 0 members.
         other = db.query(BillSession).filter(BillSession.id == other_id).first()
         assert other is not None
-        xinhua = (
+        demo_user = (
             db.query(User).filter_by(email=seed_mod.TEST_USER_EMAIL).first()
         )
-        assert other.owner_user_id != xinhua.id
+        assert other.owner_user_id != demo_user.id
         assert (
             db.query(SessionMember).filter(SessionMember.session_id == other_id).count()
             == 0

@@ -563,14 +563,12 @@ class TestCallMinimaxApiNoKey:
 
 @pytest.fixture(autouse=True)
 def _truncate_all():
-
-    # v0.2.2 anti-pattern #53b: skip truncate when SBC_SKIP_TEST_TRUNCATE=1
+    """Reset tables between tests."""
     import os as _os
     if _os.environ.get("SBC_SKIP_TEST_TRUNCATE") == "1":
         yield
         return
 
-def _truncate_all():
     db = SessionLocal()
     try:
         db.query(AuthToken).delete()

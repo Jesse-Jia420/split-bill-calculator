@@ -21,7 +21,7 @@ import { test, expect, type BrowserContext } from "@playwright/test";
 import { ensureUserAndToken, wipeDb, type SeededUser } from "./test-helpers";
 
 const BASE = "http://localhost:8448";
-const TEST_EMAIL = "logout.laura@jessejia.local";
+const TEST_EMAIL = "logout.laura@local.test";
 
 async function loginAs(ctx: BrowserContext, user: SeededUser) {
   await ctx.addCookies([

@@ -1,116 +1,105 @@
-# 🧮 split-bill-calculator
+# SplitIt
 
-> **多人分摊账本 web 应用** — 你和朋友出去玩了, 谁付了钱、谁该给谁多少、跨币种怎么处理? 一个链接加进去就清楚.
+Mobile-first shared expense (AA) web app. Create a ledger, invite friends (including anonymous join), record multi-currency bills, and settle who owes whom.
 
----
+**Language:** the UI is currently Chinese-only. English i18n is not included yet.
 
-## 它是什么
+## Features
 
-跟朋友吃饭、住宿、打车, **谁垫了多少钱、谁该 AA 多少、跨币种怎么算**——这是每个人都会反复遇到的小账本. `split-bill-calculator` 是一个私人的、可自托管的、支持多币种的分摊工具:
+- Multi-person ledgers with invite links and anonymous nickname slots
+- Bill CRUD with shared / exclusive (personal) consumption
+- Multi-currency amounts with owner-managed exchange rates
+- Settlement balances and recorded repayments
+- Amount fields accept safe arithmetic expressions (e.g. `350/5`)
+- Optional SMTP email verification (dev bypass via env, off by default)
 
-- 👥 创建账本 (5 人泰国游 / 3 人合租公寓 / 1 人日常记账都行)
-- 💸 录入每一笔花费 (金额 + 谁付的 + 谁一起分)
-- 🌍 支持 **多币种** (CNY 主 + USD/THB/JPY/EUR 等), 按当前汇率自动换算
-- 📊 算清楚"谁该给谁多少钱", **按源币种 + 主币种汇总**两套视图
-- 🔗 邀请链接 / 匿名加入 / 已登录 claim —— 不强制注册, 先记账再绑定账号
+## Stack
 
-**当前状态**: v0.3.18 玻璃化 UI 收尾中, 即将发布 v1.0 (见 `/obsidian/Jesse OB VPS/JesseClaw/code-project/split-bill-calculator/PRD.md` §3.X).
+| Layer | Tech |
+|-------|------|
+| Frontend | SvelteKit 2 + Svelte 5 + TypeScript + Vite |
+| Backend | FastAPI + SQLAlchemy 2 + Pydantic v2 + SQLite |
+| Migrations | Alembic |
+| Tests | pytest, Vitest, Playwright |
 
----
-
-## 📸 截图
-
-### 结算 (个人视图 + 多币种 breakdown + iOS27 玻璃化 toggle)
-![overview](screenshots/v0318-57-settle-overview-active.png)
-![personal](screenshots/v0318-57-settle-personal-active.png)
-![320px narrow](screenshots/v0318-57-settle-320px-narrow.png)
-![deep link](screenshots/v0318-57-settle-deep-link-personal.png)
-
-> 截图来自 v0.3.18 #57 tab-bar 玻璃化真机 walk (chromium headless @ iPhone viewport).
-
----
-
-## ✨ 核心特性
-
-| 特性 | 描述 |
-|------|------|
-| 💱 **多币种账本** | CNY 主 + 10 种 ISO 副币种 (USD/THB/JPY/EUR...), owner 编辑汇率, 自动换算 |
-| 📐 **计算器输入** | 金额框直接打表达式 `350/5`, 服务器白名单重算, 防前端篡改 |
-| 🗓 **按天分组** | 账单按发生日期自动分组, 每组显示人均 + 总笔数 |
-| 👆 **滑动操作** | 左滑删除 / 右滑编辑, iOS27 圆形按钮, owner-only (其他人置灰) |
-| 🧮 **结算不变量** | `Σbalances = 0` 强制保证, 按源币种 breakdown, balances drift = 0 |
-| 🔗 **邀请链接** | 一次性 token + 过期, 匿名加入 → 已登录用户随时 claim |
-| 🔒 **匿名 CRUD** | 未登录用户也能记自己的账, `X-Nickname-Secret` header 鉴权 |
-| 🎨 **iOS27 玻璃化** | 全站 Liquid Glass 设计语言 (v0.3.17 + v0.3.18 收尾) |
-
----
-
-## 🚀 快速开始
+## Quick start
 
 ```bash
-# 1. Clone
-git clone https://gitea.jessejia.pp.ua/jessejia/split-bill-calculator.git
+git clone <your-fork-or-clone-url>
 cd split-bill-calculator
 
-# 2. Backend (FastAPI + SQLite)
+# Backend
 cd backend
 python -m venv .venv && source .venv/bin/activate
-pip install -e .
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8449
+pip install -e ".[dev]"
+cp .env.example .env   # edit SECRET_KEY and SMTP if needed
+mkdir -p data
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8449
 
-# 3. Frontend (SvelteKit + Vite, another terminal)
-cd ../frontend
+# Frontend (another terminal)
+cd frontend
 npm install
 npm run dev -- --host 0.0.0.0 --port 8448
 ```
 
-打开 `http://localhost:8448`, 邮箱填任意 + 验证码 6 位任意数字 (dev 环境不发真邮件).
+Open `http://localhost:8448`. Vite proxies `/api` to the backend on port `8449`.
 
-**手机同 Wi‑Fi 真机调试:** Mac 上查局域网 IP (`ipconfig getifaddr en0`), 手机浏览器打开 `http://<该IP>:8448`。需前后端都用 `--host 0.0.0.0`；若页面显示 “host is not allowed”, 拉最新代码（dev 下 `allowedHosts: true`）。仍连不上时检查 macOS 防火墙是否放行 node。
+### Optional demo seed
 
-**dev / 启动模板 / 反向代理** 详见 `skills/dev-workflow/SKILL.md` 和 `skills/sbc/SKILL.md`.
+By default startup does **not** inject demo data when `SBC_SKIP_SEED=true` (recommended). To seed local fixtures:
 
----
-
-## 🛠 技术栈
-
-| 层 | 技术 |
-|----|----|
-| Frontend | SvelteKit 2 + Svelte 5 + TypeScript + Vite |
-| Backend  | FastAPI + SQLAlchemy 2 + Pydantic v2 + SQLite |
-| 设计     | iOS27 Liquid Glass (自研 design tokens, 不引第三方 UI 库) |
-| 部署     | Docker + docker-compose (`split.jesdigi.com` 上线草案 commit `01968a4`) |
-
----
-
-## 📦 项目结构
-
-```
-split-bill-calculator/
-├── backend/          # FastAPI + SQLite + alembic migrations
-├── frontend/         # SvelteKit + Vite
-│   ├── src/routes/   # /, /auth/login, /sessions, /sessions/[id]/settle, /invites
-│   └── static/       # static assets (screenshots, mockups)
-├── SPEC.md           # 5000+ 行规格 + §11 changelog
-└── README.md
+```bash
+cd backend
+SBC_SKIP_SEED=false .venv/bin/python -m scripts.seed_dev_data
 ```
 
----
+Demo login (only when listed in `DEV_BYPASS_EMAILS`): `demo@example.com` + any 6-digit code. Never enable bypass emails in production.
 
-## 📋 项目状态
+See `docs/TEST_DATA_MATRIX.md` for the seeded ledger matrix.
 
-| Sprint | 状态 |
-|--------|------|
-| v0.1 - v0.2.x | ✅ Session CRUD + Bill CRUD + 多币种 + 邀请 + 计算器 |
-| v0.3.13 | ✅ Dev seed opt-out + nightly_cleanup |
-| v0.3.14 | ✅ Settlement 用当前汇率重算 + balances 不变量 + currency_breakdown |
-| v0.3.16 - v0.3.17 | ✅ iOS27 Liquid Glass 语言 + 全站玻璃化 + Swipe 操作 |
-| v0.3.18 #42-#56 | ✅ 玻璃化 polish 收尾 (紧凑化 + 透明化 sweep + 冷色调背景) |
-| v0.3.18 #57 | ✅ `.tab-bar` iOS Segmented (IosSwitch 复用) |
-| v1.0.0 | 🚧 删 AI 入口 (#58) + Docker 部署 (`split.jesdigi.com`) |
+## Common commands
 
----
+```bash
+# Backend
+cd backend && ruff check app/
+cd backend && python -m pytest tests/ -q
 
-## 🤝 License
+# Frontend
+cd frontend && npm run check
+cd frontend && npm run test:unit
+cd frontend && npm run build
+```
 
-Private — Jesse Jia only. 不接受外部 PR / Issue.
+## Project layout
+
+```
+backend/          FastAPI app, models, Alembic, seeds, tests
+frontend/         SvelteKit app, unit + e2e tests
+docs/             Architecture and contributor notes
+docker-compose.yml  Optional self-host sketch (see comments inside)
+```
+
+More detail: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+## Configuration
+
+Copy `backend/.env.example` → `backend/.env`. Important variables:
+
+| Variable | Purpose |
+|----------|---------|
+| `SECRET_KEY` | App secret — generate a long random value for any shared deploy |
+| `CORS_ALLOW_ORIGINS` | JSON array of allowed origins |
+| `SMTP_*` | Email verification (optional in local/dev) |
+| `DEV_BYPASS_EMAILS` | CSV of emails that skip SMTP (dev/test only) |
+| `SBC_SKIP_SEED` | `true` skips startup demo seed (recommended default) |
+| `COOKIE_SECURE` | Set `true` behind HTTPS |
+
+Root `.env.example` is only for optional Docker / tunnel tokens.
+
+## License
+
+MIT — see [`LICENSE`](LICENSE).
+
+## Security
+
+Please report vulnerabilities privately — see [`SECURITY.md`](SECURITY.md).
