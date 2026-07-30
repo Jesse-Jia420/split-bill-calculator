@@ -1297,7 +1297,7 @@
   .sheet-layout .field-grid-time-payer {
     /* 同行: 时间略宽、付款人略窄; 两侧 minmax(0) 防 grid 子项撑破 */
     grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
-    align-items: end;
+    align-items: start;
     width: 100%;
     max-width: 100%;
     overflow: hidden;
@@ -1315,6 +1315,7 @@
     width: 100%;
     max-width: 100% !important;
     min-width: 0 !important;
+    height: 42px;
     overflow: hidden;
     padding-inline: 8px;
     font-size: 13px;
@@ -1334,6 +1335,7 @@
     width: 100%;
     max-width: 100%;
     min-width: 0;
+    height: 42px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
