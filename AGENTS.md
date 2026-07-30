@@ -14,6 +14,7 @@ No Redis. No Docker required for local/cloud-agent development. Vite proxies `/a
 - Backend reads **`backend/.env`** (see `backend/.env.example`). Root `.env` is only for optional Docker/tunnel tokens.
 - Leave `DEV_BYPASS_EMAILS` empty unless you intentionally need local login without SMTP. Prefer `demo@example.com` for synthetic bypass, never real inboxes.
 - `SBC_SKIP_SEED=true` is recommended so restarts do not inject demo ledgers.
+- To inject UAT fixtures for a specific inbox: set `SEED_USER_EMAIL=...` and `SBC_SKIP_SEED=false`, then `python -m scripts.seed_dev_data` (or restart backend). Also add that email to `DEV_BYPASS_EMAILS` for OTP-free login.
 
 ### Lint / test / run
 

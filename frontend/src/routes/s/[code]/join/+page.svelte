@@ -105,8 +105,8 @@
       // 返 X-SBC-Member-ID 头 → 不需要本地 secret 找.
       try {
         const verified = await getSessionByCode(code);
-        session = verified;
-        sessionId = verified.id;
+        session = verified.session;
+        sessionId = verified.session.id;
         // v0.3.x (UAT #0723-3 #3): 跳 /s/{session_code} (unguessable).
         // 已在此页, 不用 redirect. 但保留旧 redirect 行为防 localStorage stale.
         await goto('/s/' + code, { replaceState: true });
@@ -121,8 +121,8 @@
     if (user) {
       try {
         const verified = await getSessionByCode(code);
-        session = verified;
-        sessionId = verified.id;
+        session = verified.session;
+        sessionId = verified.session.id;
         // Already a member — redirect to session
         await goto('/s/' + code, { replaceState: true });
         return;

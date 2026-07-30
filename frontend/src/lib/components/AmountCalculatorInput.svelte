@@ -1,30 +1,19 @@
 <script lang="ts">
   /**
-   * v0.2.3 T13r2 — AmountCalculatorInput bottom sheet (PRD §3.9.1b).
+   * AmountCalculatorInput bottom sheet (PRD §3.9.1b).
    *
-   * v0.3.30 #8 (PO msg 18:30 UAT 0725-1 #8): 计算器功能优化
-   * - `=` 改成"计算 + 加括号"功能. 旧: pressEquals() 直接 evaluate 关闭. 新: =
-   *   把当前表达式 evaluate → 记住 preEqualsResult, 后续用户输入的 operator/number
-   *   在 (preExpr)postExpr 形式下接续. 例子: 60-10=/5 显示成 (60-10)/5, 结果 10.
-   * - 结果框 (sheet-amount-row) 加 confirm 圆形按钮 (紫色渐变 + 4 层 shadow), 点击
-   *   → 关闭 keypad + emit('confirm', { value, expression }) 给 parent 填入.
-   * - 错误态: evaluateExpression() 返 null → sheet-amount-row 内显示红色玻璃
-   *   pill "表达式错误", confirm 按钮同步置灰.
-   * - form-row (form 内的金额 input) 行为重设:
-   *   * 显示 parent 提供的 amount (confirm 后的最终数字), 不显示 value (raw
-   *     expression), 也不显示 preview (PO 字面 #3)
-   *   * 接受 parent 的 initialValue + initialAmount (edit mode prefill)
-   * - sheet 内的 preview 部分: 等号后只显示金额数字, 不显示币种 (PO 字面 #5)
+   * `=` evaluates and wraps the current display in parentheses so the user
+   * can continue chaining. Second / third / … presses nest another layer:
+   *   60-10=        → (60-10)
+   *   /5=           → ((60-10)/5)
+   *   +2=           → (((60-10)/5)+2)
    *
-   * 实现注意 (Svelte 4): reactive 系统对内部 let 变量的赋值在某些情况下 (e.g.
-   * 在 if/showKeypad 块中) 不会触发 display 更新. 解决: 把所有 derived state
-   * (displayExpr, currentValue, isError) 用 function call 直接计算, 不用 $.
-   * 这样 template 中调用函数, 每次 render 都重新计算, 不会缓存.
+   * Long expressions wrap inside a fixed-height amount row (font shrinks);
+   * expression top-left → wraps downward; result bottom-right; confirm unchanged.
    */
   import { onMount, createEventDispatcher, tick } from 'svelte';
   import { evaluateExpression } from '$api/calculator';
 
-  // Props
   export let value: string = '';
   export let evaluated: number | null = null;
   export let amount: number | null = null;
@@ -32,7 +21,6 @@
   export let initialAmount: number | null = null;
   export let currency: string = '';
   export let disabled: boolean = false;
-  // v0.3.36 #12 — UAT 0727-1 #12 (c 完全同款): parent 传红框状态
   export let error: boolean = false;
 
   const dispatch = createEventDispatcher<{
@@ -41,114 +29,100 @@
     confirm: { value: number; expression: string };
   }>();
 
-  // True internal state (not a prop, so Svelte reactivity is reliable)
   let _internalValue: string = '';
+  /** Nested parenthesized left side after one or more successful `=` presses. */
+  let foldedDisplay: string | null = null;
   let showKeypad: boolean = false;
   let preEqualsResult: number | null = null;
   let prefillDone: boolean = false;
-  /** Only true after user presses `=` on an invalid expression. */
   let equalsError: boolean = false;
 
   const BINARY_OPS = new Set(['+', '-', '*', '/']);
 
-  // Reactive prefill from initialValue
   $: if (!prefillDone && initialValue) {
-    _internalValue = initialValue;
-    const eqIndex = initialValue.indexOf('=');
-    if (eqIndex > 0) {
-      const pre = initialValue.slice(0, eqIndex);
-      const r = evaluateExpression(pre);
-      if (r !== null) preEqualsResult = r;
-    }
-    const result = evaluateExpression(_internalValue);
-    if (result !== null) {
-      evaluated = result;
-    }
+    hydrateFromExpression(initialValue);
     prefillDone = true;
     value = _internalValue;
   }
 
-  // On mount: backward-compat with bind:value
   onMount(() => {
     if (!prefillDone && value && !initialValue) {
-      _internalValue = value;
-      const result = evaluateExpression(value);
-      if (result !== null) {
-        evaluated = result;
-      }
+      hydrateFromExpression(value);
       prefillDone = true;
     }
   });
+
+  function hydrateFromExpression(raw: string) {
+    _internalValue = raw;
+    foldedDisplay = null;
+    preEqualsResult = null;
+    const eqIndex = raw.indexOf('=');
+    if (eqIndex > 0) {
+      const pre = raw.slice(0, eqIndex);
+      const post = raw.slice(eqIndex + 1);
+      const r = evaluateExpression(pre);
+      if (r !== null) {
+        foldedDisplay = `(${pre})`;
+        preEqualsResult = r;
+        _internalValue = post;
+      }
+    }
+    const parsed = parseInput(_internalValue, preEqualsResult, foldedDisplay);
+    if (parsed.currentValue !== null) {
+      evaluated = parsed.currentValue;
+    }
+  }
 
   function isIncompleteExpr(cleaned: string): boolean {
     if (!cleaned) return false;
     const last = cleaned[cleaned.length - 1];
     if (BINARY_OPS.has(last)) return true;
     if (last === '.') return true;
-    // trailing op after `=` e.g. `60=/` → postEquals is `/`
-    const eqIndex = cleaned.indexOf('=');
-    if (eqIndex >= 0) {
-      const post = cleaned.slice(eqIndex + 1);
-      if (post && BINARY_OPS.has(post[post.length - 1])) return true;
-      if (post.endsWith('.')) return true;
-    }
     return false;
   }
 
-  // Parser - pure function. Never marks typing-incomplete exprs as error;
-  // equalsError (UI) is set only in pressEquals.
-  function parseInput(input: string, preEq: number | null): {
-    displayExpr: string;
-    currentValue: number | null;
-  } {
-    if (!input) return { displayExpr: '', currentValue: null };
-    const cleaned = input.replace(/\s+/g, '');
-    if (!cleaned) return { displayExpr: '', currentValue: null };
+  function parseInput(
+    tail: string,
+    preEq: number | null,
+    folded: string | null
+  ): { displayExpr: string; currentValue: number | null } {
+    const cleanedTail = (tail || '').replace(/\s+/g, '');
 
-    const eqIndex = cleaned.indexOf('=');
-    if (eqIndex === -1) {
-      if (isIncompleteExpr(cleaned)) {
-        return { displayExpr: cleaned, currentValue: null };
+    if (folded === null) {
+      if (!cleanedTail) return { displayExpr: '', currentValue: null };
+      if (isIncompleteExpr(cleanedTail)) {
+        return { displayExpr: cleanedTail, currentValue: null };
       }
-      const result = evaluateExpression(cleaned);
-      // Invalid complete expr while typing → no value, but no error pill yet
-      return { displayExpr: cleaned, currentValue: result };
+      const result = evaluateExpression(cleanedTail);
+      return { displayExpr: cleanedTail, currentValue: result };
     }
 
-    const preEquals = cleaned.slice(0, eqIndex);
-    const postEquals = cleaned.slice(eqIndex + 1);
-
-    if (!preEquals || preEq === null) {
-      return { displayExpr: cleaned, currentValue: null };
+    if (preEq === null) {
+      return { displayExpr: folded + cleanedTail, currentValue: null };
     }
 
-    if (!postEquals) {
-      return {
-        displayExpr: `(${preEquals})`,
-        currentValue: preEq,
-      };
+    if (!cleanedTail) {
+      return { displayExpr: folded, currentValue: preEq };
     }
 
-    if (isIncompleteExpr(cleaned)) {
-      return {
-        displayExpr: `(${preEquals})${postEquals}`,
-        currentValue: null,
-      };
+    if (isIncompleteExpr(cleanedTail)) {
+      return { displayExpr: folded + cleanedTail, currentValue: null };
     }
 
-    const displayExpr = `(${preEquals})${postEquals}`;
-    const exprToEval = `${preEq}${postEquals}`;
-    const result = evaluateExpression(exprToEval);
+    const displayExpr = folded + cleanedTail;
+    const result = evaluateExpression(`${preEq}${cleanedTail}`);
     return { displayExpr, currentValue: result };
   }
 
-  // Reactive: derived from _internalValue + preEqualsResult
-  $: parsed = parseInput(_internalValue, preEqualsResult);
+  $: parsed = parseInput(_internalValue, preEqualsResult, foldedDisplay);
   $: displayExpr = parsed.displayExpr;
   $: currentValue = parsed.currentValue;
   $: isError = equalsError;
-  // Confirm for: plain number OR expression after `=` that evaluates.
   $: showConfirm = !equalsError && currentValue !== null;
+  $: exprLen = (displayExpr || '').length;
+  // Fit more glyphs inside the fixed 56px row: shrink font, allow up to 3 lines.
+  $: exprFontPx = exprLen > 48 ? 11 : exprLen > 32 ? 13 : exprLen > 18 ? 16 : 22;
+  $: exprLineClamp = exprLen > 36 ? 3 : exprLen > 18 ? 2 : 1;
   $: sheetPreviewText = (() => {
     if (equalsError) return '表达式错误';
     if (currentValue === null) return '';
@@ -156,12 +130,10 @@
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
-    const hasEquals = _internalValue.includes('=');
-    if (hasEquals) {
+    if (foldedDisplay !== null) {
       return `= ${formatted}`;
-    } else {
-      return `= ${formatted}${currency ? ' ' + currency : ''}`;
     }
+    return `= ${formatted}${currency ? ' ' + currency : ''}`;
   })();
   $: formRowDisplay = (() => {
     if (amount !== null && Number.isFinite(amount)) {
@@ -179,6 +151,17 @@
     return '';
   })();
 
+  function syncDerived() {
+    const result = parseInput(_internalValue, preEqualsResult, foldedDisplay).currentValue;
+    if (result !== null) {
+      evaluated = result;
+      dispatch('amountChange', result);
+    } else {
+      evaluated = null;
+      dispatch('amountChange', null);
+    }
+  }
+
   function openKeypad() {
     if (disabled) return;
     showKeypad = true;
@@ -192,41 +175,99 @@
     if (disabled) return;
     equalsError = false;
     _internalValue = _internalValue + ch;
-    value = _internalValue;
-    dispatch('change', _internalValue);
-    const result = parseInput(_internalValue, preEqualsResult).currentValue;
-    if (result !== null) {
-      evaluated = result;
-      dispatch('amountChange', result);
-    } else {
-      evaluated = null;
-      dispatch('amountChange', null);
-    }
+    value = serializeExpression();
+    dispatch('change', value);
+    syncDerived();
   }
 
   function pressBackspace() {
     if (disabled) return;
     equalsError = false;
-    if (_internalValue.endsWith('=')) {
-      preEqualsResult = null;
+    if (_internalValue.length > 0) {
+      _internalValue = _internalValue.slice(0, -1);
+    } else if (foldedDisplay !== null) {
+      // Undo one fold layer by peeling outer parentheses when possible.
+      const inner = unwrapOnce(foldedDisplay);
+      if (inner !== null && inner !== foldedDisplay) {
+        const rebuilt = rebuildAfterUnwrap(inner);
+        foldedDisplay = rebuilt.folded;
+        preEqualsResult = rebuilt.preEq;
+        _internalValue = rebuilt.tail;
+      } else {
+        foldedDisplay = null;
+        preEqualsResult = null;
+        _internalValue = '';
+      }
     }
-    _internalValue = _internalValue.slice(0, -1);
-    value = _internalValue;
-    dispatch('change', _internalValue);
-    const result = parseInput(_internalValue, preEqualsResult).currentValue;
-    if (result !== null) {
-      evaluated = result;
-      dispatch('amountChange', result);
-    } else {
-      evaluated = null;
-      dispatch('amountChange', null);
+    value = serializeExpression();
+    dispatch('change', value);
+    syncDerived();
+  }
+
+  function unwrapOnce(folded: string): string | null {
+    if (folded.length >= 2 && folded.startsWith('(') && folded.endsWith(')')) {
+      return folded.slice(1, -1);
     }
+    return null;
+  }
+
+  function rebuildAfterUnwrap(inner: string): {
+    folded: string | null;
+    preEq: number | null;
+    tail: string;
+  } {
+    // inner may still be nested like "(60-10)/5" or "60-10"
+    if (inner.startsWith('(')) {
+      // Find matching close for the leading group, remainder is tail.
+      let depth = 0;
+      for (let i = 0; i < inner.length; i++) {
+        if (inner[i] === '(') depth++;
+        else if (inner[i] === ')') {
+          depth--;
+          if (depth === 0) {
+            const left = inner.slice(0, i + 1);
+            const tail = inner.slice(i + 1);
+            const preEq = evaluateFoldedLeft(left);
+            return { folded: left, preEq, tail };
+          }
+        }
+      }
+    }
+    const preEq = evaluateExpression(inner.replace(/[()]/g, ''));
+    // Flat expression — treat as draft (no fold) so user can edit freely.
+    return { folded: null, preEq: null, tail: inner.replace(/[()]/g, '') };
+  }
+
+  function evaluateFoldedLeft(left: string): number | null {
+    // left is like "(60-10)" or "((60-10)/5)" — strip one outer wrap and eval via nesting.
+    const unwrapped = unwrapOnce(left);
+    if (unwrapped == null) return evaluateExpression(left);
+    // Recursively: if unwrapped contains ops after a group, use preEq chaining.
+    if (unwrapped.startsWith('(')) {
+      let depth = 0;
+      for (let i = 0; i < unwrapped.length; i++) {
+        if (unwrapped[i] === '(') depth++;
+        else if (unwrapped[i] === ')') {
+          depth--;
+          if (depth === 0) {
+            const group = unwrapped.slice(0, i + 1);
+            const tail = unwrapped.slice(i + 1);
+            const base = evaluateFoldedLeft(group);
+            if (base === null) return null;
+            if (!tail) return base;
+            return evaluateExpression(`${base}${tail}`);
+          }
+        }
+      }
+    }
+    return evaluateExpression(unwrapped);
   }
 
   function pressClear() {
     if (disabled) return;
     equalsError = false;
     _internalValue = '';
+    foldedDisplay = null;
     preEqualsResult = null;
     evaluated = null;
     value = '';
@@ -234,32 +275,52 @@
     dispatch('amountChange', null);
   }
 
+  function serializeExpression(): string {
+    // BE calculator rejects parentheses; keep a flat chain with `=` markers
+    // for single-fold continuity, or the bare number after multi-fold confirm.
+    if (foldedDisplay === null) return _internalValue;
+    if (!_internalValue) {
+      // Prefer a reconstructible form from the innermost raw if simple.
+      return `${preEqualsResult ?? ''}=`;
+    }
+    return `${preEqualsResult ?? ''}=${_internalValue}`;
+  }
+
   function pressEquals() {
     if (disabled) return;
-    if (_internalValue === '' || _internalValue.includes('=')) return;
-    const result = evaluateExpression(_internalValue);
-    if (result === null) {
-      // Only show error when user explicitly presses `=` on a bad expression.
+    const cleaned = _internalValue.replace(/\s+/g, '');
+    const { displayExpr: disp, currentValue: val } = parseInput(
+      _internalValue,
+      preEqualsResult,
+      foldedDisplay
+    );
+    if (val === null) {
+      if (!disp) return; // nothing to evaluate
+      if (isIncompleteExpr(cleaned)) return; // still typing
       equalsError = true;
       return;
     }
     equalsError = false;
-    preEqualsResult = result;
-    _internalValue = _internalValue + '=';
-    value = _internalValue;
-    dispatch('change', _internalValue);
-    evaluated = result;
-    dispatch('amountChange', result);
+    foldedDisplay = `(${disp})`;
+    preEqualsResult = val;
+    _internalValue = '';
+    value = serializeExpression();
+    dispatch('change', value);
+    evaluated = val;
+    dispatch('amountChange', val);
   }
 
   async function pressConfirm() {
     if (disabled) return;
     if (currentValue === null || equalsError) return;
     const confirmedValue = currentValue;
-    // Plain number: store as the number string; after `=` keep expression.
-    const confirmedExpression = _internalValue.includes('=')
-      ? _internalValue
-      : String(confirmedValue);
+    // Parens are display-only; persist a BE-safe expression (final number when folded).
+    const confirmedExpression =
+      foldedDisplay !== null
+        ? String(confirmedValue)
+        : _internalValue
+          ? _internalValue
+          : String(confirmedValue);
     amount = confirmedValue;
     evaluated = confirmedValue;
     dispatch('amountChange', confirmedValue);
@@ -267,6 +328,7 @@
     showKeypad = false;
     await tick();
     _internalValue = '';
+    foldedDisplay = null;
     preEqualsResult = null;
     equalsError = false;
     value = '';
@@ -312,26 +374,33 @@
     ></div>
     <div class="sheet" role="dialog" aria-label="计算器键盘" aria-modal="true">
       <div class="sheet-amount-row" data-testid="amount-calc-sheet-row">
-        <span class="sheet-amount-expr" aria-label="当前金额表达式" data-testid="amount-calc-sheet-expr">
-          {displayExpr || '0'}
-        </span>
-        {#if isError}
+        <div class="sheet-amount-main">
           <span
-            class="sheet-amount-error-pill"
-            data-testid="amount-calc-error-pill"
-            aria-label="表达式错误"
+            class="sheet-amount-expr"
+            style={`font-size: ${exprFontPx}px; -webkit-line-clamp: ${exprLineClamp};`}
+            aria-label="当前金额表达式"
+            data-testid="amount-calc-sheet-expr"
           >
-            表达式错误
+            {displayExpr || '0'}
           </span>
-        {:else}
-          <span
-            class="sheet-amount-preview"
-            data-testid="amount-calc-sheet-preview"
-            aria-label="当前金额预览"
-          >
-            {sheetPreviewText}
-          </span>
-        {/if}
+          {#if isError}
+            <span
+              class="sheet-amount-error-pill"
+              data-testid="amount-calc-error-pill"
+              aria-label="表达式错误"
+            >
+              表达式错误
+            </span>
+          {:else if sheetPreviewText}
+            <span
+              class="sheet-amount-preview"
+              data-testid="amount-calc-sheet-preview"
+              aria-label="当前金额预览"
+            >
+              {sheetPreviewText}
+            </span>
+          {/if}
+        </div>
         <button
           type="button"
           class="confirm-btn"
@@ -405,10 +474,6 @@
     transition: background-color 120ms ease;
     -webkit-tap-highlight-color: transparent;
     position: relative;
-    /* v0.3.36 #13 (UAT 0727-1): 删 z-index: 180.
-       之前 z-index: 180 高过 NavBar (z-index: 100), 滚动时 amount-row 盖住 page header.
-       现在 z-index 缺省 auto → amount-row 在 main 正常 flow, NavBar 自然在上.
-       keypad 打开时 .sheet (position: fixed z-index 150) 自带 stacking context, 仍能正常显示. */
   }
   .amount-row:focus-visible {
     outline: 2px solid var(--accent-500, #3b82f6);
@@ -431,7 +496,6 @@
     -webkit-user-select: none;
     user-select: none;
   }
-  /* v0.3.36 #12 — UAT 0727-1 #12 (c 完全同款, 跟 BillForm descriptionError 同款 rose→red glass) */
   .amount-input.input-error {
     border-color: rgba(244, 63, 94, 0.55);
     background: linear-gradient(rgba(255, 228, 230, 0.55), rgba(254, 205, 211, 0.55));
@@ -442,7 +506,8 @@
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.08);
-    z-index: 99;
+    /* Above BillSheet (1100/1101) so keypad stays clickable inside 新建账单. */
+    z-index: 1200;
     animation: backdropFadeIn 200ms cubic-bezier(0.16, 1, 0.3, 1);
   }
   .sheet {
@@ -450,7 +515,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    z-index: 150;
+    z-index: 1201;
     background: var(--color-bg, #fff);
     border-top: 1px solid var(--color-border, #e5e7eb);
     box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.06);
@@ -464,8 +529,10 @@
     display: flex;
     align-items: center;
     gap: 10px;
+    height: 56px;
     min-height: 56px;
-    padding: 8px 8px 8px 14px;
+    max-height: 56px;
+    padding: 6px 8px 6px 12px;
     background: rgba(255, 255, 255, 0.72);
     backdrop-filter: blur(12px) saturate(180%);
     -webkit-backdrop-filter: blur(12px) saturate(180%);
@@ -475,38 +542,57 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.75),
       inset 0 -1px 0 rgba(15, 23, 42, 0.03);
   }
+  .sheet-amount-main {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 2px;
+  }
   .sheet-amount-expr {
     flex: 1 1 auto;
     min-width: 0;
-    font-size: 22px;
+    min-height: 0;
     font-weight: 600;
     color: var(--color-text, #111827);
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.02em;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    line-height: 1.2;
+    text-align: left;
+    line-height: 1.15;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-all;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    align-self: stretch;
   }
   .sheet-amount-preview {
     flex: 0 0 auto;
-    font-size: 14px;
+    align-self: flex-end;
+    font-size: 13px;
     color: var(--gray-500, #6b7280);
     font-variant-numeric: tabular-nums;
     font-weight: 500;
     white-space: nowrap;
-    padding: 4px 10px;
+    padding: 2px 8px;
     background: rgba(241, 245, 249, 0.7);
     border-radius: 999px;
     border: 1px solid rgba(148, 163, 184, 0.18);
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .sheet-amount-error-pill {
     flex: 0 0 auto;
-    font-size: 13px;
+    align-self: flex-end;
+    font-size: 12px;
     color: #b91c1c;
     font-weight: 600;
     white-space: nowrap;
-    padding: 5px 12px;
+    padding: 3px 10px;
     background: rgba(239, 68, 68, 0.16);
     backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);

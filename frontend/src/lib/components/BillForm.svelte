@@ -629,7 +629,7 @@
   onsubmit={handleSubmit}
   onkeydown={handleFormKeyDown}
 >
-  <!-- Sheet: 金额 + 币种同行; 时间整行; 付款人整行. Page: 保留原结构. -->
+  <!-- Sheet: 金额+币种同行; 时间整行; 付款人整行 (datetime-local 不能与付款人挤一列). -->
   {#if isSheet}
     <div class="field-grid">
       <div class="field field-amount">
@@ -667,20 +667,18 @@
       </div>
     </div>
 
-    <div class="field-grid field-grid-time-payer">
-      <div class="field field-time">
-        <label class="label" for="occurredAt">时间</label>
-        <input id="occurredAt" type="datetime-local" bind:value={occurredAt} />
-      </div>
-      <div class="field field-payer">
-        <label class="label" for="payer">付款人</label>
-        <select id="payer" bind:value={payerMemberId}>
-          <option value={null}>— 选择 —</option>
-          {#each session.members as m (m.id)}
-            <option value={m.id}>{m.display_name}</option>
-          {/each}
-        </select>
-      </div>
+    <div class="field field-time">
+      <label class="label" for="occurredAt">时间</label>
+      <input id="occurredAt" type="datetime-local" bind:value={occurredAt} />
+    </div>
+    <div class="field field-payer">
+      <label class="label" for="payer">付款人</label>
+      <select id="payer" bind:value={payerMemberId}>
+        <option value={null}>— 选择 —</option>
+        {#each session.members as m (m.id)}
+          <option value={m.id}>{m.display_name}</option>
+        {/each}
+      </select>
     </div>
   {:else}
   <div class="row" style="gap: var(--space-3); align-items: flex-start;">
@@ -1301,6 +1299,14 @@
   .sheet-layout .field-time,
   .sheet-layout .field-payer {
     min-width: 0;
+    width: 100%;
+  }
+  .sheet-layout .field-time input[type="datetime-local"]#occurredAt {
+    max-width: 100%;
+    width: 100%;
+  }
+  .sheet-layout .field-payer select#payer {
+    width: 100%;
   }
   .sheet-layout .field-currency {
     min-width: 72px;

@@ -251,6 +251,15 @@
   let membersOpen = $state(true);
   const membersStorageKey = (sid: number) => `sbc.membersOpen.${sid}`;
 
+  // Reload when the public code in the URL changes (SvelteKit may reuse this page).
+  let lastLoadedCode = $state('');
+  let pageReady = $state(false);
+  $effect(() => {
+    if (!browser || !pageReady || !code || code === lastLoadedCode) return;
+    lastLoadedCode = code;
+    void load();
+  });
+
   onMount(async () => {
     // Bug fix (PO 14:01 报 "登录态 email 这里还是没有正常显示"):
     // detail page 之前**不**调 loadUser, $user store 永远 null, member list fallback
@@ -267,6 +276,8 @@
     }
 
     await load();
+    lastLoadedCode = code;
+    pageReady = true;
 
     // Deep links from legacy /bills/new and /bills/{id}/edit.
     if (browser && session) {
@@ -409,16 +420,22 @@
   async function load() {
     if (!code) return;
     loading = true;
+    // Clear prior ledger state so a route reuse never flashes another session's bills
+    // with unmatched payer ids (UI shows "#id 付" —「不知道是谁」).
+    bills = [];
+    memberIdToName = {};
+    memberIdToNet = {};
+    actingAsMemberId = null;
+    currentMemberId = null;
     try {
       const result = await getSessionByCode(code);
-      session = result;  // getSessionByCode returns SessionDetail directly (not wrapped)
-      sessionId = result.id;  // 回填 numeric id, 后续 BE 调用用
-      // 注: getSessionByCode 不返 actingAsMemberId (member 由 X-Nickname-Secret BE 端识别).
-      // actingAsMemberId 在 v0.3.36 改为 sessions.page_url 的 session_member 检查,
-      // 当前路由不再需要 (member 列表 + isMe 计算够用).
+      session = result.session;
+      sessionId = result.session.id;
+      actingAsMemberId = result.actingAsMemberId;
       for (const m of session.members) {
         memberIdToName[m.id] = m.display_name;
       }
+      memberIdToName = { ...memberIdToName };
       try {
         const settle = await getSettle(sessionId);
         const nets: Record<number, number> = {};
@@ -432,7 +449,14 @@
         // ignore
       }
       bills = await listBills(sessionId);
-      currentMemberId = currentMember?.id ?? null;
+      // Resolve「我」from cookie user or anon X-SBC-Member-ID (do not rely on
+      // $derived flush timing right after assigning actingAsMemberId).
+      currentMemberId =
+        ($user?.user_id != null
+          ? session.members.find((m) => m.user_id === $user.user_id)?.id
+          : null) ??
+        result.actingAsMemberId ??
+        null;
 
       // Product B/E: only the owner-role seat may claim session ownership.
       // Other logged-in members permanently save via user_id bind (no claim).

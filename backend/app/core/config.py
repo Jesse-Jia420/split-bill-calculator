@@ -96,6 +96,10 @@ class Settings(BaseSettings):
         default=True,
         description="Skip seed_dev_data lifespan injection when True.",
     )
+    seed_user_email: str = Field(
+        default="demo@example.com",
+        description="Owner email for seeded UAT ledgers (SEED_USER_EMAIL).",
+    )
 
 
 @lru_cache(maxsize=1)
