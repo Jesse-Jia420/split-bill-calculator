@@ -856,19 +856,19 @@
     gap: 14px;
   }
 
-  /* Checkmark hero — 64×64 正圆绿色玻璃 disc
-     (aspect-ratio + 锁死宽高/min/max, 避免被全局 button min-height 或 flex 拉伸成椭圆) */
+  /* Checkmark hero — 强制正圆 (防全局 min-height / flex 拉伸成椭圆) */
   .check-hero {
-    box-sizing: border-box;
-    width: 64px;
-    height: 64px;
-    min-width: 64px;
-    min-height: 64px;
-    max-width: 64px;
-    max-height: 64px;
-    aspect-ratio: 1 / 1;
-    flex: 0 0 64px;
-    border-radius: 50%;
+    box-sizing: border-box !important;
+    width: 64px !important;
+    height: 64px !important;
+    min-width: 64px !important;
+    min-height: 64px !important;
+    max-width: 64px !important;
+    max-height: 64px !important;
+    aspect-ratio: 1 / 1 !important;
+    flex: 0 0 64px !important;
+    align-self: center;
+    border-radius: 50% !important;
     background: linear-gradient(135deg, rgba(16, 185, 129, 0.20) 0%, rgba(20, 184, 166, 0.14) 100%);
     backdrop-filter: saturate(200%) blur(20px);
     -webkit-backdrop-filter: saturate(200%) blur(20px);
@@ -881,7 +881,7 @@
       inset 0 -1px 0 rgba(16, 185, 129, 0.08),
       0 4px 14px rgba(16, 185, 129, 0.18);
     margin: 6px 0 0;
-    padding: 0;
+    padding: 0 !important;
     line-height: 0;
     overflow: hidden;
   }
