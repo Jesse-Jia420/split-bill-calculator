@@ -17,6 +17,12 @@
     menuOpen = false;
   }
 
+  // Close avatar menu when leaving compact chrome.
+  $: if (!compact) menuOpen = false;
+
+  // Guest on a ledger page: always「登录以保存」(never plain「登录」).
+  $: guestSaveLabel = inSession() && !isJoinPage();
+
   async function handleLogout() {
     menuOpen = false;
     await logout();
@@ -96,7 +102,7 @@
 
   {#if page.url.pathname !== '/auth/login' && !isLoginPage()}
     <div class="right" class:right-compact={compact}>
-      <!-- Keep mounted while a ledger title exists so enter/exit can transition smoothly -->
+      <!-- Title slides in from the right of brand, squeezing chrome toward avatar -->
       <div
         class="ledger-title"
         class:visible={compact && !!ledgerTitle}
@@ -104,65 +110,84 @@
         title={ledgerTitle ?? undefined}
         aria-hidden={compact && ledgerTitle ? undefined : 'true'}
       >
-        {ledgerTitle ?? ''}
+        <span class="ledger-title-text">{ledgerTitle ?? ''}</span>
       </div>
-      {#if compact}
-        <!-- Compact: nickname / auth actions collapse into avatar menu -->
-        <div class="avatar-menu" bind:this={menuRoot}>
-          <button
-            type="button"
-            class="avatar-btn"
-            class:anon={!$user}
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            aria-label={$user ? `账户菜单：${$user.default_name}` : '账户菜单'}
-            data-testid="navbar-avatar-btn"
-            onclick={toggleMenu}
-          >
-            <span class="avatar-letter">
-              {$user ? avatarLetter($user.default_name) : '登'}
-            </span>
-          </button>
-          {#if menuOpen}
-            <div class="avatar-popover" role="menu" data-testid="navbar-avatar-menu">
-              {#if $user}
-                <div class="menu-identity" role="presentation">
-                  <span class="menu-name">{$user.default_name}</span>
-                  {#if $user.email}
-                    <span class="menu-email" title={$user.email}>{$user.email}</span>
-                  {/if}
-                </div>
-                {#if page.url.pathname !== '/sessions/new' && !isSessionsListPage()}
-                  <a href="/sessions" class="menu-item" role="menuitem" onclick={() => (menuOpen = false)}>
-                    我的账本
-                  </a>
+
+      <!-- Full chrome: collapses toward the right into the avatar -->
+      <div
+        class="nav-chrome-full"
+        class:collapsed={compact}
+        aria-hidden={compact ? 'true' : undefined}
+      >
+        {#if $user}
+          <span class="email" title="{$user.email}">{$user.default_name}</span>
+          {#if page.url.pathname !== '/sessions/new' && !isSessionsListPage()}
+            <a href="/sessions" class="btn-sm links-item" tabindex={compact ? -1 : 0}>我的账本</a>
+          {/if}
+          <button class="ghost btn-sm" onclick={handleLogout} tabindex={compact ? -1 : 0}>注销登录</button>
+        {:else if guestSaveLabel}
+          <a
+            href={loginHref}
+            class="btn-sm"
+            data-testid="navbar-login-save"
+            tabindex={compact ? -1 : 0}
+          >登录以保存</a>
+        {:else if !inSession()}
+          <a href="/auth/login" class="btn-sm" tabindex={compact ? -1 : 0}>登录</a>
+        {/if}
+      </div>
+
+      <!-- Avatar: morphs in as full chrome collapses -->
+      <div
+        class="avatar-menu"
+        class:expanded={compact}
+        bind:this={menuRoot}
+        aria-hidden={compact ? undefined : 'true'}
+      >
+        <button
+          type="button"
+          class="avatar-btn"
+          class:anon={!$user}
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          aria-label={$user ? `账户菜单：${$user.default_name}` : '账户菜单'}
+          data-testid="navbar-avatar-btn"
+          tabindex={compact ? 0 : -1}
+          onclick={toggleMenu}
+        >
+          <span class="avatar-letter">
+            {$user ? avatarLetter($user.default_name) : '登'}
+          </span>
+        </button>
+        {#if menuOpen && compact}
+          <div class="avatar-popover" role="menu" data-testid="navbar-avatar-menu">
+            {#if $user}
+              <div class="menu-identity" role="presentation">
+                <span class="menu-name">{$user.default_name}</span>
+                {#if $user.email}
+                  <span class="menu-email" title={$user.email}>{$user.email}</span>
                 {/if}
-                <button type="button" class="menu-item danger" role="menuitem" onclick={handleLogout}>
-                  注销登录
-                </button>
-              {:else if inSession() && !isJoinPage()}
-                <a href={loginHref} class="menu-item" role="menuitem" onclick={() => (menuOpen = false)}>
-                  登录以保存
-                </a>
-              {:else if !inSession()}
-                <a href="/auth/login" class="menu-item" role="menuitem" onclick={() => (menuOpen = false)}>
-                  登录
+              </div>
+              {#if page.url.pathname !== '/sessions/new' && !isSessionsListPage()}
+                <a href="/sessions" class="menu-item" role="menuitem" onclick={() => (menuOpen = false)}>
+                  我的账本
                 </a>
               {/if}
-            </div>
-          {/if}
-        </div>
-      {:else if $user}
-        <span class="email" title="{$user.email}">{$user.default_name}</span>
-        {#if page.url.pathname !== '/sessions/new' && !isSessionsListPage()}
-          <a href="/sessions" class="btn-sm links-item">我的账本</a>
+              <button type="button" class="menu-item danger" role="menuitem" onclick={handleLogout}>
+                注销登录
+              </button>
+            {:else if guestSaveLabel}
+              <a href={loginHref} class="menu-item" role="menuitem" onclick={() => (menuOpen = false)}>
+                登录以保存
+              </a>
+            {:else if !inSession()}
+              <a href="/auth/login" class="menu-item" role="menuitem" onclick={() => (menuOpen = false)}>
+                登录
+              </a>
+            {/if}
+          </div>
         {/if}
-        <button class="ghost btn-sm" onclick={handleLogout}>注销登录</button>
-      {:else if inSession() && !isJoinPage()}
-        <a href={loginHref} class="btn-sm">登录以保存</a>
-      {:else if !inSession()}
-        <a href="/auth/login" class="btn-sm">登录</a>
-      {/if}
+      </div>
     </div>
   {/if}
 </header>
@@ -193,7 +218,7 @@
     border-bottom: 1px solid rgba(255, 255, 255, 0.2);
     flex-wrap: nowrap;
     justify-content: space-between;
-    transition: background 180ms ease, box-shadow 180ms ease;
+    transition: background 220ms ease, box-shadow 220ms ease;
   }
   /* Fill under status bar with paper tone so iOS overscroll never flashes stark white above the bar. */
   .navbar::before {
@@ -220,7 +245,7 @@
     align-items: center;
     gap: var(--space-2);
     min-width: 0;
-    flex: 1 1 auto;
+    flex: 0 0 auto;
   }
 
   .brand {
@@ -304,8 +329,8 @@
     gap: var(--space-2);
     margin-left: auto;
     min-width: 0;
-    flex: 0 1 auto;
-    flex-wrap: wrap;
+    flex: 1 1 auto;
+    flex-wrap: nowrap;
     justify-content: flex-end;
     position: relative;
   }
@@ -313,43 +338,77 @@
     flex-wrap: nowrap;
   }
 
-  /* Ledger title on the right (left of avatar). Logo stays left.
-     Absolute so show/hide doesn't relayout the brand; GPU opacity/transform only. */
+  /* Ledger title: grows in from the left of the right cluster, pushing chrome right */
   .ledger-title {
-    position: absolute;
-    right: calc(36px + var(--space-2, 8px));
-    top: 50%;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 0;
+    opacity: 0;
+    transform: translate3d(-10px, 8px, 0);
+    overflow: hidden;
+    pointer-events: none;
+    visibility: hidden;
+    will-change: max-width, opacity, transform;
+    transition:
+      max-width 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s linear 320ms;
+  }
+  .ledger-title.visible {
+    max-width: min(46vw, 12.5rem);
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+    pointer-events: auto;
+    visibility: visible;
+    transition:
+      max-width 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s linear 0s;
+  }
+  .ledger-title-text {
+    display: block;
     font-family: var(--font-zh);
     font-size: 0.95rem;
     font-weight: 600;
     letter-spacing: -0.01em;
     color: var(--gray-900);
     line-height: 1.2;
-    max-width: min(46vw, 12.5rem);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     text-align: right;
-    opacity: 0;
-    transform: translate3d(12px, -50%, 0);
-    pointer-events: none;
-    visibility: hidden;
-    will-change: opacity, transform;
-    transition:
-      opacity 280ms cubic-bezier(0.22, 1, 0.36, 1),
-      transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
-      visibility 0s linear 280ms;
+    padding-inline-end: 2px;
   }
-  .ledger-title.visible {
+
+  .nav-chrome-full {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    min-width: 0;
+    max-width: 28rem;
     opacity: 1;
-    transform: translate3d(0, -50%, 0);
-    pointer-events: auto;
-    visibility: visible;
+    transform: translate3d(0, 0, 0) scale(1);
+    transform-origin: right center;
+    overflow: hidden;
+    will-change: max-width, opacity, transform;
     transition:
-      opacity 280ms cubic-bezier(0.22, 1, 0.36, 1),
-      transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
-      visibility 0s linear 0s;
+      max-width 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 240ms ease,
+      transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
   }
+  .nav-chrome-full.collapsed {
+    max-width: 0;
+    opacity: 0;
+    transform: translate3d(18px, 0, 0) scale(0.86);
+    pointer-events: none;
+  }
+  .nav-chrome-full .btn-sm {
+    white-space: nowrap;
+  }
+
   .email {
     color: var(--color-text-muted);
     font-size: var(--font-size-sm);
@@ -361,7 +420,28 @@
 
   .avatar-menu {
     position: relative;
-    flex-shrink: 0;
+    flex: 0 0 0;
+    width: 0;
+    max-width: 0;
+    opacity: 0;
+    transform: scale(0.55);
+    transform-origin: center center;
+    overflow: visible;
+    pointer-events: none;
+    will-change: width, max-width, opacity, transform;
+    transition:
+      width 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      max-width 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 260ms ease,
+      transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .avatar-menu.expanded {
+    flex: 0 0 36px;
+    width: 36px;
+    max-width: 36px;
+    opacity: 1;
+    transform: scale(1);
+    pointer-events: auto;
   }
   .avatar-btn {
     /* Override global button { min-height: 44px; padding: … } — that stretched the chip into an oval. */
@@ -497,31 +577,26 @@
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.95),
       inset 0 -1px 0 rgba(0, 0, 0, 0.04),
-      0 1px 3px rgba(99, 102, 241, 0.16);
+      0 1px 2px rgba(15, 23, 42, 0.04);
+    color: var(--accent-700, #4338ca);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    text-decoration: none;
     display: inline-flex;
     align-items: center;
-    font-size: var(--font-size-sm);
-    color: var(--accent-700, #4338ca);
+    justify-content: center;
     cursor: pointer;
-    text-decoration: none;
-    transition: transform 150ms ease, background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+    white-space: nowrap;
   }
   .btn-sm:hover {
     background: linear-gradient(
       135deg,
-      rgba(99, 102, 241, 0.08) 0%,
+      rgba(99, 102, 241, 0.10) 0%,
       rgba(59, 130, 246, 0.06) 100%
     );
-    border-color: rgba(99, 102, 241, 0.32);
-    color: var(--accent-800, #3730a3);
-    transform: translateY(-1px);
     text-decoration: none;
   }
-  .btn-sm:active { transform: scale(0.97); }
-  @supports not (backdrop-filter: blur(1px)) {
-    .btn-sm { background: rgba(99, 102, 241, 0.08); }
-  }
-  .ghost {
+  .ghost.btn-sm {
     background: linear-gradient(
       135deg,
       rgba(255, 255, 255, 0.20) 0%,
@@ -529,8 +604,9 @@
     );
     border-color: rgba(99, 102, 241, 0.20);
     color: var(--gray-700);
+    box-shadow: none;
   }
-  .ghost:hover {
+  .ghost.btn-sm:hover {
     background: linear-gradient(
       135deg,
       rgba(255, 255, 255, 0.50) 0%,
@@ -539,10 +615,11 @@
     color: var(--accent-700);
   }
   @supports not (backdrop-filter: blur(1px)) {
+    .btn-sm { background: rgba(99, 102, 241, 0.08); }
     .navbar {
       background: rgba(255, 255, 255, 0.85);
     }
-    .ghost { background: rgba(255, 255, 255, 0.55); }
+    .ghost.btn-sm { background: rgba(255, 255, 255, 0.55); }
   }
 
   @media (max-width: 380px) {
@@ -554,6 +631,17 @@
     .right { gap: var(--space-1); }
     .btn-sm { padding-left: var(--space-2); padding-right: var(--space-2); }
     .email { max-width: 10ch; }
-    .ledger-title { font-size: 0.95rem; }
+    .ledger-title-text { font-size: 0.9rem; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ledger-title,
+    .ledger-title.visible,
+    .nav-chrome-full,
+    .nav-chrome-full.collapsed,
+    .avatar-menu,
+    .avatar-menu.expanded {
+      transition: none;
+    }
   }
 </style>
