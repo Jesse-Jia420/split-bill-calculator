@@ -579,6 +579,9 @@
 
   function onGroupToggle(date: string, e: Event) {
     const el = e.currentTarget as HTMLDetailsElement;
+    // Closing is animated via onDaySummaryClick (preventDefault + is-closing).
+    // Ignore toggle while closing so we don't flip collapsed state early.
+    if (el.classList.contains('is-closing')) return;
     const isOpenNow = el.open;
     // Svelte 5 的 class:open={isOpen(g.date)} 被 untrack 包住 → 不反应 collapsed 更新。
     // 手动切 chevron DOM class 确保视觉同步 (native details toggle 此时已完成)。
@@ -586,6 +589,36 @@
     if (chevron) chevron.classList.toggle('open', isOpenNow);
     collapsed = { ...collapsed, [date]: !isOpenNow };
     saveCollapsedState();
+  }
+
+  /** UAT: 收起时先播 grid 动画再去掉 open — native details 关时内容瞬时消失。 */
+  function onDaySummaryClick(date: string, e: MouseEvent) {
+    const summary = e.currentTarget as HTMLElement;
+    const details = summary.closest('details') as HTMLDetailsElement | null;
+    if (!details || !details.open) return; // opening: let native + ontoggle handle
+    e.preventDefault();
+    if (details.classList.contains('is-closing')) return;
+    details.classList.add('is-closing');
+    const wrap = details.querySelector('.day-body-wrap') as HTMLElement | null;
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      details.open = false;
+      details.classList.remove('is-closing');
+      wrap?.removeEventListener('transitionend', onEnd);
+      const chevron = details.querySelector('.day-chevron');
+      if (chevron) chevron.classList.toggle('open', false);
+      collapsed = { ...collapsed, [date]: true };
+      saveCollapsedState();
+    };
+    const onEnd = (ev: TransitionEvent) => {
+      if (ev.target !== wrap) return;
+      if (ev.propertyName !== 'grid-template-rows') return;
+      finish();
+    };
+    wrap?.addEventListener('transitionend', onEnd);
+    window.setTimeout(finish, 360);
   }
 
   // v0.3.0729-4 #4: 搜索命中时，自动展开所有有结果的日期 header
@@ -690,7 +723,10 @@
             <!-- v0.3.18 #68 (PO #6899 ★★★ A): 固定布局 —
                  Row 1 = [日期] ... [总笔数 badge]
                  Row 2 = 货币玻璃 chip 同行; 每个 pill 两行 (总额 / 人均) -->
-            <summary class="day-header section-header">
+            <summary
+              class="day-header section-header"
+              onclick={(e) => onDaySummaryClick(g.date, e)}
+            >
               <div class="day-row-1">
                 <span class="day-date" data-testid="day-date">{formatDate(g.date, { weekday: true })}</span>
                 <span class="day-row-1-right">
@@ -1288,21 +1324,30 @@
     /* 删除 border-top + padding,bill row 跟 day header 同一容器背景色 */
   }
 
-  /* === v0.1.4 polish: <details> 顺滑折叠动画 (grid-template-rows 0fr ↔ 1fr)
+  /* === v0.1.4 polish + UAT: <details> 顺滑折叠动画 (grid-template-rows 0fr ↔ 1fr)
      包装 day-bills 的两层 div: 外层做 grid 高度过渡,内层装内容做 overflow:hidden。
+     收起: summary click → is-closing → 0fr 过渡 → 再清 open (见 onDaySummaryClick)。
      Chrome 117+ / Safari 17.4+ / Firefox 127+ 全部支持;
      老浏览器降级到 <details> 默认的瞬时展开。 === */
   .day-body-wrap {
     display: grid;
     grid-template-rows: 0fr;
-    transition: grid-template-rows 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    transition: grid-template-rows 300ms cubic-bezier(0.32, 0.72, 0, 1);
   }
-  details[open] .day-body-wrap {
+  details[open]:not(:global(.is-closing)) .day-body-wrap {
     grid-template-rows: 1fr;
+  }
+  :global(details.is-closing) .day-body-wrap {
+    grid-template-rows: 0fr;
   }
   .day-body {
     overflow: hidden;
     min-height: 0;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .day-body-wrap {
+      transition: none;
+    }
   }
 
   /* === v0.3.18 #46-A (PO msg 18:15 拍板): 玻璃 hairline 分隔 (方案 B) ===
