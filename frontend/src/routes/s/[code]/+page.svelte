@@ -1569,13 +1569,13 @@
     opacity: 0.7;
   }
   .expiry-cta-link {
-    color: var(--accent-700, #4338ca);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
     text-decoration: none;
     font-weight: 500;
     transition: color 150ms ease;
   }
   .expiry-cta-link:hover {
-    color: var(--accent-800, #3730a3);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
     text-decoration: underline;
   }
   .expiry-cta-link:focus-visible {

@@ -75,6 +75,11 @@ input, textarea, select, [contenteditable] {
   --gray-800: #262626;
   --gray-900: #171717;
 
+  /* Logo ink — matches NavBar「轻均」 brand-zh (#1a1a1a) */
+  --logo-ink: #1a1a1a;
+  /* Default button label color (glass / ghost / outline). Filled primary keeps #fff. */
+  --btn-label: var(--logo-ink);
+
   /* Brand */
   --accent-50: #eff6ff;
   --accent-500: #3b82f6;
@@ -244,21 +249,21 @@ button, .btn {
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
   background: white;
-  color: var(--gray-800);
+  color: var(--btn-label, var(--logo-ink, #1a1a1a));
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-medium);
   cursor: pointer;
   transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
   text-decoration: none;
 }
-button:hover:not(:disabled), .btn:hover { border-color: var(--accent-500); text-decoration: none; }
+button:hover:not(:disabled), .btn:hover { border-color: var(--accent-500); text-decoration: none; color: var(--btn-label, var(--logo-ink, #1a1a1a)); }
 button:disabled, .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 button.primary, .btn.primary { background: var(--accent-500); border-color: var(--accent-500); color: #fff; }
 button.primary:hover:not(:disabled), .btn.primary:hover { background: var(--accent-700); border-color: var(--accent-700); color: #fff; }
 
-button.ghost, .btn.ghost { background: transparent; border-color: transparent; color: var(--gray-500); }
-button.ghost:hover:not(:disabled), .btn.ghost:hover { border-color: var(--gray-200); color: var(--gray-800); }
+button.ghost, .btn.ghost { background: transparent; border-color: transparent; color: var(--btn-label, var(--logo-ink, #1a1a1a)); }
+button.ghost:hover:not(:disabled), .btn.ghost:hover { border-color: var(--gray-200); color: var(--btn-label, var(--logo-ink, #1a1a1a)); }
 
 .error { color: var(--error-500); font-size: var(--font-size-sm); margin-top: var(--space-2); }
 .success { color: var(--success-500); font-size: var(--font-size-sm); margin-top: var(--space-2); }
@@ -345,7 +350,7 @@ button:not(:disabled):active,
     inset 0 -1px 0 rgba(0, 0, 0, 0.02),
     0 1px 4px rgba(99, 102, 241, 0.05);
   border: 1px solid rgba(99, 102, 241, 0.16);
-  color: var(--accent-700, #4338ca);
+  color: var(--btn-label, var(--logo-ink, #1a1a1a));
   border-radius: 999px; /* pill — FAB 用 .fab 自己的 50% 覆盖 */
   transition:
     transform 150ms ease,
@@ -393,14 +398,14 @@ button.glass-pill,
 a.glass-pill {
   background: linear-gradient(135deg, rgba(99, 102, 241, 0.06) 0%, rgba(59, 130, 246, 0.04) 100%);
   border-color: rgba(99, 102, 241, 0.18);
-  color: var(--accent-700, #4338ca);
+  color: var(--btn-label, var(--logo-ink, #1a1a1a));
 }
 .btn.glass-pill:hover,
 button.glass-pill:hover,
 a.glass-pill:hover {
   background: linear-gradient(135deg, rgba(99, 102, 241, 0.14) 0%, rgba(59, 130, 246, 0.10) 100%);
   border-color: rgba(99, 102, 241, 0.25);
-  color: var(--accent-800, #3730a3);
+  color: var(--btn-label, var(--logo-ink, #1a1a1a));
 }
 
 /* ============================================================

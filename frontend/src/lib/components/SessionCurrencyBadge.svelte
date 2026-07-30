@@ -294,7 +294,7 @@
     justify-content: center;
     width: 14px;
     height: 14px;
-    color: var(--accent-700, #4338ca);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
     flex-shrink: 0;
     margin-left: 1px;
   }
@@ -397,7 +397,7 @@
   }
   .currency-chip.primary {
     background: transparent;
-    color: var(--accent-700, #4338ca);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
   }
   .currency-chip.secondary {
     background: transparent;
@@ -445,7 +445,7 @@
     margin-left: 3px;
     font-size: clamp(0.625rem, 2.4vw, 0.6875rem);
     font-weight: 500;
-    color: var(--accent-700, #4338ca);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
     letter-spacing: 0.02em;
     white-space: nowrap;
     flex-shrink: 0;

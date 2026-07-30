@@ -825,7 +825,7 @@
   }
   .member-chip:hover {
     border-color: var(--accent-500);
-    color: var(--accent-700);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
     /* v0.3.18 #50: hover bg 0.22/0.15 → 0.10/0.05 (跟新 base 0.04/0.02 同步降级, hover 仍略亮表示交互) */
     background: linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.05) 100%);
   }

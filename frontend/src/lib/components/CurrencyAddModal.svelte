@@ -998,7 +998,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    color: var(--accent-700, #4338ca);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
     flex-shrink: 0;
   }
   .currency-pair-item--locked .lock-icon {
@@ -1061,7 +1061,7 @@
     display: grid;
     place-items: center;
     cursor: pointer;
-    color: var(--accent-700, #4338ca);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
   }
   .rate-refresh:disabled {
     opacity: 0.45;

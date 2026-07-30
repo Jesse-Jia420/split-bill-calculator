@@ -585,7 +585,7 @@
     backdrop-filter: saturate(180%) blur(16px);
     -webkit-backdrop-filter: saturate(180%) blur(16px);
     border: 1px solid rgba(99, 102, 241, 0.28);
-    color: var(--accent-700, #4338ca);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
     font-size: 13px;
     font-weight: 600;
     letter-spacing: 0.01em;

@@ -464,7 +464,7 @@
   .fab-wiz:active { transform: scale(0.94); }
   .fab-wiz.glass {
     background: rgba(255, 255, 255, 0.55);
-    color: var(--accent-700, #4338ca);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
   }
   .fab-wiz.primary {
     background: linear-gradient(135deg, #6366f1, #818cf8);
@@ -591,7 +591,7 @@
     background: rgba(15, 23, 42, 0.04);
     display: grid;
     place-items: center;
-    color: var(--accent-700, #4338ca);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
     cursor: pointer;
   }
   .rate-refresh-new:disabled {

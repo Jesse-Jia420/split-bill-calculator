@@ -148,7 +148,7 @@
     padding: 0.625rem 1.5rem;
     font-size: 0.9375rem;
     font-weight: 600;
-    color: rgba(67, 56, 202, 0.6);
+    color: rgba(26, 26, 26, 0.55);
     background: transparent;
     border: none;
     border-radius: 9999px;

@@ -1161,7 +1161,7 @@
   }
   /* v0.3.20 #93 (Fix 2): exclusive pill-currency accent-600 -> accent-700 (deeper indigo) 配新玻璃 bg 0.18 */
   .excl-pill-exclusive .pill-currency {
-    color: var(--accent-700, #4338ca);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
     font-weight: 600;
   }
   /* v0.3.20 #93 (Fix 2): pill-input accent-600 -> accent-700 跟新 pill-currency 一致 */
@@ -1184,7 +1184,7 @@
     margin: 0;
     font-size: 13px;
     font-weight: 600;
-    color: var(--accent-700, #4338ca);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
     text-align: center;
     font-variant-numeric: tabular-nums;
     font-family: inherit;
@@ -1349,7 +1349,7 @@
     font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 0.02em;
-    color: rgba(67, 56, 202, 0.55);
+    color: rgba(26, 26, 26, 0.55);
     background: rgba(255, 255, 255, 0.12);
     border: 0.5px solid rgba(99, 102, 241, 0.28);
     box-shadow:
