@@ -5,7 +5,7 @@
 
   形态 (mockup 2 + 3 -- add sheet empty + with preview):
   - Bottom sheet (玻璃 modal, 跟 CurrencyAddModal / InviteLinkButton modal 同族).
-  - 字段: 付款人 select / 收款人 select / 币种 select / 金额 input / 备注 input.
+  - 字段: 付款人 select / 收款人 select / 币种 pill (跟 BillForm sheet 同款) / 金额 input / 备注 input.
   - 实时 preview 区: "旧应结算 - 已结 = 新应结算" 算式 (mockup 3 核心).
   - CTA "确认添加" (purple gradient -- 跟全站 primary button 同源).
 
@@ -13,7 +13,7 @@
   - sessionId: number
   - members: { id, display_name }[]  -- 付款/收款 select 选项 (避免依赖 user store 之外的全局状态).
   - currencies: string[] -- session.currencies.
-  - primaryCurrency: string -- session.primary_currency (默认币种 select + preview 用).
+  - primaryCurrency: string -- session.primary_currency (默认币种 pill + preview 用).
   - transfers: { from_member_id, to_member_id, amount }[] -- 当前 settle 返回的原始 transfers (用于 preview 算式).
   - onAdded: () => void -- 提交成功回调, parent 负责 refetch.
 
@@ -309,24 +309,31 @@
       </div>
     </div>
 
-    <!-- Row 2: 币种 + 金额 (并排) -->
-    <div class="form-row">
-      <div class="field currency-field">
-        <label class="field-label" for="add-settle-currency">币种</label>
-        <select
-          id="add-settle-currency"
-          class="field-control"
-          bind:value={currency}
-          disabled={busy}
-          data-sbc="sheet-currency-select"
-        >
-          {#each currencies as c (c)}
-            <option value={c}>{c}</option>
-          {/each}
-        </select>
-      </div>
-      <div class="field">
-        <label class="field-label" for="add-settle-amount">金额</label>
+    <!-- Row 2: 金额 (跟新建账单 sheet 同款: 标签行右侧币种 pill, 金额框全宽) -->
+    <div class="form-row full">
+      <div class="field amount-field">
+        <div class="amount-label-row">
+          <label class="field-label" for="add-settle-amount">金额</label>
+          <div
+            class="currency-pills"
+            role="radiogroup"
+            aria-label="币种"
+            data-sbc="sheet-currency-pills"
+          >
+            {#each (currencies.length > 0 ? currencies : [currency]) as code (code)}
+              <button
+                type="button"
+                class="currency-pill"
+                class:active={currency === code}
+                role="radio"
+                aria-checked={currency === code}
+                disabled={busy}
+                data-sbc="sheet-currency-pill-{code}"
+                onclick={() => { currency = code; }}
+              >{code}</button>
+            {/each}
+          </div>
+        </div>
         <div
           class="field-control"
           class:focused={amountStr.length > 0}
@@ -488,16 +495,71 @@
   /* === Form === */
   .form { padding-bottom: 8px; }
   /* scroll lives on .sbc-bottom-sheet__body */
-  .form-row { display: flex; gap: 10px; margin-bottom: 10px; }
+  .form-row { display: flex; gap: 10px; margin-bottom: 14px; }
   .form-row.full { flex-direction: column; gap: 0; }
   .field { flex: 1; min-width: 0; }
-  .currency-field { flex: 0 0 96px; }
   .field-label {
     font-size: 12px;
     font-weight: 500;
     color: #6b7280;
     margin-bottom: 4px;
     letter-spacing: 0.02em;
+  }
+  /* 跟 BillForm sheet amount-label-row / currency-pill 视觉对齐 */
+  .amount-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 0;
+    margin-bottom: 8px;
+  }
+  .amount-label-row .field-label {
+    margin-bottom: 0;
+    flex: 0 0 auto;
+  }
+  .currency-pills {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    gap: 6px;
+    flex: 0 1 auto;
+    max-width: 70%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .currency-pills::-webkit-scrollbar { display: none; }
+  .currency-pill {
+    box-sizing: border-box;
+    height: 28px;
+    min-height: 28px;
+    padding: 0 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--color-text, #111827);
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .currency-pill:hover:not(:disabled) {
+    border-color: rgba(99, 102, 241, 0.5);
+  }
+  .currency-pill.active {
+    background: #6366f1;
+    color: white;
+    border-color: #6366f1;
+  }
+  .currency-pill:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
   .field-control {
     display: flex;
