@@ -1253,6 +1253,15 @@
   /* v0.3.2 §3.12.3: `.session-header-actions` 整段删除 — 相关 CSS 也清理。
      保留是为了让后续 retro 引用，注释占位。*/
 
+  /* Title floats into NavBar when scrolled under — soften in-page copy while compact. */
+  .session-title {
+    transition: opacity 180ms ease, transform 180ms ease;
+  }
+  .session-title.session-title-away {
+    opacity: 0.18;
+    transform: translateY(-4px);
+  }
+
   /* §3.11 收尾: 详情页 header owner info 样式 */
   .owner-info {
     display: flex;
