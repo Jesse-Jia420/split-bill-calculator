@@ -39,7 +39,12 @@
        分支 (login btn / login-以保存 / logout btn) 都不该出现在登录页 -->
 <header class="navbar">
   <a href="/" class="brand" aria-label="轻均 FairLite">
-    <span class="brand-zh">轻均</span>
+    <span class="brand-zh" aria-hidden="true">
+      <span class="brand-zh-inner">
+        <span class="brand-zh-glass" aria-hidden="true">轻均</span>
+        轻均
+      </span>
+    </span>
     <span class="brand-en">FairLite</span>
   </a>
   {#if page.url.pathname !== '/auth/login' && !isLoginPage()}
@@ -129,8 +134,7 @@
   .brand {
     display: inline-flex;
     align-items: baseline;
-    gap: 0.4rem;
-    font-weight: 600;
+    gap: 0.45rem;
     color: var(--color-text);
     text-decoration: none;
     min-width: 0;
@@ -138,11 +142,69 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  /*
+   * 「轻均」— 与 landing 同款 Liquid Glass（细高 ExtraLight + 半透字身 + 硬描边 + 顶部高光），
+   * 色调改为深墨以适配浅色 paper UI（透出纸纹，非整块实黑）。
+   * 不用 transform:scale，避免栅格化发糊。
+   */
   .brand-zh {
+    display: inline-block;
+    flex-shrink: 0;
+  }
+  .brand-zh-inner {
+    position: relative;
+    display: inline-block;
     font-family: var(--font-zh);
-    font-size: var(--font-size-lg);
-    font-weight: 700;
-    letter-spacing: 0.04em;
+    font-weight: 200;
+    font-size: 1.45rem;
+    line-height: 0.95;
+    letter-spacing: 0.2em;
+    text-indent: 0.2em;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-synthesis: none;
+    text-rendering: geometricPrecision;
+
+    /* 半透深墨：纸纹隐约透出 */
+    color: rgba(26, 26, 26, 0.58);
+
+    /* 锐利玻璃外沿 */
+    -webkit-text-stroke: 0.55px rgba(0, 0, 0, 0.72);
+    paint-order: stroke fill;
+
+    text-shadow:
+      0 0 0.4px rgba(0, 0, 0, 0.35),
+      0 1px 0 rgba(255, 255, 255, 0.55),
+      0 2px 6px rgba(0, 0, 0, 0.08);
+  }
+  /* 顶部高光层：浅色纸上用 soft-light，不盖死字身 */
+  .brand-zh-glass {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    font: inherit;
+    font-weight: inherit;
+    letter-spacing: inherit;
+    line-height: inherit;
+    text-indent: inherit;
+    color: transparent;
+    -webkit-text-stroke: 0;
+    background: linear-gradient(
+      185deg,
+      rgba(255, 255, 255, 0.88) 0%,
+      rgba(255, 255, 255, 0.42) 18%,
+      rgba(255, 255, 255, 0.1) 38%,
+      rgba(255, 255, 255, 0) 52%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    mix-blend-mode: soft-light;
+    opacity: 0.9;
+    animation: navGlassSheen 7s ease-in-out infinite alternate;
+  }
+  @keyframes navGlassSheen {
+    from { opacity: 0.72; }
+    to { opacity: 0.95; }
   }
   .brand-en {
     font-family: var(--font-en);
