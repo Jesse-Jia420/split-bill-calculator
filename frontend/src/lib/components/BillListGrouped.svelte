@@ -921,13 +921,13 @@
                                 <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
                                 <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                               </svg>
-                              <span>{b.participants.length}人</span>
+                              <span>{b.participants.length}</span>
                             </span>
                             <!-- v0.3.20 #95 Fix 3 (PO msg 02:41 #7459): "xx 付"
                                  文字颜色 = 该 payer 的头像主色 (5 色循环, 跟 SessionMemberList 共享).
                                  时间部分保持灰色 (默认 .bill-meta-text color). 拆成两个 span 让颜色
                                  仅作用在 "xx 付" 这 2 字符上. -->
-                            <span class="bill-meta-text">{fmtBillTime(b.occurred_at)} · </span><span class="bill-meta-text" style="color: {payerColor(b)};">{payerName(b)} 付</span>
+                            <span class="bill-meta-text">{fmtBillTime(b.occurred_at)} </span><span class="bill-meta-text" style="color: {payerColor(b)};">{payerName(b)} 付</span>
                           </span>
                           <!-- v0.3.0728-2 #12 — UAT 0728-2 #12 bill item 没分摊时显 "分摊 0" (PO msg 16:50).
                                原 {#if share !== null} 条件限制只在 user 是 participant 时才显 — 但 own_share = 0 (user 是 participant 但 share_amount = 0)
