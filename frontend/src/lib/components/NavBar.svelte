@@ -38,14 +38,17 @@
      · 改法用 outer {#if} 包整个 .right div, 不用每个分支单独包, 因为三
        分支 (login btn / login-以保存 / logout btn) 都不该出现在登录页 -->
 <header class="navbar">
-  <a href="/" class="brand" aria-label="轻均 FairLite">
-    <span class="brand-zh" aria-hidden="true">
-      <span class="brand-zh-inner">
-        <span class="brand-zh-glass" aria-hidden="true">轻均</span>
-        轻均
+  <a href="/" class="brand" aria-label="轻均 FairLite，极简分账，一链即平">
+    <span class="brand-mark">
+      <span class="brand-zh" aria-hidden="true">
+        <span class="brand-zh-inner">
+          <span class="brand-zh-glass" aria-hidden="true">轻均</span>
+          轻均
+        </span>
       </span>
+      <span class="brand-en">FairLite</span>
     </span>
-    <span class="brand-en">FairLite</span>
+    <span class="brand-tagline" aria-hidden="true">极简分账 · 一链即平</span>
   </a>
   {#if page.url.pathname !== '/auth/login' && !isLoginPage()}
     <div class="right">
@@ -80,8 +83,8 @@
      滚到 navbar 区域下方被 saturate(130%) blur(20px) + alpha 0.05 white bg 柔和
      模糊透出来 — PO 原意图 (bar 不抢戏 + 背景图案部分漏出). */
   :global(:root) {
-    /* 暴露给 +layout.svelte main.page padding-top 用, 跟 navbar 内容高度同步 */
-    --navbar-h: calc(2 * var(--space-3) + 24px); /* ~48px, 不含 safe-area */
+    /* 含 brand-tagline 两行 logo；跟 navbar 内容高度同步 */
+    --navbar-h: calc(2 * var(--space-3) + 2.65rem); /* ~58px, 不含 safe-area */
   }
   .navbar {
     position: fixed;
@@ -133,14 +136,21 @@
   }
   .brand {
     display: inline-flex;
-    align-items: baseline;
-    gap: 0.45rem;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.12rem;
     color: var(--color-text);
     text-decoration: none;
     min-width: 0;
-    white-space: nowrap;
+    max-width: min(52vw, 14rem);
     overflow: hidden;
-    text-overflow: ellipsis;
+  }
+  .brand-mark {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.45rem;
+    min-width: 0;
+    white-space: nowrap;
   }
   /*
    * 「轻均」— 与 landing 同款 Liquid Glass（细高 ExtraLight + 半透字身 + 硬描边 + 顶部高光），
@@ -212,6 +222,21 @@
     font-weight: 500;
     letter-spacing: 0.06em;
     color: var(--color-text-muted);
+  }
+  /* 实验：标语并入 header logo 整体 */
+  .brand-tagline {
+    display: block;
+    font-family: var(--font-zh);
+    font-weight: 400;
+    font-size: 0.62rem;
+    line-height: 1.15;
+    letter-spacing: 0.14em;
+    color: rgba(82, 82, 91, 0.62);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    padding-left: 0.12em; /* 视觉对齐「轻均」字身 */
   }
   /* v0.3.20 #100 (PO msg 14:37): hover 象牙白替代蓝色. 象牙白 #FFFFF0 在白纸上 = 低对比 = logo hover 时视觉 'fade' — PO 原话 "象牙白色，不要现在的蓝色". */
   /* UAT v0.3.23 #131: hover 颜色不变 (PO brief "hover 颜色不变, 还是黑色"). Default .brand color = var(--color-text) 已黑色, hover 不再覆盖. */
