@@ -1,70 +1,161 @@
 <script lang="ts">
   import { user, logout } from '$stores/user';
+  import { navbarChrome, resetNavbarChrome } from '$stores/navbarChrome';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
+  import { onDestroy } from 'svelte';
+
+  let menuOpen = false;
+  let menuRoot: HTMLDivElement | null = null;
+
+  $: compact = $navbarChrome.compact && !!$navbarChrome.title;
+  $: ledgerTitle = $navbarChrome.title;
+
+  // Leave ledger chrome when navigating away from a session page.
+  $: if (!inSession()) {
+    if ($navbarChrome.title || $navbarChrome.compact) resetNavbarChrome();
+    menuOpen = false;
+  }
 
   async function handleLogout() {
+    menuOpen = false;
     await logout();
     await goto('/');
   }
 
-  // Login CTA: inside a ledger → "登录以保存" with returnTo; elsewhere → "登录".
-  // Match both legacy /sessions/{id} and canonical /s/{code} routes.
   function inSession(): boolean {
     return /^\/sessions\/\d+(\/|$)/.test(page.url.pathname) ||
            /^\/s\/[A-Z0-9]+(\/|$)/i.test(page.url.pathname);
   }
-  // Join pages already support anonymous nickname creation — hide the CTA.
   function isJoinPage(): boolean {
     return /^\/sessions\/\d+\/join/.test(page.url.pathname) ||
            /^\/s\/[A-Z0-9]+\/join/i.test(page.url.pathname);
   }
-  // Ledger-specific login page already owns the OTP flow — hide the CTA.
   function isLoginPage(): boolean {
     return /^\/sessions\/\d+\/login/.test(page.url.pathname) ||
            /^\/s\/[A-Z0-9]+\/login/i.test(page.url.pathname);
   }
+
+  function avatarLetter(name: string | null | undefined): string {
+    const t = (name ?? '').trim();
+    if (!t) return '?';
+    return Array.from(t)[0]!.toUpperCase();
+  }
+
+  function toggleMenu(e: MouseEvent) {
+    e.stopPropagation();
+    menuOpen = !menuOpen;
+  }
+
+  function onDocPointer(e: MouseEvent | TouchEvent) {
+    if (!menuOpen || !menuRoot) return;
+    const t = e.target as Node | null;
+    if (t && menuRoot.contains(t)) return;
+    menuOpen = false;
+  }
+
+  function onKey(e: KeyboardEvent) {
+    if (e.key === 'Escape') menuOpen = false;
+  }
+
+  if (typeof document !== 'undefined') {
+    document.addEventListener('pointerdown', onDocPointer, true);
+    document.addEventListener('keydown', onKey);
+  }
+  onDestroy(() => {
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('pointerdown', onDocPointer, true);
+      document.removeEventListener('keydown', onKey);
+    }
+  });
+
+  $: loginHref = inSession()
+    ? `/auth/login?returnTo=${encodeURIComponent(page.url.pathname + page.url.search)}`
+    : '/auth/login';
 </script>
 
-<!-- v0.3.17 #22 hotfix (PO msg 16:32 #1): 整个 .right 区在 /auth/login 隐藏
-     · anon 用户访问 /auth/login → $user 是 null → 之前会渲染「登录」按钮
-       (指向自己, dead self-link, 视觉噪音)
-     · 已登录用户访问 /auth/login (罕见但可能) → 之前会渲染「注销登录」按钮
-       (跟登录页语义冲突, 视觉混乱)
-     · 同一个 pathname check 不管 $user 状态都隐藏, 因为登录页本身已经有
-       自己的 form 操作区, 不需要 nav 上的 auth 控件
-     · pathname 已在脚本顶部 import (`import { page } from '$app/state'`),
-       直接读 page.url.pathname
-     · 改法用 outer {#if} 包整个 .right div, 不用每个分支单独包, 因为三
-       分支 (login btn / login-以保存 / logout btn) 都不该出现在登录页 -->
-<header class="navbar">
-  <a href="/" class="brand" aria-label="轻均 FairLite">
-    <span class="brand-zh" aria-hidden="true">
-      <span class="brand-zh-inner">
-        <span class="brand-zh-glass" aria-hidden="true">轻均</span>
-        轻均
+<header class="navbar" class:compact data-testid="app-navbar">
+  <div class="left">
+    <a
+      href="/"
+      class="brand"
+      class:brand-hidden={compact}
+      aria-label="轻均 FairLite"
+      aria-hidden={compact ? 'true' : undefined}
+      tabindex={compact ? -1 : 0}
+    >
+      <span class="brand-zh" aria-hidden="true">
+        <span class="brand-zh-inner">
+          <span class="brand-zh-glass" aria-hidden="true">轻均</span>
+          轻均
+        </span>
       </span>
-    </span>
-    <span class="brand-en">FairLite</span>
-  </a>
+      <span class="brand-en">FairLite</span>
+    </a>
+
+    {#if compact && ledgerTitle}
+      <div class="ledger-title" data-testid="navbar-ledger-title" title={ledgerTitle}>
+        {ledgerTitle}
+      </div>
+    {/if}
+  </div>
+
   {#if page.url.pathname !== '/auth/login' && !isLoginPage()}
-    <div class="right">
-      {#if $user}
+    <div class="right" class:right-compact={compact}>
+      {#if compact}
+        <!-- Compact: nickname / auth actions collapse into avatar menu -->
+        <div class="avatar-menu" bind:this={menuRoot}>
+          <button
+            type="button"
+            class="avatar-btn"
+            class:anon={!$user}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            aria-label={$user ? `账户菜单：${$user.default_name}` : '账户菜单'}
+            data-testid="navbar-avatar-btn"
+            onclick={toggleMenu}
+          >
+            <span class="avatar-letter">
+              {$user ? avatarLetter($user.default_name) : '登'}
+            </span>
+          </button>
+          {#if menuOpen}
+            <div class="avatar-popover" role="menu" data-testid="navbar-avatar-menu">
+              {#if $user}
+                <div class="menu-identity" role="presentation">
+                  <span class="menu-name">{$user.default_name}</span>
+                  {#if $user.email}
+                    <span class="menu-email" title={$user.email}>{$user.email}</span>
+                  {/if}
+                </div>
+                {#if page.url.pathname !== '/sessions/new'}
+                  <a href="/sessions" class="menu-item" role="menuitem" onclick={() => (menuOpen = false)}>
+                    我的账本
+                  </a>
+                {/if}
+                <button type="button" class="menu-item danger" role="menuitem" onclick={handleLogout}>
+                  注销登录
+                </button>
+              {:else if inSession() && !isJoinPage()}
+                <a href={loginHref} class="menu-item" role="menuitem" onclick={() => (menuOpen = false)}>
+                  登录以保存
+                </a>
+              {:else if !inSession()}
+                <a href="/auth/login" class="menu-item" role="menuitem" onclick={() => (menuOpen = false)}>
+                  登录
+                </a>
+              {/if}
+            </div>
+          {/if}
+        </div>
+      {:else if $user}
         <span class="email" title="{$user.email}">{$user.default_name}</span>
-        <!-- v0.3.28 (UAT 0723-3 #4): 「我的账本」从 .links 移到 .right, 放在 用户名 + 注销登录 中间
-             (PO 字面 "放在 用户名和注销登录按钮的中间"). 保留 wizard 时不显示的旧行为
-             (page.url.pathname !== '/sessions/new'). 三者同属 .right, gap var(--space-3) 自然合理. -->
         {#if page.url.pathname !== '/sessions/new'}
           <a href="/sessions" class="btn-sm links-item">我的账本</a>
         {/if}
         <button class="ghost btn-sm" onclick={handleLogout}>注销登录</button>
       {:else if inSession() && !isJoinPage()}
-        <a
-          href={`/auth/login?returnTo=${encodeURIComponent(page.url.pathname + page.url.search)}`}
-          class="btn-sm"
-        >
-          登录以保存
-        </a>
+        <a href={loginHref} class="btn-sm">登录以保存</a>
       {:else if !inSession()}
         <a href="/auth/login" class="btn-sm">登录</a>
       {/if}
@@ -73,14 +164,7 @@
 </header>
 
 <style>
-  /* v0.3.20 #99-fix4 (PO msg 14:26 #7585): NavBar 升 fixed 让 backdrop-filter
-     真正接住下方滚动内容 — 原版 position:relative 时, main 内容在 navbar 下方
-     flex row, 滚动时根本不会到 navbar 区域, backdrop-filter 没东西模糊.
-     fixed + z-index:100 让 navbar 浮在 main 之上面, 当用户滚动账单, 内容会
-     滚到 navbar 区域下方被 saturate(130%) blur(20px) + alpha 0.05 white bg 柔和
-     模糊透出来 — PO 原意图 (bar 不抢戏 + 背景图案部分漏出). */
   :global(:root) {
-    /* 暴露给 +layout.svelte main.page padding-top 用, 跟 navbar 内容高度同步 */
     --navbar-h: calc(2 * var(--space-3) + 24px); /* ~48px, 不含 safe-area */
   }
   .navbar {
@@ -94,33 +178,8 @@
     align-items: center;
     gap: var(--space-3);
     min-width: 0;
-    overflow-x: clip; /* 窄屏时防止右侧按钮/用户名发生横向溢出 */
-    /* v0.3.17 #30 (PO msg 14:28): 加 env(safe-area-inset-top) — iOS 全面屏
-       刘海/灵动岛区域不挡 brand 文字。body 已 lock 外层滚 (见 app.css),
-       v0.3.20 #99-fix4 (PO msg 14:26 #7585): 升 fixed (从 flex layout 第一项 → 浮在所有
-       内容之上 z-index 100). main.page 加 padding-top 让内容起步于 navbar 之下,
-       滚动后内容从下方滚到 navbar 区域被 saturate(130%) blur(20px) + 0.05 white
-       模糊透出来 — PO 原意图 (bar 不抢戏 + 背景内容部分漏出). */
+    overflow-x: clip;
     padding: calc(var(--space-3) + env(safe-area-inset-top, 0px)) var(--space-4) var(--space-3);
-    /* v0.3.20 #99 (PO msg 13:36 #7532 第 4 项, msg 13:39 #7536 缩范围:
-       只做 header, footer 不管): NavBar 半透明玻璃化.
-       v0.3.20 #99-fix (PO msg 13:54 反馈): 透明玻璃 — 原版加 indigo→blue 渐变
-       把 paper 纹理盖死了, 跟"原就是为了让背景图案部分漏出来"的诉求反.
-       改 transparent white alpha + 降 saturate 让 paper 纹部分透过来.
-       - bg: rgba(255,255,255,0.55) (白色 alpha, 无彩色)
-       - backdrop-filter: saturate(130%) blur(20px) (blur 让纸纹糊但仍可见, saturate
-         不加太高免纸纹失真)
-       - inset highlight top 1px rgba(255,255,255,0.4) 玻璃上沿
-       - inset highlight bottom 1px rgba(0,0,0,0.04) 玻璃下沿
-       - border-bottom 1px rgba(255,255,255,0.2) 玻璃跟 paper bg 的柔和分割
-       - Safari iOS < 18 fallback @supports: 0.85 opaque white (纸纹 fallback 不可见,
-         但保证 navbar 文字仍可读) */
-    /* v0.3.20 #99-fix (PO msg 13:54): 透明玻璃 — 不再加颜色 (前版 indigo→blue 渐变
-       把 paper 纹盖死). 改用纯白 alpha + blur 让 paper 纹部分透过来.
-       saturate 从 180% → 130% 让纸纹不过饱和失真. */
-    /* v0.3.20 #99-fix2 (PO msg 13:56 #7549 再透一点 + 13:57 #7563 让背景漏出来): 0.55 -> 0.20 */
-    /* v0.3.20 #99-fix3 (PO msg 14:07 #7571 不行透明度再提高): alpha 0.20 -> 0.05 (几乎全透, paper bg 100% 漏过来) */
-    /* v0.3.20 #99-fix5 (PO msg 14:29 #7602): alpha 0.05 -> 0.02 (PO 让透明度再降, 几乎纯透明只靠 backdrop-filter blur 撑玻璃感) */
     background: rgba(255, 255, 255, 0.02);
     backdrop-filter: saturate(130%) blur(20px);
     -webkit-backdrop-filter: saturate(130%) blur(20px);
@@ -128,9 +187,26 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.4),
       inset 0 -1px 0 rgba(0, 0, 0, 0.04);
     border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-    flex-wrap: wrap;
-    justify-content: space-between; /* 让 right 按空间收缩/换行，而不是撑出视口 */
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    transition: background 180ms ease, box-shadow 180ms ease;
   }
+  .navbar.compact {
+    background: rgba(255, 255, 255, 0.55);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.55),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.05),
+      0 1px 10px rgba(15, 23, 42, 0.06);
+  }
+
+  .left {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
   .brand {
     display: inline-flex;
     align-items: baseline;
@@ -141,12 +217,18 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    transition: opacity 180ms ease, transform 180ms ease, max-width 180ms ease;
+    max-width: 14rem;
   }
-  /*
-   * 「轻均」— 与 landing 同款 Liquid Glass（细高 ExtraLight + 半透字身 + 硬描边 + 顶部高光），
-   * 色调改为深墨以适配浅色 paper UI（透出纸纹，非整块实黑）。
-   * 不用 transform:scale，避免栅格化发糊。
-   */
+  .brand.brand-hidden {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.96);
+    max-width: 0;
+    pointer-events: none;
+    margin: 0;
+    gap: 0;
+  }
+
   .brand-zh {
     display: inline-block;
     flex-shrink: 0;
@@ -164,20 +246,14 @@
     -moz-osx-font-smoothing: grayscale;
     font-synthesis: none;
     text-rendering: geometricPrecision;
-
-    /* 半透深墨：纸纹隐约透出 */
     color: rgba(26, 26, 26, 0.58);
-
-    /* 锐利玻璃外沿 */
     -webkit-text-stroke: 0.55px rgba(0, 0, 0, 0.72);
     paint-order: stroke fill;
-
     text-shadow:
       0 0 0.4px rgba(0, 0, 0, 0.35),
       0 1px 0 rgba(255, 255, 255, 0.55),
       0 2px 6px rgba(0, 0, 0, 0.08);
   }
-  /* 顶部高光层：浅色纸上用 soft-light，不盖死字身 */
   .brand-zh-glass {
     position: absolute;
     inset: 0;
@@ -213,17 +289,44 @@
     letter-spacing: 0.06em;
     color: var(--color-text-muted);
   }
-  /* v0.3.20 #100 (PO msg 14:37): hover 象牙白替代蓝色. 象牙白 #FFFFF0 在白纸上 = 低对比 = logo hover 时视觉 'fade' — PO 原话 "象牙白色，不要现在的蓝色". */
-  /* UAT v0.3.23 #131: hover 颜色不变 (PO brief "hover 颜色不变, 还是黑色"). Default .brand color = var(--color-text) 已黑色, hover 不再覆盖. */
+
+  .ledger-title {
+    font-family: var(--font-zh);
+    font-size: 1.02rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--gray-900);
+    line-height: 1.2;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    animation: titleIn 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  @keyframes titleIn {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
   .right {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    margin-left: auto; /* v0.3.17 #28.5 #8: .links 隐藏时 (例如 /sessions/new wizard) 也贴右 */
+    margin-left: auto;
     min-width: 0;
-    flex: 1 1 auto;
-    flex-wrap: wrap; /* 窄屏下按钮/用户名换行，而不是溢出 */
+    flex: 0 0 auto;
+    flex-wrap: wrap;
     justify-content: flex-end;
+  }
+  .right.right-compact {
+    flex-wrap: nowrap;
   }
   .email {
     color: var(--color-text-muted);
@@ -233,13 +336,119 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  /* v0.3.17 #21 (PO msg 13:51 item 3): NavBar 登录按钮 / 注销按钮玻璃化
-     跟全站 member-chip / swipe button / fab / 汇率 pill 同 Liquid Glass 语言。
-     .ghost 跟 .btn-sm 同形态, 仅 hover 不加深色 (注销按钮语义更弱)。 */
-  /* v0.3.18 #49 (PO msg 21:16 #6508 极透明化 sweep):
-     bg 0.06/0.04 → 0.04/0.02 (再 × 0.67 透明, 整站 btn-sm 几乎全透).
-     border 0.20 → 0.25 (边缘补偿). inset highlight 0.7 → 0.95 (玻璃上沿加强).
-     外阴影 indigo 0.10 → 0.16 (玻璃感更强). */
+
+  .avatar-menu {
+    position: relative;
+    flex-shrink: 0;
+  }
+  .avatar-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 999px;
+    border: 1px solid rgba(99, 102, 241, 0.28);
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.92) 0%, rgba(59, 130, 246, 0.88) 100%);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      0 2px 8px rgba(99, 102, 241, 0.28);
+    transition: transform 120ms ease, box-shadow 150ms ease;
+  }
+  .avatar-btn.anon {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.14) 0%, rgba(59, 130, 246, 0.10) 100%);
+    color: var(--accent-700, #4338ca);
+  }
+  .avatar-btn:hover {
+    transform: translateY(-1px);
+  }
+  .avatar-btn:active {
+    transform: scale(0.96);
+  }
+  .avatar-letter {
+    font-family: var(--font-zh);
+    font-size: 0.92rem;
+    font-weight: 600;
+    line-height: 1;
+  }
+  .avatar-popover {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 168px;
+    max-width: min(72vw, 240px);
+    padding: 6px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: saturate(160%) blur(18px);
+    -webkit-backdrop-filter: saturate(160%) blur(18px);
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    box-shadow:
+      0 12px 32px rgba(15, 23, 42, 0.14),
+      inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    z-index: 120;
+    animation: menuIn 160ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  @keyframes menuIn {
+    from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .menu-identity {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 10px 6px;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+    margin-bottom: 2px;
+  }
+  .menu-name {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--gray-900);
+  }
+  .menu-email {
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .menu-item {
+    display: flex;
+    align-items: center;
+    min-height: 40px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--gray-800);
+    font-size: 0.9rem;
+    font-weight: 500;
+    text-decoration: none;
+    cursor: pointer;
+    font-family: inherit;
+    width: 100%;
+    text-align: left;
+  }
+  .menu-item:hover {
+    background: rgba(99, 102, 241, 0.08);
+    color: var(--accent-700, #4338ca);
+    text-decoration: none;
+  }
+  .menu-item.danger {
+    color: #b91c1c;
+  }
+  .menu-item.danger:hover {
+    background: rgba(244, 63, 94, 0.08);
+    color: #9f1239;
+  }
+
   .btn-sm {
     min-height: var(--touch-target);
     padding: var(--space-2) var(--space-3);
@@ -265,7 +474,6 @@
     transition: transform 150ms ease, background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
   }
   .btn-sm:hover {
-    /* v0.3.18 #49: hover 0.12/0.09 → 0.08/0.06 (跟 base 0.04/0.02 同比例降级, hover 仍略亮) */
     background: linear-gradient(
       135deg,
       rgba(99, 102, 241, 0.08) 0%,
@@ -278,11 +486,8 @@
   }
   .btn-sm:active { transform: scale(0.97); }
   @supports not (backdrop-filter: blur(1px)) {
-    /* v0.3.18 #49: fallback 0.12 → 0.08 (跟新 base 0.04/0.02 同比例降级) */
     .btn-sm { background: rgba(99, 102, 241, 0.08); }
   }
-  /* .ghost: 注销按钮 — 更弱化 (白玻璃非蓝玻璃)
-     v0.3.18 #49: bg 0.35/0.20 → 0.20/0.10 (跟 .btn-sm 同比例降级). border 0.15 → 0.20. */
   .ghost {
     background: linear-gradient(
       135deg,
@@ -292,7 +497,6 @@
     border-color: rgba(99, 102, 241, 0.20);
     color: var(--gray-700);
   }
-  /* v0.3.18 #48: hover 0.85/0.65 → 0.50/0.35 (跟新 base 同比例降级) */
   .ghost:hover {
     background: linear-gradient(
       135deg,
@@ -301,10 +505,6 @@
     );
     color: var(--accent-700);
   }
-  /* v0.3.18 #48: Safari iOS < 18 backdrop-filter fallback.
-     v0.3.20 #99: fallback 用更 opaque white (0.85) 替代前版 indigo 渐变 — 跟新
-     transparent glass bg 一致, 失去 blur 但仍提供文字可读性.
-     v0.3.20 #99-fix: 同步去 indigo 色. */
   @supports not (backdrop-filter: blur(1px)) {
     .navbar {
       background: rgba(255, 255, 255, 0.85);
@@ -312,10 +512,6 @@
     .ghost { background: rgba(255, 255, 255, 0.55); }
   }
 
-  /* v0.3.29 (UAT): NavBar 窄屏溢出防护
-   * - 收紧左右 padding
-   * - 让 right 的内容尽量在一行内可读，放不下时换行
-   * - 仍保持按钮 touch target min-height 不变 */
   @media (max-width: 380px) {
     .navbar {
       gap: var(--space-2);
@@ -325,5 +521,6 @@
     .right { gap: var(--space-1); }
     .btn-sm { padding-left: var(--space-2); padding-right: var(--space-2); }
     .email { max-width: 10ch; }
+    .ledger-title { font-size: 0.95rem; }
   }
 </style>

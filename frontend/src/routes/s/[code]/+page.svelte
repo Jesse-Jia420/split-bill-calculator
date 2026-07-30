@@ -48,6 +48,7 @@
   // v0.3.28 UAT 0724-1 #5 (Option C 玻璃圆环): 加载账单数据 fetch 时显示 LoadingOverlay.
   import LoadingOverlay from '$components/LoadingOverlay.svelte';
   import { getSessionByCode, claimSession } from '$api/sessions';
+  import { setNavbarLedgerChrome, resetNavbarChrome } from '$stores/navbarChrome';
   import { user, loadUser } from '$stores/user';
   import { toast } from '$stores/toast';
 
@@ -243,6 +244,41 @@
       io.disconnect();
       main.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', onScroll);
+    };
+  });
+
+  /** Scroll chrome: when session title scrolls under the navbar, surface it in NavBar
+   *  and collapse auth controls into the avatar menu. Restore when scrolled back. */
+  let sessionTitleEl = $state<HTMLElement | null>(null);
+  $effect(() => {
+    if (!browser || !session || !sessionTitleEl) {
+      resetNavbarChrome();
+      return;
+    }
+    const titleText = session.name ?? '';
+    const titleNode = sessionTitleEl;
+
+    const sync = () => {
+      const nav = document.querySelector('.navbar');
+      const navBottom =
+        nav instanceof HTMLElement ? nav.getBoundingClientRect().bottom : 56;
+      const rect = titleNode.getBoundingClientRect();
+      // Title has scrolled under (or tightly against) the navbar → compact.
+      const compact = rect.bottom <= navBottom + 2;
+      setNavbarLedgerChrome(titleText, compact);
+      titleNode.classList.toggle('session-title-away', compact);
+    };
+
+    const main = document.querySelector('main.page') ?? document.querySelector('main');
+    sync();
+    const onScroll = () => requestAnimationFrame(sync);
+    main?.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    return () => {
+      main?.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+      resetNavbarChrome();
+      titleNode.classList.remove('session-title-away');
     };
   });
 
@@ -680,7 +716,12 @@
     <LoadingOverlay text="加载账单..." />
   {:else if session}
     <div class="row between session-header" style="margin-bottom: var(--space-3); flex-wrap: wrap; gap: var(--space-2);">
-      <h2 style="margin: 0;">
+      <h2
+        class="session-title"
+        style="margin: 0;"
+        bind:this={sessionTitleEl}
+        data-testid="session-title"
+      >
         {session.name}
       </h2>
     </div>
