@@ -248,6 +248,16 @@ export const joinClaim = (
   });
 };
 
+/** Attach X-Nickname-Secret when the browser has an anon acting-as secret. */
+function actingAsHeaders(sessionId: number): Record<string, string> {
+  const h: Record<string, string> = {};
+  if (typeof window !== 'undefined') {
+    const secret = localStorage.getItem('sbc.actingAs.' + sessionId);
+    if (secret) h['X-Nickname-Secret'] = secret;
+  }
+  return h;
+}
+
 /** v0.3.x (PRD §3.11) — Owner email claim.
  *
  * Sole entry point called from the session detail page onMount when
@@ -356,6 +366,7 @@ export async function addSessionCurrency(
   return apiFetch<SessionDetail>(`/sessions/${sessionId}/currencies`, {
     method: 'POST',
     body: JSON.stringify(payload),
+    headers: actingAsHeaders(sessionId),
   });
 }
 
@@ -381,6 +392,6 @@ export async function deleteSessionCurrency(
 ): Promise<SessionDetail> {
   return apiFetch<SessionDetail>(
     `/sessions/${sessionId}/currencies/${encodeURIComponent(currency)}`,
-    { method: 'DELETE' }
+    { method: 'DELETE', headers: actingAsHeaders(sessionId) }
   );
 }

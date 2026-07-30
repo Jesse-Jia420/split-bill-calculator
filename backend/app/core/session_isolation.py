@@ -102,13 +102,14 @@ def get_session_member_or_secret(
 
 
 def require_session_owner(
-    sm: SessionMember = Depends(get_session_member),
+    sm: SessionMember = Depends(get_session_member_or_secret),
 ) -> SessionMember:
     """Restrict a session action to the owner.
 
-    Stacks on get_session_member — a non-member would already 403
-    in the underlying dep, so by the time we run, the caller IS a
-    member. We only need to check the role.
+    Stacks on get_session_member_or_secret so anonymous owners can act
+    via X-Nickname-Secret (rotate invite / currency / delete session).
+    A non-member would already 403 in the underlying dep; we only check
+    the role.
 
     Returns the SessionMember for downstream handlers that need the
     caller's role/display_name.

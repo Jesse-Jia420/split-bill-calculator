@@ -434,19 +434,17 @@
       bills = await listBills(sessionId);
       currentMemberId = currentMember?.id ?? null;
 
-      // v0.3.27 (UAT 0723-2 #19): owner登录即可永久保存账本的逻辑，改为「任一成员登录即可永久保存账本」.
-      // 之前: 只有 creator (role=owner) 登录后才能触发 /claim, FE 从来不自动调 claimSession() (要 URL 带 ?claim=1),
-      //       导致 expiry CTA 完全失效, session 永远 7 天过期. 现在: 任何已登录成员访问本页面 + session.owner_email==NULL,
-      //       自动调 claimSession() 让 session 永久. 该成员成为 owner_user_id (BE /claim 设计为 first-claimant-wins).
+      // Product B/E: only the owner-role seat may claim session ownership.
+      // Other logged-in members permanently save via user_id bind (no claim).
       try {
-        if ($user && !session.owner_email) {
-          // 静默 try — 任何 error (403 / 409 / 已 non-member) 不打断 UI
+        const isOwnerSeat = currentMember?.role === 'owner';
+        if ($user && !session.owner_email && isOwnerSeat) {
           const updated = await claimSession(sessionId);
           session = updated;
-          console.info('[v0.3.27 #19] session auto-claimed by logged-in member, owner_email set');
+          console.info('[owner-claim] session claimed by owner-seat member');
         }
       } catch (claimErr) {
-        // 非 member → 忽略. 其他错误也不护栏, session 照常加载.
+        // non-owner / already claimed → ignore
       }
     } catch (e: any) {
       const c = e?.code ?? '';

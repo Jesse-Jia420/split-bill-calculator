@@ -883,6 +883,11 @@ async def create_bill(
             )
         )
 
+    # Product F: bill activity extends the 7-day window.
+    session_row = db.get(SessionModel, sm.session_id)
+    if session_row is not None:
+        session_row.last_active_at = datetime.now(timezone.utc)
+
     db.commit()
     db.refresh(bill)
 
@@ -1070,6 +1075,10 @@ async def update_bill(
         if payload.payer_member_id is not None:
             _validate_participants(db, sm.session_id, payload.payer_member_id, existing_inputs)
 
+    session_row = db.get(SessionModel, sm.session_id)
+    if session_row is not None:
+        session_row.last_active_at = datetime.now(timezone.utc)
+
     db.commit()
     db.refresh(bill)
 
@@ -1135,6 +1144,9 @@ async def delete_bill(
                 "current_sm_id": sm.id,
             },
         )
+    session_row = db.get(SessionModel, sm.session_id)
+    if session_row is not None:
+        session_row.last_active_at = datetime.now(timezone.utc)
     db.delete(bill)
     db.commit()
     return None
