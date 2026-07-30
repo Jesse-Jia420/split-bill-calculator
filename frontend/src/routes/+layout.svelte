@@ -40,13 +40,76 @@
     const rect = nav.getBoundingClientRect();
     document.documentElement.style.setProperty("--navbar-h", rect.height + "px");
   }
-  onMount(async () => {
+
+  /**
+   * 切出浏览器 / App 后页面会被挂起, 切回时常先露出旧 UI ~2s 再自动刷新,
+   * 用户会误以为可操作. 切出瞬间盖上 LoadingOverlay 并挡住交互;
+   * 切回时若仍是旧页则主动 reload, overlay 一直保持到新文档替换.
+   * (LoadingOverlay 注释里的 PO 意图, 此前未接到 visibility.)
+   */
+  let awayLoading = $state(false);
+  let hiddenAt = 0;
+
+  onMount(() => {
     syncNavbarHeight();
     const ro = new ResizeObserver(syncNavbarHeight);
     const nav = document.querySelector(".navbar");
     if (nav) ro.observe(nav);
     window.addEventListener("resize", syncNavbarHeight);
-    await loadUser();
+
+    const coverAway = () => {
+      awayLoading = true;
+      hiddenAt = Date.now();
+    };
+
+    const onVisibility = () => {
+      if (document.hidden) {
+        coverAway();
+        return;
+      }
+      // 切回: 保持 overlay; 短暂切后台 (<400ms, 如系统通知) 不强制 reload.
+      if (!awayLoading) return;
+      if (Date.now() - hiddenAt < 400) {
+        awayLoading = false;
+        return;
+      }
+      try {
+        window.location.reload();
+      } catch {
+        // ignore — overlay stays until something else remounts
+      }
+    };
+
+    const onPageHide = () => coverAway();
+    const onPageShow = (e: PageTransitionEvent) => {
+      // bfcache 恢复: 旧 DOM 会直接露出来, 立刻盖住并硬刷新.
+      if (e.persisted) {
+        coverAway();
+        try {
+          window.location.reload();
+        } catch {
+          /* ignore */
+        }
+      }
+    };
+    const onFreeze = () => coverAway();
+
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pagehide', onPageHide);
+    window.addEventListener('pageshow', onPageShow);
+    // Page Lifecycle (Chromium): tab frozen in background
+    document.addEventListener('freeze', onFreeze);
+
+    void loadUser();
+
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", syncNavbarHeight);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', onPageHide);
+      window.removeEventListener('pageshow', onPageShow);
+      document.removeEventListener('freeze', onFreeze);
+    };
   });
 </script>
 
@@ -68,8 +131,9 @@
 <!-- v0.3.28 UAT 0724-1 #5: 全局路由导航时显示 LoadingOverlay (玻璃圆环).
      $navigating store (SvelteKit 5 runes) 在跳转前 fire 非 null, 跳转完成后回到 null.
      跨页面 nav 通常 50-300ms 内完成 — 显示完整 overlay 让用户知道 "系统在加载"
-     而不是 "页面卡死". Option C 玻璃圆环 + 玻璃 pill (跟 design-mocks/v0328-0724-1-5-loading/03-glass-ring.html 一致). -->
-{#if navigating.to}
+     而不是 "页面卡死". Option C 玻璃圆环 + 玻璃 pill (跟 design-mocks/v0328-0724-1-5-loading/03-glass-ring.html 一致).
+     awayLoading: 切出浏览器时提前盖住, 避免切回后 ~2s 旧 UI 可误点. -->
+{#if navigating.to || awayLoading}
   <LoadingOverlay text="加载中..." />
 {/if}
 <!-- v0.3.17 #30 (PO msg 14:28 #5957): <main class="page"> 改成内层滚动容器 —
