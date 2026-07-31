@@ -139,10 +139,7 @@
   <NavBar />
 {/if}
 <Toast />
-<!-- v0.3.36 (PO msg 2026-07-27 12:19): 全局挂载版本号 badge (FE short hash + BE /version),
-     Master 跟 PO 对齐部署/真机验证时的版本依据. fixed 定位 (top-right z-index 200),
-     不参与 main flex 流, 不会挤内容. -->
-<VersionBadge />
+<!-- VersionBadge (右上角 FE/BE) 已按 PO 要求卸下；组件仍在 $components/VersionBadge.svelte。 -->
 <!-- v0.3.28 UAT 0724-1 #5: 全局路由导航时显示 LoadingOverlay (玻璃圆环).
      $navigating store (SvelteKit 5 runes) 在跳转前 fire 非 null, 跳转完成后回到 null.
      跨页面 nav 通常 50-300ms 内完成 — 显示完整 overlay 让用户知道 "系统在加载"

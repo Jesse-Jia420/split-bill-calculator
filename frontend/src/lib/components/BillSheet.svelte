@@ -104,6 +104,28 @@
       mainEl.style.overflow = 'hidden';
       mainEl.style.overscrollBehavior = 'contain';
     }
+
+    /**
+     * iOS/Android: fixed bottom sheets stay at layout-viewport bottom:0 when the
+     * soft keyboard opens, covering focused inputs (e.g. 个人消费). Lift the
+     * sheet with `bottom` + shrink max-height to the visualViewport so the form
+     * (and footer) sit above the keyboard; BillForm then scrolls the body.
+     */
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    const syncKeyboardInset = () => {
+      if (!sheetEl || !vv || dragging) return;
+      const inset = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
+      if (inset > 40) {
+        sheetEl.style.bottom = `${inset}px`;
+        sheetEl.style.maxHeight = `${Math.max(240, Math.floor(vv.height * 0.96))}px`;
+      } else {
+        sheetEl.style.bottom = '';
+        sheetEl.style.maxHeight = '';
+      }
+    };
+    vv?.addEventListener('resize', syncKeyboardInset);
+    vv?.addEventListener('scroll', syncKeyboardInset);
+
     return () => {
       document.body.style.overflow = origBodyOverflow;
       document.body.style.overscrollBehavior = origBodyOverscroll;
@@ -112,6 +134,12 @@
       if (mainEl) {
         mainEl.style.overflow = origMainOverflow;
         mainEl.style.overscrollBehavior = origMainOverscroll;
+      }
+      vv?.removeEventListener('resize', syncKeyboardInset);
+      vv?.removeEventListener('scroll', syncKeyboardInset);
+      if (sheetEl) {
+        sheetEl.style.bottom = '';
+        sheetEl.style.maxHeight = '';
       }
     };
   });

@@ -105,8 +105,43 @@
     descriptionError = false;
   }
   // v0.3.20 #93 (PO msg 00:04 #7450, Fix 4): occurred_at default = current time in session primary currency TZ.
-  // User can still manually edit the time (datetime-local input not locked).
+  // User can still manually edit date / time. Quick chips: 前天 / 昨天 / 今天 / 明天.
   let occurredAt: string = getDefaultOccurredAt(session.primary_currency);
+  $: occurredDate = occurredAt.slice(0, 10);
+  $: occurredTime = occurredAt.length >= 16 ? occurredAt.slice(11, 16) : '12:00';
+
+  const DATE_QUICK: Array<{ offset: number; label: string }> = [
+    { offset: -2, label: '前天' },
+    { offset: -1, label: '昨天' },
+    { offset: 0, label: '今天' },
+    { offset: 1, label: '明天' },
+  ];
+  $: activeQuickOffset = (() => {
+    for (const q of DATE_QUICK) {
+      if (dateStringForOffset(q.offset) === occurredDate) return q.offset;
+    }
+    return null as number | null;
+  })();
+
+  function onOccurredDateInput(e: Event) {
+    const v = (e.currentTarget as HTMLInputElement).value;
+    if (!v) return;
+    occurredAt = `${v}T${occurredTime}`;
+  }
+  function onOccurredTimeInput(e: Event) {
+    const v = (e.currentTarget as HTMLInputElement).value;
+    if (!v) return;
+    occurredAt = `${occurredDate}T${v}`;
+  }
+  /** 快捷日：选中日的「当前时刻」(现在的时:分，落在目标日期上). */
+  function applyQuickDay(offset: number) {
+    const tz = sessionTz(session.primary_currency);
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    const parts = formatInTz(d, tz);
+    occurredAt = `${parts.date}T${parts.time}`;
+  }
+
   let currency = 'CNY';
 
   // v0.3.15 (PRD §3.15.2 #2): currencySymbol moved to
@@ -285,20 +320,8 @@
   /**
    * v0.3.20 #91: 进入独占态 — shared pill → exclusive pill.
    * focus input 让用户立即可键入金额.
-   * v0.3.21 #117 (PO msg 11:35 #7838 Bug 3): focus 后显式 scrollIntoView 让 main
-   * 滚到 input 进入可视区. iOS Safari 键盘弹起时, 浏览器自动 scrollIntoView 在
-   * app-shell 架构 (main 是 overflow-y: auto 容器, 不是 window) 下经常不生效,
-   * 表现为 "键盘弹出但页面不顶起, input 被键盘遮住". Android Chrome 不受影响.
-   * v0.3.25 Top #2 (PO msg 16:35 UAT line): 进一步修. iOS Safari keyboard 起来是
-   * 异步的 (300-400ms), 浏览器原生 focus scrollIntoView 在 main overflow-y:auto
-   * 容器 + iOS keyboard 场景下, 即便显式调一次, 算的仍是 window.innerHeight - 待
-   * keyboard 占位, 但 keyboard 真正起来是后续异步事件. 表现为 "键盘弹起了, 但页面
-   * 还是只滚了半截, input 还在 keyboard 下面被遮". 三重 scrollIntoView: rAF 后立
-   * 即 + 350ms + 700ms 各一次, 等 keyboard 起来后第三次会算上 keyboard 减掉的
-   * visualViewport.height. block:'nearest' 最小滚动 + .pill-input
-   * scroll-margin-bottom:280px 让 input 底部留 280px 缓冲, iPhone keyboard 295px
-   * - 280 = 15px 余量, 安全不遮. form .stack padding-bottom:280px 给 main 容器
-   * 足够滚动距离.
+   * Keyboard: scroll the sheet/page scroll parent so input stays above
+   * visualViewport (iOS keyboard). visualViewport.resize is the source of truth.
    */
   async function enterExclusiveMode(memberId: number) {
     const st = participantState[memberId];
@@ -311,34 +334,44 @@
     if (input) {
       input.focus();
       input.select();
-      // iOS Safari: 三次重试 scrollIntoView (rAF 立即 + 350ms + 700ms), 等 keyboard
-      // 异步起来后再调一次. block:'nearest' 最小滚动避免 input 被推到 main 中部反而
-      // 越过 viewport. 配合 .pill-input { scroll-margin-bottom: 56px } + form
-      // .stack { padding-bottom: 56px } (v0.3.0729-2 #8: 200→56, 靠 visualViewport 监听
-      // 动态算) 给 input 底部留足够空间.
-      //
-      // v0.3.28 UAT 0724-1 #8: 进一步加 visualViewport.resize 监听. iOS Safari
-      // 真 keyboard 起来时触发 visualViewport resize 事件 (keyboard 高度 = window.
-      // innerHeight - visualViewport.height), 此时再 scrollIntoView 让 input 滚到
-      // visualViewport 可见区. visualViewport 是 iOS keyboard 起来的权威信号源
-      // (比 setTimeout(700) 准确). 1.5s 后自动移除监听器 (避免长期占用).
-      // Android 不受影响 (Android keyboard resize 触发同一 listener, 但 Android
-      // chrome 自动 scrollIntoView 已正确, 重复 scrollIntoView 无副作用).
-      const scrollIntoView = () => {
-        input.scrollIntoView({ block: 'nearest', behavior: 'auto' });
-      };
-      requestAnimationFrame(scrollIntoView);
-      setTimeout(scrollIntoView, 350);
-      setTimeout(scrollIntoView, 700);
+      ensureExclusiveInputVisible(input);
+      requestAnimationFrame(() => ensureExclusiveInputVisible(input));
+      setTimeout(() => ensureExclusiveInputVisible(input), 350);
+      setTimeout(() => ensureExclusiveInputVisible(input), 700);
       if (typeof window !== 'undefined' && window.visualViewport) {
-        const vvHandler = () => scrollIntoView();
+        const vvHandler = () => ensureExclusiveInputVisible(input);
         window.visualViewport.addEventListener('resize', vvHandler);
         setTimeout(() => {
-          if (window.visualViewport) {
-            window.visualViewport.removeEventListener('resize', vvHandler);
-          }
-        }, 1500);
+          window.visualViewport?.removeEventListener('resize', vvHandler);
+        }, 1800);
       }
+    }
+  }
+
+  /** Keep exclusive amount input above the soft keyboard (sheet body or main.page). */
+  function ensureExclusiveInputVisible(input: HTMLElement) {
+    if (typeof window === 'undefined') return;
+    const scrollParent =
+      (input.closest('.sbc-bottom-sheet__body') as HTMLElement | null) ||
+      (input.closest('main.page') as HTMLElement | null) ||
+      (input.closest('main') as HTMLElement | null);
+    const vv = window.visualViewport;
+    const visibleTop = vv ? vv.offsetTop : 0;
+    // Leave room for sheet footer (~56) + breathing room when keyboard is up
+    const margin = 72;
+    const visibleBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+    const rect = input.getBoundingClientRect();
+    const targetBottom = visibleBottom - margin;
+    if (rect.bottom > targetBottom) {
+      const delta = rect.bottom - targetBottom;
+      if (scrollParent) scrollParent.scrollTop += delta;
+      else window.scrollBy(0, delta);
+      return;
+    }
+    if (rect.top < visibleTop + 16) {
+      const delta = rect.top - (visibleTop + 16);
+      if (scrollParent) scrollParent.scrollTop += delta;
+      else window.scrollBy(0, delta);
     }
   }
 
@@ -386,20 +419,9 @@
    */
 
   /**
-   * v0.3.20 #93 (PO msg 00:04 #7450, Fix 4): occurred_at default = current time in session primary currency TZ.
-   *
-   * Uses Intl.DateTimeFormat to fetch Y/M/D/H/m in the target TZ, then joins to
-   * datetime-local string. Avoids toLocaleString (which emits localised month names).
-   *
-   * Mapping:
-   *   CNY -> Asia/Shanghai   (UTC+8)
-   *   THB -> Asia/Bangkok   (UTC+7)
-   *   JPY -> Asia/Tokyo     (UTC+9)
-   *   USD -> America/New_York (UTC-5/-4 DST)
-   *   EUR -> Europe/Berlin  (UTC+1/+2 DST)
-   *   others -> UTC
+   * occurred_at helpers — session primary currency TZ (same map as defaults).
    */
-  function getDefaultOccurredAt(primaryCurrency: string): string {
+  function sessionTz(primaryCurrency: string): string {
     const TZ_MAP: Record<string, string> = {
       CNY: 'Asia/Shanghai',
       THB: 'Asia/Bangkok',
@@ -407,7 +429,9 @@
       USD: 'America/New_York',
       EUR: 'Europe/Berlin',
     };
-    const tz = TZ_MAP[primaryCurrency] || 'UTC';
+    return TZ_MAP[primaryCurrency] || 'UTC';
+  }
+  function formatInTz(date: Date, tz: string): { date: string; time: string } {
     const parts = new Intl.DateTimeFormat('en-CA', {
       timeZone: tz,
       year: 'numeric',
@@ -416,9 +440,25 @@
       hour: '2-digit',
       minute: '2-digit',
       hour12: false,
-    }).formatToParts(new Date());
+    }).formatToParts(date);
     const get = (t: string) => parts.find((p) => p.type === t)?.value || '00';
-    return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
+    return {
+      date: `${get('year')}-${get('month')}-${get('day')}`,
+      time: `${get('hour')}:${get('minute')}`,
+    };
+  }
+  function dateStringForOffset(offset: number): string {
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    return formatInTz(d, sessionTz(session.primary_currency)).date;
+  }
+
+  /**
+   * v0.3.20 #93 (PO msg 00:04 #7450, Fix 4): occurred_at default = current time in session primary currency TZ.
+   */
+  function getDefaultOccurredAt(primaryCurrency: string): string {
+    const parts = formatInTz(new Date(), sessionTz(primaryCurrency));
+    return `${parts.date}T${parts.time}`;
   }
 
   function buildPayload() {
@@ -671,8 +711,33 @@
     </div>
 
     <div class="field field-time" data-testid="bill-time-row">
-      <label class="label" for="occurredAt">时间</label>
-      <input id="occurredAt" type="datetime-local" bind:value={occurredAt} />
+      <label class="label" for="occurredDate">日期</label>
+      <input
+        id="occurredDate"
+        type="date"
+        value={occurredDate}
+        oninput={onOccurredDateInput}
+        data-testid="bill-occurred-date"
+      />
+      <div class="date-quick-row" role="group" aria-label="快捷日期">
+        {#each DATE_QUICK as q (q.offset)}
+          <button
+            type="button"
+            class="date-quick"
+            class:active={activeQuickOffset === q.offset}
+            onclick={() => applyQuickDay(q.offset)}
+            data-testid={`bill-date-quick-${q.offset}`}
+          >{q.label}</button>
+        {/each}
+      </div>
+      <label class="label" for="occurredTime">时间</label>
+      <input
+        id="occurredTime"
+        type="time"
+        value={occurredTime}
+        oninput={onOccurredTimeInput}
+        data-testid="bill-occurred-time"
+      />
     </div>
     <div class="field field-payer" data-testid="bill-payer-row">
       <label class="label" for="payer">付款人</label>
@@ -702,9 +767,34 @@
       />
     </div>
   </div>
-  <div class="occurredAt-row">
-    <label class="label" for="occurredAt">时间</label>
-    <input id="occurredAt" type="datetime-local" bind:value={occurredAt} />
+  <div class="occurredAt-row" data-testid="bill-time-row">
+    <label class="label" for="occurredDate">日期</label>
+    <input
+      id="occurredDate"
+      type="date"
+      value={occurredDate}
+      oninput={onOccurredDateInput}
+      data-testid="bill-occurred-date"
+    />
+    <div class="date-quick-row" role="group" aria-label="快捷日期">
+      {#each DATE_QUICK as q (q.offset)}
+        <button
+          type="button"
+          class="date-quick"
+          class:active={activeQuickOffset === q.offset}
+          onclick={() => applyQuickDay(q.offset)}
+          data-testid={`bill-date-quick-${q.offset}`}
+        >{q.label}</button>
+      {/each}
+    </div>
+    <label class="label" for="occurredTime">时间</label>
+    <input
+      id="occurredTime"
+      type="time"
+      value={occurredTime}
+      oninput={onOccurredTimeInput}
+      data-testid="bill-occurred-time"
+    />
   </div>
 
   <div class="row" style="gap: var(--space-3); align-items: center;">
@@ -852,6 +942,7 @@
                   bind:value={st.amount}
                   bind:this={inputRefs[m.id]}
                   onblur={() => handlePillBlur(m.id)}
+                  onfocus={(e) => ensureExclusiveInputVisible(e.currentTarget)}
                   placeholder="0.00"
                   aria-label={`${m.display_name} 的个人消费金额`}
                   data-testid={`ppts-amount-${m.id}`}
@@ -1282,7 +1373,8 @@
   /* Bottom-sheet form layout (BillSheet) — single vertical rhythm:
      section gap 22 · label→control 8 · equal meta columns · matched control height 44. */
   .stack.sheet-layout {
-    padding-bottom: 4px;
+    /* Extra pad so last 个人消费 row can scroll above keyboard / footer */
+    padding-bottom: 48px;
     gap: 22px;
   }
   .sheet-layout .field {
@@ -1363,55 +1455,60 @@
     cursor: not-allowed;
   }
 
-  /* 时间 / 付款人各占整行 — datetime-local 半宽列会裁切 native widget */
+  /* 日期 / 快捷 / 时间 / 付款人 — 整行 */
   .sheet-layout .field-time,
   .sheet-layout .field-payer {
     min-width: 0;
     width: 100%;
     max-width: 100%;
   }
-  .sheet-layout .field-time input[type="datetime-local"]#occurredAt {
+  .sheet-layout .field-time input[type="date"],
+  .sheet-layout .field-time input[type="time"] {
     box-sizing: border-box;
     display: block;
     width: 100%;
-    max-width: 100% !important;
-    min-width: 0 !important;
+    max-width: 100%;
+    min-width: 0;
     height: 44px;
     min-height: 44px;
-    max-height: 44px;
     padding: 0 12px;
     font-size: 14px;
     line-height: 44px;
-    overflow: visible;
     -webkit-appearance: none;
     appearance: none;
   }
-  .sheet-layout .field-time input[type="datetime-local"]#occurredAt::-webkit-datetime-edit,
-  .sheet-layout .field-time input[type="datetime-local"]#occurredAt::-webkit-datetime-edit-fields-wrapper {
-    display: inline-flex;
-    align-items: center;
+  .date-quick-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+  }
+  .date-quick {
+    flex: 1 1 0;
     min-width: 0;
-    max-width: none;
-    height: 44px;
-    line-height: 44px;
-    padding: 0;
-  }
-  .sheet-layout .field-time input[type="datetime-local"]#occurredAt::-webkit-datetime-edit-text,
-  .sheet-layout .field-time input[type="datetime-local"]#occurredAt::-webkit-datetime-edit-month-field,
-  .sheet-layout .field-time input[type="datetime-local"]#occurredAt::-webkit-datetime-edit-day-field,
-  .sheet-layout .field-time input[type="datetime-local"]#occurredAt::-webkit-datetime-edit-year-field,
-  .sheet-layout .field-time input[type="datetime-local"]#occurredAt::-webkit-datetime-edit-hour-field,
-  .sheet-layout .field-time input[type="datetime-local"]#occurredAt::-webkit-datetime-edit-minute-field,
-  .sheet-layout .field-time input[type="datetime-local"]#occurredAt::-webkit-datetime-edit-ampm-field {
-    padding: 0 1px;
-    line-height: 44px;
-  }
-  .sheet-layout .field-time input[type="datetime-local"]#occurredAt::-webkit-calendar-picker-indicator {
-    margin-left: 4px;
-    width: 18px;
-    height: 18px;
+    min-height: 36px;
+    padding: 0 8px;
+    border-radius: 9999px;
+    border: 1px solid rgba(40, 40, 40, 0.16);
+    background: rgba(255, 255, 255, 0.45);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
+    font-size: 13px;
+    font-weight: 500;
+    font-family: inherit;
     cursor: pointer;
-    opacity: 0.7;
+    transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+  }
+  .date-quick.active {
+    background: linear-gradient(135deg, #2c2c2c 0%, #525252 100%);
+    border-color: rgba(255, 255, 255, 0.35);
+    color: #fff;
+    font-weight: 600;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      0 1px 4px rgba(40, 40, 40, 0.2);
+  }
+  .date-quick:active {
+    transform: scale(0.97);
   }
   .sheet-layout .field-payer select#payer {
     box-sizing: border-box;
@@ -1445,79 +1542,35 @@
     margin-top: 0;
   }
 
-  /* v0.3.21 #110 (PO msg 18:46): <input type="datetime-local"> 在 iOS Safari
-     有天然的 picker indicator + 隐式 min-width (~280px), 单纯 width: 100% 不会
-     让它在小屏 (<=360px) 缩到合适宽度, 视觉上"超长+伸到页面外". 三件事:
-     (1) min-width: 0 允许缩到小于 picker indicator 暗示的最小值
-     (2) max-width: 100% 安全兜底, 永不超出父容器 (避免横向 overflow)
-     (3) padding-block 减半 + 略缩字号, 让 56px 默认高度降到 ~40px, 跟
-         上方"金额/付款人"等 row 节奏对齐, 减少纵向松散
-
-     v0.3.21 #113 (PO msg 02:54 #7810): #110 只缩了 height, 没改 width.
-     实际输入框还是 width:100% = 325.625px (iPhone 13), 内容 (date text
-     "07/22/2026, 11:19 AM" + picker icon) 只占 ~240px, 中间 118px 空白,
-     "超长" 视觉问题没解决. 改 max-width 100% → 240px, 让 input 收缩
-     到刚好装下内容 + picker indicator, 视觉平衡. iPhone 13 (content 宽
-     326px) 240 留 86px 空; iPhone SE 375 (content 311px) 240 留 71px 空;
-     小屏 320 (content 256px) 240 超出 → 用 max-width: min(240px, 100%)
-     兜底.
-
-     v0.3.28 UAT 0724-1 #4 (commit be9d25b): 删 min(240px, 100%) → 单纯 100%.
-     iPhone 13 实测 parent 156px (flex:1 + min-width:0), min(240, 100%) → 156.
-     但 iOS Safari datetime-local native widget minimum content ~200px
-     (picker icon 30px + locale-formatted content ~140px), 156px 容器下
-     widget 渲染会溢出 input 框.
-
-     v0.3.29 — UAT 0725-1 #6: 物理根因修. 之前 v0.3.24 Top #1 (padding-inline)
-     + v0.3.28 #4 (max-width 100%) 都只缓解症状, 物理上 input box ~156px <
-     widget ~200px 仍溢出. WebKit bug #119175 12 年未修, iOS 26.4 没改
-     datetime-local 渲染规则. CSS max-width 只能压上限不能压下限, 任何
-     padding 调整都不管用. 方案 B: 挪 occurredAt 到独立整行 .occurredAt-row
-     (width: 100%, ~326px iPhone 13 content area), 物理给 widget 200px+
-     container, 容纳 picker indicator 30px + locale text 140-170px + 8px margin.
-     input width: 100% 现在真生效 (parent 已 full-width, 不再被 flex:1 兄弟
-     amount 挤). padding-inline 12 16px 保留 (容纳 picker indicator 16px 右侧). */
-  input[type="datetime-local"]#occurredAt {
-    min-width: 0;
+  /* Page layout: 日期 → 快捷 → 时间 (split from datetime-local). */
+  .occurredAt-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    margin-top: var(--space-3);
+  }
+  .occurredAt-row > .label {
+    margin: 0;
+  }
+  .occurredAt-row input[type="date"],
+  .occurredAt-row input[type="time"] {
+    box-sizing: border-box;
+    display: block;
     width: 100%;
     max-width: 100%;
-    box-sizing: border-box;
+    min-width: 0;
     height: 44px;
     min-height: 44px;
     padding: 0 12px;
     font-size: 14px;
-    letter-spacing: -0.01em;
     line-height: 44px;
-    display: block;
+    letter-spacing: -0.01em;
     -webkit-appearance: none;
     appearance: none;
   }
-  input[type="datetime-local"]#occurredAt::-webkit-datetime-edit,
-  input[type="datetime-local"]#occurredAt::-webkit-datetime-edit-fields-wrapper {
-    display: inline-flex;
-    align-items: center;
-    height: 44px;
-    line-height: 44px;
-    padding: 0;
-  }
-  input[type="datetime-local"]#occurredAt::-webkit-calendar-picker-indicator {
-    width: 18px;
-    height: 18px;
-    cursor: pointer;
-    opacity: 0.7;
-  }
-
-  /* v0.3.29 — UAT 0725-1 #6: 时间 input 独立整行, full-width container 让 iOS Safari
-     datetime-local widget (~200px implicit min-width) 不被挤. 跟上面 v0.3.23 #136
-     "金额 + 时间 同行 flex:1 each" 是反方向改动 — 上次是把 amount 时间挤一排
-     视觉对齐, 这次承认 datetime-local 物理需要独立 row 才能装下 native widget. */
-  .occurredAt-row {
-    width: 100%;
-    margin-top: var(--space-3);
-  }
-  .occurredAt-row input[type="datetime-local"]#occurredAt {
-    display: block;
-    max-width: 100%;
+  .occurredAt-row .date-quick-row {
+    margin: 0;
   }
 
   /* v0.3.35 #1 — UAT 0725-3 #6 (PO msg #9088 batch): description 空提交红框玻璃.
