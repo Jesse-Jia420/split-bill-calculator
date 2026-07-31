@@ -1088,7 +1088,9 @@
   }
   .rate-suffix {
     font-size: var(--font-size-sm);
-    color: var(--gray-600);
+    /* 支付/消费币种色 — 与上方「消费币种」chip / label 一致 */
+    color: var(--cc-secondary, #2f7a84);
+    font-weight: 600;
     white-space: nowrap;
     flex-shrink: 0;
   }

@@ -357,7 +357,8 @@
                主币种切换时已清空, 副币种切换时**不**清 (用户可能想换币种再改 rate, 简化 UX). -->
           <div class="currency-section">
             <label class="currency-label" for="exchange-rate-input">
-              汇率 (1 {primaryCurrency} = ? {secondaryCurrency || '支付币种'})
+              汇率 (1 {primaryCurrency} = ?
+              <span class="rate-ccy-pay">{secondaryCurrency || '支付币种'}</span>)
             </label>
             <div class="rate-row-new">
               <input
@@ -576,6 +577,11 @@
   /* §3.11 收尾: dual mode 汇率 input 样式 */
   /* .exchange-rate-input 已用 .glass-input 替代 — v0.3.17 #27 */
   .exchange-rate-hint { font-size: var(--font-size-sm); color: #737373; margin: var(--space-2) 0 0; min-height: 1.2em; }
+  /* 汇率 label 里的支付/消费币种代码（或「支付币种」占位）用 secondary teal */
+  .rate-ccy-pay {
+    color: var(--cc-secondary, #2f7a84);
+    font-weight: 700;
+  }
 
   /* v0.3.25 #0723-wizard-step3 (bug #5): 模式选择提示 — 跟 .step-hint 风格一致,
      放在 IosSwitch 下方 + 主币种 section 之前, 居中灰文. */
