@@ -58,7 +58,9 @@
   // v0.3.0729-4 #10: 连续跟手滑动
   // Phase 1 (0..ITEM_SLIDE): 内容左移到最左
   // Phase 2 (>ITEM_SLIDE): 删除按钮跟手出现 + 橡皮糖
-  const ACTION_WIDTH = 56;
+  // 删除圆 40px（非账单列表 56px）：record-row ≈ avatar 28 + pad 24 = 52px，
+  // 56px 圆会被 .settlement-swipe-wrap overflow:hidden 上下裁切。
+  const ACTION_WIDTH = 40;
   const ITEM_SLIDE = 48;
   const SWIPE_THRESHOLD = ITEM_SLIDE + 30;
   const TAP_THRESHOLD = 10;
@@ -262,7 +264,7 @@
       style="--swipe-progress: {progress}"
       onclick={handleDeleteClick}
     >
-      <Trash2 size={22} strokeWidth={2} aria-hidden="true" />
+      <Trash2 size={18} strokeWidth={2} aria-hidden="true" />
     </button>
   {/if}
   <div
@@ -380,13 +382,13 @@
     line-height: 1;
   }
 
-  /* v0.3.0729-4 #10: 跟手圆形删除按钮（与 BillListGrouped 同款） */
+  /* v0.3.0729-4 #10: 跟手圆形删除按钮（形态同 BillListGrouped，直径适配矮行） */
   .delete-btn {
     position: absolute;
     top: 50%;
     right: 6px;
     transform: translateY(-50%);
-    width: calc(var(--swipe-progress, 0) * 56px);
+    width: calc(var(--swipe-progress, 0) * 40px);
     aspect-ratio: 1 / 1;
     min-height: 0;
     border-radius: 50%;
