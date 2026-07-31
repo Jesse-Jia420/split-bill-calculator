@@ -493,6 +493,36 @@
     text-align: left;
     min-height: 56px;
   }
+  /* UAT: 成员 item 更透、更少磨砂 — 覆盖全局 .glass-pill / button.glass-pill
+     (blur 20→6, fill alpha ~0.06→~0.02), 让纸纹背景透出来. */
+  button.glass-pill.slot-btn-v3,
+  .slot-btn-v3.glass-pill {
+    background: linear-gradient(
+      135deg,
+      rgba(40, 40, 40, 0.022) 0%,
+      rgba(58, 58, 58, 0.012) 100%
+    );
+    backdrop-filter: saturate(140%) blur(6px);
+    -webkit-backdrop-filter: saturate(140%) blur(6px);
+    border-color: rgba(40, 40, 40, 0.12);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.28),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.015),
+      0 1px 2px rgba(40, 40, 40, 0.03);
+  }
+  button.glass-pill.slot-btn-v3:hover,
+  .slot-btn-v3.glass-pill:hover {
+    background: linear-gradient(
+      135deg,
+      rgba(40, 40, 40, 0.05) 0%,
+      rgba(58, 58, 58, 0.03) 100%
+    );
+    border-color: rgba(40, 40, 40, 0.16);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.02),
+      0 1px 4px rgba(40, 40, 40, 0.05);
+  }
   .slot-avatar {
     width: 30px;
     height: 30px;
