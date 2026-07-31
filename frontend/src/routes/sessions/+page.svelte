@@ -187,9 +187,9 @@
     font-size: 11px;
     color: var(--gray-400, #a3a3a3);
   }
-  /* Match SessionCard .delete-btn text color */
+  /* Match muted settle-neg on delete word only */
   .list-top-hint .hint-delete {
-    color: var(--error-700, #be123c);
+    color: var(--settle-neg);
     font-weight: 500;
   }
 </style>

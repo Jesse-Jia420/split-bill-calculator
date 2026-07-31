@@ -107,6 +107,8 @@ input, textarea, select, [contenteditable] {
   --settle-neg: #c17a7a;
   --settle-pos-border: rgba(77, 143, 110, 0.45);
   --settle-neg-border: rgba(193, 122, 122, 0.5);
+  --settle-pos-rgb: 77, 143, 110;
+  --settle-neg-rgb: 193, 122, 122;
 
   /* Avatar palette — soft charcoal companions (10 hues, low saturation).
      Keep in sync with frontend/src/lib/utils/palette.ts AVATAR_GRADIENTS. */

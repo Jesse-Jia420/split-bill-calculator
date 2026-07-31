@@ -1021,11 +1021,11 @@
     margin-left: 1px;
   }
   .bill-swipe-hint .hint-delete {
-    color: var(--error-700, #be123c);
+    color: var(--settle-neg);
     font-weight: 500;
   }
   .bill-swipe-hint .hint-edit {
-    color: var(--btn-label, var(--logo-ink, #1a1a1a));
+    color: var(--settle-pos);
     font-weight: 500;
   }
   /* v0.3.24 #18 (PO msg 16:35 UAT line #18 字面 "账单列表搜索框，当无搜索结果时，提示的 没有匹配的账单，换个关键词试试 ，出现的位置不对，被搜索框挡住了。应下移一些"):
@@ -1403,41 +1403,44 @@
      v0.3.17 #17 hotfix 之前这里有 5 行重复定义 glass-pill 同款属性, 全删 —
      specificity 已够, 重复定义只会在改 app.css 时脱节。*/
 
-  /* 语义色 modifier: 红色玻璃 (用于删除)
-     思路跟全站 .glass-pill 同级, 但用红玻璃渐变 (红 0.10 → 0.08) + 红字
-     (var(--error-700, #be123c))。保留 backdrop blur + pill + inset shadow。*/
+  /* 语义色 modifier: 灰玫瑰玻璃 (删除) — soft charcoal settle-neg */
   .bill-swipe-action.glass-pill.glass-pill--delete {
     background: linear-gradient(
       135deg,
-      rgba(220, 38, 38, 0.10) 0%,
-      rgba(239, 68, 68, 0.08) 100%
+      rgba(var(--settle-neg-rgb), 0.18) 0%,
+      rgba(var(--settle-neg-rgb), 0.12) 100%
     );
-    border-color: rgba(220, 38, 38, 0.22);
-    color: var(--error-700, #be123c);
+    border-color: rgba(var(--settle-neg-rgb), 0.32);
+    color: var(--settle-neg);
   }
   .bill-swipe-action.glass-pill.glass-pill--delete:hover {
     background: linear-gradient(
       135deg,
-      rgba(220, 38, 38, 0.18) 0%,
-      rgba(239, 68, 68, 0.15) 100%
+      rgba(var(--settle-neg-rgb), 0.28) 0%,
+      rgba(var(--settle-neg-rgb), 0.2) 100%
     );
-    border-color: rgba(220, 38, 38, 0.30);
-    color: #9f1239; /* rose-800 — 比 --error-700 更深, 跟全站 .glass-pill:hover
-                      color: var(--accent-800, #121212) 同样的"加深一档"模式 */
+    border-color: rgba(var(--settle-neg-rgb), 0.42);
+    color: #a66d6d;
   }
 
-  /* 语义色 modifier: 蓝紫玻璃 (用于编辑) — 跟基类 .glass-pill 同色,
-     但 --edit 显式覆盖一次以保持语义可读性 (跟 --delete 对称)
-     v0.3.17 #17 hotfix 之前是 0.92 实色, 跟全站调色板完全脱节, 这里改成跟基类
-     完全一致即可, 但保留 modifier 让 design 后续可微调而其他按钮不变。*/
+  /* 语义色 modifier: 鼠尾草绿玻璃 (编辑) — soft charcoal settle-pos */
   .bill-swipe-action.glass-pill.glass-pill--edit {
-    /* 沿用基类 app.css .glass-pill 的渐变 (不重写) — 仅显式声明便于读 */
-    color: var(--btn-label, var(--logo-ink, #1a1a1a));
-    border-color: rgba(40, 40, 40, 0.22);
+    background: linear-gradient(
+      135deg,
+      rgba(var(--settle-pos-rgb), 0.18) 0%,
+      rgba(var(--settle-pos-rgb), 0.12) 100%
+    );
+    border-color: rgba(var(--settle-pos-rgb), 0.32);
+    color: var(--settle-pos);
   }
   .bill-swipe-action.glass-pill.glass-pill--edit:hover {
-    color: var(--btn-label, var(--logo-ink, #1a1a1a));
-    border-color: rgba(40, 40, 40, 0.30);
+    background: linear-gradient(
+      135deg,
+      rgba(var(--settle-pos-rgb), 0.28) 0%,
+      rgba(var(--settle-pos-rgb), 0.2) 100%
+    );
+    border-color: rgba(var(--settle-pos-rgb), 0.42);
+    color: #3f7a5c;
   }
 
   .bill-swipe-action {
@@ -1556,11 +1559,11 @@
   .bill-swipe-action.disabled:hover {
     background: linear-gradient(
       135deg,
-      rgba(220, 38, 38, 0.10) 0%,
-      rgba(239, 68, 68, 0.08) 100%
+      rgba(var(--settle-neg-rgb), 0.18) 0%,
+      rgba(var(--settle-neg-rgb), 0.12) 100%
     ) !important;
-    border-color: rgba(220, 38, 38, 0.22) !important;
-    color: var(--error-700, #be123c) !important;
+    border-color: rgba(var(--settle-neg-rgb), 0.32) !important;
+    color: var(--settle-neg) !important;
   }
   .bill-swipe-action-left {
     left: 6px;

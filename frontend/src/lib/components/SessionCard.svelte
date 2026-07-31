@@ -976,18 +976,18 @@
     justify-content: center;
     background: linear-gradient(
       135deg,
-      rgba(220, 38, 38, 0.18) 0%,
-      rgba(239, 68, 68, 0.12) 100%
+      rgba(var(--settle-neg-rgb), 0.18) 0%,
+      rgba(var(--settle-neg-rgb), 0.12) 100%
     );
-    border: 1px solid rgba(220, 38, 38, 0.28);
-    color: var(--error-700, #be123c);
+    border: 1px solid rgba(var(--settle-neg-rgb), 0.32);
+    color: var(--settle-neg);
     cursor: pointer;
     padding: 0;
     backdrop-filter: blur(8px) saturate(1.8);
     -webkit-backdrop-filter: blur(8px) saturate(1.8);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.5),
-      0 1px 2px rgba(220, 38, 38, 0.12);
+      0 1px 2px rgba(var(--settle-neg-rgb), 0.12);
     /* v0.3.28 (跟 BillListGrouped .bill-swipe-action 同步): width 220ms spring overshoot,
      * opacity 180ms ease-out. 出来瞬间轻微 bounce + 收尾稳定到 56px. */
     transition:
@@ -1017,18 +1017,18 @@
   .delete-btn:hover {
     background: linear-gradient(
       135deg,
-      rgba(220, 38, 38, 0.28) 0%,
-      rgba(239, 68, 68, 0.22) 100%
+      rgba(var(--settle-neg-rgb), 0.28) 0%,
+      rgba(var(--settle-neg-rgb), 0.2) 100%
     );
-    border-color: rgba(220, 38, 38, 0.40);
-    color: #9f1239;
+    border-color: rgba(var(--settle-neg-rgb), 0.42);
+    color: #a66d6d;
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.6),
-      0 0 0 2px rgba(220, 38, 38, 0.16),
-      0 2px 6px rgba(220, 38, 38, 0.18);
+      0 0 0 2px rgba(var(--settle-neg-rgb), 0.16),
+      0 2px 6px rgba(var(--settle-neg-rgb), 0.18);
   }
   .delete-btn:focus-visible {
-    outline: 2px solid rgba(220, 38, 38, 0.55);
+    outline: 2px solid rgba(var(--settle-neg-rgb), 0.55);
     outline-offset: 2px;
   }
   /* 非 owner: 置灰但仍可点 (toast 报错说明原因).
@@ -1044,17 +1044,17 @@
     /* 跟 BillListGrouped .bill-swipe-action.disabled:hover 同款 — 不升亮误导 */
     background: linear-gradient(
       135deg,
-      rgba(220, 38, 38, 0.10) 0%,
-      rgba(239, 68, 68, 0.08) 100%
+      rgba(var(--settle-neg-rgb), 0.18) 0%,
+      rgba(var(--settle-neg-rgb), 0.12) 100%
     );
-    border-color: rgba(220, 38, 38, 0.22);
-    color: var(--error-700, #be123c);
+    border-color: rgba(var(--settle-neg-rgb), 0.32);
+    color: var(--settle-neg);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.5),
-      0 1px 2px rgba(220, 38, 38, 0.12);
+      0 1px 2px rgba(var(--settle-neg-rgb), 0.12);
   }
   .delete-btn.disabled:focus-visible {
-    outline: 2px solid rgba(220, 38, 38, 0.4);
+    outline: 2px solid rgba(var(--settle-neg-rgb), 0.4);
   }
 
   /* v0.3.25 #16: confirm modal (跟 InviteLinkButton v0.3.24 #14 同款玻璃风格).

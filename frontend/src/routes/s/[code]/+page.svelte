@@ -1678,16 +1678,17 @@
   /* === Member list — 列表布局 (替代旧 chip 圆角 999px) === */
   .members-list-a {
     list-style: none;
-    padding: 0;
+    /* 左右 4px：给 is-me / is-owner 外圈 ring 留空，避免被 .members-body overflow:hidden 裁切 */
+    padding: 4px 4px 4px 4px;
     margin: 0;
     display: flex;
     flex-direction: column;
     gap: 8px;
   }
-  /* Mockup A row: grid 36px 1fr auto, 头像 + 信息 + (可选) remove */
+  /* Mockup A row: 头像列 44px 容纳 36px 圆 + 4px ring，头像居中 */
   .member-row-a {
     display: grid;
-    grid-template-columns: 36px 1fr auto;
+    grid-template-columns: 44px 1fr auto;
     align-items: center;
     gap: 12px;
     padding: 8px 0;
@@ -1724,6 +1725,7 @@
     font-weight: 600;
     font-size: 13px;
     flex-shrink: 0;
+    justify-self: center;
     position: relative;
     overflow: visible;
     border: 2px solid rgba(255, 255, 255, 0.5);
