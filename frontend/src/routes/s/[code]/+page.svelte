@@ -1751,7 +1751,17 @@
   .avatar-a.e {
     background: var(--avatar-4);
   }
-  /* v0.3.19 #83 + v0.3.0728-2 #20: palette-0..9 → app.css soft charcoal tokens (--avatar-N) */
+  /* palette-0..9 — scoped so they beat .avatar-a { background: var(--avatar-0) } */
+  .avatar-a.palette-0 { background: var(--avatar-0); }
+  .avatar-a.palette-1 { background: var(--avatar-1); }
+  .avatar-a.palette-2 { background: var(--avatar-2); }
+  .avatar-a.palette-3 { background: var(--avatar-3); }
+  .avatar-a.palette-4 { background: var(--avatar-4); }
+  .avatar-a.palette-5 { background: var(--avatar-5); }
+  .avatar-a.palette-6 { background: var(--avatar-6); }
+  .avatar-a.palette-7 { background: var(--avatar-7); }
+  .avatar-a.palette-8 { background: var(--avatar-8); }
+  .avatar-a.palette-9 { background: var(--avatar-9); }
   .avatar-a.is-owner {
     box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(28, 28, 28, 0.55);
   }
@@ -1936,7 +1946,17 @@
     user-select: none;
     position: relative;
   }
-  /* palette-0..9 → app.css soft charcoal tokens (--avatar-N) */
+  /* palette-0..9 — scoped so they apply reliably with component CSS */
+  .avatar-mini.palette-0 { background: var(--avatar-0); }
+  .avatar-mini.palette-1 { background: var(--avatar-1); }
+  .avatar-mini.palette-2 { background: var(--avatar-2); }
+  .avatar-mini.palette-3 { background: var(--avatar-3); }
+  .avatar-mini.palette-4 { background: var(--avatar-4); }
+  .avatar-mini.palette-5 { background: var(--avatar-5); }
+  .avatar-mini.palette-6 { background: var(--avatar-6); }
+  .avatar-mini.palette-7 { background: var(--avatar-7); }
+  .avatar-mini.palette-8 { background: var(--avatar-8); }
+  .avatar-mini.palette-9 { background: var(--avatar-9); }
   .avatar-mini-overflow {
     background: var(--gray-300, #d1d5db) !important;
     color: var(--gray-700, #374151) !important;

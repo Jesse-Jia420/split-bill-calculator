@@ -909,7 +909,17 @@
   .avatar-mini:not(:first-child) {
     margin-left: -6px;
   }
-  /* palette-0..9 → app.css soft charcoal tokens (--avatar-N) */
+  /* palette-0..9 — scoped so they apply reliably with component CSS */
+  .avatar-mini.palette-0 { background: var(--avatar-0); }
+  .avatar-mini.palette-1 { background: var(--avatar-1); }
+  .avatar-mini.palette-2 { background: var(--avatar-2); }
+  .avatar-mini.palette-3 { background: var(--avatar-3); }
+  .avatar-mini.palette-4 { background: var(--avatar-4); }
+  .avatar-mini.palette-5 { background: var(--avatar-5); }
+  .avatar-mini.palette-6 { background: var(--avatar-6); }
+  .avatar-mini.palette-7 { background: var(--avatar-7); }
+  .avatar-mini.palette-8 { background: var(--avatar-8); }
+  .avatar-mini.palette-9 { background: var(--avatar-9); }
   .avatar-mini-overflow {
     background: #d1d5db !important;
     color: #374151 !important;
