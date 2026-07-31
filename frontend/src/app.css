@@ -110,18 +110,17 @@ input, textarea, select, [contenteditable] {
   --settle-pos-rgb: 77, 143, 110;
   --settle-neg-rgb: 193, 122, 122;
 
-  /* Avatar palette — soft charcoal companions (10 hues, low saturation).
-     Keep in sync with frontend/src/lib/utils/palette.ts AVATAR_GRADIENTS. */
-  --avatar-0: linear-gradient(135deg, rgba(92, 101, 112, 0.88) 0%, rgba(110, 118, 130, 0.88) 100%);
-  --avatar-1: linear-gradient(135deg, rgba(193, 122, 122, 0.88) 0%, rgba(168, 120, 136, 0.88) 100%);
-  --avatar-2: linear-gradient(135deg, rgba(77, 143, 110, 0.88) 0%, rgba(106, 143, 120, 0.88) 100%);
-  --avatar-3: linear-gradient(135deg, rgba(184, 149, 108, 0.88) 0%, rgba(168, 137, 106, 0.88) 100%);
-  --avatar-4: linear-gradient(135deg, rgba(106, 132, 153, 0.88) 0%, rgba(94, 122, 143, 0.88) 100%);
-  --avatar-5: linear-gradient(135deg, rgba(154, 122, 140, 0.88) 0%, rgba(138, 112, 128, 0.88) 100%);
-  --avatar-6: linear-gradient(135deg, rgba(122, 143, 106, 0.88) 0%, rgba(109, 133, 96, 0.88) 100%);
-  --avatar-7: linear-gradient(135deg, rgba(94, 138, 133, 0.88) 0%, rgba(106, 143, 138, 0.88) 100%);
-  --avatar-8: linear-gradient(135deg, rgba(138, 125, 114, 0.88) 0%, rgba(122, 111, 102, 0.88) 100%);
-  --avatar-9: linear-gradient(135deg, rgba(192, 138, 110, 0.88) 0%, rgba(176, 122, 104, 0.88) 100%);
+  /* Avatar palette — 10-hue cycle (keep in sync with lib/utils/palette.ts). */
+  --avatar-0: linear-gradient(135deg, rgba(99, 102, 241, 0.88) 0%, rgba(168, 85, 247, 0.88) 100%);
+  --avatar-1: linear-gradient(135deg, rgba(236, 72, 153, 0.88) 0%, rgba(244, 63, 94, 0.88) 100%);
+  --avatar-2: linear-gradient(135deg, rgba(16, 185, 129, 0.88) 0%, rgba(20, 184, 166, 0.88) 100%);
+  --avatar-3: linear-gradient(135deg, rgba(245, 158, 11, 0.88) 0%, rgba(234, 179, 8, 0.88) 100%);
+  --avatar-4: linear-gradient(135deg, rgba(59, 130, 246, 0.88) 0%, rgba(6, 182, 212, 0.88) 100%);
+  --avatar-5: linear-gradient(135deg, rgba(244, 63, 94, 0.88) 0%, rgba(217, 70, 239, 0.88) 100%);
+  --avatar-6: linear-gradient(135deg, rgba(132, 204, 22, 0.88) 0%, rgba(34, 197, 94, 0.88) 100%);
+  --avatar-7: linear-gradient(135deg, rgba(14, 165, 233, 0.88) 0%, rgba(59, 130, 246, 0.88) 100%);
+  --avatar-8: linear-gradient(135deg, rgba(139, 92, 246, 0.88) 0%, rgba(236, 72, 153, 0.88) 100%);
+  --avatar-9: linear-gradient(135deg, rgba(249, 115, 22, 0.88) 0%, rgba(239, 68, 68, 0.88) 100%);
 
   /* Radius */
   --radius-sm: 4px;
@@ -297,7 +296,7 @@ button.ghost:hover:not(:disabled), .btn.ghost:hover { border-color: var(--gray-2
 .muted { color: var(--gray-500); }
 .hint { color: var(--gray-500); font-size: var(--font-size-sm); margin-top: var(--space-1); }
 
-/* Soft charcoal avatar palette — shared by session members / settle / cards / join */
+/* Avatar palette utilities — shared by session members / settle / cards / join */
 .palette-0, .avatar-a.palette-0, .avatar-mini.palette-0 { background: var(--avatar-0); }
 .palette-1, .avatar-a.palette-1, .avatar-mini.palette-1 { background: var(--avatar-1); }
 .palette-2, .avatar-a.palette-2, .avatar-mini.palette-2 { background: var(--avatar-2); }

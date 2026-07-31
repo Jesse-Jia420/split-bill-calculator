@@ -1,37 +1,48 @@
 /**
- * Avatar palette — soft charcoal companions (low-saturation).
+ * v0.3.36 #12 + #13 — UAT 0728-1 #12 + #13 (PO 字面 "已结算记录 / 建议转账头像样式应跟成员 section 一致, 头像颜色应跟成员 section 一致").
  *
- * Shared by SessionMemberList / BillForm / SettlementRow / SettleTransferPath
- * (and CSS tokens `--avatar-0`…`--avatar-9` in app.css — keep in sync).
+ * 把所有 avatar palette 计算集中到这一处共享 (之前 SessionMemberList + BillForm + SettlementRow
+ * 各自 inline copy 一份 AVATAR_GRADIENTS 数组 + avatarGradient / paletteIndex / avatarInitial 函数).
+ * 命名 / 颜色 / index 计算 / initial 推导 都在这里, 各组件 import 同一 source, 保证 4 处
+ * (SessionMemberList 成员 chip / BillForm 参与者 / SettlementRow 已结算记录头像 / SettleTransferPath
+ * 建议转账头像) 视觉完全一致.
  *
- * 10 hues so ≤10 members each get a distinct color (index % 10).
+ * 命名约定:
+ * - AVATAR_GRADIENTS = 10 色循环 (5 → 10 扩色, v0.3.0728-2 #20 PO 解冻:
+ *   之前 5 色让 session 6+ 成员时 loop index % 5 撞色 (e.g. 6th member 跟 1st 同色).
+ *   10 色保证 ≤10 成员的 session 每位独立颜色, 视觉一致性高).
+ * - paletteGradient(index) → 返回完整 CSS `background: linear-gradient(...)`.
+ * - paletteIndexFromMemberId(memberId) → stable hash 让同一 memberId 总拿到同一颜色 (跨 render 一致).
+ * - avatarInitialOf(name) → 中文取首字 / 英文取首字母大写.
+ *
+ * Keep in sync with app.css `--avatar-0`…`--avatar-9`.
  */
 
 /** Solid start-color per slot — for text accents ("xx 付") matching the avatar. */
 export const AVATAR_SOLIDS: ReadonlyArray<string> = [
-  '#5c6570', // charcoal slate
-  '#c17a7a', // dusty rose (settle-neg family)
-  '#4d8f6e', // sage (settle-pos family)
-  '#b8956c', // warm clay
-  '#6a8499', // steel blue
-  '#9a7a8c', // soft mauve
-  '#7a8f6a', // moss olive
-  '#5e8a85', // dusty teal
-  '#8a7d72', // taupe
-  '#c08a6e', // terracotta
+  '#6366f1', // indigo
+  '#ec4899', // pink
+  '#10b981', // emerald
+  '#f59e0b', // amber
+  '#3b82f6', // blue
+  '#f43f5e', // rose
+  '#84cc16', // lime
+  '#0ea5e9', // sky
+  '#8b5cf6', // violet
+  '#f97316', // orange
 ];
 
 const AVATAR_GRADIENTS: ReadonlyArray<string> = [
-  'linear-gradient(135deg, rgba(92, 101, 112, 0.88) 0%, rgba(110, 118, 130, 0.88) 100%)', // charcoal slate
-  'linear-gradient(135deg, rgba(193, 122, 122, 0.88) 0%, rgba(168, 120, 136, 0.88) 100%)', // dusty rose → mauve
-  'linear-gradient(135deg, rgba(77, 143, 110, 0.88) 0%, rgba(106, 143, 120, 0.88) 100%)', // sage → soft olive
-  'linear-gradient(135deg, rgba(184, 149, 108, 0.88) 0%, rgba(168, 137, 106, 0.88) 100%)', // warm clay
-  'linear-gradient(135deg, rgba(106, 132, 153, 0.88) 0%, rgba(94, 122, 143, 0.88) 100%)', // steel blue
-  'linear-gradient(135deg, rgba(154, 122, 140, 0.88) 0%, rgba(138, 112, 128, 0.88) 100%)', // soft mauve
-  'linear-gradient(135deg, rgba(122, 143, 106, 0.88) 0%, rgba(109, 133, 96, 0.88) 100%)', // moss olive
-  'linear-gradient(135deg, rgba(94, 138, 133, 0.88) 0%, rgba(106, 143, 138, 0.88) 100%)', // dusty teal
-  'linear-gradient(135deg, rgba(138, 125, 114, 0.88) 0%, rgba(122, 111, 102, 0.88) 100%)', // taupe
-  'linear-gradient(135deg, rgba(192, 138, 110, 0.88) 0%, rgba(176, 122, 104, 0.88) 100%)', // terracotta
+  'linear-gradient(135deg, rgba(99, 102, 241, 0.88) 0%, rgba(168, 85, 247, 0.88) 100%)', // indigo → purple
+  'linear-gradient(135deg, rgba(236, 72, 153, 0.88) 0%, rgba(244, 63, 94, 0.88) 100%)', // pink → rose
+  'linear-gradient(135deg, rgba(16, 185, 129, 0.88) 0%, rgba(20, 184, 166, 0.88) 100%)', // emerald → teal
+  'linear-gradient(135deg, rgba(245, 158, 11, 0.88) 0%, rgba(234, 179, 8, 0.88) 100%)', // amber → yellow
+  'linear-gradient(135deg, rgba(59, 130, 246, 0.88) 0%, rgba(6, 182, 212, 0.88) 100%)', // blue → cyan
+  'linear-gradient(135deg, rgba(244, 63, 94, 0.88) 0%, rgba(217, 70, 239, 0.88) 100%)', // rose → fuchsia
+  'linear-gradient(135deg, rgba(132, 204, 22, 0.88) 0%, rgba(34, 197, 94, 0.88) 100%)', // lime → green
+  'linear-gradient(135deg, rgba(14, 165, 233, 0.88) 0%, rgba(59, 130, 246, 0.88) 100%)', // sky → blue
+  'linear-gradient(135deg, rgba(139, 92, 246, 0.88) 0%, rgba(236, 72, 153, 0.88) 100%)', // violet → pink
+  'linear-gradient(135deg, rgba(249, 115, 22, 0.88) 0%, rgba(239, 68, 68, 0.88) 100%)', // orange → red
 ];
 
 /** Returns `background: linear-gradient(...)` for inline style (iOS Safari needs the property name). */
