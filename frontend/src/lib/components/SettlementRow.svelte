@@ -397,18 +397,18 @@
     justify-content: center;
     background: linear-gradient(
       135deg,
-      rgba(220, 38, 38, 0.18) 0%,
-      rgba(239, 68, 68, 0.12) 100%
+      rgba(var(--settle-neg-rgb), 0.18) 0%,
+      rgba(var(--settle-neg-rgb), 0.12) 100%
     );
-    border: 1px solid rgba(220, 38, 38, 0.28);
-    color: var(--error-700, #be123c);
+    border: 1px solid rgba(var(--settle-neg-rgb), 0.32);
+    color: var(--settle-neg);
     cursor: pointer;
     padding: 0;
     backdrop-filter: blur(8px) saturate(1.8);
     -webkit-backdrop-filter: blur(8px) saturate(1.8);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.5),
-      0 1px 2px rgba(220, 38, 38, 0.12);
+      0 1px 2px rgba(var(--settle-neg-rgb), 0.12);
     transition:
       width 220ms cubic-bezier(0.34, 1.56, 0.64, 1),
       opacity 180ms ease-out;
