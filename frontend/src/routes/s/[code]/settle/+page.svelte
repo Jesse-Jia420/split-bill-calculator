@@ -420,15 +420,9 @@
     />
   {/if}
 
-  <!-- v0.3.32 -- UAT 0725-2 #1: AddSettlementSheet modal (mockup 2 + 3).
-       控制 addSheetOpen state. 仅在 session + records 都已加载时挂载, 避免
-       sheet 打开时 transfers 还是 stale 数组 (preview 算式会失真).
-       transfers prop 拿 settleRawTransfers (BE 返回的 raw, 不被 settlement 减
-       过的) -- 我们还没这能力, 所以传空数组让 preview 走 "无对应原转账" 兜底
-       文案. 后续 sprint 可加 ?raw=true query param 让 BE 暴露未调整的 raw.
-       当前 commit 的 preview 会显示 "无对应原转账" 路径, 但 sheet 本身依然
-       能提交, 提交后 refetch 让 SettleTransferPath 显示调整后的 transfer cards.
-  -->
+  <!-- v0.3.32 -- UAT 0725-2 #1: AddSettlementSheet modal.
+       Sheet 自行 GET /settle 拉 adjusted transfers，用于「应结算金额」欠款预览；
+       transfers prop 仅作 fetch 前兜底，可传 []. -->
   {#if addSheetOpen && session && currentMember}
     <AddSettlementSheet
       sessionId={session.id}
