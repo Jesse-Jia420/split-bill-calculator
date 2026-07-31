@@ -9,14 +9,13 @@
    * 跟 /auth/login 区别:
    * - /auth/login: 通用登录页 (returnTo 推导 H2 文案), 用于全站 401 redirect.
    * - /sessions/{id}/login: 账本专属登录页 (per-session, 从 join 跳转).
-   *   H2 文案固定 "登录 {nickname}({emailMasked})以回到账本", 不依赖 returnTo.
+   *   H2「登录」单独一行（跟 /auth/login 同款）；下一行副标题
+   *   "{nickname}({emailMasked})以回到账本", 不依赖 returnTo.
    *
    * 设计语言 (PO v4 字面 + 配套 mockup v4-3-login.html):
-   * - Header row (高 ~56-64px):
-   *   左: 圆形 back FAB (settle 同款 56×56, rgba(40, 40, 40,0.16) 玻璃)
-   *   右: pill "登录 →" 按钮 (半透明白 18px 圆角玻璃)
-   * - 副标题区: "登录 {nickname}({emailMasked})以回到账本" (15px muted)
-   *   nickname 用 indigo #262626 高亮 + font-weight 600
+   * - Header: 「登录」h2（跟 /auth/login 同款字号字重）
+   * - 副标题区: "{nickname}({emailMasked})以回到账本" (15px muted)
+   *   nickname 用 #262626 高亮 + font-weight 600
    *   email 用更浅 muted gray
    * - "清迈" 副副标题 (13px 更浅)
    * - 表单: 邮箱 + 验证码 (空 value, placeholder, 不 pre-fill 真邮箱)
@@ -170,9 +169,10 @@
   <!-- header 保留空白 (PO 字面「取消」header 顶部 pill + 返回 FAB, 不再放任何控件) -->
   <header class="login-header" data-testid="login-header"></header>
 
-  <!-- v0.3.29 #13 v4 Feature B: 副标题区 -->
+  <!-- 「登录」单独一行 — 字号/字重跟 /auth/login 的 <h2>登录</h2> 一致 -->
+  <h2 class="page-heading" data-testid="login-heading">登录</h2>
   <p class="page-title" data-testid="login-subtitle">
-    登录 <span class="nickname">{nickname || '用户'}</span><span class="email-wrap"><span class="paren">(</span>{emailMasked || 'x***@outlook.com'}<span class="paren">)</span></span>以回到账本
+    <span class="nickname">{nickname || '用户'}</span><span class="email-wrap"><span class="paren">(</span>{emailMasked || 'x***@outlook.com'}<span class="paren">)</span></span>以回到账本
   </p>
 
   {#if sessionName}
@@ -302,12 +302,16 @@
 
   /* v0.3.33 — UAT 0725-3 #1: header pill 删了 (PO 字面「取消」), .login-pill-btn CSS 同步清理. */
 
-  /* ===== 副标题区 ===== */
+  /* ===== 标题区：「登录」大标题 + 昵称/邮箱副行 ===== */
+  /* 跟 /auth/login <h2> 同款（用全局 h2：semibold + gray-900 + tight line-height） */
+  .page-heading {
+    margin: 4px 0 8px;
+  }
   .page-title {
     font-size: 15px;
     font-weight: 500;
     color: rgba(0, 0, 0, 0.62);
-    margin: 4px 0 4px;
+    margin: 0 0 4px;
     line-height: 1.45;
     letter-spacing: -0.005em;
     word-break: break-word;
