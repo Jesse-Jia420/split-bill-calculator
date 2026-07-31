@@ -822,6 +822,8 @@
                          APPEAR (so users understand "this bill belongs to
                          someone else") but be visually greyed out. -->
                     {@const canEdit = billCanEdit(b)}
+                    {@const ccyIsPrimary =
+                      primaryCurrency != null && b.currency === primaryCurrency}
 <!-- v0.3.17 #20 hotfix (PO msg 13:12): 取消 stagger in:fly,
                          改 in:fade 80ms — toggle 展开时所有 row 同步淡入,
                          30 行不再逐行 delay 200ms, 不再「卡卡的」。
@@ -898,8 +900,15 @@
                         <div class="bill-row1">
                           <CategoryIcon description={b.description ?? ''} size={18} />
                           <span class="bill-desc">{b.description || '(无说明)'}</span>
+                          <!-- Currency unit = 汇率设置角色色:
+                               primary → --cc-primary (结算 charcoal);
+                               else → --cc-secondary (支付/消费 teal). -->
                           <span class="bill-amount">
-                            {fmtAmount(b.amount)}<span class="unit">{b.currency}</span>
+                            {fmtAmount(b.amount)}<span
+                              class="unit"
+                              class:unit-primary={ccyIsPrimary}
+                              class:unit-secondary={!ccyIsPrimary}
+                            >{b.currency}</span>
                           </span>
                         </div>
                         <!-- v0.3.20 #92 (PO msg 07:13 #7409): 新增 .bill-row-exclusive —
@@ -949,7 +958,13 @@
                                需同样总显.
                                修法: 不再用 {#if share !== null}, 改为总是渲染. own_share = 0 → fmtAmount(0) = "0.00" → "分摊 0.00 CNY".
                                share === null (user 不是 participant) 也补 0 — 跟 #8 同模式 "总显". -->
-                          <span class="your-share">分摊 {fmtAmount(isOnlyExclusive ? 0 : displayShare)}<span class="unit">{b.currency}</span></span>
+                          <span class="your-share"
+                            >分摊 {fmtAmount(isOnlyExclusive ? 0 : displayShare)}<span
+                              class="unit"
+                              class:unit-primary={ccyIsPrimary}
+                              class:unit-secondary={!ccyIsPrimary}
+                            >{b.currency}</span></span
+                          >
                         </div>
                       </div>
                     </li>
@@ -1309,6 +1324,19 @@
     opacity: 0.85;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
+  }
+  /* Match SessionCurrencyBadge / 汇率设置: 结算 charcoal vs 支付·消费 teal */
+  .bill-amount .unit.unit-primary,
+  .your-share .unit.unit-primary {
+    color: var(--cc-primary, #1a1a1a);
+    opacity: 1;
+    font-weight: 600;
+  }
+  .bill-amount .unit.unit-secondary,
+  .your-share .unit.unit-secondary {
+    color: var(--cc-secondary, #2f7a84);
+    opacity: 1;
+    font-weight: 600;
   }
 
   /* === 反馈修 6 项目 3: day-bills 删 padding + border-top,
