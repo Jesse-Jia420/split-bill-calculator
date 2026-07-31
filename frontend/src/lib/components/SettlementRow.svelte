@@ -411,7 +411,10 @@
       0 1px 2px rgba(var(--settle-neg-rgb), 0.12);
     transition:
       width 220ms cubic-bezier(0.34, 1.56, 0.64, 1),
-      opacity 180ms ease-out;
+      opacity 180ms ease-out,
+      background 180ms ease,
+      border-color 180ms ease,
+      color 180ms ease;
     z-index: 2;
     appearance: none;
     font-family: inherit;
@@ -425,6 +428,23 @@
   }
   .delete-btn[aria-hidden="false"] {
     pointer-events: auto;
+  }
+  .delete-btn:hover {
+    background: linear-gradient(
+      135deg,
+      rgba(var(--settle-neg-rgb), 0.28) 0%,
+      rgba(var(--settle-neg-rgb), 0.2) 100%
+    );
+    border-color: rgba(var(--settle-neg-rgb), 0.42);
+    color: #a66d6d;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.6),
+      0 0 0 2px rgba(var(--settle-neg-rgb), 0.16),
+      0 2px 6px rgba(var(--settle-neg-rgb), 0.18);
+  }
+  .delete-btn:focus-visible {
+    outline: 2px solid rgba(var(--settle-neg-rgb), 0.55);
+    outline-offset: 2px;
   }
 
   .scroll-wrapper {
