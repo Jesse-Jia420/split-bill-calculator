@@ -43,6 +43,7 @@
   // the wrong per-person share for any bill with an exclusive portion.
   // See bill-share.test.ts for the regression cases (bill #95 PO example).
   import { yourShare, computePerCapitaBreakdown } from '$lib/utils/bill-share';
+  import { paletteSolid } from '$lib/utils/palette';
   import type { Bill } from '$api/bills';
   import SkeletonBill from './SkeletonBill.svelte';
   import CategoryIcon from './CategoryIcon.svelte';
@@ -291,23 +292,12 @@
     return memberIdToName[b.payer_id] ?? ('#' + b.payer_id);
   }
 
-  // v0.3.20 #95 Fix 3 (PO msg 02:41 #7459): payer 文字颜色 = 头像主色.
-  // 跟 SessionMemberList.svelte AVATAR_GRADIENTS 共享同一 5 色循环, 此处只取
-  // 实色用于 "xx 付" inline color. 反: #144 不要碰 avatar 渲染本身, 此处只
-  // 改文字; avatar 仍由 SessionMemberList 用 linear-gradient 渲染.
-  const AVATAR_COLORS = [
-    '#6366f1', // indigo (#6366f1 → #a855f7 第 1 色)
-    '#ec4899', // pink (#ec4899 → #f43f5e 第 1 色)
-    '#10b981', // emerald (#10b981 → #14b8a6 第 1 色)
-    '#f59e0b', // amber (#f59e0b → #eab308 第 1 色)
-    '#3b82f6', // blue (#3b82f6 → #06b6d4 第 1 色)
-  ];
+  // v0.3.20 #95 Fix 3 (PO msg 02:41 #7459): payer 文字颜色 = 头像主色
+  // (lib/utils/palette AVATAR_SOLIDS — soft charcoal companions).
   function payerColor(b: Bill): string {
-    // 找 payer_id 在 members 数组里的 index (顺序跟 SessionMemberList 头像一致)
-    // 找不到 (members 没传 / payer_id 是孤儿) fallback 到默认第一色 indigo.
     const idx = members.findIndex((m) => m.id === b.payer_id);
-    if (idx < 0) return AVATAR_COLORS[0];
-    return AVATAR_COLORS[idx % AVATAR_COLORS.length];
+    if (idx < 0) return paletteSolid(0);
+    return paletteSolid(idx);
   }
 
   // v0.3.20 #96: yourShare moved to $lib/utils/bill-share (now takes
