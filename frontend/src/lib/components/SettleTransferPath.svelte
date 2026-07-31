@@ -186,10 +186,10 @@
     font-weight: 500;
   }
   .amount.pos {
-    color: var(--success-500);
+    color: var(--settle-pos);
   }
   .amount.neg {
-    color: var(--error-500);
+    color: var(--settle-neg);
   }
   /* v0.3.36 #10 — UAT 0728-1 #10: 删 .currency-row / .ccy-name / .ccy-detail 三个 orphan CSS rule,
      跟 template 删法同步 (上面 {#if currency_breakdown} 整块已删, 这三个 selector 再无 consumer).

@@ -101,6 +101,26 @@ input, textarea, select, [contenteditable] {
   --error-500: #f43f5e;
   --error-700: #be123c;
 
+  /* Settle accents — muted sage / dusty rose (soft charcoal companions).
+     Prefer these over neon --success-500 / --error-500 on settle overview + personal. */
+  --settle-pos: #4d8f6e;
+  --settle-neg: #c17a7a;
+  --settle-pos-border: rgba(77, 143, 110, 0.45);
+  --settle-neg-border: rgba(193, 122, 122, 0.5);
+
+  /* Avatar palette — soft charcoal companions (10 hues, low saturation).
+     Keep in sync with frontend/src/lib/utils/palette.ts AVATAR_GRADIENTS. */
+  --avatar-0: linear-gradient(135deg, rgba(92, 101, 112, 0.88) 0%, rgba(110, 118, 130, 0.88) 100%);
+  --avatar-1: linear-gradient(135deg, rgba(193, 122, 122, 0.88) 0%, rgba(168, 120, 136, 0.88) 100%);
+  --avatar-2: linear-gradient(135deg, rgba(77, 143, 110, 0.88) 0%, rgba(106, 143, 120, 0.88) 100%);
+  --avatar-3: linear-gradient(135deg, rgba(184, 149, 108, 0.88) 0%, rgba(168, 137, 106, 0.88) 100%);
+  --avatar-4: linear-gradient(135deg, rgba(106, 132, 153, 0.88) 0%, rgba(94, 122, 143, 0.88) 100%);
+  --avatar-5: linear-gradient(135deg, rgba(154, 122, 140, 0.88) 0%, rgba(138, 112, 128, 0.88) 100%);
+  --avatar-6: linear-gradient(135deg, rgba(122, 143, 106, 0.88) 0%, rgba(109, 133, 96, 0.88) 100%);
+  --avatar-7: linear-gradient(135deg, rgba(94, 138, 133, 0.88) 0%, rgba(106, 143, 138, 0.88) 100%);
+  --avatar-8: linear-gradient(135deg, rgba(138, 125, 114, 0.88) 0%, rgba(122, 111, 102, 0.88) 100%);
+  --avatar-9: linear-gradient(135deg, rgba(192, 138, 110, 0.88) 0%, rgba(176, 122, 104, 0.88) 100%);
+
   /* Radius */
   --radius-sm: 4px;
   --radius-md: 8px;
@@ -274,6 +294,18 @@ button.ghost:hover:not(:disabled), .btn.ghost:hover { border-color: var(--gray-2
 .success { color: var(--success-500); font-size: var(--font-size-sm); margin-top: var(--space-2); }
 .muted { color: var(--gray-500); }
 .hint { color: var(--gray-500); font-size: var(--font-size-sm); margin-top: var(--space-1); }
+
+/* Soft charcoal avatar palette — shared by session members / settle / cards / join */
+.palette-0, .avatar-a.palette-0, .avatar-mini.palette-0 { background: var(--avatar-0); }
+.palette-1, .avatar-a.palette-1, .avatar-mini.palette-1 { background: var(--avatar-1); }
+.palette-2, .avatar-a.palette-2, .avatar-mini.palette-2 { background: var(--avatar-2); }
+.palette-3, .avatar-a.palette-3, .avatar-mini.palette-3 { background: var(--avatar-3); }
+.palette-4, .avatar-a.palette-4, .avatar-mini.palette-4 { background: var(--avatar-4); }
+.palette-5, .avatar-a.palette-5, .avatar-mini.palette-5 { background: var(--avatar-5); }
+.palette-6, .avatar-a.palette-6, .avatar-mini.palette-6 { background: var(--avatar-6); }
+.palette-7, .avatar-a.palette-7, .avatar-mini.palette-7 { background: var(--avatar-7); }
+.palette-8, .avatar-a.palette-8, .avatar-mini.palette-8 { background: var(--avatar-8); }
+.palette-9, .avatar-a.palette-9, .avatar-mini.palette-9 { background: var(--avatar-9); }
 
 .card {
   background: white;

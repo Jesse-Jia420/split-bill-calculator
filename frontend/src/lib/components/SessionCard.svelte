@@ -909,37 +909,7 @@
   .avatar-mini:not(:first-child) {
     margin-left: -6px;
   }
-  .avatar-mini.palette-0 {
-    background: linear-gradient(135deg, rgba(129, 140, 248, 0.88), rgba(99, 102, 241, 0.88));
-  }
-  .avatar-mini.palette-1 {
-    background: linear-gradient(135deg, rgba(244, 114, 182, 0.88), rgba(236, 72, 153, 0.88));
-  }
-  .avatar-mini.palette-2 {
-    background: linear-gradient(135deg, rgba(52, 211, 153, 0.88), rgba(16, 185, 129, 0.88));
-  }
-  .avatar-mini.palette-3 {
-    background: linear-gradient(135deg, rgba(251, 191, 36, 0.88), rgba(245, 158, 11, 0.88));
-  }
-  .avatar-mini.palette-4 {
-    background: linear-gradient(135deg, rgba(96, 165, 250, 0.88), rgba(59, 130, 246, 0.88));
-  }
-  /* v0.3.0728-2 #20 解冻: 5 → 10 扩色 (palette-5..9) — 跟 v0.3.0728-2 #20 字段级同 */
-  .avatar-mini.palette-5 {
-    background: linear-gradient(135deg, rgba(244, 63, 94, 0.88), rgba(217, 70, 239, 0.88));
-  }
-  .avatar-mini.palette-6 {
-    background: linear-gradient(135deg, rgba(132, 204, 22, 0.88), rgba(34, 197, 94, 0.88));
-  }
-  .avatar-mini.palette-7 {
-    background: linear-gradient(135deg, rgba(14, 165, 233, 0.88), rgba(59, 130, 246, 0.88));
-  }
-  .avatar-mini.palette-8 {
-    background: linear-gradient(135deg, rgba(139, 92, 246, 0.88), rgba(236, 72, 153, 0.88));
-  }
-  .avatar-mini.palette-9 {
-    background: linear-gradient(135deg, rgba(249, 115, 22, 0.88), rgba(239, 68, 68, 0.88));
-  }
+  /* palette-0..9 → app.css soft charcoal tokens (--avatar-N) */
   .avatar-mini-overflow {
     background: #d1d5db !important;
     color: #374151 !important;

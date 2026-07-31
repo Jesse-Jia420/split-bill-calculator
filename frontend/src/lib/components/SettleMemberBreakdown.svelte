@@ -53,6 +53,7 @@
   import { Search, X } from 'lucide-svelte';
   import type { MemberSettlement } from '$api/settle';
   import type { SessionDetail } from '$api/sessions';
+  import { paletteGradient } from '$lib/utils/palette';
 
   /**
    * v0.3.24 #12 (2026-07-22 20:18) — settle 页 付款明细 + 消费明细 加搜索框
@@ -121,23 +122,6 @@
   function avatarLetter(name: string): string {
     const trimmed = (name ?? '').trim();
     return trimmed ? trimmed.charAt(0).toUpperCase() : '?';
-  }
-
-  /**
-   * v0.3.24 #11 (UAT bug — settle 页头像样式跟成员 section 一致, PO msg 16:35 UAT file line 11):
-   * 头像 palette 渐变 (5 色 rgba 0.88 半透明), 让 backdrop-filter 在 glass parent (.member-chip)
-   * 上有 "glass on glass" 视觉. 跟 SessionMemberList AVATAR_GRADIENTS / BillForm / +page.svelte
-   * 完全一致 (#132 commit b997bf6 模板).
-   */
-  const AVATAR_GRADIENTS = [
-    'linear-gradient(135deg, rgba(99, 102, 241, 0.88) 0%, rgba(168, 85, 247, 0.88) 100%)', // indigo → purple
-    'linear-gradient(135deg, rgba(236, 72, 153, 0.88) 0%, rgba(244, 63, 94, 0.88) 100%)', // pink → rose
-    'linear-gradient(135deg, rgba(16, 185, 129, 0.88) 0%, rgba(20, 184, 166, 0.88) 100%)', // emerald → teal
-    'linear-gradient(135deg, rgba(245, 158, 11, 0.88) 0%, rgba(234, 179, 8, 0.88) 100%)', // amber → yellow
-    'linear-gradient(135deg, rgba(59, 130, 246, 0.88) 0%, rgba(6, 182, 212, 0.88) 100%)', // blue → cyan
-  ];
-  function avatarGradient(index: number): string {
-    return AVATAR_GRADIENTS[index % AVATAR_GRADIENTS.length];
   }
 
   /**
@@ -414,7 +398,7 @@
             onclick={() => selectMember(m.member_id)}
             in:fly={{ y: 6, duration: 220, delay: Math.min(i * 30, 240) }}
           >
-            <div class="chip-avatar" aria-hidden="true" style="background: {avatarGradient(i)}">{avatarLetter(m.display_name)}</div>
+            <div class="chip-avatar" aria-hidden="true" style={paletteGradient(i)}>{avatarLetter(m.display_name)}</div>
             <div class="chip-info">
               <div class="chip-name">{m.display_name}</div>
               <!--
@@ -696,16 +680,6 @@
 </div>
 
 <style>
-  /* Soft charcoal companion accents — muted vs neon --success-500 (#10b981) /
-     --error-500 (#f43f5e). Sage green + dusty rose sit next to logo ink / soft charcoal.
-     Saturation kept ~30–37% (was ~84–89%) so small meta text still reads as green/red. */
-  .settle-member-breakdown {
-    --settle-pos: #4d8f6e;
-    --settle-neg: #c17a7a;
-    --settle-pos-border: rgba(77, 143, 110, 0.45);
-    --settle-neg-border: rgba(193, 122, 122, 0.5);
-  }
-
   /* === T9: Chip Redesign — filled pill ===
      v0.3.18 #55 (PO msg 21:44 #6588): 成员选择器横向滚动 fade 边距调整.
      - 右边 ::after width 32px → 20px (PO 反馈"模糊的 margin 值调小一点",
@@ -861,7 +835,7 @@
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.88) 0%, rgba(168, 85, 247, 0.88) 100%);
+    background: var(--avatar-0);
     color: #fff;
     display: inline-flex;
     align-items: center;

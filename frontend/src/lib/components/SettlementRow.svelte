@@ -375,7 +375,7 @@
   .row-amount {
     font-size: 14px;
     font-weight: 600;
-    color: #10b981;
+    color: var(--settle-pos);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
     flex-shrink: 0;
