@@ -110,6 +110,13 @@ input, textarea, select, [contenteditable] {
   --settle-pos-rgb: 77, 143, 110;
   --settle-neg-rgb: 193, 122, 122;
 
+  /* Currency roles — 结算 (primary) vs 支付/消费 (secondary).
+     Must stay clearly distinct; warm-stone secondary was too close to charcoal. */
+  --cc-primary: #1a1a1a;
+  --cc-primary-rgb: 26, 26, 26;
+  --cc-secondary: #2f7a84;
+  --cc-secondary-rgb: 47, 122, 132;
+
   /* Avatar palette — 10-hue cycle (keep in sync with lib/utils/palette.ts). */
   --avatar-0: linear-gradient(135deg, rgba(99, 102, 241, 0.88) 0%, rgba(168, 85, 247, 0.88) 100%);
   --avatar-1: linear-gradient(135deg, rgba(236, 72, 153, 0.88) 0%, rgba(244, 63, 94, 0.88) 100%);
@@ -586,6 +593,29 @@ button.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
 .currency-pill.active:hover {
   background: linear-gradient(135deg, rgba(58, 58, 58, 0.95) 0%, rgba(40, 40, 40, 0.9) 100%) !important;
 
+}
+/* 支付/消费币种 active — muted teal，与结算币种 charcoal 明确区分 */
+.currency-pills--pay .currency-pill.active,
+.currency-pill.currency-pill--pay.active {
+  background: linear-gradient(
+    135deg,
+    rgba(var(--cc-secondary-rgb), 0.88) 0%,
+    rgba(var(--cc-secondary-rgb), 0.72) 100%
+  ) !important;
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  color: #fff !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.06),
+    0 4px 14px rgba(var(--cc-secondary-rgb), 0.28);
+}
+.currency-pills--pay .currency-pill.active:hover,
+.currency-pill.currency-pill--pay.active:hover {
+  background: linear-gradient(
+    135deg,
+    rgba(var(--cc-secondary-rgb), 0.95) 0%,
+    rgba(var(--cc-secondary-rgb), 0.82) 100%
+  ) !important;
 }
 /* v0.3.17 #32-D-4 (PO msg 01:18 #6116): .ios-switch 全套 utility 移到
  * frontend/src/lib/components/IosSwitch.svelte (scoped style).

@@ -317,9 +317,9 @@
         <!-- 主币种（必选） -->
         <!-- v0.3.25 #0723-wizard-step3 (bug #2): label '结算币种（用于朋友间结算的币种）'
              语义更清晰 — 主币种是朋友间结算用的, 副币种是实际消费用的. -->
-        <div class="currency-section">
+        <div class="currency-section currency-section--settle">
           <label class="currency-label">结算币种（朋友间结算的币种）</label>
-          <div class="currency-pills">
+          <div class="currency-pills currency-pills--settle">
             {#each ["CNY", "USD", "EUR", "JPY", "THB"] as ccy}
               <button type="button" class="glass-pill currency-pill" class:active={primaryCurrency === ccy}
                 onclick={() => {
@@ -338,12 +338,12 @@
         {#if currencyMode === 'dual'}
           <!-- v0.3.25 #0723-wizard-step3 (bug #2): label '支付币种（实际消费的币种）'
                语义更清晰 — 副币种是实际消费用的, 对应主币种结算. -->
-          <div class="currency-section">
+          <div class="currency-section currency-section--pay">
             <label class="currency-label">支付币种（实际消费的币种）</label>
-            <div class="currency-pills">
+            <div class="currency-pills currency-pills--pay">
               {#each ["CNY", "USD", "EUR", "JPY", "THB"] as ccy}
                 {#if ccy !== primaryCurrency}
-                  <button type="button" class="glass-pill currency-pill" class:active={secondaryCurrency === ccy}
+                  <button type="button" class="glass-pill currency-pill currency-pill--pay" class:active={secondaryCurrency === ccy}
                     onclick={() => secondaryCurrency = ccy}>
                     {ccy}
                   </button>
@@ -538,9 +538,39 @@
 
   /* §3.11.10: currency step styles */
   .currency-section { margin-bottom: var(--space-5); }
-  .currency-label { display: block; font-size: var(--font-size-sm); font-weight: 600; color: #525252; margin-bottom: var(--space-3); text-transform: uppercase; letter-spacing: 0.06em; }
+  .currency-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: #525252;
+    margin-bottom: var(--space-3);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .currency-label::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: var(--cc-primary, #1a1a1a);
+    box-shadow: 0 0 0 2px rgba(var(--cc-primary-rgb, 26, 26, 26), 0.16);
+  }
+  .currency-section--pay .currency-label {
+    color: var(--cc-secondary, #2f7a84);
+  }
+  .currency-section--pay .currency-label::before {
+    background: var(--cc-secondary, #2f7a84);
+    box-shadow: 0 0 0 2px rgba(var(--cc-secondary-rgb, 47, 122, 132), 0.22);
+  }
+  .currency-section--settle .currency-label {
+    color: var(--cc-primary, #1a1a1a);
+  }
   .currency-pills { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-  /* .currency-pill 已用 .glass-pill 替代 (默认) / .btn-primary 替代 (active) — v0.3.17 #27 */
+  /* .currency-pill 已用 .glass-pill 替代 (默认) / .btn-primary 替代 (active) — v0.3.17 #27
+     支付币种 active 色见 app.css .currency-pills--pay / .currency-pill--pay */
   .currency-pill { padding: var(--space-2) var(--space-4); font-size: var(--font-size-sm); font-weight: 500; cursor: pointer; min-height: 40px; }
 
   /* §3.11 收尾: dual mode 汇率 input 样式 */

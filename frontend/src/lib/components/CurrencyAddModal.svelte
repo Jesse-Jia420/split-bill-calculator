@@ -593,8 +593,8 @@
              UAT: 主币种 + 副币种同行并排 (跟 multi 编辑态 currency-pair-row 一致). -->
         <section class="field currency-pair-row">
           <div class="currency-pair-col">
-            <label class="field-label">结算币种</label>
-            <div class="currency-pair-item currency-pair-item--locked" aria-label="结算币种: {primary_currency}">
+            <label class="field-label field-label--settle">结算币种</label>
+            <div class="currency-pair-item currency-pair-item--locked currency-pair-item--settle" aria-label="结算币种: {primary_currency}">
               <span class="lock-icon" aria-hidden="true">
                 <Lock size={11} strokeWidth={2.5} />
               </span>
@@ -602,10 +602,10 @@
             </div>
           </div>
           <div class="currency-pair-col">
-            <label class="field-label" for="sbc-secondary-currency">消费币种</label>
+            <label class="field-label field-label--pay" for="sbc-secondary-currency">消费币种</label>
             <select
               id="sbc-secondary-currency"
-              class="currency-pair-item currency-select"
+              class="currency-pair-item currency-select currency-pair-item--pay"
               bind:value={secondary}
               disabled={busy}
               data-testid="currency-add-secondary"
@@ -683,10 +683,10 @@
              v0.3.19 #85 PO #7731 (#3): 删「修改主/副币种功能开发中...」hint (disables + tooltip 已说明). -->
         <section class="field currency-pair-row">
           <div class="currency-pair-col">
-            <label class="field-label" for="sbc-primary-currency">结算币种</label>
+            <label class="field-label field-label--settle" for="sbc-primary-currency">结算币种</label>
             <select
               id="sbc-primary-currency"
-              class="currency-pair-item currency-pair-item--locked currency-select"
+              class="currency-pair-item currency-pair-item--locked currency-select currency-pair-item--settle"
               bind:value={primary}
               disabled={true}
               title="改结算币种功能开发中 (BE 未支持)"
@@ -698,10 +698,10 @@
             </select>
           </div>
           <div class="currency-pair-col">
-            <label class="field-label" for="sbc-secondary-currency">消费币种</label>
+            <label class="field-label field-label--pay" for="sbc-secondary-currency">消费币种</label>
             <select
               id="sbc-secondary-currency"
-              class="currency-pair-item currency-select"
+              class="currency-pair-item currency-select currency-pair-item--pay"
               bind:value={secondary}
               disabled={busy}
               title="选择「—」切回单币种; 选其他币种替换当前消费币种"
@@ -759,8 +759,8 @@
              CNY ⇄ THB 视觉. reuse .currency-pair-row / .currency-pair-col (multi+!has_bills 同款). -->
         <section class="field currency-pair-row">
           <div class="currency-pair-col">
-            <div class="field-label">结算币种</div>
-            <div class="currency-pair-item currency-pair-item--locked" aria-label="结算币种: {primary_currency}">
+            <div class="field-label field-label--settle">结算币种</div>
+            <div class="currency-pair-item currency-pair-item--locked currency-pair-item--settle" aria-label="结算币种: {primary_currency}">
               <span class="lock-icon" aria-hidden="true">
                 <Lock size={11} strokeWidth={2.5} />
               </span>
@@ -768,8 +768,8 @@
             </div>
           </div>
           <div class="currency-pair-col">
-            <div class="field-label">消费币种</div>
-            <div class="currency-pair-item currency-pair-item--locked" aria-label="消费币种: {secondary}">
+            <div class="field-label field-label--pay">消费币种</div>
+            <div class="currency-pair-item currency-pair-item--locked currency-pair-item--pay" aria-label="消费币种: {secondary}">
               <span class="lock-icon" aria-hidden="true">
                 <Lock size={11} strokeWidth={2.5} />
               </span>
@@ -946,9 +946,32 @@
     gap: var(--space-2);
   }
   .field-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     font-size: var(--font-size-sm);
     color: var(--gray-700);
     font-weight: var(--font-weight-medium);
+  }
+  .field-label--settle {
+    color: var(--cc-primary, #1a1a1a);
+  }
+  .field-label--settle::before,
+  .field-label--pay::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .field-label--settle::before {
+    background: var(--cc-primary, #1a1a1a);
+  }
+  .field-label--pay {
+    color: var(--cc-secondary, #2f7a84);
+  }
+  .field-label--pay::before {
+    background: var(--cc-secondary, #2f7a84);
   }
 
   /* v0.3.21 #106 (PO msg 17:21): chip + select 视觉统一 → .currency-pair-item 共享 pill.
@@ -986,6 +1009,27 @@
     border-color: rgba(148, 163, 184, 0.28);
     color: var(--gray-500);
     cursor: not-allowed;
+  }
+  .currency-pair-item--settle {
+    border-color: rgba(var(--cc-primary-rgb, 26, 26, 26), 0.22);
+  }
+  .currency-pair-item--settle .primary-code {
+    color: var(--cc-primary, #1a1a1a);
+  }
+  .currency-pair-item--pay {
+    border-color: rgba(var(--cc-secondary-rgb, 47, 122, 132), 0.36);
+    color: var(--cc-secondary, #2f7a84);
+  }
+  .currency-pair-item--pay .primary-code {
+    color: var(--cc-secondary, #2f7a84);
+  }
+  .currency-pair-item--locked.currency-pair-item--pay {
+    background: rgba(var(--cc-secondary-rgb, 47, 122, 132), 0.1);
+    border-color: rgba(var(--cc-secondary-rgb, 47, 122, 132), 0.28);
+  }
+  .currency-pair-item--locked.currency-pair-item--settle {
+    background: rgba(var(--cc-primary-rgb, 26, 26, 26), 0.06);
+    border-color: rgba(var(--cc-primary-rgb, 26, 26, 26), 0.18);
   }
   /* v0.3.19 #85 v3 PO #7731 (#1): lock icon 改 Lucide Lock (跟其它 Lucide icon 同款).
    *  原 🔒 emoji 视觉不一致 (emoji 字体不同, 描边颜色不一) — 改 Lucide SVG icon, 用

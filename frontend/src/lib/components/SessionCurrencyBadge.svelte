@@ -381,29 +381,29 @@
     outline-offset: 2px;
   }
 
-  /* 内部 chip 透明 (无独立 bg, 融入外层 .currency-bar / .currency-pill-row--single) */
   .currency-chip {
     display: inline-flex;
     align-items: center;
-    padding: 0;
-    background: transparent;
+    padding: 2px 9px;
+    border-radius: 999px;
     font-size: clamp(0.6875rem, 2.6vw, 0.75rem);
     font-weight: 600;
     font-variant-numeric: tabular-nums;
-    color: var(--gray-800);
     letter-spacing: 0.02em;
     white-space: nowrap;
     flex-shrink: 0;
   }
   .currency-chip.primary {
-    background: transparent;
-    /* 与账单列表主币种 pill 字色一致 (charcoal) */
-    color: var(--btn-label, var(--logo-ink, #1a1a1a));
+    /* 结算币种 — charcoal ink + soft gray glass */
+    color: var(--cc-primary, var(--logo-ink, #1a1a1a));
+    background: rgba(var(--cc-primary-rgb, 26, 26, 26), 0.08);
+    border: 1px solid rgba(var(--cc-primary-rgb, 26, 26, 26), 0.18);
   }
   .currency-chip.secondary {
-    background: transparent;
-    /* 与账单列表副币种 / 消费币种 pill 字色一致 (warm stone) */
-    color: #57534e;
+    /* 支付/消费币种 — muted teal（与 charcoal 明确区分） */
+    color: var(--cc-secondary, #2f7a84);
+    background: rgba(var(--cc-secondary-rgb, 47, 122, 132), 0.14);
+    border: 1px solid rgba(var(--cc-secondary-rgb, 47, 122, 132), 0.32);
   }
 
   .currency-arrow {
@@ -447,7 +447,7 @@
     margin-left: 3px;
     font-size: clamp(0.625rem, 2.4vw, 0.6875rem);
     font-weight: 500;
-    color: var(--btn-label, var(--logo-ink, #1a1a1a));
+    color: var(--cc-secondary, #2f7a84);
     letter-spacing: 0.02em;
     white-space: nowrap;
     flex-shrink: 0;

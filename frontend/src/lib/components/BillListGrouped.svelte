@@ -1233,7 +1233,7 @@
     font-size: 10.5px;
     font-weight: 700;
     letter-spacing: 0.06em;
-    color: var(--btn-label, var(--logo-ink, #1a1a1a));
+    color: var(--cc-primary, var(--btn-label, var(--logo-ink, #1a1a1a)));
     flex-shrink: 0;
   }
   .cc-chip .cc-amt {
@@ -1253,15 +1253,21 @@
     border-left: none;
     margin-left: 0;
   }
-  /* 副币种 chip: warm stone 玻璃 — 搭配 charcoal 主题, 又与主币种灰玻璃区分 */
+  /* 副币种 / 支付币种 chip: muted teal 玻璃 — 与结算币种 charcoal 明确区分 */
   .cc-chip.cc-chip-secondary {
-    background: linear-gradient(135deg, rgba(120, 113, 108, 0.18) 0%, rgba(40, 40, 40, 0.08) 100%);
-    border-color: rgba(120, 113, 108, 0.34);
+    background: linear-gradient(
+      135deg,
+      rgba(var(--cc-secondary-rgb, 47, 122, 132), 0.2) 0%,
+      rgba(var(--cc-secondary-rgb, 47, 122, 132), 0.1) 100%
+    );
+    border-color: rgba(var(--cc-secondary-rgb, 47, 122, 132), 0.38);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.55),
-      0 1px 3px rgba(87, 83, 78, 0.10);
+      0 1px 3px rgba(var(--cc-secondary-rgb, 47, 122, 132), 0.12);
   }
-  .cc-chip.cc-chip-secondary .cc-code { color: #57534e; }
+  .cc-chip.cc-chip-secondary .cc-code {
+    color: var(--cc-secondary, #2f7a84);
+  }
   /* 人均行统一灰色 — 不随主/副币种变色 */
   .cc-chip.cc-chip-empty .cc-amt,
   .cc-chip.cc-chip-empty .cc-per {
