@@ -35,6 +35,7 @@
   import { getSessionPreview, joinClaim } from '$api/sessions';
   import { loadUser } from '$stores/user';
   import { toast } from '$stores/toast';
+  import { emailMatchesSlot } from '$lib/utils/mask';
 
   // 表单状态
   let email = $state('');
@@ -78,10 +79,10 @@
       toast.error('请输入有效邮箱', 4000);
       return;
     }
-    // v0.3.35 #7 — UAT 0725-3 #12: FE pre-check expectedEmail match (大小写不敏感).
-    // join page 选 nickname 后跳过来时 query param `email` = 该 nickname 绑定的 raw email,
-    // 用户必须输入一致才发验证码请求 (BE 端也会 validate, defense in depth).
-    if (expectedEmail && trimmed.toLowerCase() !== expectedEmail.toLowerCase()) {
+    // v0.3.35 #7 — UAT 0725-3 #12: FE pre-check vs slot email.
+    // Anon join only has public preview → masked email (x***@domain). Compare via
+    // maskEmail(input) === emailMasked. Exact match only when raw `email` query exists.
+    if (!emailMatchesSlot(trimmed, { expectedRaw: expectedEmail, emailMasked })) {
       toast.error('邮箱与该昵称绑定的邮箱不一致, 请重新选择昵称', 4000);
       return;
     }

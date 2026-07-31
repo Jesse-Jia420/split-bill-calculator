@@ -227,14 +227,19 @@
     }
     busy = true;
     try {
+      // Public preview only returns masked emails (x***@domain). Never pass that
+      // string as raw `email` — login would reject the real address as a "mismatch".
+      const alreadyMasked = email.includes('***');
       const params = new URLSearchParams({
         as: String(slot.id),
         nickname: slot.display_name,
-        // v0.3.35 #7 — UAT 0725-3 #12: 传 raw email 给 login page pre-check + BE 端 validate
-        email: email,
-        emailMasked: maskEmail(email),
+        emailMasked: alreadyMasked ? email : maskEmail(email),
         sessionCode: code,
       });
+      // Only forward raw email when we actually have it (e.g. full session detail).
+      if (!alreadyMasked) {
+        params.set('email', email);
+      }
       await goto(`/sessions/${sessionId}/login?${params.toString()}`);
     } finally {
       busy = false;
