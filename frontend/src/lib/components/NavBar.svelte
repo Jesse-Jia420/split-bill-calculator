@@ -90,20 +90,26 @@
       class="brand"
       aria-label="轻均分账 FairLite"
     >
-      <!-- 轻均 = 主题大字；分账 = 功能小字（字号对齐 FairLite） -->
-      <span class="brand-zh" aria-hidden="true">
-        <span class="brand-zh-inner">
-          <span class="brand-zh-glass" aria-hidden="true">轻均</span>
-          轻均
+      <!-- 上行：轻均(主题大) + 分账(功能小)；下行：FairLite，F↔轻 / e↔账 对齐 -->
+      <span class="brand-stack" aria-hidden="true">
+        <span class="brand-zh-row">
+          <span class="brand-zh brand-zh--theme">
+            <span class="brand-zh-inner">
+              <span class="brand-zh-glass">轻均</span>
+              轻均
+            </span>
+          </span>
+          <span class="brand-zh brand-zh--func">
+            <span class="brand-zh-inner">
+              <span class="brand-zh-glass">分账</span>
+              分账
+            </span>
+          </span>
+        </span>
+        <span class="brand-en">
+          <span>F</span><span>a</span><span>i</span><span>r</span><span>L</span><span>i</span><span>t</span><span>e</span>
         </span>
       </span>
-      <span class="brand-zh brand-zh--en-size" aria-hidden="true">
-        <span class="brand-zh-inner">
-          <span class="brand-zh-glass" aria-hidden="true">分账</span>
-          分账
-        </span>
-      </span>
-      <span class="brand-en">FairLite</span>
     </a>
   </div>
 
@@ -259,16 +265,27 @@
 
   .brand {
     display: inline-flex;
-    align-items: baseline;
-    gap: 0.4rem;
+    align-items: center;
     color: var(--color-text);
     text-decoration: none;
     min-width: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 18rem;
     flex-shrink: 0;
+  }
+
+  .brand-stack {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: max-content;
+    gap: 0.1rem;
+    line-height: 1;
+  }
+
+  .brand-zh-row {
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.28em;
   }
 
   .brand-zh {
@@ -296,9 +313,9 @@
       0 1px 0 rgba(255, 255, 255, 0.55),
       0 2px 6px rgba(0, 0, 0, 0.08);
   }
-  /* 「分账」— 轻均同款玻璃细体，字号对齐 FairLite（功能名，非主题） */
-  .brand-zh--en-size .brand-zh-inner {
-    font-size: 0.78em;
+  /* 「分账」功能小字 — 保留中文玻璃细体，字号对齐 FairLite */
+  .brand-zh--func .brand-zh-inner {
+    font-size: 0.72rem;
     line-height: 1.1;
     letter-spacing: 0.12em;
     text-indent: 0.12em;
@@ -332,12 +349,25 @@
     from { opacity: 0.72; }
     to { opacity: 0.95; }
   }
+  /* FairLite：拉满上行「轻均分账」宽度，F 对齐轻、e 对齐账
+     padding 抵消中文 text-indent / 末字 letter-spacing，让字母贴在字形外沿下 */
   .brand-en {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    width: 100%;
+    margin: 0;
+    padding: 0 calc(0.72rem * 0.12) 0 calc(1.45rem * 0.2);
+    box-sizing: border-box;
     font-family: var(--font-en);
-    font-size: 0.78em;
+    font-size: 0.72rem;
     font-weight: 500;
-    letter-spacing: 0.06em;
+    letter-spacing: 0;
+    line-height: 1;
     color: var(--color-text-muted);
+  }
+  .brand-en > span {
+    flex: 0 0 auto;
   }
 
   .right {

@@ -74,13 +74,9 @@
           轻均
         </span>
       </span>
+      <!-- 「分账」与 FairLite 同字体 / 字号 / 字重（功能名，非主题玻璃大字） -->
       <div class="brand-en-row">
-        <span class="brand-zh brand-zh--en-size">
-          <span class="brand-zh-inner">
-            <span class="brand-zh-glass" aria-hidden="true">分账</span>
-            分账
-          </span>
-        </span>
+        <span class="brand-en">分账</span>
         <span class="brand-en">FairLite</span>
       </div>
     </div>
@@ -275,17 +271,6 @@
     justify-content: center;
     gap: 0.45rem;
     animation: rise 0.95s cubic-bezier(0.16, 1, 0.3, 1) 0.08s both;
-  }
-
-  /* 「分账」— 轻均同款玻璃细体，字号对齐 FairLite */
-  .brand-zh--en-size .brand-zh-inner {
-    font-size: clamp(1rem, 3.6vw, 1.25rem);
-    line-height: 1.1;
-    letter-spacing: 0.2em;
-    text-indent: 0.2em;
-  }
-  .brand-zh--en-size {
-    animation: none;
   }
 
   .brand-en {
