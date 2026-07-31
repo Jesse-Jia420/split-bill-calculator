@@ -321,10 +321,7 @@
         <div class="section" data-sbc="settle-records-section">
           <div class="section-head">
             <div class="section-head-left">
-              <h3>
-                已结算记录
-                <span class="badge-n" data-sbc="settle-records-count">({records.length})</span>
-              </h3>
+              <h3>已结算记录</h3>
               <!-- 跟 sessions 账本列表 .list-top-hint 同款：左划删记录，「删除」用 muted settle-neg -->
               {#if recordsLoaded && records.length > 0}
                 <div
@@ -576,12 +573,6 @@
     font-weight: 600;
     color: var(--gray-900);
     margin: 0;
-  }
-  .section-head .badge-n {
-    font-size: 12px;
-    color: #737373;
-    font-weight: 400;
-    margin-left: 4px;
   }
   /* 跟 sessions/+page.svelte .list-top-hint 同款（灰色描边 pill，「删除」muted settle-neg） */
   .list-top-hint {
