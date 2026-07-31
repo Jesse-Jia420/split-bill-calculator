@@ -394,16 +394,16 @@
     flex-shrink: 0;
   }
   .currency-chip.primary {
-    /* 结算币种 — charcoal ink + soft gray glass */
+    /* 结算币种 — charcoal ink + soft gray glass（无描边，少一层线） */
     color: var(--cc-primary, var(--logo-ink, #1a1a1a));
     background: rgba(var(--cc-primary-rgb, 26, 26, 26), 0.08);
-    border: 1px solid rgba(var(--cc-primary-rgb, 26, 26, 26), 0.18);
+    border: none;
   }
   .currency-chip.secondary {
-    /* 支付/消费币种 — muted teal（与 charcoal 明确区分） */
+    /* 支付/消费币种 — muted teal（无描边，少一层线） */
     color: var(--cc-secondary, #2f7a84);
     background: rgba(var(--cc-secondary-rgb, 47, 122, 132), 0.14);
-    border: 1px solid rgba(var(--cc-secondary-rgb, 47, 122, 132), 0.32);
+    border: none;
   }
 
   .currency-arrow {
