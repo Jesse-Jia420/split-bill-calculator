@@ -1,7 +1,9 @@
 /**
  * Compose a shareable branded ledger QR card (canvas → PNG data URL).
  * Matches FairLite paper + liquid-glass visual language: soft paper ground,
- * ExtraLight 「轻均」 mark, ledger name, scan-frame accents around the QR.
+ * ExtraLight 「轻均」 + landing-style 「分账 FairLite」 mark, ledger name.
+ * QR modules sit on transparent light cells (paper shows through) — no white
+ * plate / scan-corner brackets.
  */
 import QRCode from 'qrcode';
 
@@ -125,47 +127,6 @@ function truncateName(name: string, maxChars = 18): string {
   return chars.slice(0, maxChars - 1).join('') + '…';
 }
 
-/** Soft L-bracket scan corners around the QR frame. */
-function drawScanCorners(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  arm = 28,
-  inset = 10,
-) {
-  ctx.save();
-  ctx.strokeStyle = ACCENT_LINE;
-  ctx.lineWidth = 3;
-  ctx.lineCap = 'round';
-  const pts: Array<[number, number, number, number, number, number]> = [
-    // TL
-    [x + inset, y + inset + arm, x + inset, y + inset, x + inset + arm, y + inset],
-    // TR
-    [x + w - inset - arm, y + inset, x + w - inset, y + inset, x + w - inset, y + inset + arm],
-    // BL
-    [x + inset, y + h - inset - arm, x + inset, y + h - inset, x + inset + arm, y + h - inset],
-    // BR
-    [
-      x + w - inset - arm,
-      y + h - inset,
-      x + w - inset,
-      y + h - inset,
-      x + w - inset,
-      y + h - inset - arm,
-    ],
-  ];
-  for (const [x1, y1, x2, y2, x3, y3] of pts) {
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.lineTo(x3, y3);
-    ctx.stroke();
-  }
-  ctx.restore();
-}
-
 /**
  * Build a branded QR PNG data URL for invite share / download / modal preview.
  */
@@ -226,8 +187,9 @@ export async function composeBrandedQrDataUrl(
   ctx.fillStyle = topBar;
   ctx.fillRect(80, 48, W - 160, 2);
 
-  // --- Brand mark 「轻均」 + FairLite --------------------------------------
-  const brandY = 118;
+  // --- Brand mark: landing layout -----------------------------------------
+  // Line 1: 「轻均」(ExtraLight glass). Line 2: 「分账 FairLite」 same size/weight.
+  const brandY = 108;
   ctx.textBaseline = 'alphabetic';
   ctx.textAlign = 'left';
 
@@ -246,17 +208,30 @@ export async function composeBrandedQrDataUrl(
   fillSpacedText(ctx, '轻均', W / 2, brandY - 1.5, 16);
   ctx.restore();
 
-  ctx.font = '500 22px "Inter Variable", Inter, system-ui, sans-serif';
+  // 「分账 FairLite」— same font size / weight (landing .brand-en)
+  const subY = brandY + 38;
+  const subFont =
+    '400 22px "Inter Variable", Inter, "Noto Sans SC", "PingFang SC", system-ui, sans-serif';
+  ctx.font = subFont;
   ctx.fillStyle = MUTED;
-  fillSpacedText(ctx, 'FairLite', W / 2, brandY + 36, 4);
+  const gap = 14;
+  const fen = '分账';
+  const en = 'FairLite';
+  const fenW = ctx.measureText(fen).width;
+  const enW = ctx.measureText(en).width;
+  const rowW = fenW + gap + enW;
+  const rowX = W / 2 - rowW / 2;
+  ctx.textAlign = 'left';
+  ctx.fillText(fen, rowX, subY);
+  ctx.fillText(en, rowX + fenW + gap, subY);
 
   // Tagline
   ctx.font = '400 18px "Noto Sans SC", "PingFang SC", sans-serif';
   ctx.fillStyle = 'rgba(82, 82, 91, 0.62)';
-  fillSpacedText(ctx, '极简分账，一链即平。', W / 2, brandY + 68, 2);
+  fillSpacedText(ctx, '极简分账，一链即平。', W / 2, subY + 34, 2);
 
   // Decorative divider
-  const divY = brandY + 92;
+  const divY = subY + 58;
   ctx.strokeStyle = ACCENT;
   ctx.lineWidth = 1;
   ctx.beginPath();
@@ -270,7 +245,7 @@ export async function composeBrandedQrDataUrl(
   ctx.arc(W / 2, divY, 3.5, 0, Math.PI * 2);
   ctx.fill();
 
-  // --- QR block ------------------------------------------------------------
+  // --- QR block (transparent light modules; no white plate / corners) -----
   const qrPixel = 400;
   const qrDataUrl = await QRCode.toDataURL(inviteUrl, {
     errorCorrectionLevel: 'H',
@@ -278,45 +253,23 @@ export async function composeBrandedQrDataUrl(
     width: qrPixel,
     color: {
       dark: '#0f172a',
-      light: '#ffffff',
+      // Transparent light cells → paper card shows through
+      light: '#00000000',
     },
   });
   const qrImg = await loadImage(qrDataUrl);
   if (!qrImg) throw new Error('QR image load failed');
 
-  const framePad = 26;
+  const framePad = 12;
   const frameSize = qrPixel + framePad * 2;
   const frameX = (W - frameSize) / 2;
-  const frameY = divY + 28;
+  const frameY = divY + 24;
 
-  // Soft drop shadow
-  ctx.save();
-  ctx.shadowColor = 'rgba(15, 23, 42, 0.12)';
-  ctx.shadowBlur = 28;
-  ctx.shadowOffsetY = 10;
-  roundRect(ctx, frameX, frameY, frameSize, frameSize, 28);
-  ctx.fillStyle = '#ffffff';
-  ctx.fill();
-  ctx.restore();
-
-  // Glass rim
-  roundRect(ctx, frameX, frameY, frameSize, frameSize, 28);
-  ctx.strokeStyle = 'rgba(40, 40, 40, 0.18)';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-
-  // Inner inset highlight
-  roundRect(ctx, frameX + 1, frameY + 1, frameSize - 2, frameSize - 2, 27);
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-
+  // QR only — transparent light modules; paper card shows through (no white plate)
   ctx.drawImage(qrImg, frameX + framePad, frameY + framePad, qrPixel, qrPixel);
 
-  drawScanCorners(ctx, frameX, frameY, frameSize, frameSize, 32, 12);
-
   // --- Ledger name ---------------------------------------------------------
-  const nameY = frameY + frameSize + 48;
+  const nameY = frameY + frameSize + 44;
   const displayName = truncateName(sessionName, 16);
   ctx.font = '500 32px "Noto Sans SC", "PingFang SC", sans-serif';
   ctx.fillStyle = INK;
@@ -335,9 +288,9 @@ export async function composeBrandedQrDataUrl(
   ctx.lineTo(W - 100, footY - 22);
   ctx.stroke();
 
-  ctx.font = '400 17px "Noto Sans SC", "PingFang SC", sans-serif';
+  ctx.font = '400 17px "Noto Sans SC", "PingFang SC", "Inter Variable", Inter, sans-serif';
   ctx.fillStyle = 'rgba(82, 82, 91, 0.55)';
-  fillSpacedText(ctx, '轻均 FairLite', W / 2, footY, 3);
+  fillSpacedText(ctx, '轻均 · 分账 FairLite', W / 2, footY, 2);
 
   return canvas.toDataURL('image/png');
 }
