@@ -77,6 +77,9 @@ input, textarea, select, [contenteditable] {
 
   /* Logo ink — matches NavBar「轻均」 brand-zh (#1a1a1a) */
   --logo-ink: #1a1a1a;
+  /* Sticky glass — bill day headers + settle 付款/消费明细 headers + stuck search bleed */
+  --bills-sticky-glass-bg: rgba(255, 255, 255, 0.26);
+  --bills-sticky-glass-filter: saturate(200%) blur(36px);
   /* Default button label color (glass / ghost / outline). Filled primary keeps #fff. */
   --btn-label: var(--logo-ink);
 

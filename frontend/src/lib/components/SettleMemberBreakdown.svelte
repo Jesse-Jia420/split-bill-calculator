@@ -108,6 +108,56 @@
 
   // Shared sticky search for 付款明细 + 消费明细 (one box above 付款明细).
   let detailSearchQuery = '';
+  /** Stuck-bleed mask under navbar — same pattern as session `.bills-search`. */
+  let detailSearchSentinel: HTMLDivElement | null = null;
+  let detailSearchEl: HTMLDivElement | null = null;
+  let detailSearchStuck = false;
+  let detailSearchStuckCleanup: (() => void) | null = null;
+
+  function updateDetailSearchStuckBleed() {
+    if (!detailSearchStuck || !detailSearchEl) return;
+    const nav = document.querySelector('.navbar');
+    if (!(nav instanceof HTMLElement)) return;
+    const gap = Math.max(
+      0,
+      detailSearchEl.getBoundingClientRect().top - nav.getBoundingClientRect().bottom
+    );
+    detailSearchEl.style.setProperty('--bills-search-stuck-bleed', `${gap}px`);
+  }
+
+  function setupDetailSearchStuck() {
+    detailSearchStuckCleanup?.();
+    detailSearchStuckCleanup = null;
+    detailSearchStuck = false;
+    if (typeof document === 'undefined' || !detailSearchSentinel) return;
+    const main = document.querySelector('main');
+    if (!(main instanceof HTMLElement)) return;
+
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        const leftViaTop = Boolean(
+          entry &&
+            !entry.isIntersecting &&
+            entry.rootBounds &&
+            entry.boundingClientRect.top < entry.rootBounds.top
+        );
+        detailSearchStuck = leftViaTop;
+        requestAnimationFrame(updateDetailSearchStuckBleed);
+      },
+      { root: main, rootMargin: '-8px 0px 0px 0px', threshold: 0 }
+    );
+    io.observe(detailSearchSentinel);
+
+    const onScroll = () => requestAnimationFrame(updateDetailSearchStuckBleed);
+    main.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+
+    detailSearchStuckCleanup = () => {
+      io.disconnect();
+      main.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+    };
+  }
 
   /** T6: 金额统一改用 formatMoney (千分位 + 2dp)。 */
   function fmt(n: number): string {
@@ -339,9 +389,22 @@
     return ks.map((k) => `${fmtSigned(agg[k].net)} ${k}`).join(' / ');
   }
 
-  onMount(async () => {
-    await loadSettle(viewMode);
+  onMount(() => {
+    void loadSettle(viewMode);
+    return () => {
+      detailSearchStuckCleanup?.();
+      detailSearchStuckCleanup = null;
+    };
   });
+
+  // After search mounts (member with bills), wire stuck-bleed like bill list.
+  $: if (showDetailSearch) {
+    tick().then(() => setupDetailSearchStuck());
+  } else {
+    detailSearchStuckCleanup?.();
+    detailSearchStuckCleanup = null;
+    detailSearchStuck = false;
+  }
 
   // v0.2.2 (T11): when viewMode changes after mount, refetch.
   $: if (!loading && loadedView !== viewMode) {
@@ -499,7 +562,17 @@
 
           <!-- Shared sticky search (filters both 付款明细 + 消费明细) -->
           {#if showDetailSearch}
-            <div class="bills-section-search bills-section-search-shared" data-testid="member-detail-search">
+            <div
+              class="bills-section-search-sentinel"
+              bind:this={detailSearchSentinel}
+              aria-hidden="true"
+            ></div>
+            <div
+              class="bills-section-search bills-section-search-shared"
+              class:is-stuck={detailSearchStuck}
+              bind:this={detailSearchEl}
+              data-testid="member-detail-search"
+            >
               <Search size={14} aria-hidden="true" />
               <input
                 type="search"
@@ -1385,57 +1458,31 @@
      list 38% 透明. 整体 "list 渐消失于 head 中" (PO msg 23:44 #6063 设计意图).
      ::before 渐变 overlay 取消 — chip 自带 bg + 双层阴影 + mask, 不再需要旧 hack 强化遮挡. */
   .section-header.glass-chip {
-    /* v0.3.18 #49 (PO msg 21:16 #6508 极透明化 sweep): bg 0.35 → 0.20
-       跟成员 chip (0.15/0.08) 同步, 整站 section header chip 几乎全透.
-       ===
-       v0.3.18 #50 (PO msg 22:12 #6523 极透明化 v2): #49 chip 仍"白边+浮起", 再降一档
-       - bg 0.20 → 0.10 (chip 几乎全透, 只靠文字 + inset highlight 提示有 label)
-       - inset highlight 1.0 → 0.30 (玻璃上沿大幅淡化, 不再"白框胶囊")
-       - 外阴影 indigo: 0.14/0.20/0.14 → 0.04/0.06/0.04 (后两层浓阴影同降一档)
-       - 保留 text-shadow (重要文字仍然可读)
-       ===
-       v0.3.18 #54 (PO msg 18:10 #6569): 加重模糊 — 0.10 太透, 付款/消费明细 row
-       滚过 chip 时几乎贴脸穿透. bg 0.10 → 0.55 (× 5.5 浓液化),
-       blur 20 → 24 (+20%), 保留 saturate 200% (玻璃质感).
-       inset highlight / 外阴影同步略提 (玻璃感保留). */
-    background: rgba(255, 255, 255, 0.42);
-    backdrop-filter: saturate(200%) blur(24px);
-    -webkit-backdrop-filter: saturate(200%) blur(24px);
+    /* Shared sticky glass with bill list day-header (:root --bills-sticky-glass-*) */
+    background: var(--bills-sticky-glass-bg, rgba(255, 255, 255, 0.26));
+    backdrop-filter: var(--bills-sticky-glass-filter, saturate(200%) blur(36px));
+    -webkit-backdrop-filter: var(--bills-sticky-glass-filter, saturate(200%) blur(36px));
     border-radius: 9999px;
-    /* v0.3.17 #37 (PO msg 10:55 #6262): 加倍 chip 垂直高度 ~36px → ~64-72px, 跟 row 高度 52-72px 视觉对位. padding 上下 8px → 20px (× 2.5, 原 brief 12px 写小改 20px 补足 SPEC 目标); 左右 12px → 16px (× 1.3); margin 同步 -8px → -10px 让 overlap 视觉协调. font-size sm (14px) → md (16px) +1 档. min-height: 60px 保证最小 320px viewport 也 ≥60. 保留 pill border-radius 9999px (PO 没要求改); 保留 sticky + mask-image + z-index + iOS27 玻璃参数. */
     padding: var(--space-5, 20px) var(--space-4, 16px);
-    /* v0.3.18 #44: margin-top -10 → -4 (跟新 .glass-sheet padding-top 4px 抵消,
-       chip top edge = sheet top edge, 视觉上 chip "贴在" sheet 顶边) */
     margin: -4px calc(-1 * var(--space-3, 12px)) -10px calc(-1 * var(--space-3, 12px));
     min-height: 60px;
     z-index: 10;
-    /* v0.3.17 #31fix-3 (PO msg 01:48 #6160 + 01:59 #6178; 详见 SPEC §11 #31fix-3):
-       chip 改 sticky top 0. 原 position: relative 跟 sheet 一起堆叠, 失去 sticky
-       语义. 现 sheet 改 relative 后, chip sticky within sheet — 只有当前 section
-       的 chip 吸顶, 其它 section chip 自然随内容滚出 (iOS Mail inbox 行为).
-       关键不变量: z-index: 10 > sheet z-index: 1, chip 浮在 sheet 之上, list 滚
-       到 chip 下方时被 chip bg 物理遮挡 (顶部 16px mask 透明渐变保留视觉柔化). */
     position: sticky;
     top: 0;
     display: flex;
     align-items: center;
     gap: var(--space-2, 8px);
-    /* v0.3.17 #37: sm (14px) → md (16px) +1 档 (跟加倍 chip 高度配套) */
     font-size: var(--font-size-md, 16px);
     font-weight: 600;
     color: var(--gray-900);
     border-bottom: 0;
-    /* #31-fix: mask-image top 16px fade — list 进 chip 区域时顶部 16px 透明露出, 16px 以下
-       chip bg 物理遮挡. 视觉 "list 渐消失于 head 中" (PO msg 23:44 #6063 设计意图) */
     mask-image: linear-gradient(180deg, transparent 0, #000 16px, #000 100%);
     -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 16px, #000 100%);
-    /* v0.3.18 #50: chip inset highlight 1.0 → 0.30 + 外阴影大幅降级. */
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.30),
       0 1px 2px rgba(40, 40, 40, 0.04),
       0 4px 12px rgba(40, 40, 40, 0.06),
       0 8px 24px rgba(40, 40, 40, 0.04);
-    /* v0.3.18 #49 保留: 文字白色微晕 (低对比玻璃上唯一可读性补偿) */
     text-shadow: 0 1px 3px rgba(255, 255, 255, 0.85);
   }
   /* #31-fix (PO msg 23:44 #6065 拍补): 两个 section (paid + consumed) 同层并列,
@@ -1451,7 +1498,7 @@
    v0.3.18 #50: 0.32 → 0.20 (跟新 base 0.10 同比例降级, 仍提供 fallback opaque 可读性) */
   @supports not (backdrop-filter: blur(1px)) {
     .section-header.glass-chip {
-      background: rgba(255, 255, 255, 0.20);
+      background: rgba(255, 255, 255, 0.72);
     }
   }
 
@@ -1465,30 +1512,81 @@
        堆叠 (从底到顶): bill items (z-index auto) → 搜索框 (z-index 9) → section h4
        sticky header (z-index 10). 搜索框 z-index 9 < h4 z-index 10, 滚到 h4 重叠时
        h4 视觉压在搜索框上方 (跟 iOS native section header 行为一致). */
-  /* Shared sticky search above 付款明细 — sticks at top of the detail scroll. */
+  /* Shared sticky search above 付款明细 — sticks at top; stuck bleed masks navbar gap. */
+  .bills-section-search-sentinel {
+    height: 1px;
+    margin: 0;
+    padding: 0;
+    pointer-events: none;
+    visibility: hidden;
+  }
   .bills-section-search {
     position: sticky;
-    top: 0;
+    top: var(--space-2, 8px);
     z-index: 12;
+    isolation: isolate;
     display: flex;
     align-items: center;
     gap: var(--space-2, 8px);
     margin: 0 0 var(--space-3, 12px);
     padding: 8px var(--space-2, 8px);
-    background: rgba(255, 255, 255, 0.42);
+    min-height: 40px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md, 8px);
+    color: var(--gray-500);
+  }
+  .bills-section-search::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(255, 255, 255, 0.55);
     backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
     border: 1px solid var(--color-border, #e5e7eb);
     border-radius: var(--radius-md, 8px);
-    color: var(--gray-500);
+    z-index: -2;
+    pointer-events: none;
+  }
+  .bills-section-search::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md, 8px);
+    z-index: -1;
+    pointer-events: none;
+    background: transparent;
+  }
+  /* Sticky: bleed glass up into navbar gap (same as session .bills-search.is-stuck) */
+  .bills-section-search.is-stuck::before {
+    top: calc(-1 * var(--bills-search-stuck-bleed, 0px));
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+    background: var(--bills-sticky-glass-bg, rgba(255, 255, 255, 0.26));
+    backdrop-filter: var(--bills-sticky-glass-filter, saturate(200%) blur(36px));
+    -webkit-backdrop-filter: var(--bills-sticky-glass-filter, saturate(200%) blur(36px));
+  }
+  .bills-section-search.is-stuck::after {
+    border-color: var(--color-border, #e5e7eb);
   }
   /* When shared search is present, section headers stick just below it. */
   .bills-section-search-shared ~ .bills-section .section-header {
-    top: 44px;
+    top: calc(var(--space-2, 8px) + 44px);
   }
   @supports not (backdrop-filter: blur(1px)) {
-    .bills-section-search {
+    .bills-section-search::before {
       background: var(--color-bg, #f9fafb);
+    }
+    .bills-section-search.is-stuck::before {
+      background: rgba(249, 250, 251, 0.95);
     }
   }
   .bills-section-search-input {

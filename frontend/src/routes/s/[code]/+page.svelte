@@ -2172,9 +2172,7 @@
      同步 --bills-search-h 60px → 54px (search 实际高度 -6px, region 同步减 6px 保持
      day-header sticky offset 一致). */
   .bills-card {
-    /* v0.3.0729-4 #11: 日期 header 透明度进一步降低 (0.68 → 0.42) */
-    --bills-sticky-glass-bg: rgba(255, 255, 255, 0.42);
-    --bills-sticky-glass-filter: saturate(200%) blur(24px);
+    /* Inherit :root sticky glass; keep search height for day-header offset */
     --bills-search-h: 48px;
     padding-bottom: 96px;
   }
