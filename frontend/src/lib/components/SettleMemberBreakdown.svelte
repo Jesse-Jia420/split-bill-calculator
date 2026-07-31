@@ -697,12 +697,13 @@
 
 <style>
   /* Soft charcoal companion accents — muted vs neon --success-500 (#10b981) /
-     --error-500 (#f43f5e). Sage green + dusty rose sit next to logo ink / soft charcoal. */
+     --error-500 (#f43f5e). Sage green + dusty rose sit next to logo ink / soft charcoal.
+     Saturation kept ~30–37% (was ~84–89%) so small meta text still reads as green/red. */
   .settle-member-breakdown {
-    --settle-pos: #5e8a72;
-    --settle-neg: #a87878;
-    --settle-pos-border: rgba(94, 138, 114, 0.45);
-    --settle-neg-border: rgba(168, 120, 120, 0.5);
+    --settle-pos: #4d8f6e;
+    --settle-neg: #c17a7a;
+    --settle-pos-border: rgba(77, 143, 110, 0.45);
+    --settle-neg-border: rgba(193, 122, 122, 0.5);
   }
 
   /* === T9: Chip Redesign — filled pill ===
