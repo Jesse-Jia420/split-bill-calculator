@@ -1146,12 +1146,12 @@
     position: sticky;
     top: var(--bills-search-h, 50px);
     z-index: 9;
-    /* UAT: 与 .bills-search 玻璃同浓度, 滚过 bill row 时不穿透 */
-    background: var(--bills-sticky-glass-bg, rgba(255, 255, 255, 0.68));
-    backdrop-filter: var(--bills-sticky-glass-filter, saturate(200%) blur(24px));
-    -webkit-backdrop-filter: var(--bills-sticky-glass-filter, saturate(200%) blur(24px));
-    border-bottom: 1px solid rgba(255, 255, 255, 0.35);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+    /* Shared with settle 付款明细 glass-chip via :root --bills-sticky-glass-* */
+    background: var(--bills-sticky-glass-bg, rgba(255, 255, 255, 0.26));
+    backdrop-filter: var(--bills-sticky-glass-filter, saturate(200%) blur(36px));
+    -webkit-backdrop-filter: var(--bills-sticky-glass-filter, saturate(200%) blur(36px));
+    border-bottom: 1px solid rgba(255, 255, 255, 0.28);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
   }
   @supports not (backdrop-filter: blur(1px)) {
     .section-header {
