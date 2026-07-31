@@ -739,8 +739,7 @@
         data-testid="bill-occurred-time"
       />
     </div>
-    <div class="field field-payer" data-testid="bill-payer-row">
-      <label class="label" for="payer">付款人</label>
+    <div class="field field-payer" data-testid="bill-payer-row">      <label class="label" for="payer">付款人</label>
       <select id="payer" bind:value={payerMemberId}>
         <option value={null}>— 选择 —</option>
         {#each session.members as m (m.id)}
@@ -794,8 +793,7 @@
       value={occurredTime}
       oninput={onOccurredTimeInput}
       data-testid="bill-occurred-time"
-    />
-  </div>
+    />  </div>
 
   <div class="row" style="gap: var(--space-3); align-items: center;">
     <div style="flex: 1; min-width: 0;">
@@ -1391,7 +1389,6 @@
     color: #64748b;
     line-height: 1.2;
   }
-
   /* 金额: label 独占一行; input + 币种控件同行 */
   .sheet-layout .amount-input-row {
     display: flex;

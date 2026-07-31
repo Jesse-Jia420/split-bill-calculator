@@ -424,7 +424,6 @@
           <button type="button" class="key num" onclick={() => pressChar('2')} disabled={disabled} aria-label="2">2</button>
           <button type="button" class="key num" onclick={() => pressChar('3')} disabled={disabled} aria-label="3">3</button>
           <button type="button" class="key op" onclick={() => pressChar('+')} disabled={disabled} aria-label="加">+</button>
-
           <button type="button" class="key num" onclick={() => pressChar('4')} disabled={disabled} aria-label="4">4</button>
           <button type="button" class="key num" onclick={() => pressChar('5')} disabled={disabled} aria-label="5">5</button>
           <button type="button" class="key num" onclick={() => pressChar('6')} disabled={disabled} aria-label="6">6</button>
