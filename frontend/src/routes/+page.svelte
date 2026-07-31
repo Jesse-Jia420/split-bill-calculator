@@ -55,7 +55,7 @@
 </script>
 
 <svelte:head>
-  <title>轻均 FairLite — 极简分账，一链即平</title>
+  <title>轻均分账 FairLite — 极简分账，一链即平</title>
   <meta name="description" content="旅行，合租，聚餐，随手分享记账，AA 不再烦恼" />
 </svelte:head>
 
@@ -67,14 +67,22 @@
   </div>
 
   <div class="hero">
-    <div class="brand" aria-label="轻均 FairLite">
+    <div class="brand" aria-label="轻均分账 FairLite">
       <span class="brand-zh">
         <span class="brand-zh-inner">
           <span class="brand-zh-glass" aria-hidden="true">轻均</span>
           轻均
         </span>
       </span>
-      <span class="brand-en">FairLite</span>
+      <div class="brand-en-row">
+        <span class="brand-zh brand-zh--en-size">
+          <span class="brand-zh-inner">
+            <span class="brand-zh-glass" aria-hidden="true">分账</span>
+            分账
+          </span>
+        </span>
+        <span class="brand-en">FairLite</span>
+      </div>
     </div>
 
     <h1 class="headline">极简分账，一链即平。</h1>
@@ -261,6 +269,25 @@
     animation: glassSheen 6.5s ease-in-out infinite alternate;
   }
 
+  .brand-en-row {
+    display: inline-flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 0.45rem;
+    animation: rise 0.95s cubic-bezier(0.16, 1, 0.3, 1) 0.08s both;
+  }
+
+  /* 「分账」— 轻均同款玻璃细体，字号对齐 FairLite */
+  .brand-zh--en-size .brand-zh-inner {
+    font-size: clamp(1rem, 3.6vw, 1.25rem);
+    line-height: 1.1;
+    letter-spacing: 0.2em;
+    text-indent: 0.2em;
+  }
+  .brand-zh--en-size {
+    animation: none;
+  }
+
   .brand-en {
     font-family: 'Inter Variable', Inter, system-ui, sans-serif;
     font-weight: 400;
@@ -269,7 +296,7 @@
     text-indent: 0.32em;
     text-transform: none;
     color: rgba(244, 247, 245, 0.78);
-    animation: rise 0.95s cubic-bezier(0.16, 1, 0.3, 1) 0.08s both;
+    animation: none;
   }
 
   .headline {
@@ -438,6 +465,7 @@
   @media (prefers-reduced-motion: reduce) {
     .stage-img,
     .brand-zh,
+    .brand-en-row,
     .brand-en,
     .headline,
     .support,
