@@ -963,7 +963,9 @@
                   <div class="member-name-row-a">
                     <span class="member-name-a">{m.display_name}</span>
                     {#if m.role === 'owner'}
-                      <span class="owner-tag-a">owner</span>
+                      <span class="owner-tag-a"
+                        ><span class="dot-led" aria-hidden="true"></span>owner</span
+                      >
                     {/if}
                   </div>
                   <div class="member-meta-a">
@@ -1780,16 +1782,29 @@
     word-break: break-word;
     line-height: 1.3;
   }
-  /* owner tag — 昵称右侧仅标 owner */
+  /* owner tag — 跟账本列表 SessionCard .role.owner 一致:
+     纯文字 + .dot-led, 无 pill 玻璃 / 无紫字 (soft charcoal ink). */
   .owner-tag-a {
-    display: inline-block;
-    font-size: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
     font-weight: 600;
-    padding: 2px 8px;
-    border-radius: 999px;
-    background: linear-gradient(135deg, rgba(28, 28, 28, 0.14), rgba(40, 40, 40, 0.14));
-    color: #6d28d9;
-    line-height: 1.3;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 3px 0 3px 6px;
+    line-height: 1;
+    flex-shrink: 0;
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
+    background: none;
+    border-radius: 0;
+  }
+  .owner-tag-a .dot-led {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.85;
   }
   /* me badge — 贴在头像下缘, 不占昵称行 */
   .me-badge-a {
