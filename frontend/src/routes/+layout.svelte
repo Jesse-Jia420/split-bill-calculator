@@ -21,10 +21,8 @@
   // 现在重新挂载作为 body 第一层 (在 <slot/> 之前的 <main> 之前).
   import AppBackground from '$components/AppBackground.svelte';
   import LoadingOverlay from '$components/LoadingOverlay.svelte';
-  // v0.3.36 (PO msg 2026-07-27 12:19): 全局挂载版本号 badge (FE short hash + BE /version),
-  // Master 跟 PO 对齐部署/真机验证时的版本依据. fixed 定位 (top-right z-index 200),
-  // 不参与 main flex 流, 不会挤内容.
-  import VersionBadge from '$components/VersionBadge.svelte';
+  // VersionBadge 曾全局挂载右上角 FE/BE 版本号 (v0.3.36)；现按 PO 要求去掉。
+  // 组件文件保留，需要时再 import + 挂载即可。
   import { onMount } from 'svelte';
   import { fade } from 'svelte/transition';
   import { loadUser } from '$stores/user';
