@@ -64,8 +64,8 @@
 
 <style>
   /* v0.3.28 UAT 0724-1 #5 (Option C 玻璃圆环): 跟全站 Liquid Glass token 同源.
-   * 不引入新 design token — 用 indigo accent (#6366f1 / #4f46e5 / #4338ca /
-   * #818cf8 / #3730a3) + 全站玻璃 rgba + saturate + blur 范围. */
+   * 不引入新 design token — 用 indigo accent (#2c2c2c / #262626 / #1a1a1a /
+   * #525252 / #121212) + 全站玻璃 rgba + saturate + blur 范围. */
 
   /* 主体圆环 — 透明背景 + 4 层 box-shadow 模拟 ring 厚度 */
   .glass-ring {
@@ -75,12 +75,12 @@
     border-radius: 50%;
     background: transparent;
     box-shadow:
-      inset 0 0 0 4px rgba(99, 102, 241, 0.18),  /* ring 内圈描边 (浅紫) */
+      inset 0 0 0 4px rgba(40, 40, 40, 0.18),  /* ring 内圈描边 (浅紫) */
       inset 0 1px 0 4px rgba(255, 255, 255, 0.55), /* ring 顶部高光 (inset highlight) */
-      inset 0 -1px 0 4px rgba(99, 102, 241, 0.08), /* ring 底部暗描边 */
-      0 0 0 0.5px rgba(99, 102, 241, 0.35),  /* ring 外描边 (微细) */
-      0 8px 24px rgba(99, 102, 241, 0.18),  /* 紫光晕主浮起 */
-      0 1px 2px rgba(99, 102, 241, 0.10);   /* 紫光晕微投影 */
+      inset 0 -1px 0 4px rgba(40, 40, 40, 0.08), /* ring 底部暗描边 */
+      0 0 0 0.5px rgba(40, 40, 40, 0.35),  /* ring 外描边 (微细) */
+      0 8px 24px rgba(40, 40, 40, 0.18),  /* 紫光晕主浮起 */
+      0 1px 2px rgba(40, 40, 40, 0.10);   /* 紫光晕微投影 */
     animation: ringRotate 900ms cubic-bezier(0.45, 0, 0.55, 1) infinite;
     flex-shrink: 0;
   }
@@ -102,13 +102,13 @@
     border-radius: 50%;
     background: radial-gradient(
       circle at 30% 30%,
-      #818cf8 0%,    /* indigo-400 浅紫 */
-      #4f46e5 60%,   /* indigo-600 主色 */
-      #3730a3 100%   /* indigo-800 深紫 */
+      #525252 0%,    /* indigo-400 浅紫 */
+      #262626 60%,   /* indigo-600 主色 */
+      #121212 100%   /* indigo-800 深紫 */
     );
     box-shadow:
-      0 0 8px rgba(99, 102, 241, 0.6),   /* 近距发光 */
-      0 0 16px rgba(99, 102, 241, 0.4);  /* 远距光晕 */
+      0 0 8px rgba(40, 40, 40, 0.6),   /* 近距发光 */
+      0 0 16px rgba(40, 40, 40, 0.4);  /* 远距光晕 */
     z-index: 3;  /* 永远在 ::after inner glass (z-index 1) 之上 */
   }
   /* 内层玻璃质感 — 子元素承载 backdrop-filter (圆环本身 transparent)
@@ -121,7 +121,7 @@
     background: linear-gradient(
       135deg,
       rgba(255, 255, 255, 0.55) 0%,
-      rgba(165, 180, 252, 0.18) 100%
+      rgba(58, 58, 58, 0.10) 100%
     );
     backdrop-filter: blur(4px) saturate(220%);
     -webkit-backdrop-filter: blur(4px) saturate(220%);
@@ -146,6 +146,10 @@
     gap: 18px;
     z-index: 9999;
     /* navbar (z-index 1000) 之上, toast (z-index 9999) 同级 */
+    pointer-events: auto;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
   }
 
   /* Inline variant: 行内 flex (wizard step 切换内嵌) */
@@ -183,7 +187,7 @@
   .text {
     font-size: 14px;
     font-weight: 500;
-    color: #4338ca;  /* indigo-700, 跟全站 accent-700 token 同 */
+    color: #1a1a1a;  /* indigo-700, 跟全站 accent-700 token 同 */
     letter-spacing: -0.005em;
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", system-ui, sans-serif;
   }

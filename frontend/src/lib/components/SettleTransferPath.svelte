@@ -31,7 +31,7 @@
   import type { SessionDetail } from '$api/sessions';
   // v0.3.36 #13 — UAT 0728-1 #13 (PO 字面 "建议转账头像样式也应跟成员 section 中的一样, 颜色应符合成员 section 头像"):
   // 改用共享 lib/utils/palette.ts (跟 SessionMemberList + BillForm + SettlementRow 4 处统一 source).
-  // 之前 SettleTransferPath .avatar 用纯色 rgba(59, 130, 246, 0.88) 实色蓝, 跟其他 3 处 5 色渐变 palette 不同 —
+  // 之前 SettleTransferPath .avatar 用纯色 rgba(58, 58, 58, 0.88) 实色蓝, 跟其他 3 处 5 色渐变 palette 不同 —
   // 现在改 paletteGradient + paletteIndexFromMemberId (基于 memberId hash 稳定颜色, 跟 SettlementRow 一致).
   import { paletteGradient, paletteIndexFromMemberId, avatarInitialOf } from '$lib/utils/palette';
 
@@ -186,10 +186,10 @@
     font-weight: 500;
   }
   .amount.pos {
-    color: var(--success-500);
+    color: var(--settle-pos);
   }
   .amount.neg {
-    color: var(--error-500);
+    color: var(--settle-neg);
   }
   /* v0.3.36 #10 — UAT 0728-1 #10: 删 .currency-row / .ccy-name / .ccy-detail 三个 orphan CSS rule,
      跟 template 删法同步 (上面 {#if currency_breakdown} 整块已删, 这三个 selector 再无 consumer).
@@ -245,8 +245,8 @@
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.85),
       inset 0 -1px 0 rgba(0, 0, 0, 0.04),
-      0 1px 4px rgba(99, 102, 241, 0.10);
-    border: 1px solid rgba(99, 102, 241, 0.15);
+      0 1px 4px rgba(40, 40, 40, 0.10);
+    border: 1px solid rgba(40, 40, 40, 0.15);
   }
   @supports not (backdrop-filter: blur(1px)) {
     /* v0.3.18 #48: fallback 0.92 → 0.55 (跟新 base 同比例降级, 仍提供 fallback opaque 可读性) */
@@ -276,7 +276,7 @@
   /* v0.3.23 #132 (UAT old #4): 玻璃质感增强 — Option B (rgba 0.88 半透明 + backdrop-filter + 4-layer glass shadow),
      跟 .avatar-a / .avatar-mini 统一语言. */
   /* v0.3.36 #13 — UAT 0728-1 #13: 改用 lib/utils/palette.ts 共享 5 色 palette (跟成员 section 一致).
-     之前 .avatar background 硬编码 rgba(59, 130, 246, 0.88) 实色蓝, 跟 SessionMemberList 等 5 色循环不一致.
+     之前 .avatar background 硬编码 rgba(58, 58, 58, 0.88) 实色蓝, 跟 SessionMemberList 等 5 色循环不一致.
      现在 background 由 inline style 传 paletteGradient(paletteIndexFromMemberId(memberId)) 提供,
      每个 member 的颜色跟他在 SessionMemberList / BillForm / SettlementRow 出现的颜色一致 (memberId 哈希稳定).
      CSS 这里只保留 layout + 玻璃语言, 不再设 background (但给 fallback rgba(255,255,255,0.6) 防止 palette inline

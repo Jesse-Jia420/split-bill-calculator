@@ -128,7 +128,7 @@
     backdrop-filter: blur(14px) saturate(180%);
     border-radius: 9999px;
     padding: 4px;
-    border: 0.5px solid rgba(99, 102, 241, 0.32);
+    border: 0.5px solid rgba(40, 40, 40, 0.32);
     box-shadow:
       inset 0 1px 2px rgba(0, 0, 0, 0.04),
       inset 0 -1px 0 rgba(255, 255, 255, 0.95);
@@ -148,7 +148,7 @@
     padding: 0.625rem 1.5rem;
     font-size: 0.9375rem;
     font-weight: 600;
-    color: rgba(67, 56, 202, 0.6);
+    color: rgba(26, 26, 26, 0.55);
     background: transparent;
     border: none;
     border-radius: 9999px;
@@ -175,11 +175,11 @@
     top: 4px;
     left: 4px;
     bottom: 4px;
-    background: linear-gradient(135deg, #6366f1, #818cf8);
+    background: linear-gradient(135deg, #2c2c2c, #525252);
     border-radius: 9999px;
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.4),
-      0 2px 4px rgba(99, 102, 241, 0.3);
+      0 2px 4px rgba(40, 40, 40, 0.3);
     /* width + transform 都 transition (动态宽度切换时平滑) */
     transition:
       width 250ms cubic-bezier(0.4, 0.0, 0.2, 1),

@@ -29,10 +29,9 @@
   // 新 swipe 触发时: SessionCard dispatch 'swipechange' 事件带新 swipe id, parent set swipedId = id
   // → 其他 SessionCard 收到 swipedId !== session.id 自动收起 swipe. type number 跟 session.id 一致.
   let swipedId: number | null = $state(null);
-  // v0.3.0728-3 #3 — list-top hint 仅当用户拥有至少 1 个 session (即 hint 适用) 才显示.
-  //   非 owner 用户看不到 "左划以删除账本" 提示 (因为他们没 delete-btn, 提示会误导).
-  //   $sessions 是来自 session store (line ~22), $derived 自动 reactivity 跟随 store 变化.
-  let hasOwnedSession = $derived(($sessions ?? []).some((s) => s.role === 'owner'));
+  // v0.3.0728-3 #3 — list-top hint: 所有账本均可左滑出删除按钮 (非 owner 置灰),
+  //   故只要列表非空就显示提示.
+  let hasAnySession = $derived(($sessions ?? []).length > 0);
 
   onMount(async () => {
     try {
@@ -52,10 +51,10 @@
        "应更换边框的灰色文字展示，不应该像现在这么显眼"). -->
   <div class="row between sessions-title-row">
     <h2>我的账本</h2>
-    {#if !loading && $sessions.length > 0 && hasOwnedSession}
+    {#if !loading && hasAnySession}
       <div class="list-top-hint" data-testid="list-top-hint-delete" aria-label="左划以删除账本">
         <span class="swipe-arrow" aria-hidden="true">←</span>
-        <span>左划以删除账本</span>
+        <span>左划以<span class="hint-delete">删除</span>账本</span>
       </div>
     {/if}
   </div>
@@ -122,8 +121,8 @@
     width: 80px;
     height: 80px;
     border-radius: 50%;
-    background: linear-gradient(135deg, rgba(99,102,241,0.04) 0%, rgba(59,130,246,0.02) 100%);
-    border: 1px solid rgba(99,102,241,0.18);
+    background: linear-gradient(135deg, rgba(40, 40, 40,0.04) 0%, rgba(58, 58, 58,0.02) 100%);
+    border: 1px solid rgba(40, 40, 40,0.18);
     font-size: 36px;
     font-weight: 300;
     line-height: 1;
@@ -142,10 +141,10 @@
   .fab.emphasized {
     background: linear-gradient(
       135deg,
-      rgba(99, 102, 241, 0.32) 0%,
-      rgba(59, 130, 246, 0.26) 100%
+      rgba(40, 40, 40, 0.32) 0%,
+      rgba(58, 58, 58, 0.26) 100%
     );
-    border: 1px solid rgba(99, 102, 241, 0.50);
+    border: 1px solid rgba(40, 40, 40, 0.50);
   }
   @media (max-width: 600px) {
     .fab {
@@ -164,7 +163,7 @@
     min-width: 0;
   }
   /* v0.3.0729-2 #1+#2: 跟标题同行的灰色描边 hint (弱化, 不抢视觉).
-     旧 indigo 玻璃 pill (accent-700 + rgba(99,102,241,*) bg) 太显眼. */
+     旧 indigo 玻璃 pill (accent-700 + rgba(40, 40, 40,*) bg) 太显眼. */
   .list-top-hint {
     display: inline-flex;
     align-items: center;
@@ -187,5 +186,10 @@
     font-weight: 500;
     font-size: 11px;
     color: var(--gray-400, #a3a3a3);
+  }
+  /* Match muted settle-neg on delete word only */
+  .list-top-hint .hint-delete {
+    color: var(--settle-neg);
+    font-weight: 500;
   }
 </style>

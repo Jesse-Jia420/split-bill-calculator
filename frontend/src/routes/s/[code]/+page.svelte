@@ -48,6 +48,7 @@
   // v0.3.28 UAT 0724-1 #5 (Option C 玻璃圆环): 加载账单数据 fetch 时显示 LoadingOverlay.
   import LoadingOverlay from '$components/LoadingOverlay.svelte';
   import { getSessionByCode, claimSession } from '$api/sessions';
+  import { setNavbarLedgerChrome, resetNavbarChrome } from '$stores/navbarChrome';
   import { user, loadUser } from '$stores/user';
   import { toast } from '$stores/toast';
 
@@ -137,8 +138,8 @@
   let isOwner = $derived(currentMember?.role === 'owner');
 
   // v0.3.31 #2 (UAT 0725-2 #2): 匿名 owner 首次进入账单页触发呼吸 + 文案 pill.
+  // showAnonHint → 邀请链接按钮左侧红色提醒 (紧挨邀请按钮).
   // showBreathing → 传给 InviteLinkButton 的 breathing prop, 触发 CSS keyframes.
-  // showAnonHint → 控制红色玻璃 pill .expiry-anon-a 渲染 (邀请按钮正下方).
   // 两者由 onMount() 一次性设置 (sessionStorage 二次访问不重触).
   let showBreathing = $state(false);
   let showAnonHint = $state(false);
@@ -228,7 +229,16 @@
 
     const io = new IntersectionObserver(
       ([entry]) => {
-        billsSearchStuck = entry ? !entry.isIntersecting : false;
+        // Sentinel 在首屏下方 (未进视口) 时 isIntersecting=false, 若直接当 stuck
+        // 会把 ::before 玻璃层从搜索框一直铺到 navbar, 盖住成员区 (泰国长账单 UAT).
+        // 仅当 sentinel 从顶部滚出 root 才算真正 sticky.
+        const leftViaTop = Boolean(
+          entry &&
+            !entry.isIntersecting &&
+            entry.rootBounds &&
+            entry.boundingClientRect.top < entry.rootBounds.top
+        );
+        billsSearchStuck = leftViaTop;
         requestAnimationFrame(updateBillsSearchStuckBleed);
       },
       { root: main, rootMargin: '-8px 0px 0px 0px', threshold: 0 }
@@ -243,6 +253,55 @@
       io.disconnect();
       main.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', onScroll);
+    };
+  });
+
+  /** Scroll chrome: when session title scrolls under the navbar, surface it on the
+   *  right of NavBar (logo stays). Restore when scrolled back. */
+  let sessionTitleEl = $state<HTMLElement | null>(null);
+  $effect(() => {
+    if (!browser || !session || !sessionTitleEl) {
+      resetNavbarChrome();
+      return;
+    }
+    const titleText = session.name ?? '';
+    const titleNode = sessionTitleEl;
+    let lastCompact: boolean | null = null;
+    let raf = 0;
+
+    const sync = () => {
+      raf = 0;
+      const nav = document.querySelector('.navbar');
+      const navBottom =
+        nav instanceof HTMLElement ? nav.getBoundingClientRect().bottom : 56;
+      const rect = titleNode.getBoundingClientRect();
+      // Hysteresis: enter compact a bit earlier, leave a bit later — cuts edge flicker.
+      const enterAt = navBottom + 2;
+      const leaveAt = navBottom + 14;
+      const next =
+        lastCompact === true
+          ? rect.bottom <= leaveAt
+          : rect.bottom <= enterAt;
+      if (next === lastCompact) return;
+      lastCompact = next;
+      setNavbarLedgerChrome(titleText, next);
+      titleNode.classList.toggle('session-title-away', next);
+    };
+
+    const main = document.querySelector('main.page') ?? document.querySelector('main');
+    sync();
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(sync);
+    };
+    main?.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      main?.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+      resetNavbarChrome();
+      titleNode.classList.remove('session-title-away');
     };
   });
 
@@ -307,7 +366,7 @@
     //   2) sessionStorage 没有 sbc-visited-{session.id} 标记 → 首次进入账单页
     // 满足两条件则:
     //   - showBreathing = true → InviteLinkButton 加 .invite-btn-breathing (1.5s 紫光晕 + scale 1↔1.02)
-    //   - showAnonHint = true → 邀请按钮下方渲染红色玻璃 pill .expiry-anon-a (PO 新文案)
+    //   - showAnonHint = true → 邀请链接按钮左侧红色提醒 pill (紧挨邀请按钮)
     //   - 立即写 sessionStorage, 刷新/重进不重触 (PO 明确 "首次进入")
     // 不满足 (已认领 member / 二次访问) → 两个 flag 保持 false, 既不呼吸也不显 pill.
     // 注: members 在 load() 后已就绪, 此时 session.members[0].user_id 反映 owner 是否匿名.
@@ -633,21 +692,27 @@
     }
   }
 
-  // T14: copy invite link to clipboard (EmptyState CTA 用)
+  // T14: copy invite / session link to clipboard (EmptyState CTA 用)
   let copyingInvite = $state(false);
   async function copyInviteLink() {
     if (!session) return;
     copyingInvite = true;
     try {
-      const preview = session.invite_token_preview ?? '';
-      const url = `${window.location.origin}/invites/${preview}`;
+      const code = session.session_code ?? '';
+      const url = code
+        ? `${window.location.origin}/s/${code}`
+        : `${window.location.origin}/sessions/${session.id}`;
+      const name = (session.name ?? '').trim();
+      const namePart = name ? `${name} ` : '';
+      const text =
+        `「轻均分账 FairLite」 ${namePart}账本链接 ${url} 通过此链接可随时回到账本或邀请朋友`;
       try {
-        await navigator.clipboard.writeText(url);
+        await navigator.clipboard.writeText(text);
         toast.success('邀请链接已复制');
       } catch {
         // 兜底:用 textarea + execCommand
         const ta = document.createElement('textarea');
-        ta.value = url;
+        ta.value = text;
         document.body.appendChild(ta);
         ta.select();
         try {
@@ -674,7 +739,12 @@
     <LoadingOverlay text="加载账单..." />
   {:else if session}
     <div class="row between session-header" style="margin-bottom: var(--space-3); flex-wrap: wrap; gap: var(--space-2);">
-      <h2 style="margin: 0;">
+      <h2
+        class="session-title"
+        style="margin: 0;"
+        bind:this={sessionTitleEl}
+        data-testid="session-title"
+      >
         {session.name}
       </h2>
     </div>
@@ -780,22 +850,8 @@
              用 space-between + right margin-left: auto, 折叠时 [avatars | invite],
              展开时 [空 | invite] 自然 right-align, 任何状态都能调 invite -->
         <div class="members-head-row2">
-          <!-- v0.3.0729-4 #2: 未登录提示左边与成员 section 左边对齐（正常 padding）;
-               与邀请按钮仍同行：提示在左、邀请在右。 -->
           <div class="members-row2-left">
-            {#if showAnonHint}
-              <span class="expiry-anon-a" data-testid="invite-anon-hint">
-                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                </svg>
-                <span class="anon-hint-text">
-                  <span class="line-1">当前未登录 请收藏此链接</span>
-                  <span class="line-2">这是回到账本的唯一密钥</span>
-                </span>
-              </span>
-            {:else if !membersOpen && session.members.length > 0}
-              <div class="members-avatars-inline" aria-hidden="true">
+            {#if !membersOpen && session.members.length > 0}              <div class="members-avatars-inline" aria-hidden="true">
                 {#each session.members.slice(0, 8) as m, i (m.id)}
                   <div class="avatar-mini palette-{i % 10}" title={m.display_name}>
                     {avatarLetter(m.display_name)}
@@ -808,6 +864,18 @@
             {/if}
           </div>
           <div class="members-row2-right">
+            {#if showAnonHint}
+              <span class="expiry-anon-a" data-testid="invite-anon-hint">
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+                <span class="anon-hint-text">
+                  <span class="line-1">当前未登录 请收藏此链接</span>
+                  <span class="line-2">这是回到账本的唯一密钥</span>
+                </span>
+              </span>
+            {/if}
             <InviteLinkButton
               sessionId={session.id}
               sessionCode={session?.session_code ?? ""}
@@ -854,9 +922,14 @@
         {/if}
       </header>
 
-      {#if membersOpen}
-        <!-- v0.3.25 (UAT 0723-2 #14): 删 1-member 紧凑 CTA banner ('xxx还没有同伴, 邀请朋友加入一起记账'). 
-             现在 1-member case 直接走 else 分支的 members list (单 row). -->
+      <!-- UAT: 成员列表平滑展开/收起 — 始终挂载, grid 0fr↔1fr (跟账单 day-group 同款) -->
+      <div
+        class="members-body-wrap"
+        class:is-open={membersOpen}
+        aria-hidden={!membersOpen}
+        inert={!membersOpen ? true : undefined}
+      >
+        <div class="members-body">
         {#if session.members.length === 0}
           <EmptyState
             icon="users"
@@ -873,7 +946,6 @@
                 class="member-row-a"
                 class:is-owner={m.role === 'owner'}
                 class:is-me={isMe}
-                in:fly={{ y: 8, duration: 220, delay: Math.min(i * 30, 300) }}
               >
                 <div
                   class="avatar-a palette-{i % 10}"
@@ -882,16 +954,17 @@
                   aria-hidden="true"
                 >
                   {avatarLetter(m.display_name)}
+                  {#if isMe}
+                    <span class="me-badge-a">me</span>
+                  {/if}
                 </div>
                 <div class="member-info-a">
                   <div class="member-name-row-a">
                     <span class="member-name-a">{m.display_name}</span>
-                    {#if m.role === 'owner' && isMe}
-                      <span class="me-dot-a">me · owner</span>
-                    {:else if m.role === 'owner'}
-                      <span class="owner-tag-a">owner</span>
-                    {:else if isMe}
-                      <span class="me-dot-a">me</span>
+                    {#if m.role === 'owner'}
+                      <span class="owner-tag-a"
+                        ><span class="dot-led" aria-hidden="true"></span>owner</span
+                      >
                     {/if}
                   </div>
                   <div class="member-meta-a">
@@ -921,7 +994,8 @@
             {/each}
           </ul>
         {/if}
-      {/if}
+        </div>
+      </div>
     </div>
 
     <!-- 反馈修 5 项目 8 + v0.3.2 §3.12.3: 「个人账单」按钮迁到 head，「查看结算」也并排。
@@ -1206,6 +1280,15 @@
   /* v0.3.2 §3.12.3: `.session-header-actions` 整段删除 — 相关 CSS 也清理。
      保留是为了让后续 retro 引用，注释占位。*/
 
+  /* In-page title softens when mirrored in the navbar — opacity only (no transform)
+     so it does not fight scroll compositing. */
+  .session-title {
+    transition: opacity 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .session-title.session-title-away {
+    opacity: 0.28;
+  }
+
   /* §3.11 收尾: 详情页 header owner info 样式 */
   .owner-info {
     display: flex;
@@ -1234,8 +1317,8 @@
     transition: border-color 0.15s, color 0.15s, background 0.15s;
   }
   .owner-logout-btn:hover:not(:disabled) {
-    border-color: var(--color-accent, #3b82f6);
-    color: var(--color-accent, #3b82f6);
+    border-color: var(--color-accent, #2c2c2c);
+    color: var(--color-accent, #2c2c2c);
   }
   .owner-logout-btn:disabled {
     opacity: 0.55;
@@ -1315,7 +1398,7 @@
      但 hover 时不应该把整块变紫; 视觉反馈靠 cursor:pointer + aria-expanded 就够了).
      保留 .members-head:focus-visible (a11y focus ring 不能去掉). */
   .members-head:focus-visible {
-    outline: 2px solid var(--accent-500, #3b82f6);
+    outline: 2px solid var(--accent-500, #2c2c2c);
     outline-offset: 2px;
   }
   .members-head-row1 {
@@ -1361,12 +1444,11 @@
     min-width: 0;
   }
   .members-row2-right {
-    /* v0.3.0729-4 #2: 提示已挪到 .members-row2-left 左对齐；右侧只放邀请按钮。 */
     display: flex;
     flex-direction: row;
     align-items: center;
-    gap: var(--space-2);
-    flex: 0 0 auto;
+    gap: 6px;
+    flex: 0 1 auto;
     margin-left: auto;
     min-width: 0;
     justify-content: flex-end;
@@ -1476,16 +1558,11 @@
     flex-shrink: 0;
     opacity: 0.85;
   }
-  /* v0.3.31 #2 (UAT 0725-2 #2, PO msg ~20:03 字面): 匿名 owner 首次进入账单页文案 pill.
-     视觉跟 .expiry-inline-a 同族 (pill shape + font-size 11px + gap 4px + border-radius 999px),
-     配色改 red-50 系 (caution 色, 跟 amber / emerald 视觉同族但语义区分, 表示「未登录,链接唯一密钥」紧急).
-     比 expiry-inline-a / expiry-saved-a 大一档 (font-size 13px / padding 6px 14px) — 主信息
-     级而非备注级, 因为文案更长且承载 owner 首次进入的引导 + 提醒.  */
+  /* v0.3.31 #2 (UAT 0725-2 #2): 匿名 owner 首次进入 — 红色提醒紧挨右侧邀请链接按钮 */
   .expiry-anon-a {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    /* Match InviteLinkButton height in the same row */
     height: var(--invite-btn-h, 40px);
     box-sizing: border-box;
     font-size: 11px;
@@ -1499,9 +1576,9 @@
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     text-align: left;
-    flex-shrink: 1;
+    flex: 0 1 auto;
     min-width: 0;
-    max-width: 100%;
+    max-width: min(52vw, 11.5rem);
   }
   .expiry-anon-a svg {
     flex-shrink: 0;
@@ -1509,7 +1586,6 @@
     width: 10px;
     height: 10px;
   }
-  /* Exactly two lines — each line nowrap so line-1 never wraps into a 3rd line. */
   .expiry-anon-a .anon-hint-text {
     display: inline-flex;
     flex-direction: column;
@@ -1532,6 +1608,7 @@
       gap: 4px;
     }
   }
+
   /* v0.3.28 (UAT 0723-3 #9): "已永久保存" 绿色版 — 跟 .expiry-inline-a 视觉同族 (pill shape + font-size 11px + gap 4px + border-radius 999px + flex-shrink 0), 配色改 emerald 系 (跟 .is-me ring / 已登录状态色系区分, 表示「已成功认领」). */
   .expiry-saved-a {
     display: inline-flex;
@@ -1560,17 +1637,17 @@
     opacity: 0.7;
   }
   .expiry-cta-link {
-    color: var(--accent-700, #4338ca);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
     text-decoration: none;
     font-weight: 500;
     transition: color 150ms ease;
   }
   .expiry-cta-link:hover {
-    color: var(--accent-800, #3730a3);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
     text-decoration: underline;
   }
   .expiry-cta-link:focus-visible {
-    outline: 2px solid var(--accent-500, #3b82f6);
+    outline: 2px solid var(--accent-500, #2c2c2c);
     outline-offset: 2px;
     border-radius: 4px;
   }
@@ -1578,19 +1655,39 @@
     color: var(--gray-600, #525252);
   }
 
+  /* UAT: 成员列表平滑展开/收起 (grid 0fr ↔ 1fr) */
+  .members-body-wrap {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 300ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .members-body-wrap.is-open {
+    grid-template-rows: 1fr;
+  }
+  .members-body {
+    overflow: hidden;
+    min-height: 0;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .members-body-wrap {
+      transition: none;
+    }
+  }
+
   /* === Member list — 列表布局 (替代旧 chip 圆角 999px) === */
   .members-list-a {
     list-style: none;
-    padding: 0;
+    /* 左右 4px：给 is-me / is-owner 外圈 ring 留空，避免被 .members-body overflow:hidden 裁切 */
+    padding: 4px 4px 4px 4px;
     margin: 0;
     display: flex;
     flex-direction: column;
     gap: 8px;
   }
-  /* Mockup A row: grid 36px 1fr auto, 头像 + 信息 + (可选) remove */
+  /* Mockup A row: 头像列 44px 容纳 36px 圆 + 4px ring，头像居中 */
   .member-row-a {
     display: grid;
-    grid-template-columns: 36px 1fr auto;
+    grid-template-columns: 44px 1fr auto;
     align-items: center;
     gap: 12px;
     padding: 8px 0;
@@ -1604,24 +1701,22 @@
   /* v0.3.23 #138 (UAT bug #13): 删 .member-row-a:hover 背景变 — 反馈
      "成员 row hover 没意义, 整块颜色变化只是干扰". 删除该规则,
      member-row-a 在 hover 时保持默认背景. */
+  /* UAT: owner / 我 不再给整行底色 (看起来像「选中态」干扰). 身份靠 badge / ring 区分. */
   .member-row-a.is-owner {
-    background: linear-gradient(90deg, rgba(168, 85, 247, 0.04) 0%, transparent 60%);
     border-radius: 10px;
   }
 
   .member-row-a.is-me {
-    background: rgba(59, 130, 246, 0.04);
     border-radius: 10px;
+    padding-bottom: 12px; /* room for avatar-bottom me badge */
   }
 
-  /* Avatar — 36px, 5 色循环 (indigo/pink/emerald/amber/blue) + owner 紫色 ring */
-  /* v0.3.19 #83 (PO #7300): 加玻璃质感 — 2px 白边 + shadow + inset highlight, 36px 更立体. */
-  /* v0.3.23 #132 (UAT old #4, PO msg 17:16 option B): 加 backdrop-filter + 强化 glass shadow */
+  /* Avatar — 36px + soft charcoal palette (--avatar-N in app.css) */
   .avatar-a {
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: linear-gradient(135deg, rgba(129, 140, 248, 0.88) 0%, rgba(99, 102, 241, 0.88) 100%);
+    background: var(--avatar-0);
     color: #fff;
     display: inline-flex;
     align-items: center;
@@ -1629,7 +1724,9 @@
     font-weight: 600;
     font-size: 13px;
     flex-shrink: 0;
+    justify-self: center;
     position: relative;
+    overflow: visible;
     border: 2px solid rgba(255, 255, 255, 0.5);
     /* Option B: backdrop-filter (与 palette 0.88 alpha 渐变配合) */
     backdrop-filter: blur(4px) saturate(180%);
@@ -1642,54 +1739,33 @@
       0 4px 12px rgba(0, 0, 0, 0.08);
   }
   .avatar-a.b {
-    background: linear-gradient(135deg, rgba(244, 114, 182, 0.88) 0%, rgba(236, 72, 153, 0.88) 100%);
+    background: var(--avatar-1);
   }
   .avatar-a.c {
-    background: linear-gradient(135deg, rgba(52, 211, 153, 0.88) 0%, rgba(16, 185, 129, 0.88) 100%);
+    background: var(--avatar-2);
   }
   .avatar-a.d {
-    background: linear-gradient(135deg, rgba(251, 191, 36, 0.88) 0%, rgba(245, 158, 11, 0.88) 100%);
+    background: var(--avatar-3);
   }
   .avatar-a.e {
-    background: linear-gradient(135deg, rgba(96, 165, 250, 0.88) 0%, rgba(59, 130, 246, 0.88) 100%);
+    background: var(--avatar-4);
   }
-  /* v0.3.19 #83 (PO #7300): template 用 palette-{i%5}, 补补 CSS */
-  .avatar-a.palette-0 {
-    background: linear-gradient(135deg, rgba(129, 140, 248, 0.88) 0%, rgba(99, 102, 241, 0.88) 100%);
-  }
-  .avatar-a.palette-1 {
-    background: linear-gradient(135deg, rgba(244, 114, 182, 0.88) 0%, rgba(236, 72, 153, 0.88) 100%);
-  }
-  .avatar-a.palette-2 {
-    background: linear-gradient(135deg, rgba(52, 211, 153, 0.88) 0%, rgba(16, 185, 129, 0.88) 100%);
-  }
-  .avatar-a.palette-3 {
-    background: linear-gradient(135deg, rgba(251, 191, 36, 0.88) 0%, rgba(245, 158, 11, 0.88) 100%);
-  }
-  .avatar-a.palette-4 {
-    background: linear-gradient(135deg, rgba(96, 165, 250, 0.88) 0%, rgba(59, 130, 246, 0.88) 100%);
-  }
-  /* v0.3.0728-2 #20 解冻: 5 → 10 扩色 (palette-5..9) — 跟 palette.ts AVATAR_GRADIENTS 字段级同 */
-  .avatar-a.palette-5 {
-    background: linear-gradient(135deg, rgba(244, 63, 94, 0.88) 0%, rgba(217, 70, 239, 0.88) 100%);
-  }
-  .avatar-a.palette-6 {
-    background: linear-gradient(135deg, rgba(132, 204, 22, 0.88) 0%, rgba(34, 197, 94, 0.88) 100%);
-  }
-  .avatar-a.palette-7 {
-    background: linear-gradient(135deg, rgba(14, 165, 233, 0.88) 0%, rgba(59, 130, 246, 0.88) 100%);
-  }
-  .avatar-a.palette-8 {
-    background: linear-gradient(135deg, rgba(139, 92, 246, 0.88) 0%, rgba(236, 72, 153, 0.88) 100%);
-  }
-  .avatar-a.palette-9 {
-    background: linear-gradient(135deg, rgba(249, 115, 22, 0.88) 0%, rgba(239, 68, 68, 0.88) 100%);
-  }
+  /* palette-0..9 — scoped so they beat .avatar-a { background: var(--avatar-0) } */
+  .avatar-a.palette-0 { background: var(--avatar-0); }
+  .avatar-a.palette-1 { background: var(--avatar-1); }
+  .avatar-a.palette-2 { background: var(--avatar-2); }
+  .avatar-a.palette-3 { background: var(--avatar-3); }
+  .avatar-a.palette-4 { background: var(--avatar-4); }
+  .avatar-a.palette-5 { background: var(--avatar-5); }
+  .avatar-a.palette-6 { background: var(--avatar-6); }
+  .avatar-a.palette-7 { background: var(--avatar-7); }
+  .avatar-a.palette-8 { background: var(--avatar-8); }
+  .avatar-a.palette-9 { background: var(--avatar-9); }
   .avatar-a.is-owner {
-    box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(168, 85, 247, 0.55);
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(28, 28, 28, 0.55);
   }
   .avatar-a.is-me {
-    box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(59, 130, 246, 0.55);
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(58, 58, 58, 0.55);
   }
 
   /* Member info — name + meta row */
@@ -1717,34 +1793,50 @@
     word-break: break-word;
     line-height: 1.3;
   }
-  /* owner tag (只有 owner 是别人时显示) — 紫色玻璃 pill */
+  /* owner tag — 跟账本列表 SessionCard .role.owner 一致:
+     纯文字 + .dot-led, 无 pill 玻璃 / 无紫字 (soft charcoal ink). */
   .owner-tag-a {
-    display: inline-block;
-    font-size: 10px;
-    font-weight: 600;
-    padding: 2px 8px;
-    border-radius: 999px;
-    background: linear-gradient(135deg, rgba(168, 85, 247, 0.14), rgba(99, 102, 241, 0.14));
-    color: #6d28d9;
-    line-height: 1.3;
-  }
-  /* me 微章 — 蓝色圆点 + 文字, owner+me 同行时显示 "me · owner" */
-  .me-dot-a {
     display: inline-flex;
     align-items: center;
-    gap: 3px;
-    font-size: 10px;
-    color: var(--accent-700, #1d4ed8);
+    gap: 4px;
+    font-size: 11px;
     font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 3px 0 3px 6px;
     line-height: 1;
+    flex-shrink: 0;
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
+    background: none;
+    border-radius: 0;
   }
-  .me-dot-a::before {
-    content: "";
+  .owner-tag-a .dot-led {
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: var(--accent-500, #3b82f6);
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.18);
+    background: currentColor;
+    opacity: 0.85;
+  }
+  /* me badge — 贴在头像下缘, 不占昵称行 */
+  .me-badge-a {
+    position: absolute;
+    left: 50%;
+    bottom: -5px;
+    transform: translateX(-50%);
+    z-index: 1;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    padding: 2px 5px;
+    border-radius: 999px;
+    background: #2c2c2c;
+    color: #fff;
+    box-shadow:
+      0 0 0 2px #fff,
+      0 1px 3px rgba(37, 99, 235, 0.35);
+    pointer-events: none;
+    white-space: nowrap;
   }
 
   /* Meta row — net 13px 首位 + email 不截断 */
@@ -1853,37 +1945,17 @@
     user-select: none;
     position: relative;
   }
-  .avatar-mini.palette-0 {
-    background: linear-gradient(135deg, rgba(129, 140, 248, 0.88), rgba(99, 102, 241, 0.88));
-  }
-  .avatar-mini.palette-1 {
-    background: linear-gradient(135deg, rgba(244, 114, 182, 0.88), rgba(236, 72, 153, 0.88));
-  }
-  .avatar-mini.palette-2 {
-    background: linear-gradient(135deg, rgba(52, 211, 153, 0.88), rgba(16, 185, 129, 0.88));
-  }
-  .avatar-mini.palette-3 {
-    background: linear-gradient(135deg, rgba(251, 191, 36, 0.88), rgba(245, 158, 11, 0.88));
-  }
-  .avatar-mini.palette-4 {
-    background: linear-gradient(135deg, rgba(96, 165, 250, 0.88), rgba(59, 130, 246, 0.88));
-  }
-  /* v0.3.0728-2 #20 解冻: 5 → 10 扩色 (palette-5..9) — 跟 SessionCard 同源 */
-  .avatar-mini.palette-5 {
-    background: linear-gradient(135deg, rgba(244, 63, 94, 0.88), rgba(217, 70, 239, 0.88));
-  }
-  .avatar-mini.palette-6 {
-    background: linear-gradient(135deg, rgba(132, 204, 22, 0.88), rgba(34, 197, 94, 0.88));
-  }
-  .avatar-mini.palette-7 {
-    background: linear-gradient(135deg, rgba(14, 165, 233, 0.88), rgba(59, 130, 246, 0.88));
-  }
-  .avatar-mini.palette-8 {
-    background: linear-gradient(135deg, rgba(139, 92, 246, 0.88), rgba(236, 72, 153, 0.88));
-  }
-  .avatar-mini.palette-9 {
-    background: linear-gradient(135deg, rgba(249, 115, 22, 0.88), rgba(239, 68, 68, 0.88));
-  }
+  /* palette-0..9 — scoped so they apply reliably with component CSS */
+  .avatar-mini.palette-0 { background: var(--avatar-0); }
+  .avatar-mini.palette-1 { background: var(--avatar-1); }
+  .avatar-mini.palette-2 { background: var(--avatar-2); }
+  .avatar-mini.palette-3 { background: var(--avatar-3); }
+  .avatar-mini.palette-4 { background: var(--avatar-4); }
+  .avatar-mini.palette-5 { background: var(--avatar-5); }
+  .avatar-mini.palette-6 { background: var(--avatar-6); }
+  .avatar-mini.palette-7 { background: var(--avatar-7); }
+  .avatar-mini.palette-8 { background: var(--avatar-8); }
+  .avatar-mini.palette-9 { background: var(--avatar-9); }
   .avatar-mini-overflow {
     background: var(--gray-300, #d1d5db) !important;
     color: var(--gray-700, #374151) !important;
@@ -1927,7 +1999,7 @@
       padding: 2px 7px 2px 5px;
     }
     .member-row-a {
-      grid-template-columns: 32px 1fr 28px;
+      grid-template-columns: 40px 1fr 28px;
       gap: 8px;
     }
     .avatar-a {
@@ -1935,7 +2007,6 @@
       height: 32px;
       font-size: 12px;
     }
-    .avatar-a { width: 32px; height: 32px; font-size: 12px; }
   }
 
   /* 移动端 ≤480px: row 紧凑 */
@@ -2039,7 +2110,7 @@
      v0.3.16 #8 (PO msg 19:26): 加 .glass-pill 玻璃化 — bg/box-shadow/border 由
        .glass-pill 提供。
      v0.3.16 #10 (PO msg 20:38): FAB icon 改主题色 — 删 color: #fff (`+` 白色在浅紫
-       玻璃上看不清),改由 .glass-pill 提供 var(--accent-700, #4338ca) 深紫主题色
+       玻璃上看不清),改由 .glass-pill 提供 var(--accent-700, #1a1a1a) 深紫主题色
        (跟 bills/new/edit/settle 的 .fab 一致)。 */
   .fab {
     position: fixed;
@@ -2050,9 +2121,9 @@
     border-radius: 50%;        /* 圆形覆盖 .glass-pill 的 999px */
     /* v0.3.27-#17 (PO 0723-3 续): FAB bg 条件化 — 有 bills 浅色 (v0.3.17 原值),
        0 bills 深色 (.emphasized 状态). 取消箭头改走颜色引导路径. */
-    background: linear-gradient(135deg, rgba(99,102,241,0.04) 0%, rgba(59,130,246,0.02) 100%);
-    border: 1px solid rgba(99,102,241,0.18);
-    /* 删 color: #fff — 由 .glass-pill 提供 var(--accent-700, #4338ca) 深紫主题色 */
+    background: linear-gradient(135deg, rgba(40, 40, 40,0.04) 0%, rgba(58, 58, 58,0.02) 100%);
+    border: 1px solid rgba(40, 40, 40,0.18);
+    /* 删 color: #fff — 由 .glass-pill 提供 var(--accent-700, #1a1a1a) 深紫主题色 */
     font-size: 36px;
     font-weight: 300;
     line-height: 1;
@@ -2073,8 +2144,8 @@
   /* v0.3.27-#17 (PO 0723-3 续): 0 bills 状态 — FAB 颜色更深以引导创建.
      跟 .fab 默认浅色对比: bg alpha 0.04/0.02 → 0.18/0.14 (+0.14), border 1px 0.18 → 1.5px 0.35. */
   .fab.emphasized {
-    background: linear-gradient(135deg, rgba(99,102,241,0.18) 0%, rgba(59,130,246,0.14) 100%);
-    border: 1.5px solid rgba(99,102,241,0.35);
+    background: linear-gradient(135deg, rgba(40, 40, 40,0.18) 0%, rgba(58, 58, 58,0.14) 100%);
+    border: 1.5px solid rgba(40, 40, 40,0.35);
   }
   .fab:active {
     transform: scale(0.96);
@@ -2100,9 +2171,7 @@
      同步 --bills-search-h 60px → 54px (search 实际高度 -6px, region 同步减 6px 保持
      day-header sticky offset 一致). */
   .bills-card {
-    /* v0.3.0729-4 #11: 日期 header 透明度进一步降低 (0.68 → 0.42) */
-    --bills-sticky-glass-bg: rgba(255, 255, 255, 0.42);
-    --bills-sticky-glass-filter: saturate(200%) blur(24px);
+    /* Inherit :root sticky glass; keep search height for day-header offset */
     --bills-search-h: 48px;
     padding-bottom: 96px;
   }
@@ -2318,7 +2387,7 @@
   }
   .undo-btn {
     appearance: none;
-    background: var(--accent-500, #3b82f6);
+    background: var(--accent-500, #2c2c2c);
     color: #fff;
     border: 0;
     border-radius: 999px;
@@ -2330,7 +2399,7 @@
     transition: background-color 150ms ease;
   }
   .undo-btn:hover {
-    background: var(--accent-700, #1d4ed8);
+    background: var(--accent-700, #1a1a1a);
   }
   .undo-btn:active {
     transform: scale(0.97);

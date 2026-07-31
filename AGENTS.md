@@ -26,6 +26,7 @@ See root `README.md` and `CONTRIBUTING.md`. Non-obvious notes:
 
 ### Product notes
 
+- Product name: **轻均 FairLite** (UI / titles / share text). Repo package ids may still say `split-bill-calculator`.
 - Canonical ledger URLs: `/s/{code}`. Legacy `/sessions/{id}` still exists.
 - UI is Chinese-only today.
 - Architecture overview: `docs/ARCHITECTURE.md`. Open-source polish backlog: `docs/OPEN_SOURCE_READINESS.md`.

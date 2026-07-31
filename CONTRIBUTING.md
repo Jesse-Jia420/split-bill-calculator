@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping improve SplitIt.
+Thanks for helping improve 轻均 FairLite.
 
 ## Development setup
 

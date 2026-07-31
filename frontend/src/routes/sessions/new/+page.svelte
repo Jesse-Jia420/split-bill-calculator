@@ -40,13 +40,7 @@
   onMount(async () => {
     await loadUser();
     loading = false;
-    // v0.3.15 (PO #4861) 修 n+1 bug: nicknames[0] 默认用 placeholder 字符串
-    // - 登录态: "你" → FE slice(1) 排除 (跟 §3.11 75cbdec 一致)
-    // - anon 态:  "我" → FE 改用同一 slice(1) 逻辑 (见 改动 2), BE dedupe 处理 "我" placeholder
-    // 这样两条路径都用 nicknames.slice(1), nicknames[0] 是 placeholder 字符串 (永远**不**发给 BE)
-    if (nicknames[0] === "") {
-      nicknames = [$user !== null ? "你" : "我"];
-    }
+    // Slot 0 stays empty with placeholder「你的昵称」— no default「你」/「我」.
   });
 
   $: nameValid = sessionName.trim().length > 0;
@@ -276,7 +270,7 @@
             <div class="nickname-row">
               <span class="nick-label">{i === 0 ? "你" : "同伴 " + i}</span>
               <input class="glass-input" type="text" bind:value={nicknames[i]}
-                placeholder={i === 0 ? "你的名字" : "同伴 " + i + " 的名字"}
+                placeholder={i === 0 ? "你的昵称" : "同伴 " + i + " 的昵称"}
                 maxlength="50"
                 onkeydown={(e) => e.key === "Enter" && i === nicknames.length - 1 && nicknamesValid && goNext()} />
             </div>
@@ -323,9 +317,9 @@
         <!-- 主币种（必选） -->
         <!-- v0.3.25 #0723-wizard-step3 (bug #2): label '结算币种（用于朋友间结算的币种）'
              语义更清晰 — 主币种是朋友间结算用的, 副币种是实际消费用的. -->
-        <div class="currency-section">
+        <div class="currency-section currency-section--settle">
           <label class="currency-label">结算币种（朋友间结算的币种）</label>
-          <div class="currency-pills">
+          <div class="currency-pills currency-pills--settle">
             {#each ["CNY", "USD", "EUR", "JPY", "THB"] as ccy}
               <button type="button" class="glass-pill currency-pill" class:active={primaryCurrency === ccy}
                 onclick={() => {
@@ -344,12 +338,12 @@
         {#if currencyMode === 'dual'}
           <!-- v0.3.25 #0723-wizard-step3 (bug #2): label '支付币种（实际消费的币种）'
                语义更清晰 — 副币种是实际消费用的, 对应主币种结算. -->
-          <div class="currency-section">
+          <div class="currency-section currency-section--pay">
             <label class="currency-label">支付币种（实际消费的币种）</label>
-            <div class="currency-pills">
+            <div class="currency-pills currency-pills--pay">
               {#each ["CNY", "USD", "EUR", "JPY", "THB"] as ccy}
                 {#if ccy !== primaryCurrency}
-                  <button type="button" class="glass-pill currency-pill" class:active={secondaryCurrency === ccy}
+                  <button type="button" class="glass-pill currency-pill currency-pill--pay" class:active={secondaryCurrency === ccy}
                     onclick={() => secondaryCurrency = ccy}>
                     {ccy}
                   </button>
@@ -363,7 +357,8 @@
                主币种切换时已清空, 副币种切换时**不**清 (用户可能想换币种再改 rate, 简化 UX). -->
           <div class="currency-section">
             <label class="currency-label" for="exchange-rate-input">
-              汇率 (1 {primaryCurrency} = ? {secondaryCurrency || '支付币种'})
+              汇率 (1 {primaryCurrency} = ?
+              <span class="rate-ccy-pay">{secondaryCurrency || '支付币种'}</span>)
             </label>
             <div class="rate-row-new">
               <input
@@ -400,8 +395,7 @@
               {:else if !exchangeRate || parseFloat(exchangeRate) <= 0}
                 请输入大于 0 的汇率（或等待参考汇率）
               {:else}
-                1 {primaryCurrency} = {parseFloat(exchangeRate).toFixed(4)} {secondaryCurrency}
-              {/if}
+                1 {primaryCurrency} = {parseFloat(exchangeRate).toFixed(4)} {secondaryCurrency}              {/if}
             </p>
           </div>
         {/if}
@@ -457,23 +451,23 @@
     display: grid;
     place-items: center;
     cursor: pointer;
-    border: 0.5px solid rgba(99, 102, 241, 0.25);
+    border: 0.5px solid rgba(40, 40, 40, 0.25);
     padding: 0;
     transition: transform 150ms ease, box-shadow 150ms ease;
   }
   .fab-wiz:active { transform: scale(0.94); }
   .fab-wiz.glass {
     background: rgba(255, 255, 255, 0.55);
-    color: var(--accent-700, #4338ca);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
   }
   .fab-wiz.primary {
-    background: linear-gradient(135deg, #6366f1, #818cf8);
+    background: linear-gradient(135deg, #2c2c2c, #525252);
     color: white;
     border-color: rgba(255, 255, 255, 0.5);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.6),
-      0 6px 14px -3px rgba(99, 102, 241, 0.4),
-      0 2px 4px -1px rgba(99, 102, 241, 0.15);
+      0 6px 14px -3px rgba(40, 40, 40, 0.4),
+      0 2px 4px -1px rgba(40, 40, 40, 0.15);
   }
   .fab-wiz svg {
     width: 28px;
@@ -512,30 +506,30 @@
   }
   @media (hover: hover) {
     .count-btn:not(:disabled):hover {
-      background: linear-gradient(135deg, rgba(99, 102, 241, 0.18) 0%, rgba(59, 130, 246, 0.15) 100%) !important;
-      border-color: rgba(99, 102, 241, 0.22) !important;
+      background: linear-gradient(135deg, rgba(40, 40, 40, 0.18) 0%, rgba(58, 58, 58, 0.15) 100%) !important;
+      border-color: rgba(40, 40, 40, 0.22) !important;
       transform: translateY(-1px);
     }
   }
   /* touch 设备: idle 时强制背景回默认, 不被 .glass-pill:hover 全局规则覆盖 */
   @media (hover: none) {
     .count-btn:not(:disabled):not(:active) {
-      background: linear-gradient(135deg, rgba(99, 102, 241, 0.10) 0%, rgba(59, 130, 246, 0.08) 100%) !important;
-      border-color: rgba(99, 102, 241, 0.15) !important;
+      background: linear-gradient(135deg, rgba(40, 40, 40, 0.10) 0%, rgba(58, 58, 58, 0.08) 100%) !important;
+      border-color: rgba(40, 40, 40, 0.15) !important;
       transform: none !important;
     }
   }
   .count-btn:not(:disabled):active {
     transform: scale(0.94);
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.28) 0%, rgba(59, 130, 246, 0.25) 100%) !important;
-    border-color: rgba(99, 102, 241, 0.4) !important;
+    background: linear-gradient(135deg, rgba(40, 40, 40, 0.28) 0%, rgba(58, 58, 58, 0.25) 100%) !important;
+    border-color: rgba(40, 40, 40, 0.4) !important;
   }
   .count-btn:disabled {
     opacity: 0.4;
     cursor: not-allowed;
     transform: none !important;
     background: rgba(255, 255, 255, 0.55) !important;
-    border-color: rgba(99, 102, 241, 0.18) !important;
+    border-color: rgba(40, 40, 40, 0.18) !important;
   }
   .count-display { font-size: var(--font-size-3xl); font-weight: 700; color: #171717; min-width: 3rem; text-align: center; line-height: 1; }
   .count-hint { text-align: center; font-size: var(--font-size-base); color: #737373; margin: 0; }
@@ -552,14 +546,49 @@
 
   /* §3.11.10: currency step styles */
   .currency-section { margin-bottom: var(--space-5); }
-  .currency-label { display: block; font-size: var(--font-size-sm); font-weight: 600; color: #525252; margin-bottom: var(--space-3); text-transform: uppercase; letter-spacing: 0.06em; }
+  .currency-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: #525252;
+    margin-bottom: var(--space-3);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .currency-label::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: var(--cc-primary, #1a1a1a);
+    box-shadow: 0 0 0 2px rgba(var(--cc-primary-rgb, 26, 26, 26), 0.16);
+  }
+  .currency-section--pay .currency-label {
+    color: var(--cc-secondary, #2f7a84);
+  }
+  .currency-section--pay .currency-label::before {
+    background: var(--cc-secondary, #2f7a84);
+    box-shadow: 0 0 0 2px rgba(var(--cc-secondary-rgb, 47, 122, 132), 0.22);
+  }
+  .currency-section--settle .currency-label {
+    color: var(--cc-primary, #1a1a1a);
+  }
   .currency-pills { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-  /* .currency-pill 已用 .glass-pill 替代 (默认) / .btn-primary 替代 (active) — v0.3.17 #27 */
+  /* .currency-pill 已用 .glass-pill 替代 (默认) / .btn-primary 替代 (active) — v0.3.17 #27
+     支付币种 active 色见 app.css .currency-pills--pay / .currency-pill--pay */
   .currency-pill { padding: var(--space-2) var(--space-4); font-size: var(--font-size-sm); font-weight: 500; cursor: pointer; min-height: 40px; }
 
   /* §3.11 收尾: dual mode 汇率 input 样式 */
   /* .exchange-rate-input 已用 .glass-input 替代 — v0.3.17 #27 */
   .exchange-rate-hint { font-size: var(--font-size-sm); color: #737373; margin: var(--space-2) 0 0; min-height: 1.2em; }
+  /* 汇率 label 里的支付/消费币种代码（或「支付币种」占位）用 secondary teal */
+  .rate-ccy-pay {
+    color: var(--cc-secondary, #2f7a84);
+    font-weight: 700;
+  }
 
   /* v0.3.25 #0723-wizard-step3 (bug #5): 模式选择提示 — 跟 .step-hint 风格一致,
      放在 IosSwitch 下方 + 主币种 section 之前, 居中灰文. */
@@ -591,7 +620,7 @@
     background: rgba(15, 23, 42, 0.04);
     display: grid;
     place-items: center;
-    color: var(--accent-700, #4338ca);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
     cursor: pointer;
   }
   .rate-refresh-new:disabled {

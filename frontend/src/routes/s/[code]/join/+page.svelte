@@ -227,14 +227,19 @@
     }
     busy = true;
     try {
+      // Public preview only returns masked emails (x***@domain). Never pass that
+      // string as raw `email` — login would reject the real address as a "mismatch".
+      const alreadyMasked = email.includes('***');
       const params = new URLSearchParams({
         as: String(slot.id),
         nickname: slot.display_name,
-        // v0.3.35 #7 — UAT 0725-3 #12: 传 raw email 给 login page pre-check + BE 端 validate
-        email: email,
-        emailMasked: maskEmail(email),
+        emailMasked: alreadyMasked ? email : maskEmail(email),
         sessionCode: code,
       });
+      // Only forward raw email when we actually have it (e.g. full session detail).
+      if (!alreadyMasked) {
+        params.set('email', email);
+      }
       await goto(`/sessions/${sessionId}/login?${params.toString()}`);
     } finally {
       busy = false;
@@ -493,6 +498,36 @@
     text-align: left;
     min-height: 56px;
   }
+  /* UAT: 成员 item 更透、更少磨砂 — 覆盖全局 .glass-pill / button.glass-pill
+     (blur 20→6, fill alpha ~0.06→~0.02), 让纸纹背景透出来. */
+  button.glass-pill.slot-btn-v3,
+  .slot-btn-v3.glass-pill {
+    background: linear-gradient(
+      135deg,
+      rgba(40, 40, 40, 0.022) 0%,
+      rgba(58, 58, 58, 0.012) 100%
+    );
+    backdrop-filter: saturate(140%) blur(6px);
+    -webkit-backdrop-filter: saturate(140%) blur(6px);
+    border-color: rgba(40, 40, 40, 0.12);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.28),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.015),
+      0 1px 2px rgba(40, 40, 40, 0.03);
+  }
+  button.glass-pill.slot-btn-v3:hover,
+  .slot-btn-v3.glass-pill:hover {
+    background: linear-gradient(
+      135deg,
+      rgba(40, 40, 40, 0.05) 0%,
+      rgba(58, 58, 58, 0.03) 100%
+    );
+    border-color: rgba(40, 40, 40, 0.16);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.02),
+      0 1px 4px rgba(40, 40, 40, 0.05);
+  }
   .slot-avatar {
     width: 30px;
     height: 30px;
@@ -512,7 +547,7 @@
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.45),
       inset 0 -1px 0 rgba(0, 0, 0, 0.06),
-      0 2px 4px rgba(99, 102, 241, 0.10);
+      0 2px 4px rgba(40, 40, 40, 0.10);
   }
   /* v0.3.29 — UAT 0725-1 #13 v4: 加 palette-5/6 支持 6-7 成员头像 (合并列表槽位更多).
      跟 v0.3.28 v2 mockup 同源 (palette 0..6). */
@@ -521,17 +556,7 @@
     height: 36px;
     font-size: 13px;
   }
-  .palette-0 { background: linear-gradient(135deg, rgba(129, 140, 248, 0.88) 0%, rgba(99, 102, 241, 0.88) 100%); }
-  .palette-1 { background: linear-gradient(135deg, rgba(244, 114, 182, 0.88) 0%, rgba(236, 72, 153, 0.88) 100%); }
-  .palette-2 { background: linear-gradient(135deg, rgba(52, 211, 153, 0.88) 0%, rgba(16, 185, 129, 0.88) 100%); }
-  .palette-3 { background: linear-gradient(135deg, rgba(251, 191, 36, 0.88) 0%, rgba(245, 158, 11, 0.88) 100%); }
-  .palette-4 { background: linear-gradient(135deg, rgba(96, 165, 250, 0.88) 0%, rgba(59, 130, 246, 0.88) 100%); }
-  .palette-5 { background: linear-gradient(135deg, rgba(168, 85, 247, 0.88) 0%, rgba(236, 72, 153, 0.88) 100%); }
-  .palette-6 { background: linear-gradient(135deg, rgba(34, 197, 94, 0.88) 0%, rgba(16, 185, 129, 0.88) 100%); }
-  /* v0.3.0728-2 #20 解冻: 5 → 10 扩色 (palette-7..9) — 跟 SessionCard avatar-mini 字段级同 */
-  .palette-7 { background: linear-gradient(135deg, rgba(14, 165, 233, 0.88) 0%, rgba(59, 130, 246, 0.88) 100%); }
-  .palette-8 { background: linear-gradient(135deg, rgba(139, 92, 246, 0.88) 0%, rgba(236, 72, 153, 0.88) 100%); }
-  .palette-9 { background: linear-gradient(135deg, rgba(249, 115, 22, 0.88) 0%, rgba(239, 68, 68, 0.88) 100%); }
+  /* palette-0..9 → app.css soft charcoal tokens (--avatar-N) */
   .slot-info {
     display: flex;
     flex-direction: column;
@@ -614,7 +639,7 @@
     content: '';
     flex: 1;
     height: 0.5px;
-    background: rgba(99, 102, 241, 0.18);
+    background: rgba(40, 40, 40, 0.18);
   }
 
   .gap {

@@ -104,6 +104,27 @@
       mainEl.style.overflow = 'hidden';
       mainEl.style.overscrollBehavior = 'contain';
     }
+
+    /**
+     * iOS/Android: fixed bottom sheets stay at layout-viewport bottom:0 when the
+     * soft keyboard opens, covering focused inputs (e.g. 个人消费). Lift the
+     * sheet with `bottom` + shrink max-height to the visualViewport so the form
+     * (and footer) sit above the keyboard; BillForm then scrolls the body.
+     */
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    const syncKeyboardInset = () => {
+      if (!sheetEl || !vv || dragging) return;
+      const inset = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
+      if (inset > 40) {
+        sheetEl.style.bottom = `${inset}px`;
+        sheetEl.style.maxHeight = `${Math.max(240, Math.floor(vv.height * 0.96))}px`;
+      } else {
+        sheetEl.style.bottom = '';
+        sheetEl.style.maxHeight = '';
+      }
+    };
+    vv?.addEventListener('resize', syncKeyboardInset);
+    vv?.addEventListener('scroll', syncKeyboardInset);
     return () => {
       document.body.style.overflow = origBodyOverflow;
       document.body.style.overscrollBehavior = origBodyOverscroll;
@@ -113,7 +134,12 @@
         mainEl.style.overflow = origMainOverflow;
         mainEl.style.overscrollBehavior = origMainOverscroll;
       }
-    };
+      vv?.removeEventListener('resize', syncKeyboardInset);
+      vv?.removeEventListener('scroll', syncKeyboardInset);
+      if (sheetEl) {
+        sheetEl.style.bottom = '';
+        sheetEl.style.maxHeight = '';
+      }    };
   });
 
   async function handleSubmit(payload: {
@@ -152,7 +178,7 @@
 <div use:portal data-testid="bill-sheet-host">
   <div class="sheet-backdrop" class:closing role="presentation" onclick={close}></div>
   <div
-    class="sheet"
+    class="sheet sbc-bottom-sheet"
     class:dragging
     class:closing
     role="dialog"
@@ -177,7 +203,7 @@
       </header>
     </div>
 
-    <div class="sheet-body">
+    <div class="sheet-body sbc-bottom-sheet__body">
       {#key formKey}
         <BillForm
           {session}
@@ -190,7 +216,7 @@
       {/key}
     </div>
 
-    <footer class="sheet-foot">
+    <footer class="sheet-foot sbc-bottom-sheet__foot">
       <button type="button" class="btn-cancel" onclick={close} disabled={busy}>取消</button>
       <button type="submit" class="btn-save" form="bill-form" disabled={busy}>
         {busy ? '保存中…' : mode === 'edit' ? '保存修改' : '保存账单'}
@@ -211,27 +237,13 @@
     animation: fade-out 240ms ease both;
   }
 
-  /* Match CurrencyAddModal: left/right 0 + margin auto — NOT left:50%+translateX(-50%).
-     Drag only sets translateY, so centering must not depend on transform. */
+  /* Match shared .sbc-bottom-sheet chrome; keep z-index / drag animation local. */
   .sheet {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    margin: 0 auto;
-    width: min(100vw, 480px);
-    max-height: min(92vh, 900px);
     z-index: 1101;
-    display: flex;
-    flex-direction: column;
-    background: rgba(255, 255, 255, 0.92);
-    backdrop-filter: saturate(180%) blur(24px);
-    -webkit-backdrop-filter: saturate(180%) blur(24px);
-    border-radius: 20px 20px 0 0;
-    box-shadow: 0 -8px 40px rgba(15, 23, 42, 0.18);
+    padding: 0;
     animation: sheet-up 280ms cubic-bezier(0.32, 0.72, 0, 1) both;
     will-change: transform;
-  }
+    /* Shared class owns bottom:0 / radius / bg / ::after under-fill */  }
   .sheet.closing {
     animation: sheet-down 240ms cubic-bezier(0.32, 0.72, 0, 1) both;
   }
@@ -271,19 +283,17 @@
     color: #64748b;
   }
   .sheet-body {
-    flex: 1;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
     padding: 0 16px 8px;
     touch-action: pan-y;
   }
   .sheet-foot {
     display: flex;
     gap: 10px;
-    padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+    padding-top: 12px;
+    padding-left: 16px;
+    padding-right: 16px;
+    /* padding-bottom from .sbc-bottom-sheet__foot (safe-area) */
     border-top: 1px solid rgba(15, 23, 42, 0.06);
-    flex-shrink: 0;
     background: rgba(255, 255, 255, 0.72);
   }
   .btn-cancel,
@@ -301,8 +311,13 @@
     color: #334155;
   }
   .btn-save {
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    background: linear-gradient(135deg, rgba(58, 58, 58, 0.85) 0%, rgba(40, 40, 40, 0.78) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.35);
     color: #fff;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.4),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.08),
+      0 4px 14px rgba(58, 58, 58, 0.3);
   }
   .btn-save:disabled,
   .btn-cancel:disabled {

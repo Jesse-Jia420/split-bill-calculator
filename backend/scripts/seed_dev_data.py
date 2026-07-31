@@ -1,4 +1,4 @@
-"""Seed SplitIt with local development fixtures.
+"""Seed 轻均 FairLite with local development fixtures.
 
 Imported by ``app.main`` on uvicorn startup (unless skipped). Creates
 idempotent demo data:

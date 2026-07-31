@@ -28,6 +28,7 @@
   // 之前 BillForm 内联 AVATAR_GRADIENTS + avatarGradient + avatarInitial 跟 SessionMemberList inline copy.
   import { paletteGradient, avatarInitialOf } from '$lib/utils/palette';
   import AmountCalculatorInput from './AmountCalculatorInput.svelte';
+  import IosSwitch from './IosSwitch.svelte';
 
   /**
    * v0.1.2 (PO 2026-07-01 fix #3): edit-page support.
@@ -104,8 +105,43 @@
     descriptionError = false;
   }
   // v0.3.20 #93 (PO msg 00:04 #7450, Fix 4): occurred_at default = current time in session primary currency TZ.
-  // User can still manually edit the time (datetime-local input not locked).
+  // User can still manually edit date / time. Quick chips: 前天 / 昨天 / 今天 / 明天.
   let occurredAt: string = getDefaultOccurredAt(session.primary_currency);
+  $: occurredDate = occurredAt.slice(0, 10);
+  $: occurredTime = occurredAt.length >= 16 ? occurredAt.slice(11, 16) : '12:00';
+
+  const DATE_QUICK: Array<{ offset: number; label: string }> = [
+    { offset: -2, label: '前天' },
+    { offset: -1, label: '昨天' },
+    { offset: 0, label: '今天' },
+    { offset: 1, label: '明天' },
+  ];
+  $: activeQuickOffset = (() => {
+    for (const q of DATE_QUICK) {
+      if (dateStringForOffset(q.offset) === occurredDate) return q.offset;
+    }
+    return null as number | null;
+  })();
+
+  function onOccurredDateInput(e: Event) {
+    const v = (e.currentTarget as HTMLInputElement).value;
+    if (!v) return;
+    occurredAt = `${v}T${occurredTime}`;
+  }
+  function onOccurredTimeInput(e: Event) {
+    const v = (e.currentTarget as HTMLInputElement).value;
+    if (!v) return;
+    occurredAt = `${occurredDate}T${v}`;
+  }
+  /** 快捷日：选中日的「当前时刻」(现在的时:分，落在目标日期上). */
+  function applyQuickDay(offset: number) {
+    const tz = sessionTz(session.primary_currency);
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    const parts = formatInTz(d, tz);
+    occurredAt = `${parts.date}T${parts.time}`;
+  }
+
   let currency = 'CNY';
 
   // v0.3.15 (PRD §3.15.2 #2): currencySymbol moved to
@@ -284,20 +320,8 @@
   /**
    * v0.3.20 #91: 进入独占态 — shared pill → exclusive pill.
    * focus input 让用户立即可键入金额.
-   * v0.3.21 #117 (PO msg 11:35 #7838 Bug 3): focus 后显式 scrollIntoView 让 main
-   * 滚到 input 进入可视区. iOS Safari 键盘弹起时, 浏览器自动 scrollIntoView 在
-   * app-shell 架构 (main 是 overflow-y: auto 容器, 不是 window) 下经常不生效,
-   * 表现为 "键盘弹出但页面不顶起, input 被键盘遮住". Android Chrome 不受影响.
-   * v0.3.25 Top #2 (PO msg 16:35 UAT line): 进一步修. iOS Safari keyboard 起来是
-   * 异步的 (300-400ms), 浏览器原生 focus scrollIntoView 在 main overflow-y:auto
-   * 容器 + iOS keyboard 场景下, 即便显式调一次, 算的仍是 window.innerHeight - 待
-   * keyboard 占位, 但 keyboard 真正起来是后续异步事件. 表现为 "键盘弹起了, 但页面
-   * 还是只滚了半截, input 还在 keyboard 下面被遮". 三重 scrollIntoView: rAF 后立
-   * 即 + 350ms + 700ms 各一次, 等 keyboard 起来后第三次会算上 keyboard 减掉的
-   * visualViewport.height. block:'nearest' 最小滚动 + .pill-input
-   * scroll-margin-bottom:280px 让 input 底部留 280px 缓冲, iPhone keyboard 295px
-   * - 280 = 15px 余量, 安全不遮. form .stack padding-bottom:280px 给 main 容器
-   * 足够滚动距离.
+   * Keyboard: scroll the sheet/page scroll parent so input stays above
+   * visualViewport (iOS keyboard). visualViewport.resize is the source of truth.
    */
   async function enterExclusiveMode(memberId: number) {
     const st = participantState[memberId];
@@ -310,34 +334,44 @@
     if (input) {
       input.focus();
       input.select();
-      // iOS Safari: 三次重试 scrollIntoView (rAF 立即 + 350ms + 700ms), 等 keyboard
-      // 异步起来后再调一次. block:'nearest' 最小滚动避免 input 被推到 main 中部反而
-      // 越过 viewport. 配合 .pill-input { scroll-margin-bottom: 56px } + form
-      // .stack { padding-bottom: 56px } (v0.3.0729-2 #8: 200→56, 靠 visualViewport 监听
-      // 动态算) 给 input 底部留足够空间.
-      //
-      // v0.3.28 UAT 0724-1 #8: 进一步加 visualViewport.resize 监听. iOS Safari
-      // 真 keyboard 起来时触发 visualViewport resize 事件 (keyboard 高度 = window.
-      // innerHeight - visualViewport.height), 此时再 scrollIntoView 让 input 滚到
-      // visualViewport 可见区. visualViewport 是 iOS keyboard 起来的权威信号源
-      // (比 setTimeout(700) 准确). 1.5s 后自动移除监听器 (避免长期占用).
-      // Android 不受影响 (Android keyboard resize 触发同一 listener, 但 Android
-      // chrome 自动 scrollIntoView 已正确, 重复 scrollIntoView 无副作用).
-      const scrollIntoView = () => {
-        input.scrollIntoView({ block: 'nearest', behavior: 'auto' });
-      };
-      requestAnimationFrame(scrollIntoView);
-      setTimeout(scrollIntoView, 350);
-      setTimeout(scrollIntoView, 700);
+      ensureExclusiveInputVisible(input);
+      requestAnimationFrame(() => ensureExclusiveInputVisible(input));
+      setTimeout(() => ensureExclusiveInputVisible(input), 350);
+      setTimeout(() => ensureExclusiveInputVisible(input), 700);
       if (typeof window !== 'undefined' && window.visualViewport) {
-        const vvHandler = () => scrollIntoView();
+        const vvHandler = () => ensureExclusiveInputVisible(input);
         window.visualViewport.addEventListener('resize', vvHandler);
         setTimeout(() => {
-          if (window.visualViewport) {
-            window.visualViewport.removeEventListener('resize', vvHandler);
-          }
-        }, 1500);
+          window.visualViewport?.removeEventListener('resize', vvHandler);
+        }, 1800);
       }
+    }
+  }
+
+  /** Keep exclusive amount input above the soft keyboard (sheet body or main.page). */
+  function ensureExclusiveInputVisible(input: HTMLElement) {
+    if (typeof window === 'undefined') return;
+    const scrollParent =
+      (input.closest('.sbc-bottom-sheet__body') as HTMLElement | null) ||
+      (input.closest('main.page') as HTMLElement | null) ||
+      (input.closest('main') as HTMLElement | null);
+    const vv = window.visualViewport;
+    const visibleTop = vv ? vv.offsetTop : 0;
+    // Leave room for sheet footer (~56) + breathing room when keyboard is up
+    const margin = 72;
+    const visibleBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+    const rect = input.getBoundingClientRect();
+    const targetBottom = visibleBottom - margin;
+    if (rect.bottom > targetBottom) {
+      const delta = rect.bottom - targetBottom;
+      if (scrollParent) scrollParent.scrollTop += delta;
+      else window.scrollBy(0, delta);
+      return;
+    }
+    if (rect.top < visibleTop + 16) {
+      const delta = rect.top - (visibleTop + 16);
+      if (scrollParent) scrollParent.scrollTop += delta;
+      else window.scrollBy(0, delta);
     }
   }
 
@@ -385,20 +419,9 @@
    */
 
   /**
-   * v0.3.20 #93 (PO msg 00:04 #7450, Fix 4): occurred_at default = current time in session primary currency TZ.
-   *
-   * Uses Intl.DateTimeFormat to fetch Y/M/D/H/m in the target TZ, then joins to
-   * datetime-local string. Avoids toLocaleString (which emits localised month names).
-   *
-   * Mapping:
-   *   CNY -> Asia/Shanghai   (UTC+8)
-   *   THB -> Asia/Bangkok   (UTC+7)
-   *   JPY -> Asia/Tokyo     (UTC+9)
-   *   USD -> America/New_York (UTC-5/-4 DST)
-   *   EUR -> Europe/Berlin  (UTC+1/+2 DST)
-   *   others -> UTC
+   * occurred_at helpers — session primary currency TZ (same map as defaults).
    */
-  function getDefaultOccurredAt(primaryCurrency: string): string {
+  function sessionTz(primaryCurrency: string): string {
     const TZ_MAP: Record<string, string> = {
       CNY: 'Asia/Shanghai',
       THB: 'Asia/Bangkok',
@@ -406,7 +429,9 @@
       USD: 'America/New_York',
       EUR: 'Europe/Berlin',
     };
-    const tz = TZ_MAP[primaryCurrency] || 'UTC';
+    return TZ_MAP[primaryCurrency] || 'UTC';
+  }
+  function formatInTz(date: Date, tz: string): { date: string; time: string } {
     const parts = new Intl.DateTimeFormat('en-CA', {
       timeZone: tz,
       year: 'numeric',
@@ -415,9 +440,25 @@
       hour: '2-digit',
       minute: '2-digit',
       hour12: false,
-    }).formatToParts(new Date());
+    }).formatToParts(date);
     const get = (t: string) => parts.find((p) => p.type === t)?.value || '00';
-    return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
+    return {
+      date: `${get('year')}-${get('month')}-${get('day')}`,
+      time: `${get('hour')}:${get('minute')}`,
+    };
+  }
+  function dateStringForOffset(offset: number): string {
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    return formatInTz(d, sessionTz(session.primary_currency)).date;
+  }
+
+  /**
+   * v0.3.20 #93 (PO msg 00:04 #7450, Fix 4): occurred_at default = current time in session primary currency TZ.
+   */
+  function getDefaultOccurredAt(primaryCurrency: string): string {
+    const parts = formatInTz(new Date(), sessionTz(primaryCurrency));
+    return `${parts.date}T${parts.time}`;
   }
 
   function buildPayload() {
@@ -552,20 +593,19 @@
     return msg === '提交失败' ? '保存失败' : msg;
   }
 
+  /** Sheet / form 可用币种列表 (至少含当前 currency). */
+  $: currencyOptions =
+    session.currencies && session.currencies.length > 0
+      ? session.currencies
+      : [currency];
+  $: isMultiCurrency = currencyOptions.length > 1;
+
   /**
-   * v0.3.35 #6 — UAT 0725-3 #7 (PO msg #9088 batch): 单币种 session 用户点击 currency pill 引导.
-   * PO 字面 "目前单币种时,账单编辑新建页面,无法选中币种". 修法: 单币种 session 时 pill
-   * 改成可点击 + 弹 toast 提示用户当前账本只有 1 种币种, 如需添加更多币种请去账本设置
-   * (跟 Batch 5 #11 重做的 CurrencyAddModal 一致, 用户可在 session 主页 / 账本设置加币种).
-   * 跟 multi-currency session 直接 set currency = code 行为一致 (反 #121 Master 自决技术细节).
+   * 非 sheet 布局仍用 pill 行: 多币种可点切换; 单币种锁定不可选.
    */
   function handleCurrencyPillClick(code: string) {
-    if (session.currencies && session.currencies.length <= 1) {
-      // v0.3.35 #6 — single-currency session 引导
-      toast.info('当前账本只有 1 种币种, 如需添加更多币种, 请前往账本设置');
-    } else {
-      currency = code;
-    }
+    if (!isMultiCurrency) return;
+    currency = code;
   }
 
   async function handleSubmit(e: Event) {
@@ -629,50 +669,77 @@
   onsubmit={handleSubmit}
   onkeydown={handleFormKeyDown}
 >
-  <!-- Sheet: 金额+币种同行; 时间整行; 付款人整行 (datetime-local 不能与付款人挤一列). -->
+  <!-- Sheet layout:
+       金额 input 右侧挂币种: 单币种锁定 chip; 双币种 = IosSwitch 左右滑二选一
+       (跟 settle「主币种汇总 / 原始数据」同款).
+       时间+付款人: 等宽两列 -->
   {#if isSheet}
-    <div class="field-grid">
-      <div class="field field-amount">
-        <label class="label" for="amount">金额</label>
-        <AmountCalculatorInput
-          {amount}
-          initialValue={amountExpression}
-          initialAmount={amount}
-          {currency}
-          disabled={submitting}
-          error={amountError}
-          on:confirm={(e) => {
-            amount = e.detail.value;
-            amountExpression = e.detail.expression;
-            amountError = false;
-          }}
-        />
-      </div>
-      <div class="field field-currency">
-        <span class="label" id="currency-pills-label">币种</span>
-        <div class="currency-pills" role="radiogroup" aria-labelledby="currency-pills-label">
-          {#each (session.currencies && session.currencies.length > 0 ? session.currencies : [currency]) as code (code)}
-            <button
-              type="button"
-              class="currency-pill"
-              class:active={currency === code}
-              class:disabled={submitting}
-              role="radio"
-              aria-checked={currency === code}
-              disabled={submitting}
-              onclick={() => handleCurrencyPillClick(code)}
-            >{code}</button>
-          {/each}
+    <div class="field field-amount-block">
+      <label class="label" for="amount">金额</label>
+      <div class="amount-input-row">
+        <div class="amount-input-main">
+          <AmountCalculatorInput
+            {amount}
+            initialValue={amountExpression}
+            initialAmount={amount}
+            {currency}
+            disabled={submitting}
+            error={amountError}
+            on:confirm={(e) => {
+              amount = e.detail.value;
+              amountExpression = e.detail.expression;
+              amountError = false;
+            }}
+          />
         </div>
+        {#if isMultiCurrency}
+          <div class="currency-switch-wrap" data-testid="bill-currency-switch">
+            <IosSwitch
+              ariaLabel="币种"
+              options={currencyOptions.map((code) => ({ value: code, label: code }))}
+              bind:value={currency}
+            />
+          </div>
+        {:else}
+          <span
+            class="currency-locked"
+            aria-label="币种 {currencyOptions[0] ?? currency}（单币种不可选）"
+            data-testid="bill-currency-locked"
+          >{currencyOptions[0] ?? currency}</span>
+        {/if}
       </div>
     </div>
 
-    <div class="field field-time">
-      <label class="label" for="occurredAt">时间</label>
-      <input id="occurredAt" type="datetime-local" bind:value={occurredAt} />
+    <div class="field field-time" data-testid="bill-time-row">
+      <label class="label" for="occurredDate">日期</label>
+      <input
+        id="occurredDate"
+        type="date"
+        value={occurredDate}
+        oninput={onOccurredDateInput}
+        data-testid="bill-occurred-date"
+      />
+      <div class="date-quick-row" role="group" aria-label="快捷日期">
+        {#each DATE_QUICK as q (q.offset)}
+          <button
+            type="button"
+            class="date-quick"
+            class:active={activeQuickOffset === q.offset}
+            onclick={() => applyQuickDay(q.offset)}
+            data-testid={`bill-date-quick-${q.offset}`}
+          >{q.label}</button>
+        {/each}
+      </div>
+      <label class="label" for="occurredTime">时间</label>
+      <input
+        id="occurredTime"
+        type="time"
+        value={occurredTime}
+        oninput={onOccurredTimeInput}
+        data-testid="bill-occurred-time"
+      />
     </div>
-    <div class="field field-payer">
-      <label class="label" for="payer">付款人</label>
+    <div class="field field-payer" data-testid="bill-payer-row">      <label class="label" for="payer">付款人</label>
       <select id="payer" bind:value={payerMemberId}>
         <option value={null}>— 选择 —</option>
         {#each session.members as m (m.id)}
@@ -699,10 +766,34 @@
       />
     </div>
   </div>
-  <div class="occurredAt-row">
-    <label class="label" for="occurredAt">时间</label>
-    <input id="occurredAt" type="datetime-local" bind:value={occurredAt} />
-  </div>
+  <div class="occurredAt-row" data-testid="bill-time-row">
+    <label class="label" for="occurredDate">日期</label>
+    <input
+      id="occurredDate"
+      type="date"
+      value={occurredDate}
+      oninput={onOccurredDateInput}
+      data-testid="bill-occurred-date"
+    />
+    <div class="date-quick-row" role="group" aria-label="快捷日期">
+      {#each DATE_QUICK as q (q.offset)}
+        <button
+          type="button"
+          class="date-quick"
+          class:active={activeQuickOffset === q.offset}
+          onclick={() => applyQuickDay(q.offset)}
+          data-testid={`bill-date-quick-${q.offset}`}
+        >{q.label}</button>
+      {/each}
+    </div>
+    <label class="label" for="occurredTime">时间</label>
+    <input
+      id="occurredTime"
+      type="time"
+      value={occurredTime}
+      oninput={onOccurredTimeInput}
+      data-testid="bill-occurred-time"
+    />  </div>
 
   <div class="row" style="gap: var(--space-3); align-items: center;">
     <div style="flex: 1; min-width: 0;">
@@ -717,15 +808,16 @@
     <div style="flex: 1; min-width: 0;">
       <span class="label" id="currency-pills-label">币种</span>
       <div class="currency-pills" role="radiogroup" aria-labelledby="currency-pills-label">
-        {#each (session.currencies && session.currencies.length > 0 ? session.currencies : [currency]) as code (code)}
+        {#each currencyOptions as code (code)}
           <button
             type="button"
             class="currency-pill"
             class:active={currency === code}
-            class:disabled={submitting}
+            class:disabled={submitting || !isMultiCurrency}
+            class:locked={!isMultiCurrency}
             role="radio"
             aria-checked={currency === code}
-            disabled={submitting}
+            disabled={submitting || !isMultiCurrency}
             onclick={() => handleCurrencyPillClick(code)}
           >{code}</button>
         {/each}
@@ -811,7 +903,7 @@
             >
               <!-- v0.3.29 UAT 0725-1 #11: 玻璃选框 (替代 emoji ☑☐, 跟全站玻璃语言同源)
                    18x18 square, 半透明白底 + backdrop-filter blur(8px) saturate(180%) + 1px 白边 + inset highlight
-                   .included: 填充 indigo 玻璃 (跟主按钮同源 rgba(99,102,241,0.55) bg + border 0.85)
+                   .included: 填充 indigo 玻璃 (跟主按钮同源 rgba(40, 40, 40,0.55) bg + border 0.85)
                    .not-included: 0.45 alpha 白玻璃 + 0.18 蓝边 (空态淡) -->
               <span class="ppt-check-icon" class:included={st?.included} aria-hidden="true">
                 {#if st?.included}
@@ -848,6 +940,7 @@
                   bind:value={st.amount}
                   bind:this={inputRefs[m.id]}
                   onblur={() => handlePillBlur(m.id)}
+                  onfocus={(e) => ensureExclusiveInputVisible(e.currentTarget)}
                   placeholder="0.00"
                   aria-label={`${m.display_name} 的个人消费金额`}
                   data-testid={`ppts-amount-${m.id}`}
@@ -901,7 +994,7 @@
   .link-btn {
     background: none;
     border: none;
-    color: var(--accent-500, #3b82f6);
+    color: var(--accent-500, #2c2c2c);
     font-size: var(--font-size-sm, 13px);
     font-weight: 500;
     cursor: pointer;
@@ -951,7 +1044,7 @@
   /* v0.3.29 UAT 0725-1 #11: 玻璃选框 (跟 v0.3.23 #132 avatar Option B 玻璃语言同源)
      18x18 square + 半透明白底 + backdrop-filter blur(8px) saturate(180%) + 1px 蓝白边 + glass shadow.
      .not-included (空态): 白玻璃 0.45 alpha, 蓝边 0.18
-     .included (亮态): indigo 玻璃 rgba(99,102,241,0.55) bg, 蓝边 0.85, 实心 ✓ */
+     .included (亮态): indigo 玻璃 rgba(40, 40, 40,0.55) bg, 蓝边 0.85, 实心 ✓ */
   .ppt-check-icon {
     flex: 0 0 18px;
     width: 18px;
@@ -963,7 +1056,7 @@
     background: rgba(255, 255, 255, 0.45);
     backdrop-filter: blur(8px) saturate(180%);
     -webkit-backdrop-filter: blur(8px) saturate(180%);
-    border: 1px solid rgba(99, 102, 241, 0.18);
+    border: 1px solid rgba(40, 40, 40, 0.18);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.50),
       inset 0 -1px 0 rgba(0, 0, 0, 0.04),
@@ -972,13 +1065,13 @@
     transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
   }
   .ppt-check-icon.included {
-    background: rgba(99, 102, 241, 0.55);
-    border-color: rgba(99, 102, 241, 0.85);
+    background: rgba(40, 40, 40, 0.55);
+    border-color: rgba(40, 40, 40, 0.85);
     color: #ffffff;
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.40),
-      inset 0 -1px 0 rgba(67, 56, 202, 0.18),
-      0 1px 3px rgba(99, 102, 241, 0.18);
+      inset 0 -1px 0 rgba(26, 26, 26, 0.18),
+      0 1px 3px rgba(40, 40, 40, 0.18);
   }
   /* v0.3.20 #91 (PO msg 03:06 #7375): 头像 — 36×36 圆形 + 5 色 palette + 1 字符首字母.
      复用 SessionMemberList 的 5 色 AVATAR_GRADIENTS, 尺寸放大到 36×36 (比 chip 28px 大)
@@ -1062,11 +1155,11 @@
     background: rgba(255, 255, 255, 0.55);
     backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border: 1px solid rgba(99, 102, 241, 0.18);
+    border: 1px solid rgba(40, 40, 40, 0.18);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.50),
       inset 0 -1px 0 rgba(0, 0, 0, 0.03),
-      0 2px 8px rgba(99, 102, 241, 0.06);
+      0 2px 8px rgba(40, 40, 40, 0.06);
     /* v0.3.0729-2 #7: shared 跟 exclusive 同左对齐节奏 (flex-start + gap 4 + pad 10).
        旧 space-between 拉两端; center 在钉死 102px 里光学仍偏 (窄 $ vs 宽「个人消费」).
        左起 "$ 个人消费" 与 exclusive 态 "¥ 金额" 同一起点. */
@@ -1077,10 +1170,10 @@
   }
   .excl-pill-shared:hover {
     background: rgba(255, 255, 255, 0.70);
-    border-color: rgba(99, 102, 241, 0.30);
+    border-color: rgba(40, 40, 40, 0.30);
   }
   .excl-pill-shared:active {
-    background: rgba(99, 102, 241, 0.10);
+    background: rgba(40, 40, 40, 0.10);
   }
   @supports not (backdrop-filter: blur(1px)) {
     .excl-pill-shared {
@@ -1107,23 +1200,23 @@
      v0.3.20 #93 (Fix 2): add backdrop-filter glass, same blur(20px) saturate(180%) as shared pill.
      Exclusive visually stronger (bg 0.18 + border 0.55 + 12% outer shadow) to emphasise "实" feel. */
   .excl-pill-exclusive {
-    background: rgba(99, 102, 241, 0.18);
+    background: rgba(40, 40, 40, 0.18);
     backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border: 1px solid rgba(99, 102, 241, 0.55);
+    border: 1px solid rgba(40, 40, 40, 0.55);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.50),
       inset 0 -1px 0 rgba(0, 0, 0, 0.04),
-      0 2px 8px rgba(99, 102, 241, 0.12);
+      0 2px 8px rgba(40, 40, 40, 0.12);
     padding: 0 10px;
     gap: 4px;
     cursor: default;
   }
   .excl-pill-exclusive:focus-within {
-    border-color: var(--accent-700, #4338ca);
+    border-color: var(--accent-700, #1a1a1a);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.55),
-      0 0 0 2px rgba(99, 102, 241, 0.20);
+      0 0 0 2px rgba(40, 40, 40, 0.20);
   }
   .pill-currency:focus-visible {
     outline: 0;
@@ -1133,7 +1226,7 @@
   }
   @supports not (backdrop-filter: blur(1px)) {
     .excl-pill-exclusive {
-      background: rgba(99, 102, 241, 0.32);
+      background: rgba(40, 40, 40, 0.32);
     }
   }
   /* v0.3.0729-3 #1: pill-currency 显 ¥/$ (currencySymbol), 单字符; width auto + 13px. */
@@ -1155,7 +1248,7 @@
   }
   /* v0.3.20 #93 (Fix 2): exclusive pill-currency accent-600 -> accent-700 (deeper indigo) 配新玻璃 bg 0.18 */
   .excl-pill-exclusive .pill-currency {
-    color: var(--accent-700, #4338ca);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
     font-weight: 600;
   }
   /* v0.3.20 #93 (Fix 2): pill-input accent-600 -> accent-700 跟新 pill-currency 一致 */
@@ -1178,7 +1271,7 @@
     margin: 0;
     font-size: 13px;
     font-weight: 600;
-    color: var(--accent-700, #4338ca);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
     text-align: center;
     font-variant-numeric: tabular-nums;
     font-family: inherit;
@@ -1196,7 +1289,7 @@
     margin: 0;
   }
   .pill-input::placeholder {
-    color: rgba(99, 102, 241, 0.35);
+    color: rgba(40, 40, 40, 0.35);
     font-weight: 500;
   }
   /* v0.3.20 #92 (PO msg 07:13 #7409): 删 .pill-stepper / .pill-step / .pill-step:hover / .pill-step:active
@@ -1232,12 +1325,12 @@
     transition: background 0.12s ease, border-color 0.12s ease;
   }
   .currency-pill:hover:not(.disabled):not(:disabled) {
-    border-color: rgba(99, 102, 241, 0.5);
+    border-color: rgba(40, 40, 40, 0.5);
   }
   .currency-pill.active {
-    background: #6366f1;
+    background: #2c2c2c;
     color: white;
-    border-color: #6366f1;
+    border-color: #2c2c2c;
   }
   .currency-pill:disabled,
   .currency-pill.disabled {
@@ -1275,135 +1368,206 @@
     padding-bottom: 56px;
   }
 
-  /* Bottom-sheet compact layout (BillSheet) */
+  /* Bottom-sheet form layout (BillSheet) — single vertical rhythm:
+     section gap 22 · label→control 8 · equal meta columns · matched control height 44. */
   .stack.sheet-layout {
-    padding-bottom: 4px;
-    gap: 10px;
+    /* Extra pad so last 个人消费 row can scroll above keyboard / footer */
+    padding-bottom: 48px;
+    gap: 22px;
   }
   .sheet-layout .field {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 8px;
     min-width: 0;
-  }
-  .sheet-layout .field-grid {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 10px;
-    align-items: end;
-  }
-  .sheet-layout .field-grid-time-payer {
-    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
-    align-items: end;
-  }
-  .sheet-layout .field-time,
-  .sheet-layout .field-payer {
-    min-width: 0;
-    width: 100%;
-  }
-  .sheet-layout .field-time input[type="datetime-local"]#occurredAt {
-    max-width: 100%;
-    width: 100%;
-  }
-  .sheet-layout .field-payer select#payer {
-    width: 100%;
-  }
-  .sheet-layout .field-currency {
-    min-width: 72px;
-  }
-  .sheet-layout .field-currency .currency-pills {
-    margin-top: 0;
-    justify-content: flex-end;
   }
   .sheet-layout .label {
     margin-bottom: 0;
     font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
     color: #64748b;
+    line-height: 1.2;
+  }
+  /* 金额: label 独占一行; input + 币种控件同行 */
+  .sheet-layout .amount-input-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    width: 100%;
+  }
+  .sheet-layout .amount-input-main {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .sheet-layout .field-amount-block :global(.amount-calc) {
+    gap: 0;
+  }
+  /* 双币种: 压缩版 IosSwitch (跟 settle 主币种汇总/原始数据同族, 高度贴齐金额框) */
+  .sheet-layout .currency-switch-wrap {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+  }
+  .sheet-layout .currency-switch-wrap :global(.ios-switch) {
+    margin: 0;
+    width: fit-content;
+    max-width: 100%;
+  }
+  .sheet-layout .currency-switch-wrap :global(.ios-switch-option) {
+    padding: 0.35rem 0.7rem;
+    font-size: 0.75rem;
+    min-height: 36px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  /* 单币种: 不可选锁定 chip */
+  .sheet-layout .currency-locked {
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    height: 36px;
+    min-height: 36px;
+    padding: 0 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: rgba(26, 26, 26, 0.55);
+    background: rgba(255, 255, 255, 0.12);
+    border: 0.5px solid rgba(40, 40, 40, 0.28);
+    box-shadow:
+      inset 0 1px 2px rgba(0, 0, 0, 0.04),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.95);
+    opacity: 0.72;
+    user-select: none;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .currency-pill.locked {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  /* 日期 / 快捷 / 时间 / 付款人 — 整行 */
+  .sheet-layout .field-time,
+  .sheet-layout .field-payer {
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+  }
+  .sheet-layout .field-time input[type="date"],
+  .sheet-layout .field-time input[type="time"] {
+    box-sizing: border-box;
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    height: 44px;
+    min-height: 44px;
+    padding: 0 12px;
+    font-size: 14px;
+    line-height: 44px;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .date-quick-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+  }
+  .date-quick {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 36px;
+    padding: 0 8px;
+    border-radius: 9999px;
+    border: 1px solid rgba(40, 40, 40, 0.16);
+    background: rgba(255, 255, 255, 0.45);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
+    font-size: 13px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+  }
+  .date-quick.active {
+    background: linear-gradient(135deg, #2c2c2c 0%, #525252 100%);
+    border-color: rgba(255, 255, 255, 0.35);
+    color: #fff;
+    font-weight: 600;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      0 1px 4px rgba(40, 40, 40, 0.2);
+  }
+  .date-quick:active {
+    transform: scale(0.97);
+  }
+  .sheet-layout .field-payer select#payer {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    height: 44px;
+    min-height: 44px;
+    padding: 0 12px;
+    line-height: 44px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    /* iOS/WebKit: 默认 select padding + line-box 会裁切字形底部 */
+    -webkit-appearance: none;
+    appearance: none;
   }
   .sheet-layout .preset-row {
-    margin: 2px 0 6px;
+    margin: 0;
+    padding-bottom: 0;
   }
   .sheet-layout .preset-chip {
     padding: 4px 10px;
     font-size: 12px;
     min-height: 28px;
   }
-  .sheet-layout input[type="datetime-local"]#occurredAt,
-  .sheet-layout select#payer,
   .sheet-layout input#desc {
-    min-height: 42px;
+    min-height: 44px;
   }
   .sheet-layout .ppts-toggle-row {
-    margin-top: 2px;
+    margin-top: 0;
   }
 
-  /* v0.3.21 #110 (PO msg 18:46): <input type="datetime-local"> 在 iOS Safari
-     有天然的 picker indicator + 隐式 min-width (~280px), 单纯 width: 100% 不会
-     让它在小屏 (<=360px) 缩到合适宽度, 视觉上"超长+伸到页面外". 三件事:
-     (1) min-width: 0 允许缩到小于 picker indicator 暗示的最小值
-     (2) max-width: 100% 安全兜底, 永不超出父容器 (避免横向 overflow)
-     (3) padding-block 减半 + 略缩字号, 让 56px 默认高度降到 ~40px, 跟
-         上方"金额/付款人"等 row 节奏对齐, 减少纵向松散
-
-     v0.3.21 #113 (PO msg 02:54 #7810): #110 只缩了 height, 没改 width.
-     实际输入框还是 width:100% = 325.625px (iPhone 13), 内容 (date text
-     "07/22/2026, 11:19 AM" + picker icon) 只占 ~240px, 中间 118px 空白,
-     "超长" 视觉问题没解决. 改 max-width 100% → 240px, 让 input 收缩
-     到刚好装下内容 + picker indicator, 视觉平衡. iPhone 13 (content 宽
-     326px) 240 留 86px 空; iPhone SE 375 (content 311px) 240 留 71px 空;
-     小屏 320 (content 256px) 240 超出 → 用 max-width: min(240px, 100%)
-     兜底.
-
-     v0.3.28 UAT 0724-1 #4 (commit be9d25b): 删 min(240px, 100%) → 单纯 100%.
-     iPhone 13 实测 parent 156px (flex:1 + min-width:0), min(240, 100%) → 156.
-     但 iOS Safari datetime-local native widget minimum content ~200px
-     (picker icon 30px + locale-formatted content ~140px), 156px 容器下
-     widget 渲染会溢出 input 框.
-
-     v0.3.29 — UAT 0725-1 #6: 物理根因修. 之前 v0.3.24 Top #1 (padding-inline)
-     + v0.3.28 #4 (max-width 100%) 都只缓解症状, 物理上 input box ~156px <
-     widget ~200px 仍溢出. WebKit bug #119175 12 年未修, iOS 26.4 没改
-     datetime-local 渲染规则. CSS max-width 只能压上限不能压下限, 任何
-     padding 调整都不管用. 方案 B: 挪 occurredAt 到独立整行 .occurredAt-row
-     (width: 100%, ~326px iPhone 13 content area), 物理给 widget 200px+
-     container, 容纳 picker indicator 30px + locale text 140-170px + 8px margin.
-     input width: 100% 现在真生效 (parent 已 full-width, 不再被 flex:1 兄弟
-     amount 挤). padding-inline 12 16px 保留 (容纳 picker indicator 16px 右侧). */
-  input[type="datetime-local"]#occurredAt {
-    min-width: 0;
-    width: 100%;
-    max-width: 260px; /* v0.3.37 #2: constrength to ~widget+padding, 不再全宽撑长 */
-    padding-block: 8px;
-    padding-inline: 10px; /* v0.3.37 #2: symmetric 10px, 原 12px 16px → 10px 省 8px */
-    font-size: 14px; /* v0.3.37 #2: 降 1px 跟其余 input 一致 */
-    letter-spacing: -0.01em;
-    /* v0.3.0729-4 #3: 时间文字垂直居中 */
-    height: 40px;
-    line-height: 1.2;
-    display: flex;
-    align-items: center;
-  }
-  input[type="datetime-local"]#occurredAt::-webkit-datetime-edit,
-  input[type="datetime-local"]#occurredAt::-webkit-datetime-edit-fields-wrapper {
-    display: flex;
-    align-items: center;
-    height: 100%;
-    padding: 0;
-  }
-  input[type="datetime-local"]#occurredAt::-webkit-calendar-picker-indicator {
-    align-self: center;
-  }
-
-  /* v0.3.29 — UAT 0725-1 #6: 时间 input 独立整行, full-width container 让 iOS Safari
-     datetime-local widget (~200px implicit min-width) 不被挤. 跟上面 v0.3.23 #136
-     "金额 + 时间 同行 flex:1 each" 是反方向改动 — 上次是把 amount 时间挤一排
-     视觉对齐, 这次承认 datetime-local 物理需要独立 row 才能装下 native widget. */
+  /* Page layout: 日期 → 快捷 → 时间 (split from datetime-local). */
   .occurredAt-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
     width: 100%;
     margin-top: var(--space-3);
   }
-  .occurredAt-row input[type="datetime-local"]#occurredAt {
+  .occurredAt-row > .label {
+    margin: 0;
+  }
+  .occurredAt-row input[type="date"],
+  .occurredAt-row input[type="time"] {
+    box-sizing: border-box;
     display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    height: 44px;
+    min-height: 44px;
+    padding: 0 12px;
+    font-size: 14px;
+    line-height: 44px;
+    letter-spacing: -0.01em;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .occurredAt-row .date-quick-row {
+    margin: 0;
   }
 
   /* v0.3.35 #1 — UAT 0725-3 #6 (PO msg #9088 batch): description 空提交红框玻璃.

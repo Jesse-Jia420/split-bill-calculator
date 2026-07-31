@@ -1,4 +1,6 @@
-# SplitIt
+# 轻均 FairLite
+
+极简分账，一链即平。
 
 Mobile-first shared expense (AA) web app. Create a ledger, invite friends (including anonymous join), record multi-currency bills, and settle who owes whom.
 

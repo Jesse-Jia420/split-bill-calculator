@@ -38,7 +38,7 @@
     3) 分享账本链接 (navigator.share URL, 跟 v0.3.37 #5 同款, handlePwaAction 不变)
     * 3 个 button 等宽 (flex: 1 1 0; gap: 8px; width: 100% 容器)
     * 字体从 13.5px → 12.5px (3 button 紧凑布局, padding 12 → 8px)
-    * 视觉: 玻璃风 rgba(99,102,241,0.12→0.08) + border 1px 0.22 + accent-700 文字 (跟之前 1 button 同源)
+    * 视觉: 玻璃风 rgba(40, 40, 40,0.12→0.08) + border 1px 0.22 + accent-700 文字 (跟之前 1 button 同源)
     * Data-testid 3 个: invite-pwa-save-qr / invite-pwa-share-qr / invite-pwa-share-link (test-friendly)
     * PWA 引导 hint 文案保留在按钮上方 (1 hint + 3 button stack, 跟 mockup 一致)
     * 反 #121 自决 — 3 button 等宽 + 文案精简 + 文件名 账本二维码.png
@@ -79,9 +79,9 @@
 -->
 <script lang="ts">
   import { X as XIcon, Share2, MoreVertical, PlusSquare, Download } from 'lucide-svelte';
-  import QRCode from 'qrcode';
   import { toast } from '$stores/toast';
   import { portal } from '$lib/actions/portal';
+  import { composeBrandedQrDataUrl } from '$lib/qr/brandedQrCard';
   import { createEventDispatcher, onMount } from 'svelte';
 
   /** v0.3.36 #16: dispatch 'copy' on successful clipboard write, 'open' on modal opens. */
@@ -194,24 +194,16 @@
         : window.location.origin + '/sessions/' + sessionId
       : '';
 
-  /** v0.3.36 #5: modal open + inviteUrl 变化时 lazy generate QR. */
+  /** modal open + inviteUrl / sessionName 变化时 lazy 生成品牌化 QR 卡片. */
   $: if (modalOpen && inviteUrl) {
-    generateQr(inviteUrl);
+    generateQr(inviteUrl, sessionName);
   }
 
-  /** v0.3.36 #5: QR 生成 — qrcode.toDataURL (canvas → base64 PNG), 200×200 + white padding 让边界清晰. */
-  async function generateQr(text: string) {
+  /** 品牌化账本二维码卡片（logo + 账本名 + 纸质玻璃装饰）；预览/下载/分享共用. */
+  async function generateQr(text: string, name: string = '') {
     qrError = null;
     try {
-      qrDataUrl = await QRCode.toDataURL(text, {
-        errorCorrectionLevel: 'M',
-        margin: 2,
-        width: 240,
-        color: {
-          dark: '#0f172a',
-          light: '#ffffff',
-        },
-      });
+      qrDataUrl = await composeBrandedQrDataUrl(text, name);
     } catch (e: any) {
       console.error('[InviteLinkButton] QR generate failed:', e);
       qrError = e?.message ?? 'QR 码生成失败';
@@ -223,11 +215,11 @@
    * 当前 qrDataUrl 已经是 base64 PNG data URL (qrcode.toDataURL 输出).
    * 用 fetch(dataURL) → blob → URL.createObjectURL → anchor download.
    * 反 #121 自决 — 不引入 file-saver 依赖, 直接走原生 API.
-   * 文件名: "{sessionName 净化后}账本二维码.png" (v0.3.0728-3 #2 新批)
-   *  - 空 sessionName → fallback "账本二维码.png" (跟 #4 兼容)
+   * 文件名: "「轻均 FairLite」{sessionName 净化后}账本二维码.png"
+   *  - 空 sessionName → fallback "「轻均 FairLite」账本二维码.png"
    *  - sanitize 剔除  / \ : * ? " < > | (文件系统非法) + 控制字符 + 空格→下划线 + 截断 32 字符
    *  - 截断 32 字符避免 macOS HFS+/APFS 255 字节限制
-   *  - 后缀 "账本二维码.png" 永远保留 (跟原 #4 文件名模式一致). */
+   *  - 前缀书名号品牌名 + 后缀 "账本二维码.png" 永远保留. */
   async function downloadQrPng(): Promise<boolean> {
     if (!qrDataUrl) return false;
     try {
@@ -250,23 +242,37 @@
     }
   }
 
-  /** v0.3.0728-3 #2: 净化 QR 文件名 — 剔除非法字符 + 控制字符 + 过长截断 + 空 fallback. */
+  const BRAND_BOOK_TITLE = '「轻均分账 FairLite」';
+
+  /** 复制 / 分享账本链接正文（品牌 + 账本名 + URL + 用途说明）. */
+  function buildInviteShareText(name: string, url: string): string {
+    const trimmed = (name ?? '').trim();
+    const namePart = trimmed ? `${trimmed} ` : '';
+    return `${BRAND_BOOK_TITLE} ${namePart}账本链接 ${url} 通过此链接可随时回到账本或邀请朋友`;
+  }
+
+  $: inviteShareText = inviteUrl ? buildInviteShareText(sessionName, inviteUrl) : '';
+
+  /** v0.3.0728-3 #2: 净化 QR 文件名 — 剔除非法字符 + 控制字符 + 过长截断 + 空 fallback.
+   * 品牌书名号前缀不经 sanitize（保留空格与《》）. */
   function buildQrFilename(name: string): string {
     const cleaned = (name ?? '')
       // 文件系统非法 + 控制字符 (U+0000..U+001F). 用 \u 转义, 避免源文件含字面 null byte.
-      .replace(/[\/\:*?"<>|\u0000-\u001f]/g, '')
+      .replace(/[\/\\:*?"<>|\u0000-\u001f]/g, '')
       .replace(/\s+/g, '_')                     // 空格 → 下划线
       .replace(/^[._]+|[._]+$/g, '')             // 去掉首尾 . _
       .slice(0, 32);                             // 截断 32 字符避免 macOS 255 字节限制
-    return cleaned ? `${cleaned}账本二维码.png` : '账本二维码.png';
+    return cleaned
+      ? `${BRAND_BOOK_TITLE}${cleaned}账本二维码.png`
+      : `${BRAND_BOOK_TITLE}账本二维码.png`;
   }
 
-  /** v0.3.24 #14: extract copy logic for readability. */
-  async function copyToClipboard(url: string): Promise<boolean> {
+  /** 复制文本到剪贴板（账本链接分享文案 / 兜底）. */
+  async function copyToClipboard(text: string): Promise<boolean> {
     let ok = false;
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(url);
+        await navigator.clipboard.writeText(text);
         ok = true;
       }
     } catch {
@@ -275,7 +281,7 @@
     if (!ok) {
       try {
         const ta = document.createElement('textarea');
-        ta.value = url;
+        ta.value = text;
         ta.style.position = 'fixed';
         ta.style.left = '-9999px';
         ta.style.top = '0';
@@ -292,17 +298,16 @@
   }
 
   async function handleInviteClick() {
-    const url = inviteUrl;
-    if (!url) return;
+    if (!inviteUrl || !inviteShareText) return;
 
-    const ok = await copyToClipboard(url);
-
+    const ok = await copyToClipboard(inviteShareText);
+    // 始终打开分享卡片（含品牌化二维码）；复制失败时仍可扫码 / 点链接重试
+    modalOpen = true;
+    dispatch('open');
     if (ok) {
-      modalOpen = true;
       dispatch('copy');
-      dispatch('open');
     } else {
-      toast.error('复制失败,请手动选中链接');
+      toast.error('自动复制失败，可点下方链接重试或扫码分享');
     }
 
     copied = true;
@@ -313,11 +318,11 @@
     }, 10000);
   }
 
-  /** v0.3.36 #5: URL chip click → 重新复制 invite URL. */
+  /** URL chip click → 重新复制带说明的账本链接文案. */
   async function handleUrlChipClick(e: MouseEvent) {
     e.stopPropagation();
-    if (!inviteUrl) return;
-    const ok = await copyToClipboard(inviteUrl);
+    if (!inviteShareText) return;
+    const ok = await copyToClipboard(inviteShareText);
     if (ok) {
       toast.success('已重新复制链接');
       dispatch('copy');
@@ -350,9 +355,9 @@
       if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
         try {
           // @ts-ignore
+          // UAT: 只分享二维码图片, 不附带链接文案 (链接分享走旁边「分享账本链接」按钮).
           await navigator.share({
             title: `${buildQrFilename(sessionName).replace(/\.png$/i, '')}`,
-            text: '随时随地记账，AA不再烦恼',
             files: [file],
           });
           dispatch('copy');
@@ -378,14 +383,17 @@
   /** v0.3.37 #5 #4: PWA 引导行动 — Web Share API (mobile) 或复制链接 (desktop fallback).
    * v0.3.0728-2 #5: 现仅用作 3-button row 第 3 个按钮 "分享账本链接" 的 handler. */
   async function handlePwaAction() {
-    if (!inviteUrl) return;
+    if (!inviteUrl || !inviteShareText) return;
     // 优先 Web Share API (mobile + Chrome desktop 都支持)
+    // 正文含 URL，不再单独传 url，避免部分 App 重复贴两遍链接
     if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
       try {
+        const trimmed = (sessionName ?? '').trim();
         await navigator.share({
-          title: `SplitIt-快来加入我的${sessionName || ''}账本！`,
-          text: '随时随地记账，AA不再烦恼',
-          url: inviteUrl,
+          title: trimmed
+            ? `${BRAND_BOOK_TITLE} ${trimmed} 账本链接`
+            : `${BRAND_BOOK_TITLE} 账本链接`,
+          text: inviteShareText,
         });
         dispatch('copy');
         return;
@@ -398,8 +406,8 @@
         }
       }
     }
-    // fallback: 复制链接 + toast
-    const ok = await copyToClipboard(inviteUrl);
+    // fallback: 复制带说明的链接文案 + toast
+    const ok = await copyToClipboard(inviteShareText);
     if (ok) {
       toast.success('链接已复制, 可粘贴分享');
       dispatch('copy');
@@ -533,7 +541,7 @@
     data-testid="invite-sheet-backdrop"
   ></div>
   <div
-    class="invite-sheet"
+    class="invite-sheet sbc-bottom-sheet"
     class:dragging
     class:closing={modalClosing}
     role="dialog"
@@ -549,7 +557,7 @@
     <div class="sheet-handle" aria-hidden="true"></div>
     <!-- v0.3.0729-4 #6: 去除最上方「账本链接」标题 -->
     <!-- v0.3.36 #5 success-card: 中心 column, gap 14px -->
-    <div class="sheet-body">
+    <div class="sheet-body sbc-bottom-sheet__body">
       <div class="check-hero" aria-hidden="true">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
           <path d="M20 6L9 17l-5-5"/>
@@ -578,20 +586,19 @@
         </button>
       {/if}
       {#if qrDataUrl}
-        <div class="qr-wrap" data-testid="invite-qr-wrap" aria-label="链接二维码">
-          <!-- v0.3.0728-2 #4: QR image 加 onclick → 触发下载 (PNG, 文件名 "账本二维码.png").
-               cursor: pointer + hover 视觉提示可在 CSS 中调整. -->
+        <div class="qr-wrap" data-testid="invite-qr-wrap" aria-label="账本邀请卡片二维码">
+          <!-- 品牌化 QR 卡片：点击保存 PNG（与分享附件同一张图） -->
           <img
             class="qr-img"
             src={qrDataUrl}
-            alt="账本链接二维码"
-            width="200"
-            height="200"
+            alt="{sessionName ? `${sessionName} · ` : ''}轻均分账 FairLite 账本二维码"
+            width="280"
+            height="350"
             data-testid="invite-qr-img"
             role="button"
             tabindex="0"
-            aria-label="点击保存二维码"
-            title="点击保存二维码"
+            aria-label="点击保存账本二维码卡片"
+            title="点击保存账本二维码卡片"
             onclick={async (e) => {
               e.stopPropagation();
               const ok = await downloadQrPng();
@@ -662,7 +669,7 @@
         </div>
       {/if}
     </div>
-    <div class="sheet-foot">
+    <div class="sheet-foot sbc-bottom-sheet__foot">
       <button type="button" class="btn-primary" onclick={closeModal} data-testid="invite-confirm-btn">
         知道了
       </button>
@@ -688,7 +695,7 @@
     height: 44px;
     padding: 0 16px;
     border-radius: 12px;
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.95) 0%, rgba(168, 85, 247, 0.95) 100%);
+    background: linear-gradient(135deg, rgba(40, 40, 40, 0.95) 0%, rgba(28, 28, 28, 0.95) 100%);
     border: 0;
     color: #fff;
     font-size: 14px;
@@ -701,21 +708,21 @@
     gap: 6px;
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.25),
-      0 4px 12px rgba(99, 102, 241, 0.30);
+      0 4px 12px rgba(40, 40, 40, 0.30);
     transition: background 150ms ease, transform 100ms ease, box-shadow 150ms ease;
     -webkit-tap-highlight-color: transparent;
   }
   .install-btn:hover {
-    background: linear-gradient(135deg, rgba(99, 102, 241, 1) 0%, rgba(168, 85, 247, 1) 100%);
+    background: linear-gradient(135deg, rgba(40, 40, 40, 1) 0%, rgba(28, 28, 28, 1) 100%);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.4),
-      0 6px 16px rgba(99, 102, 241, 0.36);
+      0 6px 16px rgba(40, 40, 40, 0.36);
   }
   .install-btn:active {
     transform: scale(0.97);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.18),
-      0 2px 8px rgba(99, 102, 241, 0.24);
+      0 2px 8px rgba(40, 40, 40, 0.24);
   }
   .install-btn:focus-visible {
     outline: 2px solid rgba(255, 255, 255, 0.6);
@@ -795,38 +802,15 @@
    * v0.3.37 #5 #2: 加 touch-action: pan-y 让浏览器知道此元素可垂直 pan (避免 passive listener 警告 + scroll lock conflict)
    * + 拖动时 transition:none (inline style 控制 transform) → 跟手反馈流畅 */
   .invite-sheet {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    margin: 0 auto;
-    max-width: 480px;
-    max-height: 92vh;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    touch-action: pan-y;
-    background: rgba(255, 255, 255, 0.92);
-    backdrop-filter: saturate(220%) blur(28px);
-    -webkit-backdrop-filter: saturate(220%) blur(28px);
-    border-top-left-radius: 24px;
-    border-top-right-radius: 24px;
-    border: 1px solid rgba(255, 255, 255, 0.7);
-    border-bottom: 0;
-    padding: 8px 16px 0;
-    box-shadow:
-      0 -8px 32px rgba(15, 23, 42, 0.12),
-      inset 0 1px 0 rgba(255, 255, 255, 0.85),
-      /* v0.3.0729-4 #14: 上拉橡皮筋时底部白色延伸，避免与页面底部分离 */
-      0 50vh 0 0 rgba(255, 255, 255, 0.96);
+    /* Shared .sbc-bottom-sheet owns flush bottom / radius / ::after under-fill. */
     z-index: 1000;
-    animation: inviteSheetUp 280ms cubic-bezier(0.32, 0.72, 0, 1);
-    display: flex;
-    flex-direction: column;
+    padding: 8px 16px 0;
     gap: 12px;
+    animation: inviteSheetUp 280ms cubic-bezier(0.32, 0.72, 0, 1);
+    touch-action: pan-y;
     will-change: transform;
   }
   .invite-sheet.dragging {
-    /* drag 时 inline style 控制 transform, 这里只保证动画期间 overflow 不被 clip */
     transition: none !important;
   }
   @keyframes inviteSheetUp {
@@ -834,9 +818,6 @@
     to { transform: translateY(0); }
   }
   @supports not (backdrop-filter: blur(1px)) {
-    .invite-sheet {
-      background: rgba(255, 255, 255, 0.96);
-    }
     .invite-sheet-backdrop {
       background: rgba(15, 23, 42, 0.55);
     }
@@ -875,11 +856,19 @@
     gap: 14px;
   }
 
-  /* Checkmark hero — 64×64 绿色玻璃 disc */
+  /* Checkmark hero — 强制正圆 (防全局 min-height / flex 拉伸成椭圆) */
   .check-hero {
-    width: 64px;
-    height: 64px;
-    border-radius: 50%;
+    box-sizing: border-box !important;
+    width: 64px !important;
+    height: 64px !important;
+    min-width: 64px !important;
+    min-height: 64px !important;
+    max-width: 64px !important;
+    max-height: 64px !important;
+    aspect-ratio: 1 / 1 !important;
+    flex: 0 0 64px !important;
+    align-self: center;
+    border-radius: 50% !important;
     background: linear-gradient(135deg, rgba(16, 185, 129, 0.20) 0%, rgba(20, 184, 166, 0.14) 100%);
     backdrop-filter: saturate(200%) blur(20px);
     -webkit-backdrop-filter: saturate(200%) blur(20px);
@@ -892,6 +881,9 @@
       inset 0 -1px 0 rgba(16, 185, 129, 0.08),
       0 4px 14px rgba(16, 185, 129, 0.18);
     margin: 6px 0 0;
+    padding: 0 !important;
+    line-height: 0;
+    overflow: hidden;
   }
   .check-hero svg { color: #047857; }
 
@@ -929,48 +921,53 @@
     color: var(--gray-900);
   }
 
-  /* QR code wrap */
+  /* Branded QR invite card (portrait: logo + QR + ledger name) */
   .qr-wrap {
-    width: 224px;
-    height: 224px;
-    padding: 12px;
-    border-radius: 12px;
-    background: #ffffff;
-    border: 1px solid rgba(15, 23, 42, 0.06);
+    width: min(280px, 100%);
+    padding: 0;
+    border-radius: 18px;
+    background: transparent;
+    border: none;
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.7),
-      0 4px 12px rgba(15, 23, 42, 0.06);
+      0 8px 28px rgba(15, 23, 42, 0.10),
+      0 1px 0 rgba(255, 255, 255, 0.65);
     display: flex;
     align-items: center;
     justify-content: center;
-    margin: 4px 0;
+    margin: 6px 0 2px;
+    overflow: hidden;
   }
   .qr-img {
     display: block;
-    width: 200px;
-    height: 200px;
-    border-radius: 4px;
-    image-rendering: pixelated;
-    image-rendering: -webkit-optimize-contrast;
-    /* v0.3.0728-2 #4: QR 可点击保存 — cursor pointer + 微弱 hover 高光让用户知道可交互. */
+    width: 100%;
+    height: auto;
+            aspect-ratio: 720 / 900;
+    border-radius: 18px;
+    image-rendering: auto;
     cursor: pointer;
     transition: opacity 150ms ease, transform 100ms ease;
   }
   .qr-img:hover {
-    opacity: 0.92;
+    opacity: 0.94;
   }
   .qr-img:active {
-    transform: scale(0.98);
+    transform: scale(0.985);
   }
   .qr-img:focus-visible {
-    outline: 2px solid var(--accent-500, #6366f1);
+    outline: 2px solid var(--accent-500, #2c2c2c);
     outline-offset: 2px;
   }
   .qr-error {
     color: var(--gray-500);
     font-size: 13px;
+    width: min(280px, 100%);
+    min-height: 120px;
+    border-radius: 14px;
     background: rgba(15, 23, 42, 0.04);
-    border-style: dashed;
+    border: 1px dashed rgba(15, 23, 42, 0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   /* URL preview chip */
@@ -978,9 +975,9 @@
     width: 100%;
     padding: 10px 14px;
     border-radius: 12px;
-    background: rgba(99, 102, 241, 0.06);
-    border: 1px dashed rgba(99, 102, 241, 0.30);
-    color: var(--accent-700, #4338ca);
+    background: rgba(40, 40, 40, 0.06);
+    border: 1px dashed rgba(40, 40, 40, 0.30);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
     font-size: 13px;
     font-weight: 500;
     font-variant-numeric: tabular-nums;
@@ -994,8 +991,8 @@
     transition: background 150ms ease, border-color 150ms ease;
   }
   .url-chip:hover {
-    background: rgba(99, 102, 241, 0.10);
-    border-color: rgba(99, 102, 241, 0.45);
+    background: rgba(40, 40, 40, 0.10);
+    border-color: rgba(40, 40, 40, 0.45);
   }
   .url-chip:active {
     transform: scale(0.99);
@@ -1047,9 +1044,9 @@
     height: 36px;
     padding: 0 8px;
     border-radius: 10px;
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(99, 102, 241, 0.08) 100%);
-    border: 1px solid rgba(99, 102, 241, 0.22);
-    color: var(--accent-700, #4338ca);
+    background: linear-gradient(135deg, rgba(40, 40, 40, 0.12) 0%, rgba(40, 40, 40, 0.08) 100%);
+    border: 1px solid rgba(40, 40, 40, 0.22);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
     font-size: 12.5px;
     font-weight: 600;
     font-family: inherit;
@@ -1062,7 +1059,7 @@
     white-space: nowrap;
   }
   .pwa-btn:hover {
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.18) 0%, rgba(99, 102, 241, 0.12) 100%);
+    background: linear-gradient(135deg, rgba(40, 40, 40, 0.18) 0%, rgba(40, 40, 40, 0.12) 100%);
   }
   .pwa-btn:active {
     transform: scale(0.98);
@@ -1071,37 +1068,40 @@
   /* === sheet-foot + btn-primary (跟 AddSettlementSheet 同族) === */
   .sheet-foot {
     display: flex;
-    padding: 14px 4px 0;
+    padding-top: 14px;
+    padding-left: 4px;
+    padding-right: 4px;
+    /* padding-bottom from .sbc-bottom-sheet__foot */
   }
   .btn-primary {
     width: 100%;
     height: 50px;
     border-radius: 14px;
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.95) 0%, rgba(168, 85, 247, 0.95) 100%);
+    background: linear-gradient(135deg, rgba(40, 40, 40, 0.95) 0%, rgba(28, 28, 28, 0.95) 100%);
     color: #fff;
     font-size: 16px;
     font-weight: 600;
     border: 0;
     cursor: pointer;
     box-shadow:
-      0 4px 12px rgba(99, 102, 241, 0.30),
+      0 4px 12px rgba(40, 40, 40, 0.30),
       inset 0 1px 0 rgba(255, 255, 255, 0.25);
     transition:
       background 150ms ease,
       transform 100ms ease;
   }
   .btn-primary:hover {
-    background: linear-gradient(135deg, rgba(99, 102, 241, 1) 0%, rgba(59, 130, 246, 1) 100%);
+    background: linear-gradient(135deg, rgba(40, 40, 40, 1) 0%, rgba(58, 58, 58, 1) 100%);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.5),
       inset 0 -1px 0 rgba(0, 0, 0, 0.05),
-      0 6px 16px rgba(99, 102, 241, 0.36);
+      0 6px 16px rgba(40, 40, 40, 0.36);
   }
   .btn-primary:active {
     transform: scale(0.97);
   }
   .btn-primary:focus-visible {
-    outline: 2px solid var(--accent-500, #6366f1);
+    outline: 2px solid var(--accent-500, #2c2c2c);
     outline-offset: 2px;
   }
 
@@ -1130,13 +1130,7 @@
       border-radius: 16px;
     }
     .qr-wrap {
-      width: 200px;
-      height: 200px;
-      padding: 10px;
-    }
-    .qr-img {
-      width: 180px;
-      height: 180px;
+      width: min(240px, 100%);
     }
   }
 </style>

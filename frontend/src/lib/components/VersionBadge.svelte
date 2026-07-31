@@ -55,7 +55,7 @@
     background: rgba(255, 255, 255, 0.6);
     backdrop-filter: saturate(180%) blur(12px);
     -webkit-backdrop-filter: saturate(180%) blur(12px);
-    border: 0.5px solid rgba(99, 102, 241, 0.2);
+    border: 0.5px solid rgba(40, 40, 40, 0.2);
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
     font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     font-size: 10.5px;

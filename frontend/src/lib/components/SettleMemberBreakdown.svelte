@@ -41,7 +41,7 @@
    * - 概览 tab (SettleTransferPath) 已在 #132 改过, 不用再动
    */
   import { onMount, tick } from 'svelte';
-  import { scale, fly, fade, slide } from 'svelte/transition';
+  import { scale, fly, fade } from 'svelte/transition';
   import { getSettle } from '$api/settle';
   import { formatMoney, formatDate } from '$lib/utils/format';
   import { currencySymbol } from '$lib/utils/currency';
@@ -53,6 +53,7 @@
   import { Search, X } from 'lucide-svelte';
   import type { MemberSettlement } from '$api/settle';
   import type { SessionDetail } from '$api/sessions';
+  import { paletteGradient } from '$lib/utils/palette';
 
   /**
    * v0.3.24 #12 (2026-07-22 20:18) — settle 页 付款明细 + 消费明细 加搜索框
@@ -105,11 +106,58 @@
   let paidExpanded = true;
   let consumedExpanded = true;
 
-  // === v0.3.24 #12 (PO msg 16:35 UAT file line 12): 付款明细 + 消费明细 搜索框 ===
-  // 跟 BillListGrouped.svelte 的 .bills-search 同款 (玻璃风 placeholder "搜索账单名称"),
-  // 实时 filter b.description 包含关键词 (case-insensitive, 中文/英文都按 substring match).
-  let paidSearchQuery = '';
-  let consumedSearchQuery = '';
+  // Shared sticky search for 付款明细 + 消费明细 (one box above 付款明细).
+  let detailSearchQuery = '';
+  /** Stuck-bleed mask under navbar — same pattern as session `.bills-search`. */
+  let detailSearchSentinel: HTMLDivElement | null = null;
+  let detailSearchEl: HTMLDivElement | null = null;
+  let detailSearchStuck = false;
+  let detailSearchStuckCleanup: (() => void) | null = null;
+
+  function updateDetailSearchStuckBleed() {
+    if (!detailSearchStuck || !detailSearchEl) return;
+    const nav = document.querySelector('.navbar');
+    if (!(nav instanceof HTMLElement)) return;
+    const gap = Math.max(
+      0,
+      detailSearchEl.getBoundingClientRect().top - nav.getBoundingClientRect().bottom
+    );
+    detailSearchEl.style.setProperty('--bills-search-stuck-bleed', `${gap}px`);
+  }
+
+  function setupDetailSearchStuck() {
+    detailSearchStuckCleanup?.();
+    detailSearchStuckCleanup = null;
+    detailSearchStuck = false;
+    if (typeof document === 'undefined' || !detailSearchSentinel) return;
+    const main = document.querySelector('main');
+    if (!(main instanceof HTMLElement)) return;
+
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        const leftViaTop = Boolean(
+          entry &&
+            !entry.isIntersecting &&
+            entry.rootBounds &&
+            entry.boundingClientRect.top < entry.rootBounds.top
+        );
+        detailSearchStuck = leftViaTop;
+        requestAnimationFrame(updateDetailSearchStuckBleed);
+      },
+      { root: main, rootMargin: '-8px 0px 0px 0px', threshold: 0 }
+    );
+    io.observe(detailSearchSentinel);
+
+    const onScroll = () => requestAnimationFrame(updateDetailSearchStuckBleed);
+    main.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+
+    detailSearchStuckCleanup = () => {
+      io.disconnect();
+      main.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+    };
+  }
 
   /** T6: 金额统一改用 formatMoney (千分位 + 2dp)。 */
   function fmt(n: number): string {
@@ -124,23 +172,6 @@
   function avatarLetter(name: string): string {
     const trimmed = (name ?? '').trim();
     return trimmed ? trimmed.charAt(0).toUpperCase() : '?';
-  }
-
-  /**
-   * v0.3.24 #11 (UAT bug — settle 页头像样式跟成员 section 一致, PO msg 16:35 UAT file line 11):
-   * 头像 palette 渐变 (5 色 rgba 0.88 半透明), 让 backdrop-filter 在 glass parent (.member-chip)
-   * 上有 "glass on glass" 视觉. 跟 SessionMemberList AVATAR_GRADIENTS / BillForm / +page.svelte
-   * 完全一致 (#132 commit b997bf6 模板).
-   */
-  const AVATAR_GRADIENTS = [
-    'linear-gradient(135deg, rgba(99, 102, 241, 0.88) 0%, rgba(168, 85, 247, 0.88) 100%)', // indigo → purple
-    'linear-gradient(135deg, rgba(236, 72, 153, 0.88) 0%, rgba(244, 63, 94, 0.88) 100%)', // pink → rose
-    'linear-gradient(135deg, rgba(16, 185, 129, 0.88) 0%, rgba(20, 184, 166, 0.88) 100%)', // emerald → teal
-    'linear-gradient(135deg, rgba(245, 158, 11, 0.88) 0%, rgba(234, 179, 8, 0.88) 100%)', // amber → yellow
-    'linear-gradient(135deg, rgba(59, 130, 246, 0.88) 0%, rgba(6, 182, 212, 0.88) 100%)', // blue → cyan
-  ];
-  function avatarGradient(index: number): string {
-    return AVATAR_GRADIENTS[index % AVATAR_GRADIENTS.length];
   }
 
   /**
@@ -205,11 +236,21 @@
     return desc.includes(q);
   }
   $: filteredPaidBills = selectedMember
-    ? (selectedMember.paid_bills ?? []).filter((b) => matchesSearch(b, paidSearchQuery))
+    ? (selectedMember.paid_bills ?? []).filter((b) => matchesSearch(b, detailSearchQuery))
     : [];
   $: filteredConsumedBills = selectedMember
-    ? (selectedMember.consumed_bills ?? []).filter((b) => matchesSearch(b, consumedSearchQuery))
+    ? (selectedMember.consumed_bills ?? []).filter((b) => matchesSearch(b, detailSearchQuery))
     : [];
+  $: showDetailSearch =
+    !!selectedMember &&
+    ((selectedMember.paid_bills?.length ?? 0) > 0 ||
+      (selectedMember.consumed_bills?.length ?? 0) > 0);
+
+  // 有搜索结果时自动展开对应明细（折叠态下搜到结果也要露出列表）
+  $: if (detailSearchQuery.trim()) {
+    if (filteredPaidBills.length > 0) paidExpanded = true;
+    if (filteredConsumedBills.length > 0) consumedExpanded = true;
+  }
 
   $: meMemberId = (() => {
     if (currentUserId === null || currentUserId === undefined) return null;
@@ -348,9 +389,22 @@
     return ks.map((k) => `${fmtSigned(agg[k].net)} ${k}`).join(' / ');
   }
 
-  onMount(async () => {
-    await loadSettle(viewMode);
+  onMount(() => {
+    void loadSettle(viewMode);
+    return () => {
+      detailSearchStuckCleanup?.();
+      detailSearchStuckCleanup = null;
+    };
   });
+
+  // After search mounts (member with bills), wire stuck-bleed like bill list.
+  $: if (showDetailSearch) {
+    tick().then(() => setupDetailSearchStuck());
+  } else {
+    detailSearchStuckCleanup?.();
+    detailSearchStuckCleanup = null;
+    detailSearchStuck = false;
+  }
 
   // v0.2.2 (T11): when viewMode changes after mount, refetch.
   $: if (!loading && loadedView !== viewMode) {
@@ -384,7 +438,7 @@
   }
 </script>
 
-<div>
+<div class="settle-member-breakdown">
   {#if loading}
     <div class="skeleton-section" aria-busy="true" aria-label="加载中">
       <ul class="skeleton-list">
@@ -413,7 +467,7 @@
             onclick={() => selectMember(m.member_id)}
             in:fly={{ y: 6, duration: 220, delay: Math.min(i * 30, 240) }}
           >
-            <div class="chip-avatar" aria-hidden="true" style="background: {avatarGradient(i)}">{avatarLetter(m.display_name)}</div>
+            <div class="chip-avatar" aria-hidden="true" style={paletteGradient(i)}>{avatarLetter(m.display_name)}</div>
             <div class="chip-info">
               <div class="chip-name">{m.display_name}</div>
               <!--
@@ -491,20 +545,52 @@
                 <!-- split: 按源币种分别展示 paid / consumed -->
                 {@const split = fmtSplitPaidAndConsumed(selectedMember)}
                 {#if split.consumed !== '-'}
-                  <span>consumed <strong>{split.consumed}</strong></span>
+                  <span class="hero-meta-consumed">consumed <strong>{split.consumed}</strong></span>
                   <span class="meta-sep" aria-hidden="true">·</span>
                 {/if}
                 {#if split.paid !== '-'}
-                  <span>paid <strong>{split.paid}</strong></span>
+                  <span class="hero-meta-paid">paid <strong>{split.paid}</strong></span>
                 {/if}
               {:else}
                 <!-- primary: BE 聚合 = primary_currency -->
-                <span>consumed <strong>{fmt($tweenConsumed)}</strong> <span class="meta-unit">{session.primary_currency}</span></span>
+                <span class="hero-meta-consumed">consumed <strong>{fmt($tweenConsumed)}</strong> <span class="meta-unit">{session.primary_currency}</span></span>
                 <span class="meta-sep" aria-hidden="true">·</span>
-                <span>paid <strong>{fmt($tweenPaid)}</strong> <span class="meta-unit">{session.primary_currency}</span></span>
+                <span class="hero-meta-paid">paid <strong>{fmt($tweenPaid)}</strong> <span class="meta-unit">{session.primary_currency}</span></span>
               {/if}
             </div>
           </div>
+
+          <!-- Shared sticky search (filters both 付款明细 + 消费明细) -->
+          {#if showDetailSearch}
+            <div
+              class="bills-section-search-sentinel"
+              bind:this={detailSearchSentinel}
+              aria-hidden="true"
+            ></div>
+            <div
+              class="bills-section-search bills-section-search-shared"
+              class:is-stuck={detailSearchStuck}
+              bind:this={detailSearchEl}
+              data-testid="member-detail-search"
+            >
+              <Search size={14} aria-hidden="true" />
+              <input
+                type="search"
+                bind:value={detailSearchQuery}
+                placeholder="搜索账单名称"
+                aria-label="搜索付款与消费明细"
+                class="bills-section-search-input"
+              />
+              {#if detailSearchQuery}
+                <button
+                  type="button"
+                  class="bills-section-search-clear"
+                  aria-label="清除搜索"
+                  onclick={() => (detailSearchQuery = '')}
+                ><X size={12} /></button>
+              {/if}
+            </div>
+          {/if}
 
           <!-- T10: 付款明细 section with sticky header -->
           <div class="bills-section bills-section-paid glass-sheet">
@@ -525,89 +611,61 @@
               <span class="bills-section-icon icon-paid" aria-hidden="true">↑</span>
               <span class="bills-section-title">付款明细</span>
               <span class="bills-section-count muted">({selectedMember.paid_bills.length})</span>
-              <span class="collapse-icon" aria-hidden="true">{paidExpanded ? '▼' : '▶'}</span>
+              <span class="collapse-icon" class:is-open={paidExpanded} aria-hidden="true">▼</span>
             </h4>
-            <!-- v0.3.24 #12 (PO msg 16:35 UAT file line 12): 付款明细 搜索框
-                 跟 BillListGrouped.svelte .bills-search 同款玻璃风格.
-                 只在 paid_bills.length > 0 时 render (空 section 不显示 search,
-                 否则用户搜什么都没有显得无意义). -->
-            {#if selectedMember.paid_bills.length > 0}
-              <div class="bills-section-search">
-                <Search size={14} aria-hidden="true" />
-                <input
-                  type="search"
-                  bind:value={paidSearchQuery}
-                  placeholder="搜索账单名称"
-                  aria-label="搜索付款明细"
-                  class="bills-section-search-input"
-                />
-                {#if paidSearchQuery}
-                  <button
-                    type="button"
-                    class="bills-section-search-clear"
-                    aria-label="清除搜索"
-                    onclick={() => (paidSearchQuery = '')}
-                  ><X size={12} /></button>
-                {/if}
-              </div>
-            {/if}
             {#if selectedMember.paid_bills.length === 0}
               <p class="muted empty-hint">没有付过账单</p>
             {:else if filteredPaidBills.length === 0}
-              <!-- v0.3.24 #12 (PO msg 16:35 UAT file line 12): 付款明细 filter 没匹配
-                   跟 BillListGrouped 的 totalBills > 0 && filteredBills === 0 文案对齐
-                   (v0.3.22 #119 拍板双态 placeholder, 区分 "没数据" vs "filter 没过"). -->
               <p class="muted empty-hint">没有匹配的账单,换个关键词试试。</p>
-            {:else if paidExpanded}
-              <!-- v0.3.17 #20 hotfix (PO msg 13:12): ul 用 transition:slide
-                   200ms, li 改 in:fade 80ms 取消 stagger — toggle 展开/收起
-                   整体 smooth, 30 行不再逐行 delay 200ms, 不再「卡卡的」 -->
-              <ul class="bill-sublist" transition:slide={{ duration: 200 }}>
-                {#each filteredPaidBills as b, i (b.bill_id)}
-                  <li
-                    class="bill-subrow"
-                    in:fade={{ duration: 80 }}
-                  >
-                    <div class="row1">
-                      <span class="bill-sub-desc">{b.description || '(无说明)'}</span>
-                      <!--
-                        hotfix #4: paid bill 主金额。
-                        - primary → BE `amount_primary` (已换算) + `primary_currency`.
-                        - split   → 原始 `amount` + `currency`.
-                      -->
-                      <span class="amount-primary">
-                        {#if viewMode === 'primary'}{fmtPaidPrimary(b)}{:else}{fmtPaidSplit(b)}{/if}
-                      </span>
-                    </div>
-                    <div class="row2 muted">
-                      <span class="bill-sub-date">{fmtDate(b.occurred_at)}</span>
-                      {#if b.participant_count}
-                        <span class="sep" aria-hidden="true">·</span>
-                        <span class="participant-count">
-                          <svg
-                            class="participant-icon"
-                            viewBox="0 0 24 24"
-                            width="14"
-                            height="14"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="1.75"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            aria-hidden="true"
-                          >
-                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                            <circle cx="9" cy="7" r="4" />
-                            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-                            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                          </svg>
-                          <span class="participant-count-num">{b.participant_count}人</span>
-                        </span>
-                      {/if}
-                    </div>
-                  </li>
-                {/each}
-              </ul>
+            {:else}
+              <!-- UAT: 平滑展开/收起 — grid 0fr↔1fr (始终挂载, 避免 slide 跳变) -->
+              <div class="bill-sublist-wrap" class:is-open={paidExpanded}>
+                <div class="bill-sublist-inner">
+                  <ul class="bill-sublist">
+                    {#each filteredPaidBills as b, i (b.bill_id)}
+                      <li class="bill-subrow">
+                        <div class="row1">
+                          <span class="bill-sub-desc">{b.description || '(无说明)'}</span>
+                          <!--
+                            hotfix #4: paid bill 主金额。
+                            - primary → BE `amount_primary` (已换算) + `primary_currency`.
+                            - split   → 原始 `amount` + `currency`.
+                          -->
+                          <span class="amount-primary">
+                            {#if viewMode === 'primary'}{fmtPaidPrimary(b)}{:else}{fmtPaidSplit(b)}{/if}
+                          </span>
+                        </div>
+                        <div class="row2 muted">
+                          <span class="bill-sub-date">{fmtDate(b.occurred_at)}</span>
+                          {#if b.participant_count}
+                            <span class="sep" aria-hidden="true">·</span>
+                            <span class="participant-count">
+                              <svg
+                                class="participant-icon"
+                                viewBox="0 0 24 24"
+                                width="14"
+                                height="14"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.75"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                              >
+                                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                                <circle cx="9" cy="7" r="4" />
+                                <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                              </svg>
+                              <span class="participant-count-num">{b.participant_count}</span>
+                            </span>
+                          {/if}
+                        </div>
+                      </li>
+                    {/each}
+                  </ul>
+                </div>
+              </div>
             {/if}
           </div>
 
@@ -630,92 +688,68 @@
               <span class="bills-section-icon icon-consumed" aria-hidden="true">↓</span>
               <span class="bills-section-title">消费明细</span>
               <span class="bills-section-count muted">({selectedMember.consumed_bills.length})</span>
-              <span class="collapse-icon" aria-hidden="true">{consumedExpanded ? '▼' : '▶'}</span>
+              <span class="collapse-icon" class:is-open={consumedExpanded} aria-hidden="true">▼</span>
             </h4>
-            <!-- v0.3.24 #12 (PO msg 16:35 UAT file line 12): 消费明细 搜索框
-                 跟 付款明细 search 同款, filter consumed_bills.
-                 只在 consumed_bills.length > 0 时 render. -->
-            {#if selectedMember.consumed_bills.length > 0}
-              <div class="bills-section-search">
-                <Search size={14} aria-hidden="true" />
-                <input
-                  type="search"
-                  bind:value={consumedSearchQuery}
-                  placeholder="搜索账单名称"
-                  aria-label="搜索消费明细"
-                  class="bills-section-search-input"
-                />
-                {#if consumedSearchQuery}
-                  <button
-                    type="button"
-                    class="bills-section-search-clear"
-                    aria-label="清除搜索"
-                    onclick={() => (consumedSearchQuery = '')}
-                  ><X size={12} /></button>
-                {/if}
-              </div>
-            {/if}
             {#if selectedMember.consumed_bills.length === 0}
               <p class="muted empty-hint">没有被分摊的账单</p>
             {:else if filteredConsumedBills.length === 0}
-              <!-- v0.3.24 #12 (PO msg 16:35 UAT file line 12): 消费明细 filter 没匹配,
-                   跟 付款明细 同文案 (跟 BillListGrouped 风格统一). -->
               <p class="muted empty-hint">没有匹配的账单,换个关键词试试。</p>
-            {:else if consumedExpanded}
-              <ul class="bill-sublist" transition:slide={{ duration: 200 }}>
-                {#each filteredConsumedBills as b, i (b.bill_id)}
-                  {@const tags = fmtConsumedTags(b)}
-                  <li
-                    class="bill-subrow"
-                    in:fade={{ duration: 80 }}
-                  >
-                    <div class="row1">
-                      <span class="bill-sub-desc">{b.description || '(无说明)'}</span>
-                      <!--
-                        hotfix #4: consumed share 主金额: 双模式。
-                        - primary → BE `share_amount_primary` + `primary_currency`.
-                        - split   → 原始 `share_amount` + `currency`.
-                      -->
-                      <span class="amount-primary">
-                        {#if viewMode === 'primary'}{fmtConsumedPrimary(b)}{:else}{fmtConsumedSplit(b)}{/if}
-                      </span>
-                    </div>
-                    <!-- v0.3.27 (UAT 0723-2 #4): 个人消费 独立行, 跟 BillListGrouped .bill-row-exclusive 同款 -->
-                    {#if tags.excl}
-                      <div class="bill-row-exclusive muted">
-                        个人消费 {tags.excl}
-                      </div>
-                    {/if}
-                    <div class="row2 muted">
-                      <span class="bill-sub-date">{fmtDate(b.occurred_at)}</span>
-                      {#if b.participant_count}
-                        <span class="sep" aria-hidden="true">·</span>
-                        <span class="participant-count">
-                          <svg
-                            class="participant-icon"
-                            viewBox="0 0 24 24"
-                            width="14"
-                            height="14"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="1.75"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            aria-hidden="true"
-                          >
-                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                            <circle cx="9" cy="7" r="4" />
-                            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-                            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                          </svg>
-                          <span class="participant-count-num">{b.participant_count}人</span>
-                        </span>
-                      {/if}
-                      <span class="shared-tag-right">分摊 {tags.shared}</span>
-                    </div>
-                  </li>
-                {/each}
-              </ul>
+            {:else}
+              <div class="bill-sublist-wrap" class:is-open={consumedExpanded}>
+                <div class="bill-sublist-inner">
+                  <ul class="bill-sublist">
+                    {#each filteredConsumedBills as b, i (b.bill_id)}
+                      {@const tags = fmtConsumedTags(b)}
+                      <li class="bill-subrow">
+                        <div class="row1">
+                          <span class="bill-sub-desc">{b.description || '(无说明)'}</span>
+                          <!--
+                            hotfix #4: consumed share 主金额: 双模式。
+                            - primary → BE `share_amount_primary` + `primary_currency`.
+                            - split   → 原始 `share_amount` + `currency`.
+                          -->
+                          <span class="amount-primary">
+                            {#if viewMode === 'primary'}{fmtConsumedPrimary(b)}{:else}{fmtConsumedSplit(b)}{/if}
+                          </span>
+                        </div>
+                        <!-- v0.3.27 (UAT 0723-2 #4): 个人消费 独立行, 跟 BillListGrouped .bill-row-exclusive 同款 -->
+                        {#if tags.excl}
+                          <div class="bill-row-exclusive muted">
+                            个人消费 {tags.excl}
+                          </div>
+                        {/if}
+                        <div class="row2 muted">
+                          <span class="bill-sub-date">{fmtDate(b.occurred_at)}</span>
+                          {#if b.participant_count}
+                            <span class="sep" aria-hidden="true">·</span>
+                            <span class="participant-count">
+                              <svg
+                                class="participant-icon"
+                                viewBox="0 0 24 24"
+                                width="14"
+                                height="14"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.75"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                              >
+                                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                                <circle cx="9" cy="7" r="4" />
+                                <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                              </svg>
+                              <span class="participant-count-num">{b.participant_count}</span>
+                            </span>
+                          {/if}
+                          <span class="shared-tag-right">分摊 {tags.shared}</span>
+                        </div>
+                      </li>
+                    {/each}
+                  </ul>
+                </div>
+              </div>
             {/if}
           </div>
         </div>
@@ -813,7 +847,7 @@
     /* v0.3.18 #50: inset highlight 0.95 → 0.18 + 外阴影 0.16 → 0.04 indigo */
     box-shadow:
       inset 0 1px 0 rgba(255,255,255,0.18),
-      0 4px 12px rgba(99,102,241,0.04);
+      0 4px 12px rgba(40, 40, 40,0.04);
     /* v0.3.18 #49 保留: chip 文字白色微晕 (低对比玻璃上唯一可读性补偿) */
     text-shadow: 0 1px 3px rgba(255,255,255,0.8);
     transition:
@@ -825,7 +859,7 @@
   }
   .member-chip:hover {
     border-color: var(--accent-500);
-    color: var(--accent-700);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
     /* v0.3.18 #50: hover bg 0.22/0.15 → 0.10/0.05 (跟新 base 0.04/0.02 同步降级, hover 仍略亮表示交互) */
     background: linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.05) 100%);
   }
@@ -836,21 +870,27 @@
     outline: 2px solid var(--accent-500);
     outline-offset: 2px;
   }
-  /* T9 Active state: filled accent bg (保留实色, 玻璃态 OFF) */
+  /* Selected: soft charcoal glass — match IosSwitch「主币种汇总」thumb / btn-primary
+     (gradient #2c2c2c→#525252 + inset sheen), not flat near-black fill. */
   .member-chip.selected {
-    background: var(--accent-500);
-    border: 1px solid var(--accent-500);
+    background: linear-gradient(135deg, #2c2c2c 0%, #525252 100%);
+    border: 1px solid rgba(255, 255, 255, 0.35);
     color: white;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
+    backdrop-filter: saturate(180%) blur(12px);
+    -webkit-backdrop-filter: saturate(180%) blur(12px);
     box-shadow:
-      inset 0 1px 0 rgba(255,255,255,0.2),
-      var(--shadow-sm);
+      inset 0 1px 0 rgba(255, 255, 255, 0.4),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.08),
+      0 2px 6px rgba(40, 40, 40, 0.28);
   }
   .member-chip.selected:hover {
-    background: var(--accent-500);
-    border-color: var(--accent-500);
+    background: linear-gradient(135deg, #363636 0%, #5c5c5c 100%);
+    border-color: rgba(255, 255, 255, 0.42);
     color: white;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.48),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.1),
+      0 3px 8px rgba(40, 40, 40, 0.32);
   }
   /* Safari iOS < 18 fallback (无 backdrop-filter): 用 opaque 半透明白
      v0.3.18 #49: 0.60 → 0.40 (跟新 base 0.15/0.08 同比例降级, 保留可读性 fallback)
@@ -862,7 +902,7 @@
   }
   /* T9 me double ring (kept even though me badge text removed) */
   .member-chip.me .chip-avatar {
-    box-shadow: 0 0 0 2px var(--accent-700), 0 0 0 4px rgba(59, 130, 246, 0.25);
+    box-shadow: 0 0 0 2px var(--accent-700), 0 0 0 4px rgba(58, 58, 58, 0.25);
   }
   /* selected + me: inner ring adapts to white bg of active chip */
   .member-chip.selected.me .chip-avatar {
@@ -880,7 +920,7 @@
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.88) 0%, rgba(168, 85, 247, 0.88) 100%);
+    background: var(--avatar-0);
     color: #fff;
     display: inline-flex;
     align-items: center;
@@ -930,8 +970,8 @@
     /* default / inactive: gray-500 */
     color: var(--gray-500);
   }
-  .chip-net.pos { color: var(--success-500); }
-  .chip-net.neg { color: var(--error-500); }
+  .chip-net.pos { color: var(--settle-pos); }
+  .chip-net.neg { color: var(--settle-neg); }
   .chip-net.zero { color: var(--gray-500); }
   /* Selected chip: net numbers white */
   .member-chip.selected .chip-net { color: rgba(255,255,255,0.9); }
@@ -946,8 +986,8 @@
     color: var(--gray-500);
     line-height: 1.25;
   }
-  .chip-net-line.pos { color: var(--success-500); }
-  .chip-net-line.neg { color: var(--error-500); }
+  .chip-net-line.pos { color: var(--settle-pos); }
+  .chip-net-line.neg { color: var(--settle-neg); }
   .chip-net-line.zero { color: var(--gray-500); }
   .member-chip.selected .chip-net-line { color: rgba(255,255,255,0.9); }
   .member-chip.selected .chip-net-line.pos { color: white; }
@@ -991,8 +1031,8 @@
     /* v0.3.18 #49: hero 金额白色微晕 (防低对比玻璃背景 + PO msg #6508) */
     text-shadow: 0 1px 3px rgba(255, 255, 255, 0.8);
   }
-  .hero-net.pos { color: var(--success-500); }
-  .hero-net.neg { color: var(--error-500); }
+  .hero-net.pos { color: var(--settle-pos); }
+  .hero-net.neg { color: var(--settle-neg); }
   .hero-net.zero { color: var(--gray-500); }
   /* hotfix #4: split-mode per-currency stack inside hero */
   .hero-net-multicur {
@@ -1010,8 +1050,8 @@
     /* v0.3.18 #49: split-mode 金额白色微晕 (防低对比玻璃 + PO msg #6508) */
     text-shadow: 0 1px 3px rgba(255, 255, 255, 0.8);
   }
-  .hero-net-line.pos { color: var(--success-500); }
-  .hero-net-line.neg { color: var(--error-500); }
+  .hero-net-line.pos { color: var(--settle-pos); }
+  .hero-net-line.neg { color: var(--settle-neg); }
   .hero-net-line.zero { color: var(--gray-500); }
   .settled-text {
     font-size: var(--font-size-2xl, 32px);
@@ -1025,6 +1065,10 @@
     gap: var(--space-2, 8px);
     flex-wrap: wrap;
   }
+  .hero-meta-consumed { color: var(--settle-neg); }
+  .hero-meta-paid { color: var(--settle-pos); }
+  .hero-meta-consumed .meta-unit,
+  .hero-meta-paid .meta-unit { color: inherit; opacity: 0.85; }
   .hero-meta strong {
     font-weight: 500;
     font-variant-numeric: tabular-nums;
@@ -1098,8 +1142,9 @@
      由更具体的 `.bills-section.glass-sheet` 重设 (0,2,0) 启亮 border-left 3px (上面 .glass-sheet
      shorthand "0" 临到 .bills-section-paid / -consumed 时只覆盖 color, width 还是 .bills-section
      原 3px). 这样 sheet 是极透明玻璃 + 颜色竖条极淡, 设计锚点保留, 存在感大降. */
-  .bills-section-paid { border-left-color: rgba(34, 197, 94, 0.45); }
-  .bills-section-consumed { border-left-color: rgba(99, 102, 241, 0.45); }
+  .bills-section-paid { border-left-color: var(--settle-pos-border); }
+  /* 消费明细: muted dusty-rose 色条 — 与消费/负净额主色一致 */
+  .bills-section-consumed { border-left-color: var(--settle-neg-border); }
   .bills-section-head {
     margin: 0 0 var(--space-2, 8px);
     /* === v0.3.16 #2: extend sticky bg past container's padding-left (PO msg 14:54) === */
@@ -1170,6 +1215,32 @@
     font-size: clamp(0.6875rem, 2.6vw, 0.75rem);
     color: var(--gray-400);
     line-height: 1;
+    display: inline-flex;
+    transition: transform 240ms cubic-bezier(0.32, 0.72, 0, 1);
+    transform: rotate(-90deg);
+  }
+  .collapse-icon.is-open {
+    transform: rotate(0deg);
+  }
+
+  /* UAT: 付款/消费明细平滑展开/收起 */
+  .bill-sublist-wrap {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 300ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .bill-sublist-wrap.is-open {
+    grid-template-rows: 1fr;
+  }
+  .bill-sublist-inner {
+    overflow: hidden;
+    min-height: 0;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .bill-sublist-wrap,
+    .collapse-icon {
+      transition: none;
+    }
   }
 
   /* v0.3.17 #37 (PO msg 10:55 #6262): icon 20×20 → 24×24, 跟加倍的 chip 高度视觉对位. font-size +2px (12 → 14). */
@@ -1186,8 +1257,8 @@
     line-height: 1;
     color: #fff;
   }
-  .icon-paid { background: var(--success-500); }
-  .icon-consumed { background: var(--accent-500); }
+  .icon-paid { background: var(--settle-pos); }
+  .icon-consumed { background: var(--settle-neg); }
   .bills-section-title { flex: 0 0 auto; }
   /* v0.3.17 #37: count 显式 14px 跟 chip font-size-md 视觉对位 */
   .bills-section-count { flex: 0 0 auto; font-weight: 400; font-size: var(--font-size-sm, 14px); }
@@ -1387,57 +1458,31 @@
      list 38% 透明. 整体 "list 渐消失于 head 中" (PO msg 23:44 #6063 设计意图).
      ::before 渐变 overlay 取消 — chip 自带 bg + 双层阴影 + mask, 不再需要旧 hack 强化遮挡. */
   .section-header.glass-chip {
-    /* v0.3.18 #49 (PO msg 21:16 #6508 极透明化 sweep): bg 0.35 → 0.20
-       跟成员 chip (0.15/0.08) 同步, 整站 section header chip 几乎全透.
-       ===
-       v0.3.18 #50 (PO msg 22:12 #6523 极透明化 v2): #49 chip 仍"白边+浮起", 再降一档
-       - bg 0.20 → 0.10 (chip 几乎全透, 只靠文字 + inset highlight 提示有 label)
-       - inset highlight 1.0 → 0.30 (玻璃上沿大幅淡化, 不再"白框胶囊")
-       - 外阴影 indigo: 0.14/0.20/0.14 → 0.04/0.06/0.04 (后两层浓阴影同降一档)
-       - 保留 text-shadow (重要文字仍然可读)
-       ===
-       v0.3.18 #54 (PO msg 18:10 #6569): 加重模糊 — 0.10 太透, 付款/消费明细 row
-       滚过 chip 时几乎贴脸穿透. bg 0.10 → 0.55 (× 5.5 浓液化),
-       blur 20 → 24 (+20%), 保留 saturate 200% (玻璃质感).
-       inset highlight / 外阴影同步略提 (玻璃感保留). */
-    background: rgba(255, 255, 255, 0.42);
-    backdrop-filter: saturate(200%) blur(24px);
-    -webkit-backdrop-filter: saturate(200%) blur(24px);
+    /* Shared sticky glass with bill list day-header (:root --bills-sticky-glass-*) */
+    background: var(--bills-sticky-glass-bg, rgba(255, 255, 255, 0.26));
+    backdrop-filter: var(--bills-sticky-glass-filter, saturate(200%) blur(36px));
+    -webkit-backdrop-filter: var(--bills-sticky-glass-filter, saturate(200%) blur(36px));
     border-radius: 9999px;
-    /* v0.3.17 #37 (PO msg 10:55 #6262): 加倍 chip 垂直高度 ~36px → ~64-72px, 跟 row 高度 52-72px 视觉对位. padding 上下 8px → 20px (× 2.5, 原 brief 12px 写小改 20px 补足 SPEC 目标); 左右 12px → 16px (× 1.3); margin 同步 -8px → -10px 让 overlap 视觉协调. font-size sm (14px) → md (16px) +1 档. min-height: 60px 保证最小 320px viewport 也 ≥60. 保留 pill border-radius 9999px (PO 没要求改); 保留 sticky + mask-image + z-index + iOS27 玻璃参数. */
     padding: var(--space-5, 20px) var(--space-4, 16px);
-    /* v0.3.18 #44: margin-top -10 → -4 (跟新 .glass-sheet padding-top 4px 抵消,
-       chip top edge = sheet top edge, 视觉上 chip "贴在" sheet 顶边) */
     margin: -4px calc(-1 * var(--space-3, 12px)) -10px calc(-1 * var(--space-3, 12px));
     min-height: 60px;
     z-index: 10;
-    /* v0.3.17 #31fix-3 (PO msg 01:48 #6160 + 01:59 #6178; 详见 SPEC §11 #31fix-3):
-       chip 改 sticky top 0. 原 position: relative 跟 sheet 一起堆叠, 失去 sticky
-       语义. 现 sheet 改 relative 后, chip sticky within sheet — 只有当前 section
-       的 chip 吸顶, 其它 section chip 自然随内容滚出 (iOS Mail inbox 行为).
-       关键不变量: z-index: 10 > sheet z-index: 1, chip 浮在 sheet 之上, list 滚
-       到 chip 下方时被 chip bg 物理遮挡 (顶部 16px mask 透明渐变保留视觉柔化). */
     position: sticky;
     top: 0;
     display: flex;
     align-items: center;
     gap: var(--space-2, 8px);
-    /* v0.3.17 #37: sm (14px) → md (16px) +1 档 (跟加倍 chip 高度配套) */
     font-size: var(--font-size-md, 16px);
     font-weight: 600;
     color: var(--gray-900);
     border-bottom: 0;
-    /* #31-fix: mask-image top 16px fade — list 进 chip 区域时顶部 16px 透明露出, 16px 以下
-       chip bg 物理遮挡. 视觉 "list 渐消失于 head 中" (PO msg 23:44 #6063 设计意图) */
     mask-image: linear-gradient(180deg, transparent 0, #000 16px, #000 100%);
     -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 16px, #000 100%);
-    /* v0.3.18 #50: chip inset highlight 1.0 → 0.30 + 外阴影大幅降级. */
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.30),
-      0 1px 2px rgba(99, 102, 241, 0.04),
-      0 4px 12px rgba(99, 102, 241, 0.06),
-      0 8px 24px rgba(99, 102, 241, 0.04);
-    /* v0.3.18 #49 保留: 文字白色微晕 (低对比玻璃上唯一可读性补偿) */
+      0 1px 2px rgba(40, 40, 40, 0.04),
+      0 4px 12px rgba(40, 40, 40, 0.06),
+      0 8px 24px rgba(40, 40, 40, 0.04);
     text-shadow: 0 1px 3px rgba(255, 255, 255, 0.85);
   }
   /* #31-fix (PO msg 23:44 #6065 拍补): 两个 section (paid + consumed) 同层并列,
@@ -1453,7 +1498,7 @@
    v0.3.18 #50: 0.32 → 0.20 (跟新 base 0.10 同比例降级, 仍提供 fallback opaque 可读性) */
   @supports not (backdrop-filter: blur(1px)) {
     .section-header.glass-chip {
-      background: rgba(255, 255, 255, 0.20);
+      background: rgba(255, 255, 255, 0.72);
     }
   }
 
@@ -1467,34 +1512,81 @@
        堆叠 (从底到顶): bill items (z-index auto) → 搜索框 (z-index 9) → section h4
        sticky header (z-index 10). 搜索框 z-index 9 < h4 z-index 10, 滚到 h4 重叠时
        h4 视觉压在搜索框上方 (跟 iOS native section header 行为一致). */
+  /* Shared sticky search above 付款明细 — sticks at top; stuck bleed masks navbar gap. */
+  .bills-section-search-sentinel {
+    height: 1px;
+    margin: 0;
+    padding: 0;
+    pointer-events: none;
+    visibility: hidden;
+  }
   .bills-section-search {
     position: sticky;
-    /* v0.3.0729-2 #9: top 跟 glass-chip 实际高度对齐.
-       chip = padding 20+20 + 16px 字 + min-height 60 → 实测常 ~64-72px (含 gap/icon).
-       旧 top:32/60 仍会被 header 挡住; 现 top:76px 保证 search 整条露在 chip 下沿之下. */
-    top: 76px;
-    /* search 在 header 之下 (z < header), 正确堆叠: items → search(9) → header(10). */
-    z-index: 9;
+    top: var(--space-2, 8px);
+    z-index: 12;
+    isolation: isolate;
     display: flex;
     align-items: center;
     gap: var(--space-2, 8px);
-    /* margin-bottom 8px 保留 (跟下面 bill items 视觉间距), 但改成 sticky 后 margin-top 也归 0
-       (避免跟 h4 视觉间距 8px + h4 margin-bottom 8px 叠加 16px). */
-    margin: 0 0 var(--space-2, 8px);
+    margin: 0 0 var(--space-3, 12px);
     padding: 8px var(--space-2, 8px);
-    /* v0.3.0729-4 #12: 与账单列表日期 header 同透明度 (0.42) */
-    background: rgba(255, 255, 255, 0.42);
+    min-height: 40px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md, 8px);
+    color: var(--gray-500);
+  }
+  .bills-section-search::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(255, 255, 255, 0.55);
     backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
     border: 1px solid var(--color-border, #e5e7eb);
     border-radius: var(--radius-md, 8px);
-    color: var(--gray-500);
-    /* 跟 .bills-section 共享 left border (颜色竖条) — search 缩进跟 ul 内容对齐 */
-    margin-left: 0;
+    z-index: -2;
+    pointer-events: none;
+  }
+  .bills-section-search::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md, 8px);
+    z-index: -1;
+    pointer-events: none;
+    background: transparent;
+  }
+  /* Sticky: bleed glass up into navbar gap (same as session .bills-search.is-stuck) */
+  .bills-section-search.is-stuck::before {
+    top: calc(-1 * var(--bills-search-stuck-bleed, 0px));
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+    background: var(--bills-sticky-glass-bg, rgba(255, 255, 255, 0.26));
+    backdrop-filter: var(--bills-sticky-glass-filter, saturate(200%) blur(36px));
+    -webkit-backdrop-filter: var(--bills-sticky-glass-filter, saturate(200%) blur(36px));
+  }
+  .bills-section-search.is-stuck::after {
+    border-color: var(--color-border, #e5e7eb);
+  }
+  /* When shared search is present, section headers stick just below it. */
+  .bills-section-search-shared ~ .bills-section .section-header {
+    top: calc(var(--space-2, 8px) + 44px);
   }
   @supports not (backdrop-filter: blur(1px)) {
-    .bills-section-search {
+    .bills-section-search::before {
       background: var(--color-bg, #f9fafb);
+    }
+    .bills-section-search.is-stuck::before {
+      background: rgba(249, 250, 251, 0.95);
     }
   }
   .bills-section-search-input {
