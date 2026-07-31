@@ -196,6 +196,12 @@
     ((selectedMember.paid_bills?.length ?? 0) > 0 ||
       (selectedMember.consumed_bills?.length ?? 0) > 0);
 
+  // 有搜索结果时自动展开对应明细（折叠态下搜到结果也要露出列表）
+  $: if (detailSearchQuery.trim()) {
+    if (filteredPaidBills.length > 0) paidExpanded = true;
+    if (filteredConsumedBills.length > 0) consumedExpanded = true;
+  }
+
   $: meMemberId = (() => {
     if (currentUserId === null || currentUserId === undefined) return null;
     const sm = session?.members?.find((m) => m.user_id === currentUserId);
