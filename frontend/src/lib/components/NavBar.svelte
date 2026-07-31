@@ -90,19 +90,19 @@
       class="brand"
       aria-label="轻均分账 FairLite"
     >
-      <span class="brand-zh" aria-hidden="true">
-        <span class="brand-zh-inner">
-          <span class="brand-zh-glass" aria-hidden="true">轻均</span>
-          轻均
+      <span class="brand-stack" aria-hidden="true">
+        <span class="brand-zh">
+          <span class="brand-zh-inner">
+            <span class="brand-zh-glass">
+              <span>轻</span><span>均</span><span>分</span><span>账</span>
+            </span>
+            <span>轻</span><span>均</span><span>分</span><span>账</span>
+          </span>
+        </span>
+        <span class="brand-en">
+          <span>F</span><span>a</span><span>i</span><span>r</span><span>L</span><span>i</span><span>t</span><span>e</span>
         </span>
       </span>
-      <span class="brand-zh brand-zh--en-size" aria-hidden="true">
-        <span class="brand-zh-inner">
-          <span class="brand-zh-glass" aria-hidden="true">分账</span>
-          分账
-        </span>
-      </span>
-      <span class="brand-en">FairLite</span>
     </a>
   </div>
 
@@ -258,62 +258,75 @@
 
   .brand {
     display: inline-flex;
-    align-items: baseline;
-    gap: 0.4rem;
+    align-items: center;
     color: var(--color-text);
     text-decoration: none;
     min-width: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 18rem;
     flex-shrink: 0;
   }
 
+  /* 轻均分账 上行 + FairLite 下行：等宽叠放 */
+  .brand-stack {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: max-content;
+    gap: 0.08rem;
+    line-height: 1;
+  }
+
   .brand-zh {
-    display: inline-block;
+    display: block;
     flex-shrink: 0;
   }
   .brand-zh-inner {
     position: relative;
-    display: inline-block;
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    /* 四字等距：轻↔均 = 均↔分 = 分↔账 */
+    gap: 0.2em;
     font-family: var(--font-zh);
     font-weight: 200;
-    font-size: 1.45rem;
-    line-height: 0.95;
-    letter-spacing: 0.2em;
-    text-indent: 0.2em;
+    font-size: 1.05rem;
+    line-height: 1;
+    letter-spacing: 0;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     font-synthesis: none;
     text-rendering: geometricPrecision;
     color: rgba(26, 26, 26, 0.58);
-    -webkit-text-stroke: 0.55px rgba(0, 0, 0, 0.72);
+    -webkit-text-stroke: 0.5px rgba(0, 0, 0, 0.72);
     paint-order: stroke fill;
     text-shadow:
       0 0 0.4px rgba(0, 0, 0, 0.35),
       0 1px 0 rgba(255, 255, 255, 0.55),
       0 2px 6px rgba(0, 0, 0, 0.08);
   }
-  /* 「分账」— 轻均同款玻璃细体，字号对齐 FairLite (.brand-en) */
-  .brand-zh--en-size .brand-zh-inner {
-    font-size: 0.78em;
-    line-height: 1.1;
-    letter-spacing: 0.12em;
-    text-indent: 0.12em;
-    -webkit-text-stroke: 0.4px rgba(0, 0, 0, 0.65);
+  .brand-zh-inner > span:not(.brand-zh-glass) {
+    flex: 0 0 auto;
   }
   .brand-zh-glass {
     position: absolute;
     inset: 0;
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    gap: inherit;
     pointer-events: none;
     font: inherit;
     font-weight: inherit;
     letter-spacing: inherit;
     line-height: inherit;
-    text-indent: inherit;
     color: transparent;
     -webkit-text-stroke: 0;
+    mix-blend-mode: soft-light;
+    opacity: 0.9;
+    animation: navGlassSheen 7s ease-in-out infinite alternate;
+  }
+  .brand-zh-glass > span {
+    flex: 0 0 auto;
+    color: transparent;
     background: linear-gradient(
       185deg,
       rgba(255, 255, 255, 0.88) 0%,
@@ -323,20 +336,28 @@
     );
     -webkit-background-clip: text;
     background-clip: text;
-    mix-blend-mode: soft-light;
-    opacity: 0.9;
-    animation: navGlassSheen 7s ease-in-out infinite alternate;
   }
   @keyframes navGlassSheen {
     from { opacity: 0.72; }
     to { opacity: 0.95; }
   }
+  /* FairLite：F 左对齐轻、e 右对齐账（逐字 space-between 拉满上行宽度） */
   .brand-en {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    width: 100%;
+    margin: 0;
+    padding: 0;
     font-family: var(--font-en);
-    font-size: 0.78em;
+    font-size: 0.55rem;
     font-weight: 500;
-    letter-spacing: 0.06em;
+    letter-spacing: 0;
+    line-height: 1;
     color: var(--color-text-muted);
+  }
+  .brand-en > span {
+    flex: 0 0 auto;
   }
 
   .right {
