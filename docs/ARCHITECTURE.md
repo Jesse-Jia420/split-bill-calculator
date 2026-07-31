@@ -1,6 +1,6 @@
 # Architecture
 
-SplitIt is a two-app monorepo: a FastAPI API and a SvelteKit SPA.
+轻均 FairLite is a two-app monorepo: a FastAPI API and a SvelteKit SPA.
 
 ## Runtime
 

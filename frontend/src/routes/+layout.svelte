@@ -21,14 +21,13 @@
   // 现在重新挂载作为 body 第一层 (在 <slot/> 之前的 <main> 之前).
   import AppBackground from '$components/AppBackground.svelte';
   import LoadingOverlay from '$components/LoadingOverlay.svelte';
-  // v0.3.36 (PO msg 2026-07-27 12:19): 全局挂载版本号 badge (FE short hash + BE /version),
-  // Master 跟 PO 对齐部署/真机验证时的版本依据. fixed 定位 (top-right z-index 200),
-  // 不参与 main flex 流, 不会挤内容.
-  import VersionBadge from '$components/VersionBadge.svelte';
+  // VersionBadge 曾全局挂载右上角 FE/BE 版本号 (v0.3.36)；现按 PO 要求去掉。
+  // 组件文件保留，需要时再 import + 挂载即可。
   import { onMount } from 'svelte';
   import { fade } from 'svelte/transition';
   import { loadUser } from '$stores/user';
   import { page, navigating } from '$app/state';
+  import { afterNavigate } from '$app/navigation';
 
   // Best-effort user load on every page mount.
   // v0.3.20 #99-fix5 (PO msg 14:29 #7602 padding-top 不够 + 透明度再降):
@@ -40,13 +39,92 @@
     const rect = nav.getBoundingClientRect();
     document.documentElement.style.setProperty("--navbar-h", rect.height + "px");
   }
-  onMount(async () => {
+
+  /**
+   * 切出浏览器 / App 后页面会被挂起, 切回时常先露出旧 UI ~2s 再自动刷新,
+   * 用户会误以为可操作. 仅在 document.hidden 时盖 LoadingOverlay;
+   * 切回时若仍是旧页则主动 reload.
+   *
+   * 不要用 pagehide/freeze 盖 overlay: 部分移动浏览器在 SPA 导航 /
+   * 隧道页加载时会触发 pagehide, 而 pageshow 不会清掉 awayLoading,
+   * 账单列表会留下大块白色遮罩 (UAT).
+   */
+  let awayLoading = $state(false);
+  let hiddenAt = 0;
+
+  // SPA 导航完成后若 awayLoading 误留, 立刻撤掉 (pagehide 残留防护).
+  afterNavigate(() => {
+    if (awayLoading && typeof document !== 'undefined' && !document.hidden) {
+      awayLoading = false;
+    }
+  });
+
+  onMount(() => {
     syncNavbarHeight();
     const ro = new ResizeObserver(syncNavbarHeight);
     const nav = document.querySelector(".navbar");
     if (nav) ro.observe(nav);
     window.addEventListener("resize", syncNavbarHeight);
-    await loadUser();
+
+    const coverAway = () => {
+      // 只在真正不可见时盖住, 避免误触发后遮罩卡死在可见页上.
+      if (!document.hidden) return;
+      awayLoading = true;
+      hiddenAt = Date.now();
+    };
+
+    const onVisibility = () => {
+      if (document.hidden) {
+        coverAway();
+        return;
+      }
+      // 切回可见: 短暂切后台 (<400ms, 如系统通知) 只撤 overlay, 不 reload.
+      if (!awayLoading) return;
+      if (Date.now() - hiddenAt < 400) {
+        awayLoading = false;
+        return;
+      }
+      try {
+        window.location.reload();
+      } catch {
+        awayLoading = false;
+      }
+    };
+
+    const onPageShow = (e: PageTransitionEvent) => {
+      // bfcache 恢复: 旧 DOM 会直接露出来, 立刻硬刷新 (此时 document 已 visible,
+      // 不走 coverAway; reload 本身会换文档).
+      if (e.persisted) {
+        try {
+          window.location.reload();
+        } catch {
+          awayLoading = false;
+        }
+      } else if (awayLoading && !document.hidden) {
+        // 安全阀: 任何 pageshow 时若页已可见仍盖着, 撤掉 (防卡死遮罩).
+        awayLoading = false;
+      }
+    };
+
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pageshow', onPageShow);
+
+    // 可见时若遮罩仍在, 1.2s 后强制撤掉 (防极端竞态).
+    const stuckGuard = window.setInterval(() => {
+      if (awayLoading && !document.hidden && Date.now() - hiddenAt > 1200) {
+        awayLoading = false;
+      }
+    }, 500);
+
+    void loadUser();
+
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", syncNavbarHeight);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pageshow', onPageShow);
+      window.clearInterval(stuckGuard);
+    };
   });
 </script>
 
@@ -61,15 +139,13 @@
   <NavBar />
 {/if}
 <Toast />
-<!-- v0.3.36 (PO msg 2026-07-27 12:19): 全局挂载版本号 badge (FE short hash + BE /version),
-     Master 跟 PO 对齐部署/真机验证时的版本依据. fixed 定位 (top-right z-index 200),
-     不参与 main flex 流, 不会挤内容. -->
-<VersionBadge />
+<!-- VersionBadge (右上角 FE/BE) 已按 PO 要求卸下；组件仍在 $components/VersionBadge.svelte。 -->
 <!-- v0.3.28 UAT 0724-1 #5: 全局路由导航时显示 LoadingOverlay (玻璃圆环).
      $navigating store (SvelteKit 5 runes) 在跳转前 fire 非 null, 跳转完成后回到 null.
      跨页面 nav 通常 50-300ms 内完成 — 显示完整 overlay 让用户知道 "系统在加载"
-     而不是 "页面卡死". Option C 玻璃圆环 + 玻璃 pill (跟 design-mocks/v0328-0724-1-5-loading/03-glass-ring.html 一致). -->
-{#if navigating.to}
+     而不是 "页面卡死". Option C 玻璃圆环 + 玻璃 pill (跟 design-mocks/v0328-0724-1-5-loading/03-glass-ring.html 一致).
+     awayLoading: 切出浏览器时提前盖住, 避免切回后 ~2s 旧 UI 可误点. -->
+{#if navigating.to || awayLoading}
   <LoadingOverlay text="加载中..." />
 {/if}
 <!-- v0.3.17 #30 (PO msg 14:28 #5957): <main class="page"> 改成内层滚动容器 —
@@ -119,12 +195,26 @@
     padding: calc(var(--navbar-h, 56px) + env(safe-area-inset-top, 0px) + 16px) 0 0;
     overflow-y: auto;
     overflow-x: hidden;
-    overscroll-behavior-y: contain;
+    /* none (not contain): iOS rubber-band at top was flashing a large white band under the status bar. */
+    overscroll-behavior-y: none;
     -webkit-overflow-scrolling: touch;
     min-height: 0; /* 关键 */
+    /* Match paper fallback so any residual overscroll gutter isn't stark browser-white. */
+    background-color: transparent;
   }
   .page-inner { padding: var(--space-4); width: 100%; }
   @media (min-width: 960px) {
     .page-inner { padding: var(--space-5) var(--space-6); }
+  }
+
+  /* Landing is full-bleed; drop chrome padding / max-width so the stage fills the viewport. */
+  :global(body:has(.landing)) .page {
+    padding: 0;
+    max-width: none;
+    overflow: hidden;
+  }
+  :global(body:has(.landing)) .page-inner {
+    padding: 0;
+    min-height: 100%;
   }
 </style>

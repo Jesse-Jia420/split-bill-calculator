@@ -48,9 +48,9 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(
-    title="Split Bill Calculator API",
+    title="轻均 FairLite API",
     version="0.1.0",
-    description="Multi-user, multi-session split-bill calculator (v0.1-dev).",
+    description="轻均 FairLite — multi-user split-bill calculator.",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",

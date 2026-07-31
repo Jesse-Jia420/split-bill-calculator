@@ -14,7 +14,7 @@
    *     只在 anon owner 场景下渲染 (owner_email 缺 + invite_expires_at 存在).
    *   - 成员从 list item 重做成 .chip (avatar 28×28 + 名字) —
    *     头像渐变 indigo/pink/emerald/amber/blue (按 index 循环, 跟全站风格统一).
-   *   - .chip.selected: bg rgba(59,130,246,0.10) + border rgba(59,130,246,0.5).
+   *   - .chip.selected: bg rgba(58, 58, 58,0.10) + border rgba(58, 58, 58,0.5).
    *   - .fade.edge: 右侧 20px 渐变遮罩 (跟 v0.3.18 #55 #1 成员 fade 对齐).
    *
    * 数据流 (PO 拍板保留):
@@ -221,15 +221,15 @@
   }
   .chip.clickable:hover {
     background: rgba(255, 255, 255, 0.85);
-    border-color: rgba(59, 130, 246, 0.3);
+    border-color: rgba(58, 58, 58, 0.3);
   }
   .chip.clickable:focus-visible {
     outline: 2px solid var(--accent-500);
     outline-offset: 2px;
   }
   .chip.selected {
-    background: rgba(59, 130, 246, 0.10);
-    border-color: rgba(59, 130, 246, 0.5);
+    background: rgba(58, 58, 58, 0.10);
+    border-color: rgba(58, 58, 58, 0.5);
   }
 
   /* v0.3.23 #132 (UAT old #4): avatar 28×28 圆形, 5 色循环 (按 index) + Option B 玻璃. */
@@ -272,8 +272,8 @@
     border-radius: 999px;
     background: linear-gradient(
       135deg,
-      rgba(99, 102, 241, 0.85) 0%,
-      rgba(59, 130, 246, 0.85) 100%
+      rgba(40, 40, 40, 0.85) 0%,
+      rgba(58, 58, 58, 0.85) 100%
     );
     line-height: 1.3;
     flex-shrink: 0;

@@ -38,8 +38,13 @@
     if (!iso) return '';
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return iso;
+    // Compact inline time left of names — date + clock, no year (currency lives in amount).
     return new Intl.DateTimeFormat('zh-CN', {
-      year: 'numeric', month: '2-digit', day: '2-digit',
+      month: 'numeric',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
     }).format(d);
   }
 
@@ -53,7 +58,9 @@
   // v0.3.0729-4 #10: 连续跟手滑动
   // Phase 1 (0..ITEM_SLIDE): 内容左移到最左
   // Phase 2 (>ITEM_SLIDE): 删除按钮跟手出现 + 橡皮糖
-  const ACTION_WIDTH = 56;
+  // 删除圆 40px（非账单列表 56px）：record-row ≈ avatar 28 + pad 24 = 52px，
+  // 56px 圆会被 .settlement-swipe-wrap overflow:hidden 上下裁切。
+  const ACTION_WIDTH = 40;
   const ITEM_SLIDE = 48;
   const SWIPE_THRESHOLD = ITEM_SLIDE + 30;
   const TAP_THRESHOLD = 10;
@@ -257,7 +264,7 @@
       style="--swipe-progress: {progress}"
       onclick={handleDeleteClick}
     >
-      <Trash2 size={22} strokeWidth={2} aria-hidden="true" />
+      <Trash2 size={18} strokeWidth={2} aria-hidden="true" />
     </button>
   {/if}
   <div
@@ -274,16 +281,15 @@
     <span class="avatar" style={payerPal} aria-hidden="true">{initialOf(record.payer_name)}</span>
     <span class="arrow-mini" aria-hidden="true">→</span>
     <span class="avatar" style={payeePal} aria-hidden="true">{initialOf(record.payee_name)}</span>
-    <div class="row-info">
-      <div class="row-from-to">
-        <span class="row-name">{record.payer_name}</span>
-        <span class="row-arrow" aria-hidden="true">→</span>
-        <span class="row-name">{record.payee_name}</span>
-      </div>
-      <div class="row-meta">
-        {record.currency} · {fmtDate(record.created_at)}
-        {#if record.note}<span class="note-inline" title={record.note}>· {record.note}</span>{/if}
-      </div>
+    <!-- Single row: time left of nicknames; currency/time meta row removed (redundant with amount). -->
+    <div
+      class="row-main"
+      title={record.note ? record.note : undefined}
+    >
+      <span class="row-time">{fmtDate(record.created_at)}</span>
+      <span class="row-name">{record.payer_name}</span>
+      <span class="row-arrow" aria-hidden="true">→</span>
+      <span class="row-name">{record.payee_name}</span>
     </div>
     <div class="row-amount">{fmtAmount(record.amount, record.currency)}</div>
   </div>
@@ -331,51 +337,58 @@
       inset 0 -1px 0 rgba(0, 0, 0, 0.08),
       0 1px 2px rgba(0, 0, 0, 0.08);
   }
-  .arrow-mini { color: #a3a3a3; font-size: 12px; padding: 0 1px; }
-  .row-info {
+  .arrow-mini { color: #a3a3a3; font-size: 12px; padding: 0 1px; flex-shrink: 0; }
+  /* One horizontal band: time | names — all share the row's vertical center axis */
+  .row-main {
     flex: 1;
-    min-width: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-  .row-from-to {
+    min-width: 0;
     display: flex;
     align-items: center;
     gap: 6px;
+  }
+  .row-time {
+    flex: 0 0 auto;
+    font-size: 12px;
+    font-weight: 500;
+    color: #737373;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    line-height: 1;
   }
   .row-name {
     font-size: 14px;
     font-weight: 500;
     color: #171717;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    line-height: 1.2;
   }
-  .row-arrow { color: #737373; font-size: 12px; }
-  .row-meta {
-    font-size: 11px;
+  .row-arrow {
     color: #737373;
-    font-variant-numeric: tabular-nums;
-    text-align: left;
-    white-space: nowrap;
-    overflow: visible;
-    text-overflow: clip;
+    font-size: 12px;
+    flex-shrink: 0;
+    line-height: 1;
   }
-  .note-inline { font-style: italic; color: #525252; }
   .row-amount {
     font-size: 14px;
     font-weight: 600;
-    color: #10b981;
+    color: var(--settle-pos);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
+    flex-shrink: 0;
+    line-height: 1;
   }
 
-  /* v0.3.0729-4 #10: 跟手圆形删除按钮（与 BillListGrouped 同款） */
+  /* v0.3.0729-4 #10: 跟手圆形删除按钮（形态同 BillListGrouped，直径适配矮行） */
   .delete-btn {
     position: absolute;
     top: 50%;
     right: 6px;
     transform: translateY(-50%);
-    width: calc(var(--swipe-progress, 0) * 56px);
+    width: calc(var(--swipe-progress, 0) * 40px);
     aspect-ratio: 1 / 1;
     min-height: 0;
     border-radius: 50%;
@@ -384,21 +397,24 @@
     justify-content: center;
     background: linear-gradient(
       135deg,
-      rgba(220, 38, 38, 0.18) 0%,
-      rgba(239, 68, 68, 0.12) 100%
+      rgba(var(--settle-neg-rgb), 0.18) 0%,
+      rgba(var(--settle-neg-rgb), 0.12) 100%
     );
-    border: 1px solid rgba(220, 38, 38, 0.28);
-    color: var(--error-700, #be123c);
+    border: 1px solid rgba(var(--settle-neg-rgb), 0.32);
+    color: var(--settle-neg);
     cursor: pointer;
     padding: 0;
     backdrop-filter: blur(8px) saturate(1.8);
     -webkit-backdrop-filter: blur(8px) saturate(1.8);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.5),
-      0 1px 2px rgba(220, 38, 38, 0.12);
+      0 1px 2px rgba(var(--settle-neg-rgb), 0.12);
     transition:
       width 220ms cubic-bezier(0.34, 1.56, 0.64, 1),
-      opacity 180ms ease-out;
+      opacity 180ms ease-out,
+      background 180ms ease,
+      border-color 180ms ease,
+      color 180ms ease;
     z-index: 2;
     appearance: none;
     font-family: inherit;
@@ -412,6 +428,23 @@
   }
   .delete-btn[aria-hidden="false"] {
     pointer-events: auto;
+  }
+  .delete-btn:hover {
+    background: linear-gradient(
+      135deg,
+      rgba(var(--settle-neg-rgb), 0.28) 0%,
+      rgba(var(--settle-neg-rgb), 0.2) 100%
+    );
+    border-color: rgba(var(--settle-neg-rgb), 0.42);
+    color: #a66d6d;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.6),
+      0 0 0 2px rgba(var(--settle-neg-rgb), 0.16),
+      0 2px 6px rgba(var(--settle-neg-rgb), 0.18);
+  }
+  .delete-btn:focus-visible {
+    outline: 2px solid rgba(var(--settle-neg-rgb), 0.55);
+    outline-offset: 2px;
   }
 
   .scroll-wrapper {

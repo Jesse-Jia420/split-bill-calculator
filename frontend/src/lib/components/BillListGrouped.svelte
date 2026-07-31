@@ -3,15 +3,13 @@
    * v0.3.18 #68 (2026-07-20) — 账单时间 header 单/双币统一 (PO #6899 ★★★ A)。
    *
    * 本次 polish (v0.3.18 #68):
-   * - 固定 3 行布局: 单/双币 group header 高度 100% 一致 (反 #121 自决, 跟 Designer
-   *   mockup A 字面执行)。
-   * - Row 1 = [+ toggle] [日期] ... [总笔数 badge]
-   * - Row 2 = 货币玻璃 chip 行 (单币 1 chip / 双币 2 chip inline-flex + nowrap)
-   * - Row 3 = 人均行 (单币 "人均 X CNY" / 双币 "人均 X CNY + Y THB")
+   * - 固定布局: 单/双币 group header 结构一致
+   * - Row 1 = [日期] ... [总笔数 badge]
+   * - Row 2 = 货币玻璃 chip 同行; 每个 pill 两行 (总额 / 人均)
+   * - (旧 Row 3 人均行已并入 chip)
    * - chip 行主币种 (session.primary_currency) = indigo 玻璃, 副币种 = teal 玻璃
    *   (一眼分主次)
-   * - chip 行用 flex-wrap: nowrap + overflow:hidden + text-overflow:ellipsis,
-   *   320px 极窄屏下双币自动 ellipsis, 不再换行成第 4 行
+   * - chip 行 flex-wrap: nowrap, 双币同排不换行
    * - "+" toggle 改 22×22 圆形 indigo 0.10 bg (跟 v0.3.17 #19 圆形按钮族一致),
    *   不用 absolute 定位 (放在 row-1 flex 头)
    *
@@ -45,6 +43,7 @@
   // the wrong per-person share for any bill with an exclusive portion.
   // See bill-share.test.ts for the regression cases (bill #95 PO example).
   import { yourShare, computePerCapitaBreakdown } from '$lib/utils/bill-share';
+  import { paletteSolid } from '$lib/utils/palette';
   import type { Bill } from '$api/bills';
   import SkeletonBill from './SkeletonBill.svelte';
   import CategoryIcon from './CategoryIcon.svelte';
@@ -293,23 +292,12 @@
     return memberIdToName[b.payer_id] ?? ('#' + b.payer_id);
   }
 
-  // v0.3.20 #95 Fix 3 (PO msg 02:41 #7459): payer 文字颜色 = 头像主色.
-  // 跟 SessionMemberList.svelte AVATAR_GRADIENTS 共享同一 5 色循环, 此处只取
-  // 实色用于 "xx 付" inline color. 反: #144 不要碰 avatar 渲染本身, 此处只
-  // 改文字; avatar 仍由 SessionMemberList 用 linear-gradient 渲染.
-  const AVATAR_COLORS = [
-    '#6366f1', // indigo (#6366f1 → #a855f7 第 1 色)
-    '#ec4899', // pink (#ec4899 → #f43f5e 第 1 色)
-    '#10b981', // emerald (#10b981 → #14b8a6 第 1 色)
-    '#f59e0b', // amber (#f59e0b → #eab308 第 1 色)
-    '#3b82f6', // blue (#3b82f6 → #06b6d4 第 1 色)
-  ];
+  // v0.3.20 #95 Fix 3 (PO msg 02:41 #7459): payer 文字颜色 = 头像主色
+  // (lib/utils/palette AVATAR_SOLIDS — soft charcoal companions).
   function payerColor(b: Bill): string {
-    // 找 payer_id 在 members 数组里的 index (顺序跟 SessionMemberList 头像一致)
-    // 找不到 (members 没传 / payer_id 是孤儿) fallback 到默认第一色 indigo.
     const idx = members.findIndex((m) => m.id === b.payer_id);
-    if (idx < 0) return AVATAR_COLORS[0];
-    return AVATAR_COLORS[idx % AVATAR_COLORS.length];
+    if (idx < 0) return paletteSolid(0);
+    return paletteSolid(idx);
   }
 
   // v0.3.20 #96: yourShare moved to $lib/utils/bill-share (now takes
@@ -581,6 +569,9 @@
 
   function onGroupToggle(date: string, e: Event) {
     const el = e.currentTarget as HTMLDetailsElement;
+    // Closing is animated via onDaySummaryClick (preventDefault + is-closing).
+    // Ignore toggle while closing so we don't flip collapsed state early.
+    if (el.classList.contains('is-closing')) return;
     const isOpenNow = el.open;
     // Svelte 5 的 class:open={isOpen(g.date)} 被 untrack 包住 → 不反应 collapsed 更新。
     // 手动切 chevron DOM class 确保视觉同步 (native details toggle 此时已完成)。
@@ -588,6 +579,36 @@
     if (chevron) chevron.classList.toggle('open', isOpenNow);
     collapsed = { ...collapsed, [date]: !isOpenNow };
     saveCollapsedState();
+  }
+
+  /** UAT: 收起时先播 grid 动画再去掉 open — native details 关时内容瞬时消失。 */
+  function onDaySummaryClick(date: string, e: MouseEvent) {
+    const summary = e.currentTarget as HTMLElement;
+    const details = summary.closest('details') as HTMLDetailsElement | null;
+    if (!details || !details.open) return; // opening: let native + ontoggle handle
+    e.preventDefault();
+    if (details.classList.contains('is-closing')) return;
+    details.classList.add('is-closing');
+    const wrap = details.querySelector('.day-body-wrap') as HTMLElement | null;
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      details.open = false;
+      details.classList.remove('is-closing');
+      wrap?.removeEventListener('transitionend', onEnd);
+      const chevron = details.querySelector('.day-chevron');
+      if (chevron) chevron.classList.toggle('open', false);
+      collapsed = { ...collapsed, [date]: true };
+      saveCollapsedState();
+    };
+    const onEnd = (ev: TransitionEvent) => {
+      if (ev.target !== wrap) return;
+      if (ev.propertyName !== 'grid-template-rows') return;
+      finish();
+    };
+    wrap?.addEventListener('transitionend', onEnd);
+    window.setTimeout(finish, 360);
   }
 
   // v0.3.0729-4 #4: 搜索命中时，自动展开所有有结果的日期 header
@@ -689,12 +710,13 @@
       {#each groups as g, gi (g.date)}
         <li class="day-group" in:fly={{ y: 8, duration: 220, delay: Math.min(gi * 40, 240) }}>
           <details open={isOpen(g.date)} ontoggle={(e) => onGroupToggle(g.date, e)}>
-            <!-- v0.3.18 #68 (PO #6899 ★★★ A): 固定 3 行布局 —
-                 单币/双币 group 高度 100% 一致, 滚动节奏齐.
-                 Row 1 = [+ toggle] [日期] ... [总笔数 badge]
-                 Row 2 = 货币玻璃 chip 行 (1-2 个 chip, inline-flex + nowrap)
-                 Row 3 = 人均行 -->
-            <summary class="day-header section-header">
+            <!-- v0.3.18 #68 (PO #6899 ★★★ A): 固定布局 —
+                 Row 1 = [日期] ... [总笔数 badge]
+                 Row 2 = 货币玻璃 chip 同行; 每个 pill 两行 (总额 / 人均) -->
+            <summary
+              class="day-header section-header"
+              onclick={(e) => onDaySummaryClick(g.date, e)}
+            >
               <div class="day-row-1">
                 <span class="day-date" data-testid="day-date">{formatDate(g.date, { weekday: true })}</span>
                 <span class="day-row-1-right">
@@ -707,6 +729,7 @@
                 {#if currencies && currencies.length > 0}
                   {#each currencies as ccy}
                     {@const total = g.currencyTotals.find(t => t.ccy === ccy)}
+                    {@const pc = g.perCapitaBreakdown.find(p => p.ccy === ccy)}
                     {@const isPrimary = (primaryCurrency !== null && primaryCurrency !== undefined)
                       ? ccy === primaryCurrency
                       : false}
@@ -716,12 +739,18 @@
                       class:cc-chip-empty={!total}
                       data-testid="cc-chip"
                     >
-                      <span class="cc-code">{ccy}</span>
-                      <span class="cc-amt">{total ? fmtAmount(total.amount) : '—'}</span>
+                      <span class="cc-line-1">
+                        <span class="cc-code">{ccy}</span>
+                        <span class="cc-amt">{total ? fmtAmount(total.amount) : '—'}</span>
+                      </span>
+                      <span class="cc-line-2 cc-per" data-testid="cc-per">
+                        {#if pc}人均 {fmtAmount(pc.amount)}{:else}人均 —{/if}
+                      </span>
                     </span>
                   {/each}
                 {:else}
                   {#each g.currencyTotals as t, ti (t.ccy)}
+                    {@const pc = g.perCapitaBreakdown.find(p => p.ccy === t.ccy)}
                     {@const isPrimary = (primaryCurrency !== null && primaryCurrency !== undefined)
                       ? t.ccy === primaryCurrency
                       : ti === 0}
@@ -730,30 +759,15 @@
                       class:cc-chip-secondary={!isPrimary}
                       data-testid="cc-chip"
                     >
-                      <span class="cc-code">{t.ccy}</span>
-                      <span class="cc-amt">{fmtAmount(t.amount)}</span>
+                      <span class="cc-line-1">
+                        <span class="cc-code">{t.ccy}</span>
+                        <span class="cc-amt">{fmtAmount(t.amount)}</span>
+                      </span>
+                      <span class="cc-line-2 cc-per" data-testid="cc-per">
+                        {#if pc}人均 {fmtAmount(pc.amount)}{:else}人均 —{/if}
+                      </span>
                     </span>
                   {/each}
-                {/if}</div>
-              <div class="day-row-3">
-                {#if g.perCapitaBreakdown.length === 1}
-                  {@const pc = g.perCapitaBreakdown[0]}
-                  <!-- v0.3.20 #92 (PO msg 07:13 #7409): 单币场景 (1 个 perCapitaBreakdown entry) —
-                       "人均 X CNY". 无论 session currencies 是 1 还是 2, 都按实际账单数据展示. -->
-                  <span class="muted">
-                    人均 <strong>{fmtAmount(pc.amount) + ' ' + pc.ccy}</strong>
-                  </span>
-                {:else if g.perCapitaBreakdown.length > 1}
-                  <!-- v0.3.20 #92 (PO msg 07:13 #7409): 双币/多币 dedupe — 单一 "人均" label,
-                       多币种值合并到同一 <strong> (用 " · " 分隔).
-                       迭代 g.perCapitaBreakdown (实际有账单数据的币种) 而不是 session currencies,
-                       避免空币种渲染为 "—". -->
-                  <span class="muted">
-                    人均 <strong>{#each g.perCapitaBreakdown as pc, i (pc.ccy)}{#if i > 0} · {/if}{fmtAmount(pc.amount) + ' ' + pc.ccy}{/each}</strong>
-                  </span>
-                {:else}
-                  <!-- v0.3.18 #68: 没有 per-capita 数据时 fallback -->
-                  <span class="muted">人均 <strong>—</strong></span>
                 {/if}
               </div>
             </summary>
@@ -808,6 +822,8 @@
                          APPEAR (so users understand "this bill belongs to
                          someone else") but be visually greyed out. -->
                     {@const canEdit = billCanEdit(b)}
+                    {@const ccyIsPrimary =
+                      primaryCurrency != null && b.currency === primaryCurrency}
 <!-- v0.3.17 #20 hotfix (PO msg 13:12): 取消 stagger in:fly,
                          改 in:fade 80ms — toggle 展开时所有 row 同步淡入,
                          30 行不再逐行 delay 200ms, 不再「卡卡的」。
@@ -884,8 +900,15 @@
                         <div class="bill-row1">
                           <CategoryIcon description={b.description ?? ''} size={18} />
                           <span class="bill-desc">{b.description || '(无说明)'}</span>
+                          <!-- Currency unit = 汇率设置角色色:
+                               primary → --cc-primary (结算 charcoal);
+                               else → --cc-secondary (支付/消费 teal). -->
                           <span class="bill-amount">
-                            {fmtAmount(b.amount)}<span class="unit">{b.currency}</span>
+                            {fmtAmount(b.amount)}<span
+                              class="unit"
+                              class:unit-primary={ccyIsPrimary}
+                              class:unit-secondary={!ccyIsPrimary}
+                            >{b.currency}</span>
                           </span>
                         </div>
                         <!-- v0.3.20 #92 (PO msg 07:13 #7409): 新增 .bill-row-exclusive —
@@ -921,13 +944,13 @@
                                 <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
                                 <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                               </svg>
-                              <span>{b.participants.length}人</span>
+                              <span>{b.participants.length}</span>
                             </span>
                             <!-- v0.3.20 #95 Fix 3 (PO msg 02:41 #7459): "xx 付"
                                  文字颜色 = 该 payer 的头像主色 (5 色循环, 跟 SessionMemberList 共享).
                                  时间部分保持灰色 (默认 .bill-meta-text color). 拆成两个 span 让颜色
                                  仅作用在 "xx 付" 这 2 字符上. -->
-                            <span class="bill-meta-text">{fmtBillTime(b.occurred_at)} · </span><span class="bill-meta-text" style="color: {payerColor(b)};">{payerName(b)} 付</span>
+                            <span class="bill-meta-text">{fmtBillTime(b.occurred_at)} </span><span class="bill-meta-text" style="color: {payerColor(b)};">{payerName(b)} 付</span>
                           </span>
                           <!-- v0.3.0728-2 #12 — UAT 0728-2 #12 bill item 没分摊时显 "分摊 0" (PO msg 16:50).
                                原 {#if share !== null} 条件限制只在 user 是 participant 时才显 — 但 own_share = 0 (user 是 participant 但 share_amount = 0)
@@ -935,7 +958,13 @@
                                需同样总显.
                                修法: 不再用 {#if share !== null}, 改为总是渲染. own_share = 0 → fmtAmount(0) = "0.00" → "分摊 0.00 CNY".
                                share === null (user 不是 participant) 也补 0 — 跟 #8 同模式 "总显". -->
-                          <span class="your-share">分摊 {fmtAmount(isOnlyExclusive ? 0 : displayShare)}<span class="unit">{b.currency}</span></span>
+                          <span class="your-share"
+                            >分摊 {fmtAmount(isOnlyExclusive ? 0 : displayShare)}<span
+                              class="unit"
+                              class:unit-primary={ccyIsPrimary}
+                              class:unit-secondary={!ccyIsPrimary}
+                            >{b.currency}</span></span
+                          >
                         </div>
                       </div>
                     </li>
@@ -1007,11 +1036,11 @@
     margin-left: 1px;
   }
   .bill-swipe-hint .hint-delete {
-    color: var(--error-700, #be123c);
+    color: var(--settle-neg);
     font-weight: 500;
   }
   .bill-swipe-hint .hint-edit {
-    color: var(--accent-700, #4338ca);
+    color: var(--settle-pos);
     font-weight: 500;
   }
   /* v0.3.24 #18 (PO msg 16:35 UAT line #18 字面 "账单列表搜索框，当无搜索结果时，提示的 没有匹配的账单，换个关键词试试 ，出现的位置不对，被搜索框挡住了。应下移一些"):
@@ -1029,8 +1058,7 @@
     background: none;
     border: none;
     padding: 0;
-    color: var(--accent-700, #4338ca);
-    font: inherit;
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));    font: inherit;
     text-decoration: underline;
     cursor: pointer;
   }
@@ -1070,7 +1098,7 @@
     -webkit-backdrop-filter: saturate(180%) blur(22px);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.20),  /* v0.3.18 #50: inset high light 0.95 → 0.20 大幅淡化 */
-      0 1px 4px rgba(99, 102, 241, 0.04),  /* v0.3.18 #50: 外阴影 0.16 → 0.04 section 不再"浮起" */
+      0 1px 4px rgba(40, 40, 40, 0.04),  /* v0.3.18 #50: 外阴影 0.16 → 0.04 section 不再"浮起" */
       0 1px 1px rgba(0, 0, 0, 0.02);  /* v0.3.18 #50: 黑色阴影 0.03 → 0.02 */
   }
   .day-group details {
@@ -1117,12 +1145,12 @@
     position: sticky;
     top: var(--bills-search-h, 50px);
     z-index: 9;
-    /* UAT: 与 .bills-search 玻璃同浓度, 滚过 bill row 时不穿透 */
-    background: var(--bills-sticky-glass-bg, rgba(255, 255, 255, 0.68));
-    backdrop-filter: var(--bills-sticky-glass-filter, saturate(200%) blur(24px));
-    -webkit-backdrop-filter: var(--bills-sticky-glass-filter, saturate(200%) blur(24px));
-    border-bottom: 1px solid rgba(255, 255, 255, 0.35);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+    /* Shared with settle 付款明细 glass-chip via :root --bills-sticky-glass-* */
+    background: var(--bills-sticky-glass-bg, rgba(255, 255, 255, 0.26));
+    backdrop-filter: var(--bills-sticky-glass-filter, saturate(200%) blur(36px));
+    -webkit-backdrop-filter: var(--bills-sticky-glass-filter, saturate(200%) blur(36px));
+    border-bottom: 1px solid rgba(255, 255, 255, 0.28);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
   }
   @supports not (backdrop-filter: blur(1px)) {
     .section-header {
@@ -1148,8 +1176,8 @@
     align-items: center;
     justify-content: center;
     border-radius: 50%;
-    background: rgba(99, 102, 241, 0.10);
-    color: #4338ca;
+    background: rgba(40, 40, 40, 0.10);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
     font-size: 15px;
     font-weight: 400;
     line-height: 1;
@@ -1179,41 +1207,47 @@
     text-shadow: 0 1px 3px rgba(255, 255, 255, 0.8);
   }
 
-  /* === v0.3.18 #68: Row 2 = 货币玻璃 chip 行 ===
-     v0.3.20 #92 (PO msg 07:13 #7409): 右对齐 (justify-content: flex-end), 跟 row1 chevron 右侧对齐,
-     单/双币统一右对齐. 仍 nowrap + overflow:hidden, 极窄屏 320px 自动 ellipsis (永不换行到第 4 行). */
+  /* === 货币玻璃 chip 行: 各 pill 两行 (总额 / 人均), 多币种 pill 强制同一行 === */
   .day-row-2 {
     display: flex;
-    align-items: center;
+    align-items: stretch;
     justify-content: flex-end;
     gap: 6px;
     flex-wrap: nowrap;
-    overflow: hidden;
     min-height: 30px;
+    min-width: 0;
   }
   .cc-chip {
     display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 11px;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 1px;
+    padding: 5px 14px;
     border-radius: 999px;
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.20) 0%, rgba(59, 130, 246, 0.12) 100%);
+    background: linear-gradient(135deg, rgba(40, 40, 40, 0.20) 0%, rgba(58, 58, 58, 0.12) 100%);
     backdrop-filter: saturate(180%) blur(12px);
     -webkit-backdrop-filter: saturate(180%) blur(12px);
-    border: 1px solid rgba(99, 102, 241, 0.28);
+    border: 1px solid rgba(40, 40, 40, 0.28);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.55),
-      0 1px 3px rgba(99, 102, 241, 0.10);
+      0 1px 3px rgba(40, 40, 40, 0.10);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
-    flex-shrink: 1;
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+  .cc-chip .cc-line-1 {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 5px;
     min-width: 0;
   }
   .cc-chip .cc-code {
     font-size: 10.5px;
     font-weight: 700;
     letter-spacing: 0.06em;
-    color: #4338ca;
+    color: var(--cc-primary, var(--btn-label, var(--logo-ink, #1a1a1a)));
     flex-shrink: 0;
   }
   .cc-chip .cc-amt {
@@ -1221,36 +1255,37 @@
     font-weight: 700;
     color: #0f172a;
     letter-spacing: -0.2px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    min-width: 0;
   }
-  /* 副币种 chip: teal 玻璃 (一眼分主次) */
+  .cc-chip .cc-line-2,
+  .cc-chip .cc-per {
+    font-size: 11px;
+    font-weight: 500;
+    color: #64748b;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+    padding-left: 0;
+    border-left: none;
+    margin-left: 0;
+  }
+  /* 副币种 / 支付币种 chip: muted teal 玻璃 — 与结算币种 charcoal 明确区分 */
   .cc-chip.cc-chip-secondary {
-    background: linear-gradient(135deg, rgba(20, 184, 166, 0.16) 0%, rgba(99, 102, 241, 0.10) 100%);
-    border-color: rgba(20, 184, 166, 0.30);
+    background: linear-gradient(
+      135deg,
+      rgba(var(--cc-secondary-rgb, 47, 122, 132), 0.2) 0%,
+      rgba(var(--cc-secondary-rgb, 47, 122, 132), 0.1) 100%
+    );
+    border-color: rgba(var(--cc-secondary-rgb, 47, 122, 132), 0.38);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.55),
-      0 1px 3px rgba(20, 184, 166, 0.10);
+      0 1px 3px rgba(var(--cc-secondary-rgb, 47, 122, 132), 0.12);
   }
-  .cc-chip.cc-chip-secondary .cc-code { color: #0f766e; }
-
-  /* === v0.3.18 #68: Row 3 = 人均行 ===
-     v0.3.20 #92 (PO msg 07:13 #7409): 右对齐 (justify-content: flex-end), 跟 row2 chips 右侧对齐.
-     双币场景 Fix 4 也合并到单一 "人均" label, 这里右对齐让 values 视觉聚合. */
-  .day-row-3 {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 10px;
-    font-size: 12px;
-    color: #64748b;
-    font-weight: 500;
+  .cc-chip.cc-chip-secondary .cc-code {
+    color: var(--cc-secondary, #2f7a84);
   }
-  .day-row-3 .muted strong {
-    color: #334155;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
+  /* 人均行统一灰色 — 不随主/副币种变色 */
+  .cc-chip.cc-chip-empty .cc-amt,
+  .cc-chip.cc-chip-empty .cc-per {
+    opacity: 0.55;
   }
 
   /* === v0.3.18 #68 续: 320px 极窄屏 chip 缩号 === */
@@ -1261,10 +1296,10 @@
     .day-date { font-size: 14px; }
     .day-count { font-size: 11px; padding: 2px 7px; }
     .day-row-2 { gap: 4px; min-height: 26px; }
-    .cc-chip { padding: 4px 8px; gap: 4px; }
+    .cc-chip { padding: 4px 8px; gap: 0; border-radius: 12px; }
     .cc-chip .cc-code { font-size: 10px; }
     .cc-chip .cc-amt { font-size: 12px; }
-    .day-row-3 { font-size: 11px; }
+    .cc-chip .cc-per { font-size: 10px; }
   }
   /* === v0.3.18 #68 续: 768px tablet chip 微放大 === */
   @media (min-width: 720px) {
@@ -1274,10 +1309,10 @@
     .day-date { font-size: 17px; }
     .day-count { font-size: 13px; padding: 4px 11px; }
     .day-row-2 { gap: 8px; min-height: 34px; }
-    .cc-chip { padding: 6px 14px; }
+    .cc-chip { padding: 6px 14px; border-radius: 16px; }
     .cc-chip .cc-code { font-size: 11.5px; }
     .cc-chip .cc-amt { font-size: 15px; }
-    .day-row-3 { font-size: 13.5px; }
+    .cc-chip .cc-per { font-size: 12px; }
   }
 
   .unit {
@@ -1289,6 +1324,19 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
+  /* Match SessionCurrencyBadge / 汇率设置: 结算 charcoal vs 支付·消费 teal */
+  .bill-amount .unit.unit-primary,
+  .your-share .unit.unit-primary {
+    color: var(--cc-primary, #1a1a1a);
+    opacity: 1;
+    font-weight: 600;
+  }
+  .bill-amount .unit.unit-secondary,
+  .your-share .unit.unit-secondary {
+    color: var(--cc-secondary, #2f7a84);
+    opacity: 1;
+    font-weight: 600;
+  }
 
   /* === 反馈修 6 项目 3: day-bills 删 padding + border-top,
        bill row 直接贴在 day header 下 === */
@@ -1299,21 +1347,30 @@
     /* 删除 border-top + padding,bill row 跟 day header 同一容器背景色 */
   }
 
-  /* === v0.1.4 polish: <details> 顺滑折叠动画 (grid-template-rows 0fr ↔ 1fr)
+  /* === v0.1.4 polish + UAT: <details> 顺滑折叠动画 (grid-template-rows 0fr ↔ 1fr)
      包装 day-bills 的两层 div: 外层做 grid 高度过渡,内层装内容做 overflow:hidden。
+     收起: summary click → is-closing → 0fr 过渡 → 再清 open (见 onDaySummaryClick)。
      Chrome 117+ / Safari 17.4+ / Firefox 127+ 全部支持;
      老浏览器降级到 <details> 默认的瞬时展开。 === */
   .day-body-wrap {
     display: grid;
     grid-template-rows: 0fr;
-    transition: grid-template-rows 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    transition: grid-template-rows 300ms cubic-bezier(0.32, 0.72, 0, 1);
   }
-  details[open] .day-body-wrap {
+  details[open]:not(:global(.is-closing)) .day-body-wrap {
     grid-template-rows: 1fr;
+  }
+  :global(details.is-closing) .day-body-wrap {
+    grid-template-rows: 0fr;
   }
   .day-body {
     overflow: hidden;
     min-height: 0;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .day-body-wrap {
+      transition: none;
+    }
   }
 
   /* === v0.3.18 #46-A (PO msg 18:15 拍板): 玻璃 hairline 分隔 (方案 B) ===
@@ -1323,7 +1380,7 @@
        (rgba 0.18 → 0.24 → 0.18, 比 Designer 方案 B 略深,
         跟 sheet 玻璃边缘呼应 + PO 要求"玻璃感要更明显")
      - 加 backdrop-filter: blur(2px) (iOS separator 风格)
-     - 加 box-shadow 0 1px 1px rgba(99,102,241,0.06) (凸起感)
+     - 加 box-shadow 0 1px 1px rgba(40, 40, 40,0.06) (凸起感)
      - :last-child 隐藏最后一行 hairline
      - row padding 8px → 10px (给 hairline 视觉呼吸感)
      ===
@@ -1346,14 +1403,14 @@
     background: linear-gradient(
       90deg,
       transparent 0%,
-      rgba(99, 102, 241, 0.20) 20%,
-      rgba(99, 102, 241, 0.26) 50%,
-      rgba(99, 102, 241, 0.20) 80%,
+      rgba(40, 40, 40, 0.20) 20%,
+      rgba(40, 40, 40, 0.26) 50%,
+      rgba(40, 40, 40, 0.20) 80%,
       transparent 100%
     );
     backdrop-filter: blur(2px);
     -webkit-backdrop-filter: blur(2px);
-    box-shadow: 0 1px 1px rgba(99, 102, 241, 0.08);
+    box-shadow: 0 1px 1px rgba(40, 40, 40, 0.08);
     pointer-events: none;
   }
   .bill-swipe-wrap:last-child::after {
@@ -1379,41 +1436,44 @@
      v0.3.17 #17 hotfix 之前这里有 5 行重复定义 glass-pill 同款属性, 全删 —
      specificity 已够, 重复定义只会在改 app.css 时脱节。*/
 
-  /* 语义色 modifier: 红色玻璃 (用于删除)
-     思路跟全站 .glass-pill 同级, 但用红玻璃渐变 (红 0.10 → 0.08) + 红字
-     (var(--error-700, #be123c))。保留 backdrop blur + pill + inset shadow。*/
+  /* 语义色 modifier: 灰玫瑰玻璃 (删除) — soft charcoal settle-neg */
   .bill-swipe-action.glass-pill.glass-pill--delete {
     background: linear-gradient(
       135deg,
-      rgba(220, 38, 38, 0.10) 0%,
-      rgba(239, 68, 68, 0.08) 100%
+      rgba(var(--settle-neg-rgb), 0.18) 0%,
+      rgba(var(--settle-neg-rgb), 0.12) 100%
     );
-    border-color: rgba(220, 38, 38, 0.22);
-    color: var(--error-700, #be123c);
+    border-color: rgba(var(--settle-neg-rgb), 0.32);
+    color: var(--settle-neg);
   }
   .bill-swipe-action.glass-pill.glass-pill--delete:hover {
     background: linear-gradient(
       135deg,
-      rgba(220, 38, 38, 0.18) 0%,
-      rgba(239, 68, 68, 0.15) 100%
+      rgba(var(--settle-neg-rgb), 0.28) 0%,
+      rgba(var(--settle-neg-rgb), 0.2) 100%
     );
-    border-color: rgba(220, 38, 38, 0.30);
-    color: #9f1239; /* rose-800 — 比 --error-700 更深, 跟全站 .glass-pill:hover
-                      color: var(--accent-800, #3730a3) 同样的"加深一档"模式 */
+    border-color: rgba(var(--settle-neg-rgb), 0.42);
+    color: #a66d6d;
   }
 
-  /* 语义色 modifier: 蓝紫玻璃 (用于编辑) — 跟基类 .glass-pill 同色,
-     但 --edit 显式覆盖一次以保持语义可读性 (跟 --delete 对称)
-     v0.3.17 #17 hotfix 之前是 0.92 实色, 跟全站调色板完全脱节, 这里改成跟基类
-     完全一致即可, 但保留 modifier 让 design 后续可微调而其他按钮不变。*/
+  /* 语义色 modifier: 鼠尾草绿玻璃 (编辑) — soft charcoal settle-pos */
   .bill-swipe-action.glass-pill.glass-pill--edit {
-    /* 沿用基类 app.css .glass-pill 的渐变 (不重写) — 仅显式声明便于读 */
-    color: var(--accent-700, #4338ca);
-    border-color: rgba(99, 102, 241, 0.22);
+    background: linear-gradient(
+      135deg,
+      rgba(var(--settle-pos-rgb), 0.18) 0%,
+      rgba(var(--settle-pos-rgb), 0.12) 100%
+    );
+    border-color: rgba(var(--settle-pos-rgb), 0.32);
+    color: var(--settle-pos);
   }
   .bill-swipe-action.glass-pill.glass-pill--edit:hover {
-    color: var(--accent-800, #3730a3);
-    border-color: rgba(99, 102, 241, 0.30);
+    background: linear-gradient(
+      135deg,
+      rgba(var(--settle-pos-rgb), 0.28) 0%,
+      rgba(var(--settle-pos-rgb), 0.2) 100%
+    );
+    border-color: rgba(var(--settle-pos-rgb), 0.42);
+    color: #3f7a5c;
   }
 
   .bill-swipe-action {
@@ -1532,11 +1592,11 @@
   .bill-swipe-action.disabled:hover {
     background: linear-gradient(
       135deg,
-      rgba(220, 38, 38, 0.10) 0%,
-      rgba(239, 68, 68, 0.08) 100%
+      rgba(var(--settle-neg-rgb), 0.18) 0%,
+      rgba(var(--settle-neg-rgb), 0.12) 100%
     ) !important;
-    border-color: rgba(220, 38, 38, 0.22) !important;
-    color: var(--error-700, #be123c) !important;
+    border-color: rgba(var(--settle-neg-rgb), 0.32) !important;
+    color: var(--settle-neg) !important;
   }
   .bill-swipe-action-left {
     left: 6px;

@@ -565,7 +565,7 @@
   onclick={close}
 ></div>
 <div
-  class="sheet"
+  class="sheet sbc-bottom-sheet"
   class:dragging
   class:closing
   role="dialog"
@@ -587,36 +587,38 @@
          关闭走 backdrop 点击 + drag-down + Escape (portal destroy 已修, 可关). -->
   </header>
 
-  <div class="sheet-body">
+  <div class="sheet-body sbc-bottom-sheet__body">
       {#if mode === 'single' && !has_bills}
-        <!-- ===== single + !has_bills: 添加副币种 (add flow) ===== -->
-        <section class="field">
-          <label class="field-label">主币种</label>
-          <div class="currency-pair-item currency-pair-item--locked" aria-label="主币种: {primary_currency}">
-            <span class="lock-icon" aria-hidden="true">
-              <Lock size={11} strokeWidth={2.5} />
-            </span>
-            <span class="primary-code">{primary_currency}</span>
+        <!-- ===== single + !has_bills: 添加副币种 (add flow) =====
+             UAT: 主币种 + 副币种同行并排 (跟 multi 编辑态 currency-pair-row 一致). -->
+        <section class="field currency-pair-row">
+          <div class="currency-pair-col">
+            <label class="field-label field-label--settle">结算币种</label>
+            <div class="currency-pair-item currency-pair-item--locked currency-pair-item--settle" aria-label="结算币种: {primary_currency}">
+              <span class="lock-icon" aria-hidden="true">
+                <Lock size={11} strokeWidth={2.5} />
+              </span>
+              <span class="primary-code">{primary_currency}</span>
+            </div>
           </div>
-        </section>
-
-        <section class="field">
-          <label class="field-label" for="sbc-secondary-currency">副币种</label>
-          <select
-            id="sbc-secondary-currency"
-            class="currency-pair-item currency-select"
-            bind:value={secondary}
-            disabled={busy}
-            data-testid="currency-add-secondary"
-          >
-            <option value="" disabled>选择币种…</option>
-            {#each secondary_options as opt}
-              <option value={opt}>{opt}</option>
-            {/each}
-          </select>
-          {#if secondary_options.length === 0}
-            <p class="hint">没有可选的副币种了 (10 个币种全在账本中)。</p>
-          {/if}
+          <div class="currency-pair-col">
+            <label class="field-label field-label--pay" for="sbc-secondary-currency">消费币种</label>
+            <select
+              id="sbc-secondary-currency"
+              class="currency-pair-item currency-select currency-pair-item--pay"
+              bind:value={secondary}
+              disabled={busy}
+              data-testid="currency-add-secondary"
+            >
+              <option value="" disabled>选择币种…</option>
+              {#each secondary_options as opt}
+                <option value={opt}>{opt}</option>
+              {/each}
+            </select>
+            {#if secondary_options.length === 0}
+              <p class="hint">没有可选的副币种了 (10 个币种全在账本中)。</p>
+            {/if}
+          </div>
         </section>
 
         <section class="field">
@@ -635,8 +637,7 @@
               aria-label="汇率 (1 {primary_currency} = X {secondary})"
               data-testid="currency-add-rate"
             />
-            <span class="rate-suffix">{secondary || '副币种'}</span>
-            <button
+            <span class="rate-suffix">{secondary || '消费币种'}</span>            <button
               type="button"
               class="rate-refresh"
               disabled={busy || secondary === '' || rateLoading}
@@ -674,9 +675,6 @@
               </p>
             </div>
           </div>
-          <p class="hint">
-            如需添加副币种, 请先删除所有账单 (本应用暂不支持)。
-          </p>
         </section>
       {:else if mode === 'multi' && !has_bills}
         <!-- ===== multi + !has_bills: 修改币种设置 (本期仅汇率可改) =====
@@ -684,13 +682,13 @@
              v0.3.19 #85 PO #7731 (#3): 删「修改主/副币种功能开发中...」hint (disables + tooltip 已说明). -->
         <section class="field currency-pair-row">
           <div class="currency-pair-col">
-            <label class="field-label" for="sbc-primary-currency">主币种</label>
+            <label class="field-label field-label--settle" for="sbc-primary-currency">结算币种</label>
             <select
               id="sbc-primary-currency"
-              class="currency-pair-item currency-pair-item--locked currency-select"
+              class="currency-pair-item currency-pair-item--locked currency-select currency-pair-item--settle"
               bind:value={primary}
               disabled={true}
-              title="改主币种功能开发中 (BE 未支持)"
+              title="改结算币种功能开发中 (BE 未支持)"
               data-testid="currency-edit-primary"
             >
               {#each primary_options as opt}
@@ -699,13 +697,13 @@
             </select>
           </div>
           <div class="currency-pair-col">
-            <label class="field-label" for="sbc-secondary-currency">副币种</label>
+            <label class="field-label field-label--pay" for="sbc-secondary-currency">消费币种</label>
             <select
               id="sbc-secondary-currency"
-              class="currency-pair-item currency-select"
+              class="currency-pair-item currency-select currency-pair-item--pay"
               bind:value={secondary}
               disabled={busy}
-              title="选择「—」切回单币种; 选其他币种替换当前副币种"
+              title="选择「—」切回单币种; 选其他币种替换当前消费币种"
               data-testid="currency-edit-secondary"
             >
               <option value="">—</option>
@@ -760,8 +758,8 @@
              CNY ⇄ THB 视觉. reuse .currency-pair-row / .currency-pair-col (multi+!has_bills 同款). -->
         <section class="field currency-pair-row">
           <div class="currency-pair-col">
-            <div class="field-label">主币种</div>
-            <div class="currency-pair-item currency-pair-item--locked" aria-label="主币种: {primary_currency}">
+            <div class="field-label field-label--settle">结算币种</div>
+            <div class="currency-pair-item currency-pair-item--locked currency-pair-item--settle" aria-label="结算币种: {primary_currency}">
               <span class="lock-icon" aria-hidden="true">
                 <Lock size={11} strokeWidth={2.5} />
               </span>
@@ -769,8 +767,8 @@
             </div>
           </div>
           <div class="currency-pair-col">
-            <div class="field-label">副币种</div>
-            <div class="currency-pair-item currency-pair-item--locked" aria-label="副币种: {secondary}">
+            <div class="field-label field-label--pay">消费币种</div>
+            <div class="currency-pair-item currency-pair-item--locked currency-pair-item--pay" aria-label="消费币种: {secondary}">
               <span class="lock-icon" aria-hidden="true">
                 <Lock size={11} strokeWidth={2.5} />
               </span>
@@ -826,7 +824,7 @@
     <!-- v0.3.27 (PO UAT 0727-1 #10): 删除页面左下角的"取消"按钮 (顶部 sheet-close × 已经等同关闭).
          v0.3.27 (PO UAT 0727-1 #4): 弹窗内的排版跟 AddSettlementSheet 完全一致 — 单 .btn-primary
          占满 .cta-row, 无 sheet-foot 双按钮; sheet-foot CSS 删 .btn-cancel-sheet 整段. -->
-    <div class="cta-row">
+    <div class="cta-row sbc-bottom-sheet__foot">
       {#if showSubmit}
         <button
           type="button"
@@ -875,51 +873,19 @@
   }
 
   .sheet {
-    /* v0.3.35 #5 (UAT 0725-3 #11): bottom sheet 形态 (跟 AddSettlementSheet .sheet 同款) -
-       圆角只在顶部 24px, 底部贴屏, max-width 480px, slide-up animation.
-       AddSettlementSheet 用 slideUp 280ms cubic-bezier(0.32, 0.72, 0, 1) (decisive ease). */
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    margin: 0 auto;
-    max-width: 480px;
-    max-height: 92vh;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    background: rgba(255, 255, 255, 0.92);
-    backdrop-filter: saturate(220%) blur(28px);
-    -webkit-backdrop-filter: saturate(220%) blur(28px);
-    border-top-left-radius: 24px;
-    border-top-right-radius: 24px;
-    border: 1px solid rgba(255, 255, 255, 0.7);
-    border-bottom: 0;
-    padding: 8px 16px 0;
-    box-shadow:
-      0 -8px 32px rgba(15, 23, 42, 0.12),
-      inset 0 1px 0 rgba(255, 255, 255, 0.85),
-      /* v0.3.0729-4 #14: 上拉橡皮筋时底部白色延伸，避免与页面底部分离 */
-      0 50vh 0 0 rgba(255, 255, 255, 0.96);
+    /* Shared .sbc-bottom-sheet owns flush bottom / radius / ::after under-fill.
+       Local: z-index, padding, drag touch, animation. */
     z-index: 1000;
-    animation: slideUp 280ms cubic-bezier(0.32, 0.72, 0, 1);
-    display: flex;
-    flex-direction: column;
+    padding: 8px 16px 0;
     gap: 12px;
-    /* v0.3.0728-2 #4 re-fix: 跟 v0.3.0728-2 #21 AddSettlementSheet 同款 — JS 完全接管 touch.
-       删 .sheet-close × button 后, sheet 仅通过 drag-down dismiss 关. touch-action: none
-       让浏览器不 pan, handleTouchMove 内 preventDefault 兑底. */
+    animation: slideUp 280ms cubic-bezier(0.32, 0.72, 0, 1);
     touch-action: none;
     will-change: transform;
   }
   .sheet.dragging {
     transition: none !important;
   }
-  /* v0.3.35 #5: 兼容 Safari iOS < 18 (无 backdrop-filter), fallback bg 加深一档, 跟 modal centered
-     fallback 同样的逻辑. */
   @supports not (backdrop-filter: blur(1px)) {
-    .sheet {
-      background: rgba(255, 255, 255, 0.96);
-    }
     .sheet-backdrop {
       background: rgba(15, 23, 42, 0.55);
     }
@@ -931,14 +897,14 @@
     background: rgba(15, 23, 42, 0.18);
     border-radius: 100px;
     margin: 0 auto 12px;
+    flex-shrink: 0;
   }
-  /* v0.3.0729-3 #2: 删 × 后 sheet-head 回 flex 居中 title (跟 InviteLinkButton 同款).
-     关闭仅靠 backdrop / drag-down / Escape. */
   .sheet-head {
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0 4px 12px;
+    flex-shrink: 0;
   }
   .sheet-title {
     font-size: 17px;
@@ -947,7 +913,6 @@
     letter-spacing: -0.01em;
   }
   .sheet-body {
-    flex: 1;
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -980,9 +945,32 @@
     gap: var(--space-2);
   }
   .field-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     font-size: var(--font-size-sm);
     color: var(--gray-700);
     font-weight: var(--font-weight-medium);
+  }
+  .field-label--settle {
+    color: var(--cc-primary, #1a1a1a);
+  }
+  .field-label--settle::before,
+  .field-label--pay::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .field-label--settle::before {
+    background: var(--cc-primary, #1a1a1a);
+  }
+  .field-label--pay {
+    color: var(--cc-secondary, #2f7a84);
+  }
+  .field-label--pay::before {
+    background: var(--cc-secondary, #2f7a84);
   }
 
   /* v0.3.21 #106 (PO msg 17:21): chip + select 视觉统一 → .currency-pair-item 共享 pill.
@@ -999,7 +987,7 @@
     width: 100%;
     padding: 8px 14px;
     background: rgba(255, 255, 255, 0.55);
-    border: 1px solid rgba(99, 102, 241, 0.22);
+    border: 1px solid rgba(40, 40, 40, 0.22);
     border-radius: 999px;
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-semibold);
@@ -1012,7 +1000,7 @@
     transition: background 150ms ease, border-color 150ms ease;
   }
   .currency-pair-item:focus-visible {
-    outline: 2px solid var(--accent-500, #6366f1);
+    outline: 2px solid var(--accent-500, #2c2c2c);
     outline-offset: 2px;
   }
   .currency-pair-item--locked {
@@ -1020,6 +1008,27 @@
     border-color: rgba(148, 163, 184, 0.28);
     color: var(--gray-500);
     cursor: not-allowed;
+  }
+  .currency-pair-item--settle {
+    border-color: rgba(var(--cc-primary-rgb, 26, 26, 26), 0.22);
+  }
+  .currency-pair-item--settle .primary-code {
+    color: var(--cc-primary, #1a1a1a);
+  }
+  .currency-pair-item--pay {
+    border-color: rgba(var(--cc-secondary-rgb, 47, 122, 132), 0.36);
+    color: var(--cc-secondary, #2f7a84);
+  }
+  .currency-pair-item--pay .primary-code {
+    color: var(--cc-secondary, #2f7a84);
+  }
+  .currency-pair-item--locked.currency-pair-item--pay {
+    background: rgba(var(--cc-secondary-rgb, 47, 122, 132), 0.1);
+    border-color: rgba(var(--cc-secondary-rgb, 47, 122, 132), 0.28);
+  }
+  .currency-pair-item--locked.currency-pair-item--settle {
+    background: rgba(var(--cc-primary-rgb, 26, 26, 26), 0.06);
+    border-color: rgba(var(--cc-primary-rgb, 26, 26, 26), 0.18);
   }
   /* v0.3.19 #85 v3 PO #7731 (#1): lock icon 改 Lucide Lock (跟其它 Lucide icon 同款).
    *  原 🔒 emoji 视觉不一致 (emoji 字体不同, 描边颜色不一) — 改 Lucide SVG icon, 用
@@ -1029,7 +1038,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    color: var(--accent-700, #4338ca);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
     flex-shrink: 0;
   }
   .currency-pair-item--locked .lock-icon {
@@ -1078,7 +1087,9 @@
   }
   .rate-suffix {
     font-size: var(--font-size-sm);
-    color: var(--gray-600);
+    /* 支付/消费币种色 — 与上方「消费币种」chip / label 一致 */
+    color: var(--cc-secondary, #2f7a84);
+    font-weight: 600;
     white-space: nowrap;
     flex-shrink: 0;
   }
@@ -1092,8 +1103,7 @@
     display: grid;
     place-items: center;
     cursor: pointer;
-    color: var(--accent-700, #4338ca);
-  }
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));  }
   .rate-refresh:disabled {
     opacity: 0.45;
     cursor: not-allowed;
@@ -1167,31 +1177,32 @@
      整块 (圆形 FAB 系统已被 inline pill button 取代). PO UAT 0727-1 #10 字面 "删除页面
      左下角的'取消'按钮, 因为在页面右上角已经有了" — 顶部 .sheet-close × button = 关闭. */
   .cta-row {
-    padding: 4px 0 12px;
+    padding-top: 4px;
+    /* padding-bottom from .sbc-bottom-sheet__foot (safe-area) */
   }
   .btn-primary {
     width: 100%;
     height: 50px;
     border-radius: 14px;
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.95) 0%, rgba(168, 85, 247, 0.95) 100%);
+    background: linear-gradient(135deg, rgba(40, 40, 40, 0.95) 0%, rgba(28, 28, 28, 0.95) 100%);
     color: #fff;
     font-size: 16px;
     font-weight: 600;
     border: 0;
     cursor: pointer;
     box-shadow:
-      0 4px 12px rgba(99, 102, 241, 0.30),
+      0 4px 12px rgba(40, 40, 40, 0.30),
       inset 0 1px 0 rgba(255, 255, 255, 0.25);
     letter-spacing: 0.01em;
   }
   .btn-primary:hover:not(:disabled) {
-    background: linear-gradient(135deg, rgba(99, 102, 241, 1) 0%, rgba(59, 130, 246, 1) 100%);
+    background: linear-gradient(135deg, rgba(40, 40, 40, 1) 0%, rgba(58, 58, 58, 1) 100%);
   }
   .btn-primary:active:not(:disabled) {
     transform: scale(0.97);
   }
   .btn-primary:focus-visible {
-    outline: 2px solid var(--accent-500, #6366f1);
+    outline: 2px solid var(--accent-500, #2c2c2c);
     outline-offset: 2px;
   }
   .btn-primary:disabled {

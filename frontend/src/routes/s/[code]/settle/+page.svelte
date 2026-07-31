@@ -320,10 +320,20 @@
         <!-- ===== Section 2: 已结算记录 ===== -->
         <div class="section" data-sbc="settle-records-section">
           <div class="section-head">
-            <h3>
-              已结算记录
-              <span class="badge-n" data-sbc="settle-records-count">({records.length})</span>
-            </h3>
+            <div class="section-head-left">
+              <h3>已结算记录</h3>
+              <!-- 跟 sessions 账本列表 .list-top-hint 同款：左划删记录，「删除」用 muted settle-neg -->
+              {#if recordsLoaded && records.length > 0}
+                <div
+                  class="list-top-hint"
+                  data-sbc="settle-records-swipe-hint"
+                  aria-label="左划以删除记录"
+                >
+                  <span class="swipe-arrow" aria-hidden="true">←</span>
+                  <span>左划以<span class="hint-delete">删除</span>记录</span>
+                </div>
+              {/if}
+            </div>
             <!-- v0.3.33 — UAT 0725-3 #3 (PO 14:59 batch):
                  .add-btn 之前 28×28 circle (only Plus icon) 视觉混乱 ("乱码").
                  改 pill 形 (icon + 「添加」label), 跟全站 btn-sm 玻璃同族.
@@ -420,15 +430,9 @@
     />
   {/if}
 
-  <!-- v0.3.32 -- UAT 0725-2 #1: AddSettlementSheet modal (mockup 2 + 3).
-       控制 addSheetOpen state. 仅在 session + records 都已加载时挂载, 避免
-       sheet 打开时 transfers 还是 stale 数组 (preview 算式会失真).
-       transfers prop 拿 settleRawTransfers (BE 返回的 raw, 不被 settlement 减
-       过的) -- 我们还没这能力, 所以传空数组让 preview 走 "无对应原转账" 兜底
-       文案. 后续 sprint 可加 ?raw=true query param 让 BE 暴露未调整的 raw.
-       当前 commit 的 preview 会显示 "无对应原转账" 路径, 但 sheet 本身依然
-       能提交, 提交后 refetch 让 SettleTransferPath 显示调整后的 transfer cards.
-  -->
+  <!-- v0.3.32 -- UAT 0725-2 #1: AddSettlementSheet modal.
+       Sheet 自行 GET /settle 拉 adjusted transfers，用于「应结算金额」欠款预览；
+       transfers prop 仅作 fetch 前兜底，可传 []. -->
   {#if addSheetOpen && session && currentMember}
     <AddSettlementSheet
       sessionId={session.id}
@@ -503,7 +507,7 @@
     padding: 0;
     border: none;
     /* v0.3.28 UAT 0724-2 #10: 填色 + 象牙白 icon (同 IosSwitch 选中态样式) */
-    background: var(--accent-600, #6366f1);
+    background: var(--accent-600, #2c2c2c);
     color: #fffff0;
     transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease, color 150ms ease;
   }
@@ -517,7 +521,7 @@
     /* 玻璃上白色 outline + indigo 实心 ring, focus 状态显眼 (跟原 .fab 一致) */
     outline: 2px solid #fff;
     outline-offset: 2px;
-    box-shadow: 0 0 0 4px #4f46e5;
+    box-shadow: 0 0 0 4px #262626;
   }
 
   /* narrow viewport (≤600px) — 跟 IosSwitch option 36px min-height 同步降级 */
@@ -551,6 +555,14 @@
     gap: 8px;
     padding: 0 4px 8px;
   }
+  .section-head-left {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
   /* v0.3.36 #11 — UAT 0728-1 #11 (PO 字面 "已结算记录 section 标题应和上方的'建议转账'/'每人净收净付'标题字体字号相同"):
      .section-head h3 跟 SettleTransferPath.svelte 内 <h3> 同 font-size / font-weight / color.
      原 14px / 600 / #374151 改为 default h3 (app.css 全局: font-weight 600, color var(--gray-900), line-height tight,
@@ -562,11 +574,33 @@
     color: var(--gray-900);
     margin: 0;
   }
-  .section-head .badge-n {
-    font-size: 12px;
-    color: #737373;
+  /* 跟 sessions/+page.svelte .list-top-hint 同款（灰色描边 pill，「删除」muted settle-neg） */
+  .list-top-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    flex: 0 0 auto;
+    margin: 0;
+    padding: 2px 8px;
+    background: transparent;
+    border: 1px solid rgba(15, 23, 42, 0.14);
+    border-radius: 9999px;
+    color: var(--gray-500, #737373);
+    font-size: 11px;
     font-weight: 400;
-    margin-left: 4px;
+    line-height: 1.4;
+    letter-spacing: -0.005em;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .list-top-hint .swipe-arrow {
+    font-weight: 500;
+    font-size: 11px;
+    color: var(--gray-400, #a3a3a3);
+  }
+  .list-top-hint .hint-delete {
+    color: var(--settle-neg);
+    font-weight: 500;
   }
   /* v0.3.33 — UAT 0725-3 #3: pill 形 add-btn (高度 36px / border-radius 999px / gap 4px icon+text / 全站玻璃同族).
      跟 wizard step 3 全局 glass-pill + sessions/[id] pages .fab 视觉一致. */
@@ -579,13 +613,13 @@
     border-radius: 999px;
     background: linear-gradient(
       135deg,
-      rgba(99, 102, 241, 0.16) 0%,
-      rgba(59, 130, 246, 0.12) 100%
+      rgba(40, 40, 40, 0.16) 0%,
+      rgba(58, 58, 58, 0.12) 100%
     );
     backdrop-filter: saturate(180%) blur(16px);
     -webkit-backdrop-filter: saturate(180%) blur(16px);
-    border: 1px solid rgba(99, 102, 241, 0.28);
-    color: var(--accent-700, #4338ca);
+    border: 1px solid rgba(40, 40, 40, 0.28);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
     font-size: 13px;
     font-weight: 600;
     letter-spacing: 0.01em;
@@ -593,19 +627,19 @@
     transition: transform 150ms ease, background 150ms ease, box-shadow 150ms ease;
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.55),
-      0 1px 3px rgba(99, 102, 241, 0.16);
+      0 1px 3px rgba(40, 40, 40, 0.16);
     flex-shrink: 0;
   }
   .add-btn:hover {
     transform: translateY(-1px);
     background: linear-gradient(
       135deg,
-      rgba(99, 102, 241, 0.22) 0%,
-      rgba(59, 130, 246, 0.18) 100%
+      rgba(40, 40, 40, 0.22) 0%,
+      rgba(58, 58, 58, 0.18) 100%
     );
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.65),
-      0 2px 6px rgba(99, 102, 241, 0.22);
+      0 2px 6px rgba(40, 40, 40, 0.22);
   }
   .add-btn:active {
     transform: scale(0.97);
@@ -630,7 +664,7 @@
     color: #737373;
     font-size: 13px;
   }
-  .record-empty strong { color: #6366f1; font-weight: 600; }
+  .record-empty strong { color: #2c2c2c; font-weight: 600; }
 
   /* v0.3.33 — UAT 0725-3 #4: section 3「最新应结算」template + reactive 都删了, 一并清理 .latest-* / .new-amount CSS. */
 </style>

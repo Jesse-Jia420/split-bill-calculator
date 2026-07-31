@@ -32,7 +32,7 @@
 </script>
 
 <svelte:head>
-  <title>新建账单 · SplitIt</title>
+  <title>新建账单 · 轻均 FairLite</title>
 </svelte:head>
 
 <main class="container" style="padding-top: 4rem; text-align: center;">

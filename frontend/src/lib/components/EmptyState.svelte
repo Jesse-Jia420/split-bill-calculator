@@ -87,11 +87,11 @@
     padding: var(--space-3) var(--space-5);
     background: linear-gradient(
       135deg,
-      rgba(99, 102, 241, 0.85) 0%,
-      rgba(59, 130, 246, 0.75) 100%
+      rgba(40, 40, 40, 0.85) 0%,
+      rgba(58, 58, 58, 0.75) 100%
     );
     color: white;
-    border: 1px solid rgba(99, 102, 241, 0.35);
+    border: 1px solid rgba(40, 40, 40, 0.35);
     border-radius: var(--radius-full, 999px);
     font-size: var(--font-size-base);
     font-weight: var(--font-weight-medium);
@@ -101,7 +101,7 @@
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.30),
       inset 0 -1px 0 rgba(0, 0, 0, 0.10),
-      0 4px 12px rgba(99, 102, 241, 0.25);
+      0 4px 12px rgba(40, 40, 40, 0.25);
     cursor: pointer;
     font-family: inherit;
     transition: transform 150ms ease, background 150ms ease, box-shadow 150ms ease;
@@ -109,14 +109,14 @@
   .cta:hover {
     background: linear-gradient(
       135deg,
-      rgba(99, 102, 241, 0.95) 0%,
-      rgba(59, 130, 246, 0.85) 100%
+      rgba(40, 40, 40, 0.95) 0%,
+      rgba(58, 58, 58, 0.85) 100%
     );
-    border-color: rgba(99, 102, 241, 0.50);
+    border-color: rgba(40, 40, 40, 0.50);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.40),
       inset 0 -1px 0 rgba(0, 0, 0, 0.10),
-      0 6px 16px rgba(99, 102, 241, 0.32);
+      0 6px 16px rgba(40, 40, 40, 0.32);
     text-decoration: none;
     color: white;
     transform: translateY(-1px);

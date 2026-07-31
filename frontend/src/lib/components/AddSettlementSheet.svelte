@@ -5,23 +5,23 @@
 
   形态 (mockup 2 + 3 -- add sheet empty + with preview):
   - Bottom sheet (玻璃 modal, 跟 CurrencyAddModal / InviteLinkButton modal 同族).
-  - 字段: 付款人 select / 收款人 select / 币种 select / 金额 input / 备注 input.
-  - 实时 preview 区: "旧应结算 - 已结 = 新应结算" 算式 (mockup 3 核心).
+  - 字段: 付款人 select / 收款人 select / 币种 pill (跟 BillForm sheet 同款) / 金额 input / 备注 input.
+  - 应结算金额区: 展示所选付款人→收款人当前欠款 (GET /settle adjusted transfers);
+    无欠款 →「无需转账」; 有欠款 → 显示金额; 两态配色区分.
   - CTA "确认添加" (purple gradient -- 跟全站 primary button 同源).
 
   Props:
   - sessionId: number
   - members: { id, display_name }[]  -- 付款/收款 select 选项 (避免依赖 user store 之外的全局状态).
   - currencies: string[] -- session.currencies.
-  - primaryCurrency: string -- session.primary_currency (默认币种 select + preview 用).
-  - transfers: { from_member_id, to_member_id, amount }[] -- 当前 settle 返回的原始 transfers (用于 preview 算式).
+  - primaryCurrency: string -- session.primary_currency (默认币种 pill + 应结算金额单位).
+  - transfers: { from_member_id, to_member_id, amount }[] -- 可选初始 transfers;
+    sheet 打开时会自行 GET /settle 刷新 (父页可传 [] ).
   - onAdded: () => void -- 提交成功回调, parent 负责 refetch.
 
   行为约束:
   - 弹窗存在时锁 main 滚动 (跟 CurrencyAddModal 同款 onMount cleanup).
   - 付款/收款 select 默认: 付款人 = 当前 user (acting member), 收款人 = 当前最大欠款的 member.
-  - preview 计算: 找 (payer, payee) 对的 raw transfer amount, 减去 amount 输入, 显示 new amount.
-  - 如果 (payer, payee) 对当前 transfer 不存在 → preview 显示 "无对应转账" + new = -amount (即这变成新的 transfer).
   - amount > 0 强制, <= 0 时 disable submit.
 -->
 <script lang="ts">
@@ -30,16 +30,17 @@
   import { portal } from '$lib/actions/portal';
   import { toast } from '$stores/toast';
   import { createSettlementRecord, type SettlementRecord } from '$api/settlements';
-  import { ApiError } from '$api/client';
+  import { getSettle } from '$api/settle';
   import { formatMoney } from '$lib/utils/format';
   import { currencySymbol } from '$lib/utils/currency';
+  import IosSwitch from '$lib/components/IosSwitch.svelte';
 
   export let sessionId: number;
   /** SessionMember.id -> display_name. 来自 session.members. */
   export let members: { id: number; display_name: string }[] = [];
   export let currencies: string[] = [];
   export let primaryCurrency: string = 'CNY';
-  /** 当前 raw transfers from GET /sessions/{id}/settle -- 用于 preview 算式. */
+  /** 可选初始 transfers; sheet onMount 会 GET /settle 覆盖为最新 adjusted 值. */
   export let transfers: { from_member_id: number; to_member_id: number; amount: number }[] = [];
   /** 当前 SessionMember.id -- 决定付款人 select 默认值. */
   export let currentMemberId: number | null = null;
@@ -60,6 +61,14 @@
   let amountStr: string = '';
   let note: string = '';
   let busy = false;
+  $: currencyOptions = currencies.length > 0 ? currencies : [currency || primaryCurrency || 'CNY'];
+  $: isMultiCurrency = currencyOptions.length > 1;
+
+  /** Live settle transfers (adjusted). Prop is fallback until fetch completes. */
+  let fetchedTransfers: { from_member_id: number; to_member_id: number; amount: number }[] | null =
+    null;
+  let transfersLoading = true;
+  $: effectiveTransfers = fetchedTransfers ?? transfers;
 
   /** 默认付款人 = 当前用户 (PO 字面 "任一成员可给任一其它成员"). */
   $: if (payerId === null && currentMemberId != null && members.length > 0) {
@@ -68,12 +77,8 @@
     }
   }
   /** 默认收款人 = raw transfers 中 from=currentMemberId 的第一个 to_member_id (欠最多的人). */
-  $: if (
-    payeeId === null &&
-    payerId != null &&
-    transfers.length > 0
-  ) {
-    const largestOwed = transfers.find((t) => t.from_member_id === payerId);
+  $: if (payeeId === null && payerId != null && effectiveTransfers.length > 0) {
+    const largestOwed = effectiveTransfers.find((t) => t.from_member_id === payerId);
     if (largestOwed) payeeId = largestOwed.to_member_id;
     else if (members.length > 1) {
       // 退化: 选第一个非付款人的 member.
@@ -94,20 +99,25 @@
 
   $: canSubmit = amountValid && payerPayeeValid && currencyValid && !busy;
 
-  // ---- Preview 算式 ----
-  /** 找 raw transfer (payer -> payee), 找不到时为 null (新 transfer). */
+  // ---- 应结算金额 (所选付款人 → 收款人当前欠款) ----
   function findRawTransfer(
     fromId: number,
     toId: number
   ): { from_member_id: number; to_member_id: number; amount: number } | null {
     return (
-      transfers.find((t) => t.from_member_id === fromId && t.to_member_id === toId) ?? null
+      effectiveTransfers.find((t) => t.from_member_id === fromId && t.to_member_id === toId) ?? null
     );
   }
   $: rawTransfer =
     payerId != null && payeeId != null ? findRawTransfer(payerId, payeeId) : null;
-  $: newAmount =
-    rawTransfer && amountValid ? Math.max(rawTransfer.amount - amountNum, 0) : null;
+  /** 付款人应对收款人支付的金额; 无对应转账或金额 ≤0 → 无需转账.
+   *  BE 可能把 amount 序列化为 string — 一律 Number() 后再比. */
+  $: owedAmount = (() => {
+    if (!rawTransfer) return null;
+    const n = Number(rawTransfer.amount);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  })();
+  $: hasOwed = owedAmount != null;
 
   /** 找出 payer / payee 名字 (供 preview 文案用). */
   function nameOf(id: number | null): string {
@@ -115,8 +125,12 @@
     return members.find((m) => m.id === id)?.display_name ?? `#${id}`;
   }
 
-  function fmtAmt(n: number): string {
-    return currencySymbol(currency) + formatMoney(n, { currency, showSymbol: false });
+  function fmtAmt(n: number, cur: string = currency): string {
+    return currencySymbol(cur) + formatMoney(n, { currency: cur, showSymbol: false });
+  }
+
+  function fmtPrimary(n: number): string {
+    return fmtAmt(n, primaryCurrency);
   }
 
   let closing = false;
@@ -195,17 +209,35 @@
     if (e.key === 'Escape' && !busy) close();
   }
 
-  /** 锁 main 滚动 (跟 CurrencyAddModal 同款). */
+  /** 锁 main 滚动 + 拉最新 adjusted transfers (应结算金额). */
   onMount(() => {
     const mainEl = document.querySelector('main');
-    if (!mainEl) return () => {};
-    const origOverflow = mainEl.style.overflow;
-    const origOverscroll = mainEl.style.overscrollBehavior;
-    mainEl.style.overflow = 'hidden';
-    mainEl.style.overscrollBehavior = 'contain';
+    const origOverflow = mainEl?.style.overflow ?? '';
+    const origOverscroll = mainEl?.style.overscrollBehavior ?? '';
+    if (mainEl) {
+      mainEl.style.overflow = 'hidden';
+      mainEl.style.overscrollBehavior = 'contain';
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await getSettle(sessionId, 'primary');
+        if (!cancelled) fetchedTransfers = data.transfers ?? [];
+      } catch (e) {
+        console.error('[AddSettlementSheet] getSettle failed:', e);
+        if (!cancelled) fetchedTransfers = transfers;
+      } finally {
+        if (!cancelled) transfersLoading = false;
+      }
+    })();
+
     return () => {
-      mainEl.style.overflow = origOverflow;
-      mainEl.style.overscrollBehavior = origOverscroll;
+      cancelled = true;
+      if (mainEl) {
+        mainEl.style.overflow = origOverflow;
+        mainEl.style.overscrollBehavior = origOverscroll;
+      }
     };
   });
 
@@ -254,7 +286,7 @@
 <!-- Bottom sheet -->
 <!-- v0.3.0729-2 #6: 恢复 × 关闭按钮 (仅靠 drag-down 真机关不稳) + 保留 drag-down 作辅助. -->
 <div
-  class="sheet"
+  class="sheet sbc-bottom-sheet"
   class:dragging
   class:closing
   role="dialog"
@@ -274,7 +306,7 @@
          关闭走 backdrop / drag-down / Escape. -->
   </div>
 
-  <div class="form">
+  <div class="form sbc-bottom-sheet__body">
     <!-- Row 1: 付款人 + 收款人 (并排) -->
     <div class="form-row">
       <div class="field">
@@ -309,41 +341,44 @@
       </div>
     </div>
 
-    <!-- Row 2: 币种 + 金额 (并排) -->
-    <div class="form-row">
-      <div class="field currency-field">
-        <label class="field-label" for="add-settle-currency">币种</label>
-        <select
-          id="add-settle-currency"
-          class="field-control"
-          bind:value={currency}
-          disabled={busy}
-          data-sbc="sheet-currency-select"
-        >
-          {#each currencies as c (c)}
-            <option value={c}>{c}</option>
-          {/each}
-        </select>
-      </div>
-      <div class="field">
+    <!-- Row 2: 金额 + 币种切换 pill (跟新建账单 sheet 同款 IosSwitch / locked chip) -->
+    <div class="form-row full">
+      <div class="field amount-field">
         <label class="field-label" for="add-settle-amount">金额</label>
-        <div
-          class="field-control"
-          class:focused={amountStr.length > 0}
-          data-sbc="sheet-amount-control"
-        >
-          <span class="currency-prefix">{currencySymbol(currency)}</span>
-          <input
-            id="add-settle-amount"
-            class="amount-input"
-            type="text"
-            inputmode="decimal"
-            placeholder="0.00"
-            autocomplete="off"
-            bind:value={amountStr}
-            disabled={busy}
-            data-sbc="sheet-amount-input"
-          />
+        <div class="amount-input-row">
+          <div
+            class="field-control amount-control"
+            class:focused={amountStr.length > 0}
+            data-sbc="sheet-amount-control"
+          >
+            <span class="currency-prefix">{currencySymbol(currency)}</span>
+            <input
+              id="add-settle-amount"
+              class="amount-input"
+              type="text"
+              inputmode="decimal"
+              placeholder="0.00"
+              autocomplete="off"
+              bind:value={amountStr}
+              disabled={busy}
+              data-sbc="sheet-amount-input"
+            />
+          </div>
+          {#if isMultiCurrency}
+            <div class="currency-switch-wrap" data-sbc="sheet-currency-switch">
+              <IosSwitch
+                ariaLabel="币种"
+                options={currencyOptions.map((code) => ({ value: code, label: code }))}
+                bind:value={currency}
+              />
+            </div>
+          {:else}
+            <span
+              class="currency-locked"
+              aria-label="币种 {currencyOptions[0]}（单币种不可选）"
+              data-sbc="sheet-currency-locked"
+            >{currencyOptions[0]}</span>
+          {/if}
         </div>
       </div>
     </div>
@@ -370,46 +405,38 @@
     </div>
   </div>
 
-  <!-- 实时 preview: 旧应结算 - 已结 = 新应结算 (mockup 3) -->
+  <!-- 应结算金额: 所选付款人 → 收款人当前欠款状态 -->
   {#if payerPayeeValid}
-    <div class="preview" data-sbc="sheet-preview">
-      <div class="preview-title">应结算金额变化</div>
-      {#if rawTransfer}
-        <div class="preview-row">
-          <span class="label">旧应结算</span>
-          <span class="val muted">{nameOf(rawTransfer.from_member_id)} → {nameOf(rawTransfer.to_member_id)} {fmtAmt(rawTransfer.amount)}</span>
+    <div
+      class="preview"
+      class:preview--owed={hasOwed}
+      class:preview--clear={!hasOwed && !transfersLoading}
+      class:preview--loading={transfersLoading}
+      data-sbc="sheet-preview"
+      data-owed={hasOwed ? '1' : '0'}
+    >
+      <div class="preview-title">应结算金额</div>
+      {#if transfersLoading}
+        <div class="preview-body">
+          <span class="preview-clear-label">计算中…</span>
         </div>
-        <div class="preview-divider"></div>
-        {#if amountValid}
-          <div class="preview-row">
-            <span class="label">本次已结算</span>
-            <span class="val added">{nameOf(payerId)} → {nameOf(payeeId)} {fmtAmt(amountNum)}</span>
-          </div>
-          <div class="preview-arrow-wrap"><span class="arrow-down" aria-hidden="true">↓</span></div>
-          <div class="preview-new">
-            <div class="left">
-              <span class="badge">新</span>
-              <span class="from-to">{nameOf(payerId)} <span class="arrow" aria-hidden="true">→</span> {nameOf(payeeId)}</span>
-            </div>
-            <span class="new-amount">{fmtAmt(newAmount ?? 0)}</span>
-          </div>
-        {/if}
-      {:else if amountValid}
-        <div class="preview-row">
-          <span class="label">无对应原转账</span>
-          <span class="val muted">将新建一笔 {fmtAmt(amountNum)} 的反向转账</span>
+      {:else if hasOwed && owedAmount != null}
+        <div class="preview-body">
+          <span class="preview-pair"
+            >{nameOf(payerId)} <span class="arrow" aria-hidden="true">→</span> {nameOf(payeeId)}</span
+          >
+          <span class="preview-amount">{fmtPrimary(owedAmount)}</span>
         </div>
       {:else}
-        <div class="preview-row">
-          <span class="label">填写金额</span>
-          <span class="val muted">查看 preview</span>
+        <div class="preview-body preview-body--clear">
+          <span class="preview-clear-label">无需转账</span>
         </div>
       {/if}
     </div>
   {/if}
 
   <!-- CTA -->
-  <div class="cta-row">
+  <div class="cta-row sbc-bottom-sheet__foot">
     <button
       class="btn-primary"
       type="button"
@@ -439,39 +466,13 @@
 
   /* === Bottom Sheet (modal) === */
   .sheet {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    max-width: 480px;
-    margin: 0 auto;
-    background: rgba(255, 255, 255, 0.92);
-    backdrop-filter: saturate(220%) blur(28px);
-    -webkit-backdrop-filter: saturate(220%) blur(28px);
-    border-top-left-radius: 24px;
-    border-top-right-radius: 24px;
-    border: 1px solid rgba(255, 255, 255, 0.7);
-    border-bottom: 0;
-    box-shadow:
-      0 -8px 32px rgba(15, 23, 42, 0.12),
-      inset 0 1px 0 rgba(255, 255, 255, 0.85),
-      /* v0.3.0729-4 #14: 上拉橡皮筋时底部白色延伸，避免与页面底部分离 */
-      0 50vh 0 0 rgba(255, 255, 255, 0.96);
-    /* v0.3.0729-2 #6: z-index 60 → 1000, 跟 CurrencyAddModal 对齐,
-       避免被 VersionBadge (z=200) / NavBar (z=100) 盖住交互. */
+    /* Shared .sbc-bottom-sheet owns flush bottom / radius / ::after under-fill. */
     z-index: 1000;
-    padding: 8px 16px 16px;
+    padding: 8px 16px 0;
     animation: slideUp 280ms cubic-bezier(0.32, 0.72, 0, 1);
-    max-height: 92vh;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    /* v0.3.0728-2 #21 re-fix: touch-action: none 让 JS 完全接管 touchmove (避免 iOS Safari
-       pan-y 浏览器默认 pan 抢 touchend → dragDeltaY 跟手指不一致 → 关不掉).
-       form 字段短 (max-height:92vh 内 fit) 不需要内部 scroll, 改 none 安全. */
     touch-action: none;
     will-change: transform;
   }
-  /* v0.3.0728-2 #21: drag 时 inline style 控制 transform, 这里只保证动画期间 overflow 不被 clip */
   .sheet.dragging {
     transition: none !important;
   }
@@ -513,16 +514,69 @@
 
   /* === Form === */
   .form { padding-bottom: 8px; }
-  .form-row { display: flex; gap: 10px; margin-bottom: 10px; }
+  /* scroll lives on .sbc-bottom-sheet__body */
+  .form-row { display: flex; gap: 10px; margin-bottom: 14px; }
   .form-row.full { flex-direction: column; gap: 0; }
   .field { flex: 1; min-width: 0; }
-  .currency-field { flex: 0 0 96px; }
   .field-label {
     font-size: 12px;
     font-weight: 500;
     color: #6b7280;
     margin-bottom: 4px;
     letter-spacing: 0.02em;
+  }
+  /* 跟 BillForm sheet: 金额 input + 币种 IosSwitch / locked chip 同行 */
+  .amount-input-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    width: 100%;
+  }
+  .amount-control {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .currency-switch-wrap {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+  }
+  .currency-switch-wrap :global(.ios-switch) {
+    margin: 0;
+    width: fit-content;
+    max-width: 100%;
+  }
+  .currency-switch-wrap :global(.ios-switch-option) {
+    padding: 0.35rem 0.7rem;
+    font-size: 0.75rem;
+    min-height: 36px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .currency-locked {
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    height: 36px;
+    min-height: 36px;
+    padding: 0 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: rgba(26, 26, 26, 0.55);
+    background: rgba(255, 255, 255, 0.12);
+    border: 0.5px solid rgba(40, 40, 40, 0.28);
+    box-shadow:
+      inset 0 1px 2px rgba(0, 0, 0, 0.04),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.95);
+    opacity: 0.72;
+    user-select: none;
+    pointer-events: none;
+    white-space: nowrap;
   }
   .field-control {
     display: flex;
@@ -540,10 +594,10 @@
     font-size: 14px;
   }
   .field-control.focused {
-    border-color: rgba(99, 102, 241, 0.55);
+    border-color: rgba(40, 40, 40, 0.55);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.8),
-      0 0 0 3px rgba(99, 102, 241, 0.12),
+      0 0 0 3px rgba(40, 40, 40, 0.12),
       0 1px 2px rgba(15, 23, 42, 0.03);
   }
   select.field-control {
@@ -585,21 +639,41 @@
     padding: 0 4px;
   }
 
-  /* === Preview (mockup 3) === */
+  /* === 应结算金额 (有欠款 / 无需转账 两态) === */
   .preview {
     margin: 10px 0 12px;
     padding: 12px 14px;
-    background: linear-gradient(135deg, rgba(236, 254, 230, 0.85) 0%, rgba(220, 252, 231, 0.75) 100%);
-    border: 1px solid rgba(16, 185, 129, 0.25);
     border-radius: 14px;
+    border: 1px solid transparent;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    transition: background 180ms ease, border-color 180ms ease, color 180ms ease;
+  }
+  .preview--owed {
+    background: linear-gradient(
+      135deg,
+      rgba(253, 242, 242, 0.92) 0%,
+      rgba(254, 226, 226, 0.78) 100%
+    );
+    border-color: rgba(193, 122, 122, 0.35);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.7),
-      0 1px 4px rgba(16, 185, 129, 0.10);
+      0 1px 4px rgba(193, 122, 122, 0.1);
+  }
+  .preview--clear,
+  .preview--loading {
+    background: linear-gradient(
+      135deg,
+      rgba(245, 245, 244, 0.95) 0%,
+      rgba(231, 229, 228, 0.82) 100%
+    );
+    border-color: rgba(120, 113, 108, 0.28);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.7),
+      0 1px 4px rgba(120, 113, 108, 0.08);
   }
   .preview-title {
     font-size: 11px;
     font-weight: 600;
-    color: #047857;
     letter-spacing: 0.06em;
     text-transform: uppercase;
     margin-bottom: 10px;
@@ -607,95 +681,81 @@
     align-items: center;
     gap: 6px;
   }
+  .preview--owed .preview-title {
+    color: #9a5f5f;
+  }
+  .preview--clear .preview-title,
+  .preview--loading .preview-title {
+    color: #78716c;
+  }
   .preview-title::before {
     content: '';
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: #10b981;
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.20);
+    box-shadow: 0 0 0 3px rgba(120, 113, 108, 0.18);
   }
-  .preview-row {
+  .preview--owed .preview-title::before {
+    background: #c17a7a;
+    box-shadow: 0 0 0 3px rgba(193, 122, 122, 0.22);
+  }
+  .preview--clear .preview-title::before,
+  .preview--loading .preview-title::before {
+    background: #a8a29e;
+  }
+  .preview-body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 6px 0;
-    font-size: 13px;
-    color: #374151;
+    gap: 12px;
+    min-height: 28px;
   }
-  .preview-row .label { font-weight: 500; color: #374151; }
-  .preview-row .val {
-    font-variant-numeric: tabular-nums;
-    font-weight: 600;
-    color: #171717;
-  }
-  .preview-row .val.muted { color: #737373; font-weight: 500; }
-  .preview-row .val.added { color: #047857; }
-  .preview-divider {
-    height: 1px;
-    background: rgba(16, 185, 129, 0.18);
-    margin: 6px 0;
-  }
-  .preview-arrow-wrap {
-    display: flex;
+  .preview-body--clear {
     justify-content: center;
-    padding: 2px 0;
-    color: #10b981;
-    font-size: 14px;
-    font-weight: 700;
   }
-  .preview-new {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 12px;
-    background: rgba(255, 255, 255, 0.65);
-    border-radius: 10px;
-    border: 1.5px dashed rgba(16, 185, 129, 0.40);
-  }
-  .preview-new .left { display: flex; align-items: center; gap: 8px; }
-  .preview-new .badge {
-    font-size: 10px;
-    font-weight: 700;
-    color: #047857;
-    padding: 2px 7px;
-    border-radius: 9999px;
-    background: rgba(16, 185, 129, 0.15);
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-  }
-  .preview-new .from-to {
+  .preview-pair {
     font-size: 14px;
     font-weight: 600;
-    color: #171717;
+    color: #44403c;
+    min-width: 0;
   }
-  .preview-new .from-to .arrow {
-    color: #a3a3a3;
+  .preview-pair .arrow {
+    color: #a8a29e;
     padding: 0 4px;
     font-weight: 400;
   }
-  .preview-new .new-amount {
+  .preview-amount {
+    flex-shrink: 0;
     font-size: 20px;
     font-weight: 700;
-    color: #10b981;
+    color: #a66d6d;
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.02em;
   }
+  .preview-clear-label {
+    font-size: 15px;
+    font-weight: 600;
+    color: #78716c;
+    letter-spacing: 0.02em;
+  }
 
   /* === CTA === */
-  .cta-row { padding: 4px 0 12px; }
+  .cta-row {
+    padding-top: 4px;
+    /* padding-bottom from .sbc-bottom-sheet__foot */
+  }
   .btn-primary {
     width: 100%;
     height: 50px;
     border-radius: 14px;
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.95) 0%, rgba(168, 85, 247, 0.95) 100%);
+    background: linear-gradient(135deg, rgba(40, 40, 40, 0.95) 0%, rgba(28, 28, 28, 0.95) 100%);
     color: #fff;
     font-size: 16px;
     font-weight: 600;
     border: 0;
     cursor: pointer;
     box-shadow:
-      0 4px 12px rgba(99, 102, 241, 0.30),
+      0 4px 12px rgba(40, 40, 40, 0.30),
       inset 0 1px 0 rgba(255, 255, 255, 0.25);
     letter-spacing: 0.01em;
   }

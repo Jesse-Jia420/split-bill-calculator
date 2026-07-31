@@ -56,6 +56,10 @@
     background: #fafafa;
     pointer-events: none;
     overflow: hidden;
+    /* Cover notch / home-indicator during iOS overscroll paint */
+    height: 100%;
+    min-height: 100dvh;
+    min-height: -webkit-fill-available;
     /* GPU 加速 (避免 z-index: -1 触发重绘抖动) */
     will-change: transform;
     transform: translateZ(0);

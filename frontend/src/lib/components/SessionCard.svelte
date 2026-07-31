@@ -16,7 +16,7 @@
    *     紫色光晕.
    *   - hover shadow: 更重 + 紫色 ring + translateY(-3px) 浮起.
    *   - transition 240ms ease-out (box-shadow / transform / border-color).
-   *   - title 17px / 700 / var(--accent-700) (#1d4ed8) — PO 拍板蓝色意图保留.
+   *   - title 17px / 700 / var(--accent-700) (#1a1a1a) — PO 拍板蓝色意图保留.
    *   - owner pill: 渐变 indigo→blue 玻璃 + white text + 紫色 outer shadow.
    *   - member pill: white/0.5 + gray-500 (对比 owner 更克制).
    *   - meta 13px / gray-500.
@@ -39,11 +39,11 @@
    *   - hover shadow: 紫阴影 + 紫 ring → 灰阴影 (无紫 ring).
    *   - transition: 240ms ease-out → 200ms cubic-bezier(0.34, 1.56, 0.64, 1) spring +
    *       background 200ms ease (#62 同款 spring).
-   *   - title: 17px / 700 / var(--accent-700) (#1d4ed8) → 16px / 600 / var(--gray-900)
+   *   - title: 17px / 700 / var(--accent-700) (#1a1a1a) → 16px / 600 / var(--gray-900)
    *       (跟全站克制感对齐, PO 反馈蓝色太鲜艳).
    *   - owner pill: 渐变 indigo→blue 0.85 + white text + 紫outer shadow →
-   *       浅 indigo 玻璃 rgba(165,180,252,0.45)→rgba(99,102,241,0.22) + indigo-700 text
-   *       + rgba(99,102,241,0.28) border + blur(8px) + inset highlight + 紫光晕
+   *       浅 indigo 玻璃 rgba(165,180,252,0.45)→rgba(40, 40, 40,0.22) + indigo-700 text
+   *       + rgba(40, 40, 40,0.28) border + blur(8px) + inset highlight + 紫光晕
    *       (回 v0318-62 拍板浅 indigo 玻璃).
    *   - owner pill padding: 4px 10px → 3px 9px / font-size: 12px → 11px.
    *   - member pill: white/0.5 + rgba(255,255,255,0.6) border → white/0.55 +
@@ -390,16 +390,17 @@
   let showDeleteModal = false;
   let deleting = false;
 
-  /** v0.3.28 UAT 0724-1 #3: 从 swipe-action button 调用. stopPropagation 避免冒泡
-   * 到 .card-link 触发导航 (跟原 #16 handleDeleteClick 同款), 同时关掉 swipe 状态
-   * 让卡片回到原位.
-   * v0.3.36 #1: 关 swipe 后 dispatch 'swipechange' null 让 parent swipedId 清零. */
+  /** 左滑删除: owner → 二次确认 modal; 非 owner → 置灰可点, toast 说明不可删. */
   function onSwipeDelete(e: MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
     swipeOffsetStore.update((o) => ({ ...o, [session.id]: 0 }));
     if (get(openSwipeIdStore) === session.id) openSwipeIdStore.set(null);
     dispatch('swipechange', null);
+    if (session.role !== 'owner') {
+      toast.error('只能删除自己创建的账本');
+      return;
+    }
     showDeleteModal = true;
   }
 
@@ -473,21 +474,22 @@
   role="group"
   aria-label="账本: {session.name}"
 >
-  <!-- v0.3.28 UAT 0724-1 #3: swipe 才出现的删除按钮. owner only (跟 #16 同).
-       绝对定位右边缘 (跟 .bill-swipe-action-right 同款), width/opacity 跟随 --swipe-progress
-       (rubberBandProgress(rowOffset<0 ? -rowOffset : 0) — 仅左滑显). -->
-  {#if session.role === "owner"}
+  <!-- 左滑删除按钮: 所有账本都可滑出; 非 owner 置灰, 点按 toast 报错. -->
+  {#if true}
     {@const rowOffset = $isDraggingStore[session.id] ? ($dragOffsetStore[session.id] ?? 0) : ($swipeOffsetStore[session.id] ?? 0)}
     {@const rightProgress = rowOffset < 0 ? rubberBandProgress(-rowOffset) : 0}
+    {@const canDelete = session.role === 'owner'}
     <button
       type="button"
       class="delete-btn"
+      class:disabled={!canDelete}
       data-testid="swipe-action-delete"
+      data-owner={canDelete ? 'true' : 'false'}
       bind:this={deleteBtnEl}
       style="--swipe-progress: {rightProgress}"
       tabindex={rightProgress >= 1 ? 0 : -1}
       aria-hidden={rightProgress <= 0}
-      aria-label="删除账本: {session.name}"
+      aria-label={canDelete ? `删除账本: ${session.name}` : `不可删除他人账本: ${session.name}`}
       onclick={(e) => { e.stopPropagation(); onSwipeDelete(e); }}
     >
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -760,15 +762,15 @@
     border-radius: 999px;
     background: linear-gradient(
       135deg,
-      rgba(165, 180, 252, 0.28) 0%,
-      rgba(99, 102, 241, 0.18) 100%
+      rgba(58, 58, 58, 0.14) 0%,
+      rgba(40, 40, 40, 0.10) 100%
     );
-    border: 1px solid rgba(99, 102, 241, 0.30);
+    border: 1px solid rgba(40, 40, 40, 0.30);
     backdrop-filter: blur(8px) saturate(180%);
     -webkit-backdrop-filter: blur(8px) saturate(180%);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.55),
-      0 1px 3px rgba(99, 102, 241, 0.08);
+      0 1px 3px rgba(40, 40, 40, 0.08);
     flex-shrink: 1;
     min-width: 0;
     max-width: 240px;
@@ -793,7 +795,8 @@
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    padding: 3px 9px;
+    /* UAT: 右侧与下方人数数字右缘对齐 — 去掉 padding-right (人数 .count 无右 padding). */
+    padding: 3px 0 3px 9px;
     line-height: 1;
     flex-shrink: 0;
   }
@@ -801,7 +804,7 @@
     color: var(--gray-500);
   }
   .role.owner {
-    color: #4338ca;
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
   }
   .role .dot-led {
     width: 6px;
@@ -906,37 +909,17 @@
   .avatar-mini:not(:first-child) {
     margin-left: -6px;
   }
-  .avatar-mini.palette-0 {
-    background: linear-gradient(135deg, rgba(129, 140, 248, 0.88), rgba(99, 102, 241, 0.88));
-  }
-  .avatar-mini.palette-1 {
-    background: linear-gradient(135deg, rgba(244, 114, 182, 0.88), rgba(236, 72, 153, 0.88));
-  }
-  .avatar-mini.palette-2 {
-    background: linear-gradient(135deg, rgba(52, 211, 153, 0.88), rgba(16, 185, 129, 0.88));
-  }
-  .avatar-mini.palette-3 {
-    background: linear-gradient(135deg, rgba(251, 191, 36, 0.88), rgba(245, 158, 11, 0.88));
-  }
-  .avatar-mini.palette-4 {
-    background: linear-gradient(135deg, rgba(96, 165, 250, 0.88), rgba(59, 130, 246, 0.88));
-  }
-  /* v0.3.0728-2 #20 解冻: 5 → 10 扩色 (palette-5..9) — 跟 v0.3.0728-2 #20 字段级同 */
-  .avatar-mini.palette-5 {
-    background: linear-gradient(135deg, rgba(244, 63, 94, 0.88), rgba(217, 70, 239, 0.88));
-  }
-  .avatar-mini.palette-6 {
-    background: linear-gradient(135deg, rgba(132, 204, 22, 0.88), rgba(34, 197, 94, 0.88));
-  }
-  .avatar-mini.palette-7 {
-    background: linear-gradient(135deg, rgba(14, 165, 233, 0.88), rgba(59, 130, 246, 0.88));
-  }
-  .avatar-mini.palette-8 {
-    background: linear-gradient(135deg, rgba(139, 92, 246, 0.88), rgba(236, 72, 153, 0.88));
-  }
-  .avatar-mini.palette-9 {
-    background: linear-gradient(135deg, rgba(249, 115, 22, 0.88), rgba(239, 68, 68, 0.88));
-  }
+  /* palette-0..9 — scoped so they apply reliably with component CSS */
+  .avatar-mini.palette-0 { background: var(--avatar-0); }
+  .avatar-mini.palette-1 { background: var(--avatar-1); }
+  .avatar-mini.palette-2 { background: var(--avatar-2); }
+  .avatar-mini.palette-3 { background: var(--avatar-3); }
+  .avatar-mini.palette-4 { background: var(--avatar-4); }
+  .avatar-mini.palette-5 { background: var(--avatar-5); }
+  .avatar-mini.palette-6 { background: var(--avatar-6); }
+  .avatar-mini.palette-7 { background: var(--avatar-7); }
+  .avatar-mini.palette-8 { background: var(--avatar-8); }
+  .avatar-mini.palette-9 { background: var(--avatar-9); }
   .avatar-mini-overflow {
     background: #d1d5db !important;
     color: #374151 !important;
@@ -1003,18 +986,18 @@
     justify-content: center;
     background: linear-gradient(
       135deg,
-      rgba(220, 38, 38, 0.18) 0%,
-      rgba(239, 68, 68, 0.12) 100%
+      rgba(var(--settle-neg-rgb), 0.18) 0%,
+      rgba(var(--settle-neg-rgb), 0.12) 100%
     );
-    border: 1px solid rgba(220, 38, 38, 0.28);
-    color: var(--error-700, #be123c);
+    border: 1px solid rgba(var(--settle-neg-rgb), 0.32);
+    color: var(--settle-neg);
     cursor: pointer;
     padding: 0;
     backdrop-filter: blur(8px) saturate(1.8);
     -webkit-backdrop-filter: blur(8px) saturate(1.8);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.5),
-      0 1px 2px rgba(220, 38, 38, 0.12);
+      0 1px 2px rgba(var(--settle-neg-rgb), 0.12);
     /* v0.3.28 (跟 BillListGrouped .bill-swipe-action 同步): width 220ms spring overshoot,
      * opacity 180ms ease-out. 出来瞬间轻微 bounce + 收尾稳定到 56px. */
     transition:
@@ -1044,19 +1027,44 @@
   .delete-btn:hover {
     background: linear-gradient(
       135deg,
-      rgba(220, 38, 38, 0.28) 0%,
-      rgba(239, 68, 68, 0.22) 100%
+      rgba(var(--settle-neg-rgb), 0.28) 0%,
+      rgba(var(--settle-neg-rgb), 0.2) 100%
     );
-    border-color: rgba(220, 38, 38, 0.40);
-    color: #9f1239;
+    border-color: rgba(var(--settle-neg-rgb), 0.42);
+    color: #a66d6d;
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.6),
-      0 0 0 2px rgba(220, 38, 38, 0.16),
-      0 2px 6px rgba(220, 38, 38, 0.18);
+      0 0 0 2px rgba(var(--settle-neg-rgb), 0.16),
+      0 2px 6px rgba(var(--settle-neg-rgb), 0.18);
   }
   .delete-btn:focus-visible {
-    outline: 2px solid rgba(220, 38, 38, 0.55);
+    outline: 2px solid rgba(var(--settle-neg-rgb), 0.55);
     outline-offset: 2px;
+  }
+  /* 非 owner: 置灰但仍可点 (toast 报错说明原因).
+   * UAT: 颜色跟账单列表 .bill-swipe-action.disabled 一致 —
+   * 保留红玻璃底色 + grayscale + 更低 opacity, 不再用 slate 灰底. */
+  .delete-btn.disabled {
+    /* 红玻璃基色保留 (跟 enabled / 账单删除同源), 靠 opacity + grayscale 置灰 */
+    opacity: calc(var(--swipe-progress, 0) * 0.28);
+    filter: grayscale(40%);
+    cursor: not-allowed;
+  }
+  .delete-btn.disabled:hover {
+    /* 跟 BillListGrouped .bill-swipe-action.disabled:hover 同款 — 不升亮误导 */
+    background: linear-gradient(
+      135deg,
+      rgba(var(--settle-neg-rgb), 0.18) 0%,
+      rgba(var(--settle-neg-rgb), 0.12) 100%
+    );
+    border-color: rgba(var(--settle-neg-rgb), 0.32);
+    color: var(--settle-neg);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.5),
+      0 1px 2px rgba(var(--settle-neg-rgb), 0.12);
+  }
+  .delete-btn.disabled:focus-visible {
+    outline: 2px solid rgba(var(--settle-neg-rgb), 0.4);
   }
 
   /* v0.3.25 #16: confirm modal (跟 InviteLinkButton v0.3.24 #14 同款玻璃风格).

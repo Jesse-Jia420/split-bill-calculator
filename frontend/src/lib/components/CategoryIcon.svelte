@@ -48,6 +48,6 @@
   }
   /* hover 时变 accent (在 bill row 内生效) */
   :global(.bill-row:hover) .category-icon {
-    color: var(--accent-700);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
   }
 </style>

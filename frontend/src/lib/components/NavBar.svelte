@@ -1,79 +1,215 @@
 <script lang="ts">
   import { user, logout } from '$stores/user';
+  import { navbarChrome, resetNavbarChrome } from '$stores/navbarChrome';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
+  import { onDestroy } from 'svelte';
+
+  let menuOpen = false;
+  let menuRoot: HTMLDivElement | null = null;
+
+  $: compact = $navbarChrome.compact && !!$navbarChrome.title;
+  $: ledgerTitle = $navbarChrome.title;
+
+  // Leave ledger chrome when navigating away from a session page.
+  $: if (!inSession()) {
+    if ($navbarChrome.title || $navbarChrome.compact) resetNavbarChrome();
+    menuOpen = false;
+  }
+
+  // Close avatar menu when leaving compact chrome.
+  $: if (!compact) menuOpen = false;
+
+  // Guest on a ledger page: always「登录以保存」(never plain「登录」).
+  $: guestSaveLabel = inSession() && !isJoinPage();
 
   async function handleLogout() {
+    menuOpen = false;
     await logout();
     await goto('/');
   }
 
-  // Login CTA: inside a ledger → "登录以保存" with returnTo; elsewhere → "登录".
-  // Match both legacy /sessions/{id} and canonical /s/{code} routes.
   function inSession(): boolean {
     return /^\/sessions\/\d+(\/|$)/.test(page.url.pathname) ||
            /^\/s\/[A-Z0-9]+(\/|$)/i.test(page.url.pathname);
   }
-  // Join pages already support anonymous nickname creation — hide the CTA.
+  function isSessionsListPage(): boolean {
+    return page.url.pathname === '/sessions';
+  }
   function isJoinPage(): boolean {
     return /^\/sessions\/\d+\/join/.test(page.url.pathname) ||
            /^\/s\/[A-Z0-9]+\/join/i.test(page.url.pathname);
   }
-  // Ledger-specific login page already owns the OTP flow — hide the CTA.
   function isLoginPage(): boolean {
     return /^\/sessions\/\d+\/login/.test(page.url.pathname) ||
            /^\/s\/[A-Z0-9]+\/login/i.test(page.url.pathname);
   }
+
+  function avatarLetter(name: string | null | undefined): string {
+    const t = (name ?? '').trim();
+    if (!t) return '?';
+    return Array.from(t)[0]!.toUpperCase();
+  }
+
+  function toggleMenu(e: MouseEvent) {
+    e.stopPropagation();
+    menuOpen = !menuOpen;
+  }
+
+  function onDocPointer(e: MouseEvent | TouchEvent) {
+    if (!menuOpen || !menuRoot) return;
+    const t = e.target as Node | null;
+    if (t && menuRoot.contains(t)) return;
+    menuOpen = false;
+  }
+
+  function onKey(e: KeyboardEvent) {
+    if (e.key === 'Escape') menuOpen = false;
+  }
+
+  if (typeof document !== 'undefined') {
+    document.addEventListener('pointerdown', onDocPointer, true);
+    document.addEventListener('keydown', onKey);
+  }
+  onDestroy(() => {
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('pointerdown', onDocPointer, true);
+      document.removeEventListener('keydown', onKey);
+    }
+  });
+
+  $: loginHref = inSession()
+    ? `/auth/login?returnTo=${encodeURIComponent(page.url.pathname + page.url.search)}`
+    : '/auth/login';
 </script>
 
-<!-- v0.3.17 #22 hotfix (PO msg 16:32 #1): 整个 .right 区在 /auth/login 隐藏
-     · anon 用户访问 /auth/login → $user 是 null → 之前会渲染「登录」按钮
-       (指向自己, dead self-link, 视觉噪音)
-     · 已登录用户访问 /auth/login (罕见但可能) → 之前会渲染「注销登录」按钮
-       (跟登录页语义冲突, 视觉混乱)
-     · 同一个 pathname check 不管 $user 状态都隐藏, 因为登录页本身已经有
-       自己的 form 操作区, 不需要 nav 上的 auth 控件
-     · pathname 已在脚本顶部 import (`import { page } from '$app/state'`),
-       直接读 page.url.pathname
-     · 改法用 outer {#if} 包整个 .right div, 不用每个分支单独包, 因为三
-       分支 (login btn / login-以保存 / logout btn) 都不该出现在登录页 -->
-<header class="navbar">
-  <a href="/" class="brand">SplitIt</a>
+<header class="navbar" class:compact data-testid="app-navbar">
+  <div class="left">
+    <a
+      href="/"
+      class="brand"
+      aria-label="轻均分账 FairLite"
+    >
+      <!-- 上行：轻均(主题大) + 分账(功能小)；下行：FairLite，F↔轻 / e↔账 对齐 -->
+      <span class="brand-stack" aria-hidden="true">
+        <span class="brand-zh-row">
+          <span class="brand-zh brand-zh--theme">
+            <span class="brand-zh-inner">
+              <span class="brand-zh-glass">轻均</span>
+              轻均
+            </span>
+          </span>
+          <span class="brand-zh brand-zh--func">
+            <span class="brand-zh-inner">
+              <span class="brand-zh-glass">分账</span>
+              分账
+            </span>
+          </span>
+        </span>
+        <span class="brand-en">
+          <span>F</span><span>a</span><span>i</span><span>r</span><span>L</span><span>i</span><span>t</span><span>e</span>
+        </span>
+      </span>
+    </a>
+  </div>
+
   {#if page.url.pathname !== '/auth/login' && !isLoginPage()}
-    <div class="right">
-      {#if $user}
-        <span class="email" title="{$user.email}">{$user.default_name}</span>
-        <!-- v0.3.28 (UAT 0723-3 #4): 「我的账本」从 .links 移到 .right, 放在 用户名 + 注销登录 中间
-             (PO 字面 "放在 用户名和注销登录按钮的中间"). 保留 wizard 时不显示的旧行为
-             (page.url.pathname !== '/sessions/new'). 三者同属 .right, gap var(--space-3) 自然合理. -->
-        {#if page.url.pathname !== '/sessions/new'}
-          <a href="/sessions" class="btn-sm links-item">我的账本</a>
+    <div class="right" class:right-compact={compact}>
+      <!-- Title + chrome + avatar: one-step L→R morph (avatar slot reserved immediately). -->
+      <div
+        class="ledger-title"
+        class:visible={compact && !!ledgerTitle}
+        data-testid="navbar-ledger-title"
+        title={ledgerTitle ?? undefined}
+        aria-hidden={compact && ledgerTitle ? undefined : 'true'}
+      >
+        <span class="ledger-title-text">{ledgerTitle ?? ''}</span>
+      </div>
+
+      <div
+        class="nav-chrome-full"
+        class:collapsed={compact}
+        aria-hidden={compact ? 'true' : undefined}
+      >
+        {#if $user}
+          <span class="email" title="{$user.email}">{$user.default_name}</span>
+          {#if page.url.pathname !== '/sessions/new' && !isSessionsListPage()}
+            <a href="/sessions" class="btn-sm links-item" tabindex={compact ? -1 : 0}>我的账本</a>
+          {/if}
+          <button class="ghost btn-sm" onclick={handleLogout} tabindex={compact ? -1 : 0}>注销登录</button>
+        {:else if guestSaveLabel}
+          <a
+            href={loginHref}
+            class="btn-sm"
+            data-testid="navbar-login-save"
+            tabindex={compact ? -1 : 0}
+          >登录以保存</a>
+        {:else if !inSession()}
+          <a href="/auth/login" class="btn-sm" tabindex={compact ? -1 : 0}>登录</a>
         {/if}
-        <button class="ghost btn-sm" onclick={handleLogout}>注销登录</button>
-      {:else if inSession() && !isJoinPage()}
-        <a
-          href={`/auth/login?returnTo=${encodeURIComponent(page.url.pathname + page.url.search)}`}
-          class="btn-sm"
+      </div>
+
+      <div
+        class="avatar-menu"
+        class:expanded={compact}
+        bind:this={menuRoot}
+        aria-hidden={compact ? undefined : 'true'}
+      >
+        <button
+          type="button"
+          class="avatar-btn"
+          class:anon={!$user}
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          aria-label={$user ? `账户菜单：${$user.default_name}` : '账户菜单'}
+          data-testid="navbar-avatar-btn"
+          tabindex={compact ? 0 : -1}
+          onclick={toggleMenu}
         >
-          登录以保存
-        </a>
-      {:else if !inSession()}
-        <a href="/auth/login" class="btn-sm">登录</a>
-      {/if}
+          <span class="avatar-letter">
+            {$user ? avatarLetter($user.default_name) : '登'}
+          </span>
+        </button>
+        {#if menuOpen && compact}
+          <div class="avatar-popover" role="menu" data-testid="navbar-avatar-menu">
+            {#if $user}
+              <div class="menu-identity" role="presentation">
+                <span class="menu-name">{$user.default_name}</span>
+                {#if $user.email}
+                  <span class="menu-email" title={$user.email}>{$user.email}</span>
+                {/if}
+              </div>
+              {#if page.url.pathname !== '/sessions/new' && !isSessionsListPage()}
+                <a href="/sessions" class="menu-item" role="menuitem" onclick={() => (menuOpen = false)}>
+                  我的账本
+                </a>
+              {/if}
+              <button type="button" class="menu-item danger" role="menuitem" onclick={handleLogout}>
+                注销登录
+              </button>
+            {:else if guestSaveLabel}
+              <a href={loginHref} class="menu-item" role="menuitem" onclick={() => (menuOpen = false)}>
+                登录以保存
+              </a>
+            {:else if !inSession()}
+              <a href="/auth/login" class="menu-item" role="menuitem" onclick={() => (menuOpen = false)}>
+                登录
+              </a>
+            {/if}
+          </div>
+        {/if}
+      </div>
     </div>
   {/if}
 </header>
 
 <style>
-  /* v0.3.20 #99-fix4 (PO msg 14:26 #7585): NavBar 升 fixed 让 backdrop-filter
-     真正接住下方滚动内容 — 原版 position:relative 时, main 内容在 navbar 下方
-     flex row, 滚动时根本不会到 navbar 区域, backdrop-filter 没东西模糊.
-     fixed + z-index:100 让 navbar 浮在 main 之上面, 当用户滚动账单, 内容会
-     滚到 navbar 区域下方被 saturate(130%) blur(20px) + alpha 0.05 white bg 柔和
-     模糊透出来 — PO 原意图 (bar 不抢戏 + 背景图案部分漏出). */
   :global(:root) {
-    /* 暴露给 +layout.svelte main.page padding-top 用, 跟 navbar 内容高度同步 */
-    --navbar-h: calc(2 * var(--space-3) + 24px); /* ~48px, 不含 safe-area */
+    /* Content row = touch target so full chrome (44px btn) and compact avatar
+       share the same bar height — morph must not resize the header.
+       Note: --navbar-h is owned by +layout.svelte (measured full bar height for
+       page offset) — do not use it to size .navbar itself. */
+    --navbar-content-h: var(--touch-target); /* 44px */
   }
   .navbar {
     position: fixed;
@@ -82,37 +218,17 @@
     right: 0;
     z-index: 100;
     width: 100%;
+    box-sizing: border-box;
     display: flex;
     align-items: center;
     gap: var(--space-3);
     min-width: 0;
-    overflow-x: clip; /* 窄屏时防止右侧按钮/用户名发生横向溢出 */
-    /* v0.3.17 #30 (PO msg 14:28): 加 env(safe-area-inset-top) — iOS 全面屏
-       刘海/灵动岛区域不挡 brand 文字。body 已 lock 外层滚 (见 app.css),
-       v0.3.20 #99-fix4 (PO msg 14:26 #7585): 升 fixed (从 flex layout 第一项 → 浮在所有
-       内容之上 z-index 100). main.page 加 padding-top 让内容起步于 navbar 之下,
-       滚动后内容从下方滚到 navbar 区域被 saturate(130%) blur(20px) + 0.05 white
-       模糊透出来 — PO 原意图 (bar 不抢戏 + 背景内容部分漏出). */
+    overflow-x: clip;
+    /* Fixed bar height (padding + 44px row) — unchanged in compact morph. */
+    height: calc(2 * var(--space-3) + var(--navbar-content-h) + env(safe-area-inset-top, 0px));
+    min-height: calc(2 * var(--space-3) + var(--navbar-content-h) + env(safe-area-inset-top, 0px));
+    max-height: calc(2 * var(--space-3) + var(--navbar-content-h) + env(safe-area-inset-top, 0px));
     padding: calc(var(--space-3) + env(safe-area-inset-top, 0px)) var(--space-4) var(--space-3);
-    /* v0.3.20 #99 (PO msg 13:36 #7532 第 4 项, msg 13:39 #7536 缩范围:
-       只做 header, footer 不管): NavBar 半透明玻璃化.
-       v0.3.20 #99-fix (PO msg 13:54 反馈): 透明玻璃 — 原版加 indigo→blue 渐变
-       把 paper 纹理盖死了, 跟"原就是为了让背景图案部分漏出来"的诉求反.
-       改 transparent white alpha + 降 saturate 让 paper 纹部分透过来.
-       - bg: rgba(255,255,255,0.55) (白色 alpha, 无彩色)
-       - backdrop-filter: saturate(130%) blur(20px) (blur 让纸纹糊但仍可见, saturate
-         不加太高免纸纹失真)
-       - inset highlight top 1px rgba(255,255,255,0.4) 玻璃上沿
-       - inset highlight bottom 1px rgba(0,0,0,0.04) 玻璃下沿
-       - border-bottom 1px rgba(255,255,255,0.2) 玻璃跟 paper bg 的柔和分割
-       - Safari iOS < 18 fallback @supports: 0.85 opaque white (纸纹 fallback 不可见,
-         但保证 navbar 文字仍可读) */
-    /* v0.3.20 #99-fix (PO msg 13:54): 透明玻璃 — 不再加颜色 (前版 indigo→blue 渐变
-       把 paper 纹盖死). 改用纯白 alpha + blur 让 paper 纹部分透过来.
-       saturate 从 180% → 130% 让纸纹不过饱和失真. */
-    /* v0.3.20 #99-fix2 (PO msg 13:56 #7549 再透一点 + 13:57 #7563 让背景漏出来): 0.55 -> 0.20 */
-    /* v0.3.20 #99-fix3 (PO msg 14:07 #7571 不行透明度再提高): alpha 0.20 -> 0.05 (几乎全透, paper bg 100% 漏过来) */
-    /* v0.3.20 #99-fix5 (PO msg 14:29 #7602): alpha 0.05 -> 0.02 (PO 让透明度再降, 几乎纯透明只靠 backdrop-filter blur 撑玻璃感) */
     background: rgba(255, 255, 255, 0.02);
     backdrop-filter: saturate(130%) blur(20px);
     -webkit-backdrop-filter: saturate(130%) blur(20px);
@@ -120,31 +236,246 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.4),
       inset 0 -1px 0 rgba(0, 0, 0, 0.04);
     border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-    flex-wrap: wrap;
-    justify-content: space-between; /* 让 right 按空间收缩/换行，而不是撑出视口 */
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    /* Glass chrome stays constant — do NOT thicken/opaque on compact title morph. */
   }
+  /* Fill under status bar with paper tone so iOS overscroll never flashes stark white above the bar. */
+  .navbar::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: env(safe-area-inset-top, 0px);
+    background: #fafafa;
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  .left {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+    flex: 0 0 auto;
+    height: var(--navbar-content-h);
+    min-height: var(--navbar-content-h);
+  }
+
   .brand {
-    font-weight: 600;
-    font-size: var(--font-size-lg);
+    display: inline-flex;
+    align-items: center;
     color: var(--color-text);
     text-decoration: none;
     min-width: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    flex-shrink: 0;
   }
-  /* v0.3.20 #100 (PO msg 14:37): hover 象牙白替代蓝色. 象牙白 #FFFFF0 在白纸上 = 低对比 = logo hover 时视觉 'fade' — PO 原话 "象牙白色，不要现在的蓝色". */
-  /* UAT v0.3.23 #131: hover 颜色不变 (PO brief "hover 颜色不变, 还是黑色"). Default .brand color = var(--color-text) 已黑色, hover 不再覆盖. */
+
+  .brand-stack {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: max-content;
+    gap: 0.1rem;
+    line-height: 1;
+  }
+
+  .brand-zh-row {
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.28em;
+  }
+
+  .brand-zh {
+    display: inline-block;
+    flex-shrink: 0;
+  }
+  .brand-zh-inner {
+    position: relative;
+    display: inline-block;
+    font-family: var(--font-zh);
+    font-weight: 200;
+    font-size: 1.45rem;
+    line-height: 0.95;
+    letter-spacing: 0.2em;
+    text-indent: 0.2em;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-synthesis: none;
+    text-rendering: geometricPrecision;
+    color: rgba(26, 26, 26, 0.58);
+    -webkit-text-stroke: 0.55px rgba(0, 0, 0, 0.72);
+    paint-order: stroke fill;
+    text-shadow:
+      0 0 0.4px rgba(0, 0, 0, 0.35),
+      0 1px 0 rgba(255, 255, 255, 0.55),
+      0 2px 6px rgba(0, 0, 0, 0.08);
+  }
+  /* 「分账」功能小字 — 保留中文玻璃细体，字号对齐 FairLite */
+  .brand-zh--func .brand-zh-inner {
+    font-size: 0.72rem;
+    line-height: 1.1;
+    letter-spacing: 0.12em;
+    text-indent: 0.12em;
+    -webkit-text-stroke: 0.4px rgba(0, 0, 0, 0.65);
+  }
+  .brand-zh-glass {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    font: inherit;
+    font-weight: inherit;
+    letter-spacing: inherit;
+    line-height: inherit;
+    text-indent: inherit;
+    color: transparent;
+    -webkit-text-stroke: 0;
+    background: linear-gradient(
+      185deg,
+      rgba(255, 255, 255, 0.88) 0%,
+      rgba(255, 255, 255, 0.42) 18%,
+      rgba(255, 255, 255, 0.1) 38%,
+      rgba(255, 255, 255, 0) 52%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    mix-blend-mode: soft-light;
+    opacity: 0.9;
+    animation: navGlassSheen 7s ease-in-out infinite alternate;
+  }
+  @keyframes navGlassSheen {
+    from { opacity: 0.72; }
+    to { opacity: 0.95; }
+  }
+  /* FairLite：拉满上行「轻均分账」宽度，F 对齐轻、e 对齐账
+     padding 抵消中文 text-indent / 末字 letter-spacing，让字母贴在字形外沿下 */
+  .brand-en {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    width: 100%;
+    margin: 0;
+    padding: 0 calc(0.72rem * 0.12) 0 calc(1.45rem * 0.2);
+    box-sizing: border-box;
+    font-family: var(--font-en);
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0;
+    line-height: 1;
+    color: var(--color-text-muted);
+  }
+  .brand-en > span {
+    flex: 0 0 auto;
+  }
+
   .right {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    margin-left: auto; /* v0.3.17 #28.5 #8: .links 隐藏时 (例如 /sessions/new wizard) 也贴右 */
+    margin-left: auto;
     min-width: 0;
     flex: 1 1 auto;
-    flex-wrap: wrap; /* 窄屏下按钮/用户名换行，而不是溢出 */
+    flex-wrap: nowrap;
     justify-content: flex-end;
+    position: relative;
+    height: var(--navbar-content-h);
+    min-height: var(--navbar-content-h);
   }
+  .right.right-compact {
+    flex-wrap: nowrap;
+  }
+
+  /*
+   * One-step L→R morph:
+   * - Avatar width reserved immediately (no width tween) so title's layout target
+   *   IS the final seat from frame 0 — avoids the old two-hop (button seat → final).
+   * - Title: final max-width on enter (instant), slides L→R via translateX.
+   * - Chrome: leaves flow immediately, slides L→R (positive X) + fades, same timing.
+   * Timings restored to original 320ms / 280ms / 240ms / 260ms curves.
+   */
+  .ledger-title {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 0;
+    height: var(--navbar-content-h);
+    display: flex;
+    align-items: center;
+    opacity: 0;
+    transform: translate3d(-18px, 0, 0);
+    overflow: hidden;
+    pointer-events: none;
+    visibility: hidden;
+    transition:
+      max-width 0s linear 320ms,
+      opacity 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s linear 320ms;
+  }
+  .ledger-title.visible {
+    /* Final width immediately — motion is pure L→R translate into that seat. */
+    max-width: min(46vw, 12.5rem);
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+    pointer-events: auto;
+    visibility: visible;
+    transition:
+      max-width 0s linear 0s,
+      opacity 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s linear 0s;
+  }
+  .ledger-title-text {
+    display: block;
+    font-family: var(--font-zh);
+    font-size: 0.95rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--gray-900);
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: right;
+    padding-inline-end: 2px;
+  }
+
+  .nav-chrome-full {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    min-width: 0;
+    flex: 0 1 auto;
+    height: var(--navbar-content-h);
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+    transform-origin: right center;
+    transition:
+      opacity 240ms ease,
+      transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s linear 0s;
+  }
+  .nav-chrome-full.collapsed {
+    /* Out of flow immediately so title layout = final seat; visual exit is L→R. */
+    position: absolute;
+    right: calc(36px + var(--space-2));
+    top: 0;
+    bottom: 0;
+    transform: translate3d(20px, 0, 0);
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
+    transition:
+      opacity 240ms ease,
+      transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s linear 320ms;
+  }
+  .nav-chrome-full .btn-sm {
+    white-space: nowrap;
+  }
+
   .email {
     color: var(--color-text-muted);
     font-size: var(--font-size-sm);
@@ -153,89 +484,223 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  /* v0.3.17 #21 (PO msg 13:51 item 3): NavBar 登录按钮 / 注销按钮玻璃化
-     跟全站 member-chip / swipe button / fab / 汇率 pill 同 Liquid Glass 语言。
-     .ghost 跟 .btn-sm 同形态, 仅 hover 不加深色 (注销按钮语义更弱)。 */
-  /* v0.3.18 #49 (PO msg 21:16 #6508 极透明化 sweep):
-     bg 0.06/0.04 → 0.04/0.02 (再 × 0.67 透明, 整站 btn-sm 几乎全透).
-     border 0.20 → 0.25 (边缘补偿). inset highlight 0.7 → 0.95 (玻璃上沿加强).
-     外阴影 indigo 0.10 → 0.16 (玻璃感更强). */
+
+  .avatar-menu {
+    position: relative;
+    flex: 0 0 0;
+    width: 0;
+    max-width: 0;
+    height: var(--navbar-content-h);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    /* UAT: 头像消失时从右向左退出 (负 X), 跟 chrome 按钮从右向左进入同向.
+     * 旧: scale-only + origin center → 宽变 0 后残影挂在右侧, 视觉像 L→R 消失. */
+    transform: translate3d(-20px, 0, 0) scale(0.55);
+    transform-origin: right center;
+    overflow: visible;
+    pointer-events: none;
+    /* Width reserved instantly when expanded — only opacity/scale/translate tween. */
+    transition:
+      opacity 260ms ease,
+      transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s linear 320ms;
+  }
+  .avatar-menu.expanded {
+    flex: 0 0 36px;
+    width: 36px;
+    max-width: 36px;
+    opacity: 1;
+    visibility: visible;
+    transform: translate3d(0, 0, 0) scale(1);
+    pointer-events: auto;
+    transition:
+      opacity 260ms ease,
+      transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s linear 0s;
+  }
+  .avatar-btn {
+    /* Override global button { min-height: 44px; padding: … } — that stretched the chip into an oval. */
+    box-sizing: border-box;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
+    max-width: 36px;
+    max-height: 36px;
+    aspect-ratio: 1 / 1;
+    flex: 0 0 36px;
+    border-radius: 50%;
+    border: 1px solid rgba(40, 40, 40, 0.28);
+    background: linear-gradient(135deg, rgba(40, 40, 40, 0.92) 0%, rgba(58, 58, 58, 0.88) 100%);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+    margin: 0;
+    line-height: 0;
+    overflow: hidden;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      0 2px 8px rgba(40, 40, 40, 0.28);
+    transition: transform 120ms ease, box-shadow 150ms ease;
+  }
+  .avatar-btn.anon {
+    background: linear-gradient(135deg, rgba(40, 40, 40, 0.14) 0%, rgba(58, 58, 58, 0.10) 100%);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
+  }
+  .avatar-btn:hover {
+    transform: translateY(-1px);
+  }
+  .avatar-btn:active {
+    transform: scale(0.96);
+  }
+  .avatar-letter {
+    font-family: var(--font-zh);
+    font-size: 0.92rem;
+    font-weight: 600;
+    line-height: 1;
+  }
+  .avatar-popover {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 168px;
+    max-width: min(72vw, 240px);
+    padding: 6px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: saturate(160%) blur(18px);
+    -webkit-backdrop-filter: saturate(160%) blur(18px);
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    box-shadow:
+      0 12px 32px rgba(15, 23, 42, 0.14),
+      inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    z-index: 120;
+    animation: menuIn 160ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  @keyframes menuIn {
+    from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .menu-identity {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 10px 6px;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+    margin-bottom: 2px;
+  }
+  .menu-name {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--gray-900);
+  }
+  .menu-email {
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .menu-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--gray-800);
+    font-size: 0.9rem;
+    font-weight: 500;
+    text-decoration: none;
+    cursor: pointer;
+    font-family: inherit;
+    width: 100%;
+    text-align: center;
+  }
+  .menu-item:hover {
+    background: rgba(40, 40, 40, 0.08);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
+    text-decoration: none;
+  }
+  .menu-item.danger {
+    color: #b91c1c;
+  }
+  .menu-item.danger:hover {
+    background: rgba(244, 63, 94, 0.08);
+    color: #9f1239;
+  }
+
   .btn-sm {
     min-height: var(--touch-target);
     padding: var(--space-2) var(--space-3);
     border-radius: var(--radius-full, 999px);
-    border: 1px solid rgba(99, 102, 241, 0.25);
+    border: 1px solid rgba(40, 40, 40, 0.25);
     background: linear-gradient(
       135deg,
-      rgba(99, 102, 241, 0.04) 0%,
-      rgba(59, 130, 246, 0.02) 100%
+      rgba(40, 40, 40, 0.04) 0%,
+      rgba(58, 58, 58, 0.02) 100%
     );
     backdrop-filter: saturate(180%) blur(16px);
     -webkit-backdrop-filter: saturate(180%) blur(16px);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.95),
       inset 0 -1px 0 rgba(0, 0, 0, 0.04),
-      0 1px 3px rgba(99, 102, 241, 0.16);
+      0 1px 2px rgba(15, 23, 42, 0.04);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    text-decoration: none;
     display: inline-flex;
     align-items: center;
-    font-size: var(--font-size-sm);
-    color: var(--accent-700, #4338ca);
+    justify-content: center;
     cursor: pointer;
-    text-decoration: none;
-    transition: transform 150ms ease, background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+    white-space: nowrap;
   }
   .btn-sm:hover {
-    /* v0.3.18 #49: hover 0.12/0.09 → 0.08/0.06 (跟 base 0.04/0.02 同比例降级, hover 仍略亮) */
     background: linear-gradient(
       135deg,
-      rgba(99, 102, 241, 0.08) 0%,
-      rgba(59, 130, 246, 0.06) 100%
+      rgba(40, 40, 40, 0.10) 0%,
+      rgba(58, 58, 58, 0.06) 100%
     );
-    border-color: rgba(99, 102, 241, 0.32);
-    color: var(--accent-800, #3730a3);
-    transform: translateY(-1px);
     text-decoration: none;
   }
-  .btn-sm:active { transform: scale(0.97); }
-  @supports not (backdrop-filter: blur(1px)) {
-    /* v0.3.18 #49: fallback 0.12 → 0.08 (跟新 base 0.04/0.02 同比例降级) */
-    .btn-sm { background: rgba(99, 102, 241, 0.08); }
-  }
-  /* .ghost: 注销按钮 — 更弱化 (白玻璃非蓝玻璃)
-     v0.3.18 #49: bg 0.35/0.20 → 0.20/0.10 (跟 .btn-sm 同比例降级). border 0.15 → 0.20. */
-  .ghost {
+  .ghost.btn-sm {
     background: linear-gradient(
       135deg,
       rgba(255, 255, 255, 0.20) 0%,
       rgba(255, 255, 255, 0.10) 100%
     );
-    border-color: rgba(99, 102, 241, 0.20);
+    border-color: rgba(40, 40, 40, 0.20);
     color: var(--gray-700);
+    box-shadow: none;
   }
-  /* v0.3.18 #48: hover 0.85/0.65 → 0.50/0.35 (跟新 base 同比例降级) */
-  .ghost:hover {
+  .ghost.btn-sm:hover {
     background: linear-gradient(
       135deg,
       rgba(255, 255, 255, 0.50) 0%,
       rgba(255, 255, 255, 0.35) 100%
     );
-    color: var(--accent-700);
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));
   }
-  /* v0.3.18 #48: Safari iOS < 18 backdrop-filter fallback.
-     v0.3.20 #99: fallback 用更 opaque white (0.85) 替代前版 indigo 渐变 — 跟新
-     transparent glass bg 一致, 失去 blur 但仍提供文字可读性.
-     v0.3.20 #99-fix: 同步去 indigo 色. */
   @supports not (backdrop-filter: blur(1px)) {
+    .btn-sm { background: rgba(40, 40, 40, 0.08); }
     .navbar {
       background: rgba(255, 255, 255, 0.85);
     }
-    .ghost { background: rgba(255, 255, 255, 0.55); }
+    .ghost.btn-sm { background: rgba(255, 255, 255, 0.55); }
   }
 
-  /* v0.3.29 (UAT): NavBar 窄屏溢出防护
-   * - 收紧左右 padding
-   * - 让 right 的内容尽量在一行内可读，放不下时换行
-   * - 仍保持按钮 touch target min-height 不变 */
   @media (max-width: 380px) {
     .navbar {
       gap: var(--space-2);
@@ -245,5 +710,17 @@
     .right { gap: var(--space-1); }
     .btn-sm { padding-left: var(--space-2); padding-right: var(--space-2); }
     .email { max-width: 10ch; }
+    .ledger-title-text { font-size: 0.9rem; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ledger-title,
+    .ledger-title.visible,
+    .nav-chrome-full,
+    .nav-chrome-full.collapsed,
+    .avatar-menu,
+    .avatar-menu.expanded {
+      transition: none;
+    }
   }
 </style>
