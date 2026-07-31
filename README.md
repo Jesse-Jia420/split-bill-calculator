@@ -1,4 +1,4 @@
-# 轻均 FairLite
+# 轻均分账 FairLite
 
 极简分账，一链即平。
 
