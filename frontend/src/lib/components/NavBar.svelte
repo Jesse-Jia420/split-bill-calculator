@@ -88,12 +88,18 @@
     <a
       href="/"
       class="brand"
-      aria-label="轻均 FairLite"
+      aria-label="轻均分账 FairLite"
     >
       <span class="brand-zh" aria-hidden="true">
         <span class="brand-zh-inner">
           <span class="brand-zh-glass" aria-hidden="true">轻均</span>
           轻均
+        </span>
+      </span>
+      <span class="brand-zh brand-zh--en-size" aria-hidden="true">
+        <span class="brand-zh-inner">
+          <span class="brand-zh-glass" aria-hidden="true">分账</span>
+          分账
         </span>
       </span>
       <span class="brand-en">FairLite</span>
@@ -253,14 +259,14 @@
   .brand {
     display: inline-flex;
     align-items: baseline;
-    gap: 0.45rem;
+    gap: 0.4rem;
     color: var(--color-text);
     text-decoration: none;
     min-width: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 14rem;
+    max-width: 18rem;
     flex-shrink: 0;
   }
 
@@ -288,6 +294,14 @@
       0 0 0.4px rgba(0, 0, 0, 0.35),
       0 1px 0 rgba(255, 255, 255, 0.55),
       0 2px 6px rgba(0, 0, 0, 0.08);
+  }
+  /* 「分账」— 轻均同款玻璃细体，字号对齐 FairLite (.brand-en) */
+  .brand-zh--en-size .brand-zh-inner {
+    font-size: 0.78em;
+    line-height: 1.1;
+    letter-spacing: 0.12em;
+    text-indent: 0.12em;
+    -webkit-text-stroke: 0.4px rgba(0, 0, 0, 0.65);
   }
   .brand-zh-glass {
     position: absolute;
