@@ -125,7 +125,6 @@
     };
     vv?.addEventListener('resize', syncKeyboardInset);
     vv?.addEventListener('scroll', syncKeyboardInset);
-
     return () => {
       document.body.style.overflow = origBodyOverflow;
       document.body.style.overscrollBehavior = origBodyOverscroll;
@@ -140,8 +139,7 @@
       if (sheetEl) {
         sheetEl.style.bottom = '';
         sheetEl.style.maxHeight = '';
-      }
-    };
+      }    };
   });
 
   async function handleSubmit(payload: {
@@ -245,8 +243,7 @@
     padding: 0;
     animation: sheet-up 280ms cubic-bezier(0.32, 0.72, 0, 1) both;
     will-change: transform;
-    /* Shared class owns bottom:0 / radius / bg / ::after under-fill */
-  }
+    /* Shared class owns bottom:0 / radius / bg / ::after under-fill */  }
   .sheet.closing {
     animation: sheet-down 240ms cubic-bezier(0.32, 0.72, 0, 1) both;
   }

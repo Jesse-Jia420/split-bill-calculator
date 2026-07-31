@@ -637,8 +637,7 @@
               aria-label="汇率 (1 {primary_currency} = X {secondary})"
               data-testid="currency-add-rate"
             />
-            <span class="rate-suffix">{secondary || '消费币种'}</span>
-            <button
+            <span class="rate-suffix">{secondary || '消费币种'}</span>            <button
               type="button"
               class="rate-refresh"
               disabled={busy || secondary === '' || rateLoading}
@@ -1104,8 +1103,7 @@
     display: grid;
     place-items: center;
     cursor: pointer;
-    color: var(--btn-label, var(--logo-ink, #1a1a1a));
-  }
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));  }
   .rate-refresh:disabled {
     opacity: 0.45;
     cursor: not-allowed;

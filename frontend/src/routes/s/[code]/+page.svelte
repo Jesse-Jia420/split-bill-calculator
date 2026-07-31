@@ -851,8 +851,7 @@
              展开时 [空 | invite] 自然 right-align, 任何状态都能调 invite -->
         <div class="members-head-row2">
           <div class="members-row2-left">
-            {#if !membersOpen && session.members.length > 0}
-              <div class="members-avatars-inline" aria-hidden="true">
+            {#if !membersOpen && session.members.length > 0}              <div class="members-avatars-inline" aria-hidden="true">
                 {#each session.members.slice(0, 8) as m, i (m.id)}
                   <div class="avatar-mini palette-{i % 10}" title={m.display_name}>
                     {avatarLetter(m.display_name)}

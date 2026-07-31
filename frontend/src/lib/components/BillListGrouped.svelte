@@ -1058,8 +1058,7 @@
     background: none;
     border: none;
     padding: 0;
-    color: var(--btn-label, var(--logo-ink, #1a1a1a));
-    font: inherit;
+    color: var(--btn-label, var(--logo-ink, #1a1a1a));    font: inherit;
     text-decoration: underline;
     cursor: pointer;
   }

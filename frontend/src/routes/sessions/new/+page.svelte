@@ -384,11 +384,18 @@
               </button>
             </div>
             <p class="exchange-rate-hint">
-              {#if rateError}
+              {#if !secondaryCurrency}
+                请先选支付币种
+              {:else if rateError}
                 {rateError}，可手动填写
               {:else if rateFetchedAt}
-                获取于 {formatRateFetchedAt(rateFetchedAt)}
-              {/if}
+                参考汇率已填入{#if rateProviderDate}（市场日 {rateProviderDate}）{/if}
+                · 获取于 {formatRateFetchedAt(rateFetchedAt)}
+                · 1 {primaryCurrency} = {parseFloat(exchangeRate || '0').toFixed(4)} {secondaryCurrency}
+              {:else if !exchangeRate || parseFloat(exchangeRate) <= 0}
+                请输入大于 0 的汇率（或等待参考汇率）
+              {:else}
+                1 {primaryCurrency} = {parseFloat(exchangeRate).toFixed(4)} {secondaryCurrency}              {/if}
             </p>
           </div>
         {/if}
