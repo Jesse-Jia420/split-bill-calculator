@@ -385,7 +385,7 @@
   }
 </script>
 
-<div>
+<div class="settle-member-breakdown">
   {#if loading}
     <div class="skeleton-section" aria-busy="true" aria-label="加载中">
       <ul class="skeleton-list">
@@ -492,17 +492,17 @@
                 <!-- split: 按源币种分别展示 paid / consumed -->
                 {@const split = fmtSplitPaidAndConsumed(selectedMember)}
                 {#if split.consumed !== '-'}
-                  <span>consumed <strong>{split.consumed}</strong></span>
+                  <span class="hero-meta-consumed">consumed <strong>{split.consumed}</strong></span>
                   <span class="meta-sep" aria-hidden="true">·</span>
                 {/if}
                 {#if split.paid !== '-'}
-                  <span>paid <strong>{split.paid}</strong></span>
+                  <span class="hero-meta-paid">paid <strong>{split.paid}</strong></span>
                 {/if}
               {:else}
                 <!-- primary: BE 聚合 = primary_currency -->
-                <span>consumed <strong>{fmt($tweenConsumed)}</strong> <span class="meta-unit">{session.primary_currency}</span></span>
+                <span class="hero-meta-consumed">consumed <strong>{fmt($tweenConsumed)}</strong> <span class="meta-unit">{session.primary_currency}</span></span>
                 <span class="meta-sep" aria-hidden="true">·</span>
-                <span>paid <strong>{fmt($tweenPaid)}</strong> <span class="meta-unit">{session.primary_currency}</span></span>
+                <span class="hero-meta-paid">paid <strong>{fmt($tweenPaid)}</strong> <span class="meta-unit">{session.primary_currency}</span></span>
               {/if}
             </div>
           </div>
@@ -696,6 +696,15 @@
 </div>
 
 <style>
+  /* Soft charcoal companion accents — muted vs neon --success-500 (#10b981) /
+     --error-500 (#f43f5e). Sage green + dusty rose sit next to logo ink / soft charcoal. */
+  .settle-member-breakdown {
+    --settle-pos: #5e8a72;
+    --settle-neg: #a87878;
+    --settle-pos-border: rgba(94, 138, 114, 0.45);
+    --settle-neg-border: rgba(168, 120, 120, 0.5);
+  }
+
   /* === T9: Chip Redesign — filled pill ===
      v0.3.18 #55 (PO msg 21:44 #6588): 成员选择器横向滚动 fade 边距调整.
      - 右边 ::after width 32px → 20px (PO 反馈"模糊的 margin 值调小一点",
@@ -901,8 +910,8 @@
     /* default / inactive: gray-500 */
     color: var(--gray-500);
   }
-  .chip-net.pos { color: var(--success-500); }
-  .chip-net.neg { color: var(--error-500); }
+  .chip-net.pos { color: var(--settle-pos); }
+  .chip-net.neg { color: var(--settle-neg); }
   .chip-net.zero { color: var(--gray-500); }
   /* Selected chip: net numbers white */
   .member-chip.selected .chip-net { color: rgba(255,255,255,0.9); }
@@ -917,8 +926,8 @@
     color: var(--gray-500);
     line-height: 1.25;
   }
-  .chip-net-line.pos { color: var(--success-500); }
-  .chip-net-line.neg { color: var(--error-500); }
+  .chip-net-line.pos { color: var(--settle-pos); }
+  .chip-net-line.neg { color: var(--settle-neg); }
   .chip-net-line.zero { color: var(--gray-500); }
   .member-chip.selected .chip-net-line { color: rgba(255,255,255,0.9); }
   .member-chip.selected .chip-net-line.pos { color: white; }
@@ -962,8 +971,8 @@
     /* v0.3.18 #49: hero 金额白色微晕 (防低对比玻璃背景 + PO msg #6508) */
     text-shadow: 0 1px 3px rgba(255, 255, 255, 0.8);
   }
-  .hero-net.pos { color: var(--success-500); }
-  .hero-net.neg { color: var(--error-500); }
+  .hero-net.pos { color: var(--settle-pos); }
+  .hero-net.neg { color: var(--settle-neg); }
   .hero-net.zero { color: var(--gray-500); }
   /* hotfix #4: split-mode per-currency stack inside hero */
   .hero-net-multicur {
@@ -981,8 +990,8 @@
     /* v0.3.18 #49: split-mode 金额白色微晕 (防低对比玻璃 + PO msg #6508) */
     text-shadow: 0 1px 3px rgba(255, 255, 255, 0.8);
   }
-  .hero-net-line.pos { color: var(--success-500); }
-  .hero-net-line.neg { color: var(--error-500); }
+  .hero-net-line.pos { color: var(--settle-pos); }
+  .hero-net-line.neg { color: var(--settle-neg); }
   .hero-net-line.zero { color: var(--gray-500); }
   .settled-text {
     font-size: var(--font-size-2xl, 32px);
@@ -996,6 +1005,10 @@
     gap: var(--space-2, 8px);
     flex-wrap: wrap;
   }
+  .hero-meta-consumed { color: var(--settle-neg); }
+  .hero-meta-paid { color: var(--settle-pos); }
+  .hero-meta-consumed .meta-unit,
+  .hero-meta-paid .meta-unit { color: inherit; opacity: 0.85; }
   .hero-meta strong {
     font-weight: 500;
     font-variant-numeric: tabular-nums;
@@ -1069,9 +1082,9 @@
      由更具体的 `.bills-section.glass-sheet` 重设 (0,2,0) 启亮 border-left 3px (上面 .glass-sheet
      shorthand "0" 临到 .bills-section-paid / -consumed 时只覆盖 color, width 还是 .bills-section
      原 3px). 这样 sheet 是极透明玻璃 + 颜色竖条极淡, 设计锚点保留, 存在感大降. */
-  .bills-section-paid { border-left-color: rgba(34, 197, 94, 0.45); }
-  /* 消费明细: warm stone 色条 — 与副/消费币种 pill 同色系, 区别于付款绿与主色灰 */
-  .bills-section-consumed { border-left-color: rgba(120, 113, 108, 0.55); }
+  .bills-section-paid { border-left-color: var(--settle-pos-border); }
+  /* 消费明细: muted dusty-rose 色条 — 与消费/负净额主色一致 */
+  .bills-section-consumed { border-left-color: var(--settle-neg-border); }
   .bills-section-head {
     margin: 0 0 var(--space-2, 8px);
     /* === v0.3.16 #2: extend sticky bg past container's padding-left (PO msg 14:54) === */
@@ -1184,8 +1197,8 @@
     line-height: 1;
     color: #fff;
   }
-  .icon-paid { background: var(--success-500); }
-  .icon-consumed { background: #78716c; /* stone-500, 对齐消费币种 / 副币种 pill */ }
+  .icon-paid { background: var(--settle-pos); }
+  .icon-consumed { background: var(--settle-neg); }
   .bills-section-title { flex: 0 0 auto; }
   /* v0.3.17 #37: count 显式 14px 跟 chip font-size-md 视觉对位 */
   .bills-section-count { flex: 0 0 auto; font-weight: 400; font-size: var(--font-size-sm, 14px); }
