@@ -797,21 +797,27 @@
     outline: 2px solid var(--accent-500);
     outline-offset: 2px;
   }
-  /* T9 Active state: filled accent bg (保留实色, 玻璃态 OFF) */
+  /* Selected: soft charcoal glass — match IosSwitch「主币种汇总」thumb / btn-primary
+     (gradient #2c2c2c→#525252 + inset sheen), not flat near-black fill. */
   .member-chip.selected {
-    background: var(--accent-500);
-    border: 1px solid var(--accent-500);
+    background: linear-gradient(135deg, #2c2c2c 0%, #525252 100%);
+    border: 1px solid rgba(255, 255, 255, 0.35);
     color: white;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
+    backdrop-filter: saturate(180%) blur(12px);
+    -webkit-backdrop-filter: saturate(180%) blur(12px);
     box-shadow:
-      inset 0 1px 0 rgba(255,255,255,0.2),
-      var(--shadow-sm);
+      inset 0 1px 0 rgba(255, 255, 255, 0.4),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.08),
+      0 2px 6px rgba(40, 40, 40, 0.28);
   }
   .member-chip.selected:hover {
-    background: var(--accent-500);
-    border-color: var(--accent-500);
+    background: linear-gradient(135deg, #363636 0%, #5c5c5c 100%);
+    border-color: rgba(255, 255, 255, 0.42);
     color: white;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.48),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.1),
+      0 3px 8px rgba(40, 40, 40, 0.32);
   }
   /* Safari iOS < 18 fallback (无 backdrop-filter): 用 opaque 半透明白
      v0.3.18 #49: 0.60 → 0.40 (跟新 base 0.15/0.08 同比例降级, 保留可读性 fallback)
