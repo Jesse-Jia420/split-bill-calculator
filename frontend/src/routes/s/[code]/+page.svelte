@@ -1980,7 +1980,7 @@
       padding: 2px 7px 2px 5px;
     }
     .member-row-a {
-      grid-template-columns: 32px 1fr 28px;
+      grid-template-columns: 40px 1fr 28px;
       gap: 8px;
     }
     .avatar-a {
@@ -1988,7 +1988,6 @@
       height: 32px;
       font-size: 12px;
     }
-    .avatar-a { width: 32px; height: 32px; font-size: 12px; }
   }
 
   /* 移动端 ≤480px: row 紧凑 */
