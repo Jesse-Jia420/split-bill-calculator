@@ -25,3 +25,27 @@ export function maskEmail(email: string | null | undefined): string {
   const domain = email.slice(atIdx + 1);
   return localPart.charAt(0) + '***@' + domain;
 }
+
+/** True when value looks like an already-masked address (e.g. a***@x.com). */
+export function isMaskedEmail(email: string | null | undefined): boolean {
+  return !!email && email.includes('***');
+}
+
+/**
+ * Soft match for public-preview flows: compare mask(input) to a display mask.
+ * Exact raw match when `expectedRaw` is a real address (no ***).
+ */
+export function emailMatchesSlot(
+  input: string,
+  opts: { expectedRaw?: string; emailMasked?: string } = {}
+): boolean {
+  const trimmed = input.trim();
+  if (!trimmed) return false;
+  const raw = (opts.expectedRaw ?? '').trim();
+  if (raw && !isMaskedEmail(raw)) {
+    return trimmed.toLowerCase() === raw.toLowerCase();
+  }
+  const masked = (opts.emailMasked || (isMaskedEmail(raw) ? raw : '')).trim();
+  if (!masked) return true;
+  return maskEmail(trimmed).toLowerCase() === masked.toLowerCase();
+}
