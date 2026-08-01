@@ -1,4 +1,4 @@
-"""Email service — sends verification codes via Gmail SMTP.
+"""Email service — sends verification codes via Aliyun DirectMail SMTP.
 
 Reads SMTP credentials from settings and dispatches emails on demand.
 Errors are translated into a small, typed exception hierarchy so the
@@ -36,12 +36,12 @@ class EmailNetworkError(EmailError):
 
 
 # Subject prefixes & footer text used in the verification-code template.
-_SUBJECT_PREFIX = "[split-bill-calculator] Your verification code"
-_FROM_NAME = "split-bill-calculator"
+_SUBJECT_PREFIX = "[轻均分账 FairLite] 您的验证码"
+_FROM_NAME = "轻均分账 FairLite"
 
 
 class EmailService:
-    """Send transactional email (verification codes) via Gmail SMTP."""
+    """Send transactional email (verification codes) via Aliyun DirectMail SMTP."""
 
     def __init__(self, settings: "Settings") -> None:
         # Cache config so we don't reach into `settings` on every send.
@@ -118,14 +118,14 @@ class EmailService:
         """Construct the multipart email with plain-text + simple HTML."""
         subject = f"{_SUBJECT_PREFIX}: {code}"
         plain = (
-            f"Your split-bill-calculator verification code is: {code}\n\n"
-            f"This code expires in {ttl_minutes} minutes.\n"
-            "If you did not request this code, you can safely ignore this email.\n"
+            f"您的 轻均分账 FairLite 验证码是：{code}\n\n"
+            f"此验证码将在 {ttl_minutes} 分钟后过期。\n"
+            "如果您没有请求此验证码，可以直接忽略此邮件。\n"
         )
         html = (
-            f"<p>Your <strong>split-bill-calculator</strong> verification code is:"
+            f"<p>您的 <strong>轻均分账 FairLite</strong> 验证码是："
             f" <strong style='font-size:18px;letter-spacing:2px'>{code}</strong></p>"
-            f"<p>This code expires in {ttl_minutes} minutes.</p>"
+            f"<p>此验证码将在 {ttl_minutes} 分钟后过期。</p>"
             "<p style='color:#888;font-size:12px'>If you did not request this code, "
             "you can safely ignore this email.</p>"
         )
