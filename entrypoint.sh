@@ -2,6 +2,15 @@
 # split-bill-calculator entrypoint (反 #160 --host 0.0.0.0 + 反 #159 分次启)
 set -e
 
+echo "[entrypoint] ===BE 0: alembic upgrade head (建 DB schema)==="
+cd /app/backend
+alembic upgrade head 2>&1 | tee /tmp/alembic.log || {
+    echo "[entrypoint] alembic upgrade FAILED"
+    cat /tmp/alembic.log
+    exit 1
+}
+
+echo
 echo "[entrypoint] ===BE 1: 启 uvicorn (--host 0.0.0.0)==="
 cd /app/backend
 nohup python -m uvicorn app.main:app \
@@ -11,9 +20,10 @@ UVICORN_PID=$!
 echo "[entrypoint] BE_PID=$UVICORN_PID"
 
 echo
-echo "[entrypoint] ===BE 2: 启 sveltekit preview (--host 0.0.0.0)==="
+echo "[entrypoint] ===FE 2: 启 proxy-server (--host 0.0.0.0, /api/* → BE)==="
 cd /app/frontend
-nohup node build/index.js \
+PORT=8448 HOST=0.0.0.0 BE_URL=http://sbc-backend-cursor:8449 \
+    nohup node proxy-server.js \
     &>/tmp/sveltekit.log &
 FE_PID=$!
 echo "[entrypoint] FE_PID=$FE_PID"
