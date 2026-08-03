@@ -6,6 +6,27 @@ Mobile-first shared expense (AA) web app. Create a ledger, invite friends (inclu
 
 **Language:** the UI is currently Chinese-only. English i18n is not included yet.
 
+
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/iphone-sessions-list.png" alt="账本列表" width="260" />
+  <img src="docs/screenshots/iphone-session-detail.png" alt="账本详情（含多币种汇率 + 邀请）" width="260" />
+  <img src="docs/screenshots/iphone-bill-form.png" alt="新建账单" width="260" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/iphone-settle.png" alt="结算概览" width="260" />
+  <img src="docs/screenshots/iphone-settle-personal.png" alt="结算 - 个人视图" width="260" />
+</p>
+
+**Walk-through:**
+- **账本列表** — 一屏管多个账本, 玻璃质感卡片 + 人 icon 头像栈 + 角色标识 (OWNER / MEMBER).
+- **账本详情** — 成员管理 + 多币种汇率 (CNY ⇄ THB) + 账本链接邀请 + 账单列表 (按天分组, 含个人/共享消费标记).
+- **新建账单** — 算式输入 (`350/5` 自动计算) + 币种选择 + 日期 picker (iOS Safari 适配) + 付款人 + 分类 chip + 共享/独占切换.
+- **结算概览** — 推荐转账 + 每人净收/净付 (绿/红) + 已结算记录 + 玻璃化 pill.
+- **结算 - 个人视图** — 单人付款/消费明细 + 主币种汇总 + 原始数据 tab.
+
 ## Features
 
 - Multi-person ledgers with invite links and anonymous nickname slots
