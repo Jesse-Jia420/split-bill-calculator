@@ -17,7 +17,7 @@ Mobile-first shared expense (AA) web app. Create a ledger, invite friends (inclu
 
 <p align="center">
   <img src="docs/screenshots/iphone-settle.png" alt="结算概览" width="260" />
-  <img src="docs/screenshots/iphone-settle-personal.png" alt="结算 - 个人视图" width="260" />
+  <img src="docs/screenshots/iphone-settle-personal.png" alt="创建账本向导 (3 步 step)" width="260" />
 </p>
 
 **Walk-through:**
@@ -25,7 +25,7 @@ Mobile-first shared expense (AA) web app. Create a ledger, invite friends (inclu
 - **账本详情** — 成员管理 + 多币种汇率 (CNY ⇄ THB) + 账本链接邀请 + 账单列表 (按天分组, 含个人/共享消费标记).
 - **新建账单** — 算式输入 (`350/5` 自动计算) + 币种选择 + 日期 picker (iOS Safari 适配) + 付款人 + 分类 chip + 共享/独占切换.
 - **结算概览** — 推荐转账 + 每人净收/净付 (绿/红) + 已结算记录 + 玻璃化 pill.
-- **结算 - 个人视图** — 单人付款/消费明细 + 主币种汇总 + 原始数据 tab.
+- **创建账本向导** — 3 步流 (起名 → 人数 → 币种), 玻璃质感 input + 步骤指示器.
 
 ## Features
 
