@@ -10,15 +10,33 @@ Mobile-first shared expense (AA) web app. Create a ledger, invite friends (inclu
 ## Screenshots
 
 <p align="center">
-  <img src="docs/screenshots/iphone-sessions-list.png" alt="账本列表" width="260" />
-  <img src="docs/screenshots/iphone-session-detail.png" alt="账本详情" width="260" />
-  <img src="docs/screenshots/iphone-bill-list.png" alt="账单列表（按天分组）" width="260" />
+  <picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/iphone-sessions-list.png">
+  <img src="docs/screenshots/light/iphone-sessions-list.png" alt="账本列表" width="260" />
+</picture>
+  <picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/iphone-session-detail.png">
+  <img src="docs/screenshots/light/iphone-session-detail.png" alt="账本详情" width="260" />
+</picture>
+  <picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/iphone-bill-list.png">
+  <img src="docs/screenshots/light/iphone-bill-list.png" alt="账单列表（按天分组）" width="260" />
+</picture>
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/iphone-bill-form.png" alt="新建账单" width="260" />
-  <img src="docs/screenshots/iphone-settle.png" alt="结算概览（推荐转账 + 余额）" width="260" />
-  <img src="docs/screenshots/iphone-settle-personal.png" alt="结算 - 个人视图（付款/消费明细 + 主币种汇总）" width="260" />
+  <picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/iphone-bill-form.png">
+  <img src="docs/screenshots/light/iphone-bill-form.png" alt="新建账单" width="260" />
+</picture>
+  <picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/iphone-settle.png">
+  <img src="docs/screenshots/light/iphone-settle.png" alt="结算概览（推荐转账 + 余额）" width="260" />
+</picture>
+  <picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/iphone-settle-personal.png">
+  <img src="docs/screenshots/light/iphone-settle-personal.png" alt="结算 - 个人视图（付款/消费明细 + 主币种汇总）" width="260" />
+</picture>
 </p>
 
 **Walk-through:**
@@ -28,6 +46,8 @@ Mobile-first shared expense (AA) web app. Create a ledger, invite friends (inclu
 - **新建账单** — 算式输入 (`350/5` 自动计算) + 币种选择 + 日期 picker (iOS Safari 适配) + 付款人 + 分类 chip + 共享/独占切换.
 - **结算概览** — 推荐转账 + 每人净收/净付 (绿/红) + 已结算记录 + 玻璃化 pill.
 - **结算 - 个人视图** — 切换 tab 后展示单人付款明细 + 消费明细 + 主币种汇总.
+
+*Note: screenshots auto-switch between light and dark themes via `<picture>` element (GitHub markdown supports inline HTML).*
 
 ## Features
 
