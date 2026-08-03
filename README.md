@@ -59,6 +59,95 @@ Demo login (only when listed in `DEV_BYPASS_EMAILS`): `demo@example.com` + any 6
 
 See `docs/TEST_DATA_MATRIX.md` for the seeded ledger matrix.
 
+## Self-host with Docker
+
+A pre-built image is published to Docker Hub:
+
+**[`jessejiaclick1001/split-bill-calculator`](https://hub.docker.com/r/jessejiaclick1001/split-bill-calculator)**
+
+Current tags:
+
+| Tag | Notes |
+|-----|-------|
+| `cursor-arm64-v12` | Multi-stage image: FE build → Python 3.12 BE + Node 22 FE runtime; one image runs both backend (`:8449` internal) and frontend (`:8448` exposed). |
+
+> ⚠️ The image is built for `linux/arm64` (Oracle ARM / Apple Silicon / AWS Graviton). For `linux/amd64` hosts, build locally — see below.
+
+### Pull and run
+
+```bash
+docker pull jessejiaclick1001/split-bill-calculator:cursor-arm64-v12
+
+# Backend listens on 8449 (internal), frontend on 8448 (exposed).
+# Frontend proxies /api/* to backend over the sbc-net network.
+docker network create sbc-net
+
+docker run -d --name sbc-backend --network sbc-net \
+  -v "$(pwd)/data:/app/backend/data" \
+  -v "$(pwd)/backend/.env:/app/backend/.env:ro" \
+  jessejiaclick1001/split-bill-calculator:cursor-arm64-v12
+
+docker run -d --name sbc-frontend --network sbc-net \
+  -p 8448:8448 \
+  jessejiaclick1001/split-bill-calculator:cursor-arm64-v12
+```
+
+Open `http://localhost:8448`. Health check: `http://localhost:8449/version` (from the backend container).
+
+### Compose with pre-built image
+
+```yaml
+# docker-compose.prod.yml — pull from Docker Hub (no local build)
+services:
+  backend:
+    image: jessejiaclick1001/split-bill-calculator:cursor-arm64-v12
+    container_name: sbc-backend
+    command: ["/app/entrypoint.sh"]
+    expose: ["8449"]
+    volumes:
+      - ./data:/app/backend/data
+      - ./backend.env:/app/backend/.env:ro
+    environment:
+      - SBC_ENV=production
+      - SBC_SKIP_SEED=true
+      - SBC_SKIP_TEST_TRUNCATE=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8449/version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks: [sbc-net]
+
+  frontend:
+    image: jessejiaclick1001/split-bill-calculator:cursor-arm64-v12
+    container_name: sbc-frontend
+    command: ["/app/entrypoint.sh"]
+    ports: ["8448:8448"]
+    expose: ["8449"]
+    depends_on:
+      backend: { condition: service_healthy }
+    networks: [sbc-net]
+
+networks:
+  sbc-net: { driver: bridge }
+```
+
+`backend.env` should be a copy of `backend/.env.example` with `SECRET_KEY` filled in.
+
+### Build locally (alternative)
+
+The bundled `docker-compose.yml` uses `build:` for local dev — clone the repo and:
+
+```bash
+docker compose up backend frontend
+```
+
+Add the `cloudflared` service (`profiles: [tunnel]`) to expose via Cloudflare Tunnel once `CLOUDFLARE_TUNNEL_TOKEN` is set.
+
+`docker-compose.deploy.yml` is an internal sandbox / cursor variant (different ports and bind-mounted data paths) — not intended for public self-host.
+
 ## Common commands
 
 ```bash
@@ -75,10 +164,14 @@ cd frontend && npm run build
 ## Project layout
 
 ```
-backend/          FastAPI app, models, Alembic, seeds, tests
-frontend/         SvelteKit app, unit + e2e tests
-docs/             Architecture and contributor notes
-docker-compose.yml  Optional self-host sketch (see comments inside)
+backend/                  FastAPI app, models, Alembic, seeds, tests
+frontend/                 SvelteKit app, unit + e2e tests
+docs/                     Architecture and contributor notes
+Dockerfile                Local-build Dockerfile (build context = repo root)
+Dockerfile.deploy         Multi-stage Dockerfile that powers the Docker Hub image
+docker-compose.yml        Local-build self-host (build: from Dockerfile)
+docker-compose.deploy.yml Internal sandbox variant — not for public self-host
+docker-compose.prod.yml   Compose that pulls from Docker Hub (see Self-host section)
 ```
 
 More detail: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
