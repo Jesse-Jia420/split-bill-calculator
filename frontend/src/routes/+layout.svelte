@@ -28,6 +28,7 @@
   import { loadUser } from '$stores/user';
   import { page, navigating } from '$app/state';
   import { afterNavigate } from '$app/navigation';
+  import { isAuthLoginPath } from '$lib/utils/loginDraft';
 
   // Best-effort user load on every page mount.
   // v0.3.20 #99-fix5 (PO msg 14:29 #7602 padding-top 不够 + 透明度再降):
@@ -44,6 +45,10 @@
    * 切出浏览器 / App 后页面会被挂起, 切回时常先露出旧 UI ~2s 再自动刷新,
    * 用户会误以为可操作. 仅在 document.hidden 时盖 LoadingOverlay;
    * 切回时若仍是旧页则主动 reload.
+   *
+   * 登录页例外: 用户常切到邮件 App 查验证码; hard reload 会清空内存里的
+   * step=verify, 验证码输入框消失。登录页只撤 overlay, 不 reload;
+   * 草稿由 loginDraft (sessionStorage) 兜底.
    *
    * 不要用 pagehide/freeze 盖 overlay: 部分移动浏览器在 SPA 导航 /
    * 隧道页加载时会触发 pagehide, 而 pageshow 不会清掉 awayLoading,
@@ -66,6 +71,9 @@
     if (nav) ro.observe(nav);
     window.addEventListener("resize", syncNavbarHeight);
 
+    const onLoginFlow = () =>
+      isAuthLoginPath(page.url.pathname) || isAuthLoginPath(window.location.pathname);
+
     const coverAway = () => {
       // 只在真正不可见时盖住, 避免误触发后遮罩卡死在可见页上.
       if (!document.hidden) return;
@@ -80,7 +88,7 @@
       }
       // 切回可见: 短暂切后台 (<400ms, 如系统通知) 只撤 overlay, 不 reload.
       if (!awayLoading) return;
-      if (Date.now() - hiddenAt < 400) {
+      if (Date.now() - hiddenAt < 400 || onLoginFlow()) {
         awayLoading = false;
         return;
       }
@@ -94,7 +102,12 @@
     const onPageShow = (e: PageTransitionEvent) => {
       // bfcache 恢复: 旧 DOM 会直接露出来, 立刻硬刷新 (此时 document 已 visible,
       // 不走 coverAway; reload 本身会换文档).
+      // 登录 OTP 流程跳过 reload, 保留内存中的验证码步骤.
       if (e.persisted) {
+        if (onLoginFlow()) {
+          awayLoading = false;
+          return;
+        }
         try {
           window.location.reload();
         } catch {

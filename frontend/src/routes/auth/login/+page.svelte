@@ -6,6 +6,7 @@
   import { bindActingMember, getSessionPreview, getSessionPreviewByCode } from '$api/sessions';
   import { loadUser } from '$stores/user';
   import { toast } from '$stores/toast';
+  import { clearLoginDraft, loadLoginDraft, saveLoginDraft } from '$lib/utils/loginDraft';
 
   let email = '';
   let code = '';
@@ -55,6 +56,13 @@
 
     expired = page.url.searchParams.get('expired') === '1';
 
+    // Restore OTP step if user left for mail app and the tab remounted.
+    const draft = loadLoginDraft('/auth/login');
+    if (draft) {
+      email = draft.email;
+      step = 'verify';
+    }
+
     // §3.11.13: 在 loadUser 前 derive 上下文, 决定 H2 文案.
     await deriveLoginContext();
 
@@ -71,10 +79,17 @@
 
     const u = await loadUser();
     if (u) {
+      clearLoginDraft();
       // Already logged in -- go to /sessions (or returnTo if valid).
       await goto(returnTo ?? '/sessions', { replaceState: true });
     }
   });
+
+  function backToSend() {
+    step = 'send';
+    code = '';
+    clearLoginDraft();
+  }
 
   function sanitizeReturnTo(raw: string | null): string | null {
     if (!raw) return null;
@@ -163,6 +178,7 @@
       const res = await sendCode(trimmed);
       toast.success('验证码已发送 (' + res.ttl_minutes + ' 分钟内有效)');
       step = 'verify';
+      saveLoginDraft({ path: '/auth/login', email: trimmed });
     } catch (e: any) {
       const code = e?.code ?? '';
       if (code === 'rate limit exceeded') {
@@ -241,6 +257,7 @@
     busy = true;
     try {
       await verifyCode(email.trim(), trimmed);
+      clearLoginDraft();
       await loadUser();
       await tryBindActingMember();  // §3.11.14 新加
       // Navigate to safe returnTo (or default /sessions).
@@ -313,7 +330,7 @@
         <button class="btn btn-primary" onclick={handleVerify} disabled={busy}>
           {busy ? '验证中…' : '验证并登录'}
         </button>
-        <button class="btn glass-pill" onclick={() => { step = 'send'; code = ''; }} disabled={busy}>
+        <button class="btn glass-pill" onclick={backToSend} disabled={busy}>
           重新发送
         </button>
       </div>

@@ -35,6 +35,7 @@
   import { loadUser } from '$stores/user';
   import { toast } from '$stores/toast';
   import { emailMatchesSlot } from '$lib/utils/mask';
+  import { clearLoginDraft, loadLoginDraft, saveLoginDraft } from '$lib/utils/loginDraft';
 
   // 表单状态
   let email = $state('');
@@ -54,6 +55,15 @@
   let sessionName = $state('');  // 副副标题 "清迈" — 从 preview 拿
 
   onMount(async () => {
+    // Restore OTP step if user left for mail app and the tab remounted.
+    if (sessionId) {
+      const draft = loadLoginDraft(`/sessions/${sessionId}/login`);
+      if (draft) {
+        email = draft.email;
+        step = 'verify';
+      }
+    }
+
     // 拿 session 名称 (副副标题用)
     if (sessionId) {
       try {
@@ -67,6 +77,7 @@
     // 已登录用户: 直接跳走
     const u = await loadUser();
     if (u) {
+      clearLoginDraft();
       await goto(`/s/${page.url.searchParams.get('sessionCode') || sessionId}`, { replaceState: true });
     }
   });
@@ -90,6 +101,7 @@
       const res = await sendCode(trimmed);
       toast.success('验证码已发送 (' + res.ttl_minutes + ' 分钟内有效)');
       step = 'verify';
+      saveLoginDraft({ path: `/sessions/${sessionId}/login`, email: trimmed });
       // 60s 倒计时 (避免 spam / rate limit)
       codeCooldown = 60;
       const tick = setInterval(() => {
@@ -120,6 +132,7 @@
     busy = true;
     try {
       await verifyCode(email.trim(), trimmed);
+      clearLoginDraft();
       await loadUser();
       // Product C: after logging in as this nickname's email, bind/re-enter that seat.
       if (memberId) {
@@ -153,6 +166,7 @@
   }
 
   function goBack() {
+    clearLoginDraft();
     // 跳回 join 页 (用户决定不登录了, 用回现有 anon 加入流程)
     goto(`/sessions/${sessionId}/join`);
   }
