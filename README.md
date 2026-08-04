@@ -9,17 +9,21 @@ Mobile-first shared expense (AA) web app. Create a ledger, invite friends (inclu
 
 ## Screenshots
 
-> Screenshots omitted from the published package (slim pack). See `design-mocks/` directory for the source HTML mockups that can regenerate them.
-
 **Walk-through:**
 - **账本列表** — 一屏管多个账本, 玻璃质感卡片 + 人 icon 头像栈 + 角色标识 (OWNER / MEMBER).
+  ![Sessions list](docs/screenshots/iphone-sessions-list.png)
 - **账本详情** — 成员管理 + 多币种汇率 (CNY ⇄ THB) + 账本链接邀请 + 账单列表.
+  ![Session detail](docs/screenshots/iphone-session-detail.png)
 - **账单列表** — 按天分组的账单 + 每行含金额/币种/付款人/共享或独占标记 + 左滑删除/右滑编辑.
+  ![Bill list](docs/screenshots/iphone-bill-list.png)
 - **新建账单** — 算式输入 (`350/5` 自动计算) + 币种选择 + 日期 picker (iOS Safari 适配) + 付款人 + 分类 chip + 共享/独占切换.
+  ![Bill form](docs/screenshots/iphone-bill-form.png)
 - **结算概览** — 推荐转账 + 每人净收/净付 (绿/红) + 已结算记录 + 玻璃化 pill.
+  ![Settle](docs/screenshots/iphone-settle.png)
 - **结算 - 个人视图** — 切换 tab 后展示单人付款明细 + 消费明细 + 主币种汇总.
+  ![Settle personal](docs/screenshots/iphone-settle-personal.png)
 
-*Note: screenshots auto-switch between light and dark themes via `<picture>` element (GitHub markdown supports inline HTML).*
+*Source HTML mockup template is the iPhone 13 frame wrapper used to composite the raw page captures. Regenerate by capturing the 6 pages at 390×844 @2x and wrapping with the template (`width:362px height:816px`, `border-radius:42px`, status bar + Dynamic Island overlays).*
 
 ## Features
 
