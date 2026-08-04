@@ -1,0 +1,51 @@
+# docker-compose.prod.yml — pull pre-built image from Docker Hub (no local build)
+# Companion to README "Self-host with Docker" section.
+# Build context is NOT required: only this file + a populated backend.env.
+#
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Image source: https://hub.docker.com/r/jessejiaclick1001/split-bill-calculator
+# Tags: cursor-arm64-v12 (arm64 only — see README)
+
+services:
+  backend:
+    image: jessejiaclick1001/split-bill-calculator:cursor-arm64-v12
+    container_name: sbc-backend
+    command: ["/app/entrypoint.sh"]
+    expose:
+      - "8449"
+    volumes:
+      - ./data:/app/backend/data
+      - ./backend.env:/app/backend/.env:ro
+    environment:
+      - SBC_ENV=production
+      - SBC_SKIP_SEED=true
+      - SBC_SKIP_TEST_TRUNCATE=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8449/version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - sbc-net
+
+  frontend:
+    image: jessejiaclick1001/split-bill-calculator:cursor-arm64-v12
+    container_name: sbc-frontend
+    command: ["/app/entrypoint.sh"]
+    ports:
+      - "8448:8448"
+    expose:
+      - "8449"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - sbc-net
+
+networks:
+  sbc-net:
+    driver: bridge
