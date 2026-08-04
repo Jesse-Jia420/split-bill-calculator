@@ -109,7 +109,6 @@
   import type { SessionSummary } from "$api/sessions";
   import { formatDate } from "$lib/utils/format";
   import { apiFetch } from "$api/client";
-  import { goto } from "$app/navigation";
   import { toast } from "$stores/toast";
   import { removeSession } from "$stores/sessions";
   import { writable, get, type Writable } from "svelte/store";
@@ -433,8 +432,7 @@
       removeSession(session.id);
       showDeleteModal = false;
       toast.success(`账本「${session.name}」已删除`);
-      // 跳 /sessions 列表 (虽然 store 已更新, 但确保导航状态一致)
-      await goto("/sessions");
+      // Already on /sessions — store update is enough; avoid goto jump/scroll reset.
     } catch (err: any) {
       console.error("[SessionCard] delete failed:", err);
       const msg =
@@ -479,6 +477,7 @@
     {@const rowOffset = $isDraggingStore[session.id] ? ($dragOffsetStore[session.id] ?? 0) : ($swipeOffsetStore[session.id] ?? 0)}
     {@const rightProgress = rowOffset < 0 ? rubberBandProgress(-rowOffset) : 0}
     {@const canDelete = session.role === 'owner'}
+    {@const swipeOpen = rightProgress >= 1}
     <button
       type="button"
       class="delete-btn"
@@ -487,9 +486,12 @@
       data-owner={canDelete ? 'true' : 'false'}
       bind:this={deleteBtnEl}
       style="--swipe-progress: {rightProgress}"
-      tabindex={rightProgress >= 1 ? 0 : -1}
-      aria-hidden={rightProgress <= 0}
+      tabindex={swipeOpen ? 0 : -1}
+      aria-hidden={!swipeOpen}
       aria-label={canDelete ? `删除账本: ${session.name}` : `不可删除他人账本: ${session.name}`}
+      onpointerdown={(e) => e.stopPropagation()}
+      onmousedown={(e) => e.stopPropagation()}
+      ontouchstart={(e) => e.stopPropagation()}
       onclick={(e) => { e.stopPropagation(); onSwipeDelete(e); }}
     >
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -500,12 +502,12 @@
         <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
       </svg>
     </button>
-  {/if}
-  <a
-    href="/s/{session.session_code || String(session.id)}"
-    class="card-link"
-    style="--swipe-clip-right: {($isDraggingStore[session.id] || ($swipeOffsetStore[session.id] ?? 0) < 0) ? rubberBandProgress(-($dragOffsetStore[session.id] ?? $swipeOffsetStore[session.id] ?? 0)) : 0}"
-  >
+    <a
+      href="/s/{session.session_code || String(session.id)}"
+      class="card-link"
+      class:swipe-open={swipeOpen}
+      style="--swipe-clip-right: {($isDraggingStore[session.id] || ($swipeOffsetStore[session.id] ?? 0) < 0) ? rubberBandProgress(-($dragOffsetStore[session.id] ?? $swipeOffsetStore[session.id] ?? 0)) : 0}"
+    >
   <div class="session-card">
     <div class="row between">
       <!-- v0.3.23 #140 (UAT bug #7): 账本名称加 pill 玻璃效果.
@@ -583,6 +585,7 @@
     </div>
   </div>
   </a>
+  {/if}
 </div>
 
 <!-- v0.3.25 #16 (UAT: /sessions item 加红色删除按钮, owner only):
@@ -667,6 +670,11 @@
      * (跟 BillListGrouped v0.3.16 #14 hotfix 删 clip-path 同款 mechanism — button overlay on
      * top, 而不是挖洞让 button "露出来"). --swipe-clip-right CSS var 仍挂在 markup (line 432),
      * 但无 CSS rule 消费, 不影响视觉. 留 var 以备未来需要从 .session-card 上 read progress. */
+  }
+  /* When swipe is fully open, let the delete chip receive taps — the card link
+     otherwise sits under/over the hit target and intercepts clicks. */
+  .card-link.swipe-open {
+    pointer-events: none;
   }
   /* v0.3.18 #67 (PO #6865 反馈 #2 拍板 A — 单一玻璃):
    *   - 纯白玻璃 (回 v0318-62-task-1 拍板).
@@ -1023,6 +1031,14 @@
   /* v0.3.28: 阈值 (>= 1) 才允许点击, 避免 0~80px 之间误触 (跟 BillListGrouped 同款) */
   .delete-btn[aria-hidden="false"] {
     pointer-events: auto;
+  }
+  /* Same fix as BillListGrouped .bill-swipe-action:active — global
+     button:active { transform: scale(0.98) } would clobber translateY(-50%),
+     so the delete chip jumps from vertical center to the top and becomes
+     unclickable. Keep centering + press scale in one transform. */
+  .delete-btn:active {
+    transform: translateY(-50%) scale(0.97);
+    transform-origin: center;
   }
   .delete-btn:hover {
     background: linear-gradient(
