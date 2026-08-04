@@ -45,6 +45,10 @@
            /^\/s\/[A-Z0-9]+\/login/i.test(page.url.pathname);
   }
 
+  $: loginHref = inSession()
+    ? `/auth/login?returnTo=${encodeURIComponent(page.url.pathname + page.url.search)}`
+    : '/auth/login';
+
   function avatarLetter(name: string | null | undefined): string {
     const t = (name ?? '').trim();
     if (!t) return '?';
@@ -54,6 +58,18 @@
   function toggleMenu(e: MouseEvent) {
     e.stopPropagation();
     menuOpen = !menuOpen;
+  }
+
+  /** Guest compact「登」: go straight to login-to-save (no empty single-item menu).
+   *  Logged-in compact avatar: keep the dropdown (我的账本 / 注销). */
+  function onAvatarClick(e: MouseEvent) {
+    e.stopPropagation();
+    if (!$user) {
+      menuOpen = false;
+      void goto(loginHref);
+      return;
+    }
+    toggleMenu(e);
   }
 
   function onDocPointer(e: MouseEvent | TouchEvent) {
@@ -77,10 +93,6 @@
       document.removeEventListener('keydown', onKey);
     }
   });
-
-  $: loginHref = inSession()
-    ? `/auth/login?returnTo=${encodeURIComponent(page.url.pathname + page.url.search)}`
-    : '/auth/login';
 </script>
 
 <header class="navbar" class:compact data-testid="app-navbar">
@@ -161,41 +173,31 @@
           class:anon={!$user}
           aria-haspopup="menu"
           aria-expanded={menuOpen}
-          aria-label={$user ? `账户菜单：${$user.default_name}` : '账户菜单'}
+          aria-label={$user ? `账户菜单：${$user.default_name}` : guestSaveLabel ? '登录以保存' : '登录'}
           data-testid="navbar-avatar-btn"
           tabindex={compact ? 0 : -1}
-          onclick={toggleMenu}
+          onclick={onAvatarClick}
         >
           <span class="avatar-letter">
             {$user ? avatarLetter($user.default_name) : '登'}
           </span>
         </button>
-        {#if menuOpen && compact}
+        {#if menuOpen && compact && $user}
           <div class="avatar-popover" role="menu" data-testid="navbar-avatar-menu">
-            {#if $user}
-              <div class="menu-identity" role="presentation">
-                <span class="menu-name">{$user.default_name}</span>
-                {#if $user.email}
-                  <span class="menu-email" title={$user.email}>{$user.email}</span>
-                {/if}
-              </div>
-              {#if page.url.pathname !== '/sessions/new' && !isSessionsListPage()}
-                <a href="/sessions" class="menu-item" role="menuitem" onclick={() => (menuOpen = false)}>
-                  我的账本
-                </a>
+            <div class="menu-identity" role="presentation">
+              <span class="menu-name">{$user.default_name}</span>
+              {#if $user.email}
+                <span class="menu-email" title={$user.email}>{$user.email}</span>
               {/if}
-              <button type="button" class="menu-item danger" role="menuitem" onclick={handleLogout}>
-                注销登录
-              </button>
-            {:else if guestSaveLabel}
-              <a href={loginHref} class="menu-item" role="menuitem" onclick={() => (menuOpen = false)}>
-                登录以保存
-              </a>
-            {:else if !inSession()}
-              <a href="/auth/login" class="menu-item" role="menuitem" onclick={() => (menuOpen = false)}>
-                登录
+            </div>
+            {#if page.url.pathname !== '/sessions/new' && !isSessionsListPage()}
+              <a href="/sessions" class="menu-item" role="menuitem" onclick={() => (menuOpen = false)}>
+                我的账本
               </a>
             {/if}
+            <button type="button" class="menu-item danger" role="menuitem" onclick={handleLogout}>
+              注销登录
+            </button>
           </div>
         {/if}
       </div>

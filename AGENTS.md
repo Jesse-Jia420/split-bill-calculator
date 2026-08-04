@@ -32,3 +32,5 @@ See root `README.md` and `CONTRIBUTING.md`. Non-obvious notes:
 - Architecture overview: `docs/ARCHITECTURE.md`. Open-source polish backlog: `docs/OPEN_SOURCE_READINESS.md`.
 - **Anon device secret ≠ invite link.** `nickname_secret` (localStorage `sbc.actingAs.*`) proves a seat on one device; invite `session_code` / `invite_token` stay stable. Login bind/claim clears `nickname_secret` (FE should drop LS keys). One logged-in user may occupy only one nickname per ledger (`already_a_member` 409).
 - **Expired anon ledgers** (7-day inactivity, no logged-in member): BE sets `archived=True` and returns **410** on member-gated routes (including bill/settle via `get_session_member_or_secret`). Archived sessions are omitted from `GET /sessions`.
+- **Away reload skip:** `shouldSkipAwayReload` in `$lib/utils/skipAwayReload` — `/auth/login`, `/sessions/{id}/login`, and `/s/{code}` bill-list detail skip the global visibility hard-reload (OTP / undo queue / fold state).
+- **Members section** on `/s/{code}` defaults **collapsed**; anon bookmark hint may force open until a member is permanently saved (`user_id` bound).

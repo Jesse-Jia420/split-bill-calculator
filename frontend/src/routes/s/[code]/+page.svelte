@@ -112,8 +112,40 @@
     deleting?: boolean;
     /** 重建进行中: 防止用户连点多次触发多个 POST。 */
     restoring?: boolean;
+    /** Epoch ms when the 5s undo window ends. */
+    expiresAt: number;
   }>>([]);
   let nextUndoId = 1;
+  /** Drives countdown label + fade; ticks while undoQueue non-empty. */
+  let undoNow = $state(Date.now());
+  const UNDO_TTL_MS = 5000;
+  let undoTicker: ReturnType<typeof setInterval> | null = null;
+
+  function ensureUndoTicker() {
+    if (undoTicker !== null || typeof window === 'undefined') return;
+    undoTicker = setInterval(() => {
+      undoNow = Date.now();
+      const alive = undoQueue.filter((u) => u.expiresAt > undoNow);
+      if (alive.length !== undoQueue.length) {
+        undoQueue = alive;
+      }
+      if (undoQueue.length === 0 && undoTicker !== null) {
+        clearInterval(undoTicker);
+        undoTicker = null;
+      }
+    }, 100);
+  }
+
+  function undoRemainingSec(entry: { expiresAt: number }): number {
+    return Math.max(0, Math.ceil((entry.expiresAt - undoNow) / 1000));
+  }
+
+  function undoFadeOpacity(entry: { expiresAt: number }): number {
+    const left = entry.expiresAt - undoNow;
+    if (left <= 0) return 0;
+    // Linear fade over the full 5s window (1 → 0).
+    return Math.max(0, Math.min(1, left / UNDO_TTL_MS));
+  }
 
   // v0.1.4 round 2: 一旦用了 $state runes, 整个组件就进入 runes mode,
   // 原 Svelte 4 风格的 `$:` 不再允许, 全部改用 $derived。
@@ -305,10 +337,17 @@
     };
   });
 
-  // v0.1.4 round 2 改动 1: 重新加回 members 折叠 toggle。
-  // 默认展开; 用户折叠后按 sessionId 持久化到 localStorage。
-  let membersOpen = $state(true);
+  // Members section: default collapsed when entering bill list.
+  // Anon first-visit hint forces open; preference restored after load() with real sessionId.
+  let membersOpen = $state(false);
   const membersStorageKey = (sid: number) => `sbc.membersOpen.${sid}`;
+
+  /** Once any member is bound to a user, permanent-save UI: clear rainbow + left hint. */
+  $effect(() => {
+    if (!hasClaimedMember) return;
+    showBreathing = false;
+    showAnonHint = false;
+  });
 
   // Reload when the public code in the URL changes (SvelteKit may reuse this page).
   let lastLoadedCode = $state('');
@@ -319,24 +358,35 @@
     void load();
   });
 
-  onMount(async () => {
+  onMount(() => {
+    // Cleanup undo TTL ticker on leave.
+    const stopTicker = () => {
+      if (undoTicker !== null) {
+        clearInterval(undoTicker);
+        undoTicker = null;
+      }
+    };
+
+    void (async () => {
     // Bug fix (PO 14:01 报 "登录态 email 这里还是没有正常显示"):
     // detail page 之前**不**调 loadUser, $user store 永远 null, member list fallback
     // (m.user_id === $user.user_id 显 $user.email) 永远 false → owner "me" 行没 email.
     // loadUser() 调 /api/auth/me 拿 user_id + email + default_name.
     await loadUser();
 
-    // 还原 localStorage 折叠偏好
-    try {
-      const raw = localStorage.getItem(membersStorageKey(session?.id ?? 0));
-      if (raw !== null) membersOpen = raw === 'true';
-    } catch {
-      // ignore — SSR or storage disabled
-    }
-
     await load();
     lastLoadedCode = code;
     pageReady = true;
+
+    // Restore fold preference AFTER load so sessionId is real (was reading .0 before).
+    try {
+      if (sessionId) {
+        const raw = localStorage.getItem(membersStorageKey(sessionId));
+        if (raw !== null) membersOpen = raw === 'true';
+      }
+    } catch {
+      // ignore — SSR or storage disabled
+    }
 
     // Deep links from legacy /bills/new and /bills/{id}/edit.
     if (browser && session) {
@@ -357,34 +407,20 @@
       }
     }
 
-    // v0.3.31 #2 (UAT 0725-2 #2, PO msg ~20:03 字面):
-    //   "匿名用户创建账本,首次进入账单页时,邀请链接按钮高亮呼吸。
-    //    下方的提示目前是"邀请朋友加入,开始分摊第一笔账单吧",
-    //    改为"当前未登录,请收藏此链接,这是您回到此账本的唯一密钥！""
-    // 触发条件:
-    //   1) session.members[0]?.user_id === null → owner 匿名创建 (即 anon owner)
-    //   2) sessionStorage 没有 sbc-visited-{session.id} 标记 → 首次进入账单页
-    // 满足两条件则:
-    //   - showBreathing = true → InviteLinkButton 加 .invite-btn-breathing (1.5s 紫光晕 + scale 1↔1.02)
-    //   - showAnonHint = true → 邀请链接按钮左侧红色提醒 pill (紧挨邀请按钮)
-    //   - 立即写 sessionStorage, 刷新/重进不重触 (PO 明确 "首次进入")
-    // 不满足 (已认领 member / 二次访问) → 两个 flag 保持 false, 既不呼吸也不显 pill.
-    // 注: members 在 load() 后已就绪, 此时 session.members[0].user_id 反映 owner 是否匿名.
+    // Anon owner bookmark hint + breathing invite (skip when already permanently saved).
     if (browser) {
       const isAnonOwner = !session?.members?.[0]?.user_id;
-      // v0.3.36 #16 (UAT 0727-1): sbc-visited -> sbc-invite-actioned, onMount read only
-      //   Jesse msg 2026-07-27 23:35 'f.邀请链接被使用过才行'.
-      //   默认 showBreathing/showAnonHint 都 true (PO 字面 '一直显示此提醒'),
-      //   不立即写 sessionStorage — 只有 InviteLinkButton 真的派 copy/open 事件才写.
       const actionedKey = `sbc-invite-actioned-${session?.id ?? ''}`;
       const sessionActioned = sessionStorage.getItem(actionedKey);
-      if (isAnonOwner && !sessionActioned) {
+      if (isAnonOwner && !sessionActioned && !hasClaimedMember) {
         showBreathing = true;
         showAnonHint = true;
-        // v0.3.0729-3 #2: 显示未登录提示时，成员 section 强制展开
         membersOpen = true;
       }
     }
+    })();
+
+    return stopTicker;
   });
 
   /**
@@ -612,7 +648,12 @@
         exclusive_amount: Number(p.exclusive_amount) || 0,
       })),
     };
-    const undoEntry = { id: nextUndoId++, snapshot, deleting: true };
+    const undoEntry = {
+      id: nextUndoId++,
+      snapshot,
+      deleting: true,
+      expiresAt: Date.now() + UNDO_TTL_MS,
+    };
 
     // 1) 乐观删除 — 立即从 UI 移除。
     bills = bills.filter((b) => b.id !== billId);
@@ -621,12 +662,10 @@
     //    disabled, 防止与 DELETE 竞态 (用户早于 DELETE 完成点撤销会先 POST 重建,
     //    然后 DELETE 又把新 bill 删了)。
     undoQueue = [...undoQueue, undoEntry];
+    undoNow = Date.now();
+    ensureUndoTicker();
 
-    // 3) Toast 立即弹出 (UX 优先 — 不等 DELETE 完成)。
-    const deleteLabel = snapshot.description
-      ? `已删除「${snapshot.description}」`
-      : '已删除账单';
-    toast.show(deleteLabel, 'info', 5000);
+    // Undo banner carries its own 5s countdown + fade (no duplicate info toast).
 
     try {
       await deleteBill(sessionId, billId);
@@ -1145,18 +1184,23 @@
     </div>
 
     {#if undoQueue.length > 0}
-      <!-- v0.2.1 T04: Undo banner (5s 自动消失)。每条 undoEntry 独立倒计时。
-           多个删除栈叠, 后删的在最上面 (LIFO 视觉)。点击 [撤销] 立即恢复该 bill,
-           其他条目继续倒计时。-->
+      <!-- Undo banner: 5s countdown + linear fade on toast + 撤销 button. -->
       <div class="undo-stack" aria-live="polite">
         {#each [...undoQueue].reverse() as entry (entry.id)}
           {@const label = entry.snapshot.description ?? '(无说明)'}
-          <div class="undo-toast" class:busy={entry.deleting || entry.restoring}>
+          {@const sec = undoRemainingSec(entry)}
+          {@const fade = undoFadeOpacity(entry)}
+          <div
+            class="undo-toast"
+            class:busy={entry.deleting || entry.restoring}
+            style="opacity: {fade}"
+          >
             <span class="undo-msg">已删除「{label}」</span>
+            <span class="undo-countdown" aria-hidden="true">{sec}s</span>
             <button
               type="button"
               class="undo-btn"
-              disabled={entry.deleting || entry.restoring}
+              disabled={entry.deleting || entry.restoring || sec <= 0}
               onclick={() => undoDelete(entry.id)}
             >{entry.restoring ? '恢复中…' : entry.deleting ? '删除中…' : '撤销'}</button>
           </div>
@@ -2380,10 +2424,20 @@
     font-size: var(--font-size-sm, 14px);
     white-space: nowrap;
     max-width: 100%;
+    /* Opacity driven inline from remaining undo TTL (1 → 0 over 5s). */
+    transition: none;
   }
   .undo-msg {
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .undo-countdown {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    font-size: 0.8125rem;
+    color: rgba(255, 255, 255, 0.72);
+    min-width: 1.75rem;
+    text-align: center;
   }
   .undo-btn {
     appearance: none;
