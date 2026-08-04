@@ -41,18 +41,17 @@
     document.documentElement.style.setProperty("--navbar-h", rect.height + "px");
   }
 
-  /**
-   * 切出浏览器 / App 后页面会被挂起, 切回时常先露出旧 UI ~2s 再自动刷新,
-   * 用户会误以为可操作. 仅在 document.hidden 时盖 LoadingOverlay;
-   * 切回时若仍是旧页则主动 reload.
-   *
-   * 例外 (shouldSkipAwayReload): 登录 OTP、账单列表页 — hard reload 会清空
-   * 验证码步骤 / 撤销队列 / 折叠态等内存 UI.
-   *
-   * 不要用 pagehide/freeze 盖 overlay: 部分移动浏览器在 SPA 导航 /
-   * 隧道页加载时会触发 pagehide, 而 pageshow 不会清掉 awayLoading,
-   * 账单列表会留下大块白色遮罩 (UAT).
-   */
+/**
+ * 切出浏览器 / App 后页面会被挂起, 切回时常先露出旧 UI ~2s 再自动刷新,
+ * 用户会误以为可操作. 仅在 document.hidden 时盖 LoadingOverlay;
+ * 切回时若仍是旧页则主动 reload.
+ *
+ * 例外 (shouldSkipAwayReload): 登录 OTP — hard reload 会清空验证码步骤.
+ *
+ * 不要用 pagehide/freeze 盖 overlay: 部分移动浏览器在 SPA 导航 /
+ * 隧道页加载时会触发 pagehide, 而 pageshow 不会清掉 awayLoading,
+ * 账单列表会留下大块白色遮罩 (UAT).
+ */
   let awayLoading = $state(false);
   let hiddenAt = 0;
 
